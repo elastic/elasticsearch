@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.action;
 
@@ -38,6 +39,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
+        private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
 
         public Request(String[] names) {
             this.names = names;
@@ -55,12 +57,18 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readOptionalStringArray();
+            if (in.getVersion().onOrAfter(DataStream.NEW_FEATURES_VERSION)) {
+                this.indicesOptions = IndicesOptions.readIndicesOptions(in);
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalStringArray(names);
+            if (out.getVersion().onOrAfter(DataStream.NEW_FEATURES_VERSION)) {
+                indicesOptions.writeIndicesOptions(out);
+            }
         }
 
         @Override
@@ -68,12 +76,15 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Arrays.equals(names, request.names);
+            return Arrays.equals(names, request.names) &&
+                indicesOptions.equals(request.indicesOptions);
         }
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(names);
+            int result = Objects.hash(indicesOptions);
+            result = 31 * result + Arrays.hashCode(names);
+            return result;
         }
 
         @Override
@@ -83,9 +94,12 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         @Override
         public IndicesOptions indicesOptions() {
-            // this doesn't really matter since data stream name resolution isn't affected by IndicesOptions and
-            // a data stream's backing indices are retrieved from its metadata
-            return IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+            return indicesOptions;
+        }
+
+        public Request indicesOptions(IndicesOptions indicesOptions){
+            this.indicesOptions = indicesOptions;
+            return this;
         }
 
         @Override
@@ -108,6 +122,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public static final ParseField STATUS_FIELD = new ParseField("status");
             public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
             public static final ParseField ILM_POLICY_FIELD = new ParseField("ilm_policy");
+            public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
 
             DataStream dataStream;
             ClusterHealthStatus dataStreamStatus;
@@ -159,6 +174,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName(), dataStream.getTimeStampField());
                 builder.field(DataStream.INDICES_FIELD.getPreferredName(), dataStream.getIndices());
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
+                if (dataStream.getMetadata() != null) {
+                    builder.field(DataStream.METADATA_FIELD.getPreferredName(), dataStream.getMetadata());
+                }
                 builder.field(STATUS_FIELD.getPreferredName(), dataStreamStatus);
                 if (indexTemplate != null) {
                     builder.field(INDEX_TEMPLATE_FIELD.getPreferredName(), indexTemplate);
@@ -166,6 +184,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
                 }
+                builder.field(HIDDEN_FIELD.getPreferredName(), dataStream.isHidden());
                 builder.endObject();
                 return builder;
             }

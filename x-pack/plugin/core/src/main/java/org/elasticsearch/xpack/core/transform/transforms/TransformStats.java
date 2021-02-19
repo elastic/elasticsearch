@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
@@ -263,7 +264,6 @@ public class TransformStats implements Writeable, ToXContentObject {
             } else if (taskState == TransformTaskState.FAILED) {
                 return FAILED;
             } else {
-
                 // If we get here then the task state must be started, and that means we should have an indexer state
                 assert (taskState == TransformTaskState.STARTED);
                 assert (indexerState != null);
@@ -276,7 +276,7 @@ public class TransformStats implements Writeable, ToXContentObject {
                     case STOPPING:
                         return STOPPING;
                     case STOPPED:
-                        return STOPPED;
+                        return STOPPING;
                     case ABORTING:
                         return ABORTING;
                     default:
@@ -288,6 +288,11 @@ public class TransformStats implements Writeable, ToXContentObject {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeEnum(this);
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
 
         public String value() {
@@ -304,12 +309,12 @@ public class TransformStats implements Writeable, ToXContentObject {
                 case ABORTING:
                     return new Tuple<>(TransformTaskState.STARTED, IndexerState.ABORTING);
                 case STOPPING:
-                    return new Tuple<>(TransformTaskState.STARTED, IndexerState.STOPPING);
-                case STOPPED:
-                    // This one is not deterministic, because an overall state of STOPPED could arise
-                    // from either (STOPPED, null) or (STARTED, STOPPED). However, (STARTED, STOPPED)
+                    // This one is not deterministic, because an overall state of STOPPING could arise
+                    // from either (STARTED, STOPPED) or (STARTED, STOPPING). However, (STARTED, STOPPED)
                     // is a very short-lived state so it's reasonable to assume the other, especially
                     // as this method is only for mixed version cluster compatibility.
+                    return new Tuple<>(TransformTaskState.STARTED, IndexerState.STOPPING);
+                case STOPPED:
                     return new Tuple<>(TransformTaskState.STOPPED, null);
                 case FAILED:
                     return new Tuple<>(TransformTaskState.FAILED, null);

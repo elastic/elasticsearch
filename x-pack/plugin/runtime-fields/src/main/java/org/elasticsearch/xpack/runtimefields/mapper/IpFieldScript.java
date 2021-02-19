@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.runtimefields.mapper;
@@ -12,8 +13,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.mapper.IpFieldMapper;
-import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -21,7 +20,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -41,10 +39,6 @@ import java.util.Map;
 public abstract class IpFieldScript extends AbstractFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("ip_script_field", Factory.class);
 
-    static List<Whitelist> whitelist() {
-        return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "ip_whitelist.txt"));
-    }
-
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 
@@ -55,6 +49,26 @@ public abstract class IpFieldScript extends AbstractFieldScript {
     public interface LeafFactory {
         IpFieldScript newInstance(LeafReaderContext ctx);
     }
+
+    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new IpFieldScript(
+        field,
+        params,
+        lookup,
+        ctx
+    ) {
+        @Override
+        public void execute() {
+            for (Object v : extractFromSource(field)) {
+                if (v instanceof String) {
+                    try {
+                        emit((String) v);
+                    } catch (Exception e) {
+                        // ignore parsing exceptions
+                    }
+                }
+            }
+        }
+    };
 
     private BytesRef[] values = new BytesRef[1];
     private int count;
@@ -97,7 +111,10 @@ public abstract class IpFieldScript extends AbstractFieldScript {
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
         }
-        values[count++] = new BytesRef(InetAddressPoint.encode(InetAddresses.forString(v)));
+        BytesRef encoded = new BytesRef(InetAddressPoint.encode(InetAddresses.forString(v)));
+        // encode the address and increment the count on separate lines, to ensure that
+        // we don't increment if the address is badly formed
+        values[count++] = encoded;
     }
 
     public static class Emit {

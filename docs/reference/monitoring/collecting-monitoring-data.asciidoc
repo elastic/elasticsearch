@@ -42,7 +42,7 @@ For more information, see <<monitoring-settings>> and <<cluster-update-settings>
 --
 
 .. Set the `xpack.monitoring.collection.enabled` setting to `true` on each
-node in the cluster. By default, it is is disabled (`false`).
+node in the cluster. By default, it is disabled (`false`).
 +
 --
 NOTE: You can specify this setting in either the `elasticsearch.yml` on each

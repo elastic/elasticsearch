@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -26,6 +15,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -38,9 +28,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ExpandSearchPhaseTests extends ESTestCase {
 
@@ -58,6 +52,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
             AtomicBoolean executedMultiSearch = new AtomicBoolean(false);
             QueryBuilder originalQuery = randomBoolean() ? null : QueryBuilders.termQuery("foo", "bar");
+            Map<String, Object> runtimeMappings = randomBoolean() ? emptyMap() : AbstractSearchTestCase.randomRuntimeMappings();
 
             final MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
             String collapseValue = randomBoolean() ? null : "boom";
@@ -66,7 +61,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 .collapse(new CollapseBuilder("someField")
                     .setInnerHits(IntStream.range(0, numInnerHits).mapToObj(hitNum -> new InnerHitBuilder().setName("innerHit" + hitNum))
                         .collect(Collectors.toList()))));
-            mockSearchPhaseContext.getRequest().source().query(originalQuery);
+            mockSearchPhaseContext.getRequest().source().query(originalQuery).runtimeMappings(runtimeMappings);
             mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
                 @Override
                 void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
@@ -85,7 +80,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                         assertThat(groupBuilder.must(), Matchers.contains(QueryBuilders.termQuery("foo", "bar")));
                     }
                     assertArrayEquals(mockSearchPhaseContext.getRequest().indices(), searchRequest.indices());
-
+                    assertThat(searchRequest.source().runtimeMappings(), equalTo(runtimeMappings));
 
                     List<MultiSearchResponse.Item> mSearchResponses = new ArrayList<>(numInnerHits);
                     for (int innerHitNum = 0; innerHitNum < numInnerHits; innerHitNum++) {

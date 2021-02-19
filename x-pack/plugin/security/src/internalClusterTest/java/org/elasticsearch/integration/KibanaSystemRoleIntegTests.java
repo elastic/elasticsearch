@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.integration;
 
@@ -11,6 +12,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.util.Locale;
@@ -21,7 +23,7 @@ import static org.hamcrest.Matchers.is;
 
 public class KibanaSystemRoleIntegTests extends SecurityIntegTestCase {
 
-    protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
+    protected static final SecureString USERS_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
     @Override
     public String configUsers() {

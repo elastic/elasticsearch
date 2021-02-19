@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -61,12 +62,13 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
+        final IndexMetadata sourceIndexMetadata = sourceIndexMetadataBuilder.build();
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder().put(sourceIndexMetadataBuilder).build()
+            Metadata.builder().put(sourceIndexMetadata, false).build()
         ).build();
 
         expectThrows(IllegalStateException.class,
-            () -> createRandomInstance().performAction(sourceIndexMetadataBuilder.build().getIndex(), clusterState));
+            () -> createRandomInstance().performAction(sourceIndexMetadata.getIndex(), clusterState));
     }
 
     public void testPerformActionThrowsExceptionIfIndexIsTheDataStreamWriteIndex() {

@@ -1,35 +1,44 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.action;
+
+import java.util.Arrays;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
-import java.util.Arrays;
-
 import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
 import static org.hamcrest.Matchers.arrayWithSize;
 
 public class BasicFormatterTests extends ESTestCase {
     private final FormatOption format = randomFrom(FormatOption.values());
-    private final SqlQueryResponse firstResponse = new SqlQueryResponse("", format == CLI ? Mode.CLI : Mode.PLAIN, false,
-            Arrays.asList(
-                    new ColumnInfo("", "foo", "string", 0),
-                    new ColumnInfo("", "bar", "long", 15),
-                    new ColumnInfo("", "15charwidename!", "double", 25),
-                    new ColumnInfo("", "null_field1", "integer", 0),
-                    new ColumnInfo("", "superduperwidename!!!", "double", 25),
-                    new ColumnInfo("", "baz", "keyword", 0),
-                    new ColumnInfo("", "date", "datetime", 24),
-                    new ColumnInfo("", "null_field2", "keyword", 0)),
-            Arrays.asList(
-                Arrays.asList("15charwidedata!", 1, 6.888, null, 12, "rabbit", "1953-09-02T00:00:00.000Z", null),
-                Arrays.asList("dog", 1.7976931348623157E308, 123124.888, null, 9912, "goat", "2000-03-15T21:34:37.443Z", null)));
+    private final SqlQueryResponse firstResponse = new SqlQueryResponse(
+        "",
+        format == CLI ? Mode.CLI : Mode.PLAIN,
+        DATE_NANOS_SUPPORT_VERSION,
+        false,
+        Arrays.asList(
+            new ColumnInfo("", "foo", "string", 0),
+            new ColumnInfo("", "bar", "long", 15),
+            new ColumnInfo("", "15charwidename!", "double", 25),
+            new ColumnInfo("", "null_field1", "integer", 0),
+            new ColumnInfo("", "superduperwidename!!!", "double", 25),
+            new ColumnInfo("", "baz", "keyword", 0),
+            new ColumnInfo("", "date", "datetime", 24),
+            new ColumnInfo("", "null_field2", "keyword", 0)
+        ),
+        Arrays.asList(
+            Arrays.asList("15charwidedata!", 1, 6.888, null, 12, "rabbit", "1953-09-02T00:00:00.000Z", null),
+            Arrays.asList("dog", 1.7976931348623157E308, 123124.888, null, 9912, "goat", "2000-03-15T21:34:37.443Z", null)
+        )
+    );
     private final BasicFormatter formatter = new BasicFormatter(firstResponse.columns(), firstResponse.rows(), format);
 
     /**

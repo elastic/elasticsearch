@@ -93,7 +93,7 @@ field mapping is added to future backing indices created for the stream.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<indices-templates,put index template>> request adds a mapping
+The following <<index-templates,put index template>> request adds a mapping
 for a new field, `message`, to the template.
 
 [source,console]
@@ -102,7 +102,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
-  "priority": 200,
+  "priority": 500,
   "template": {
     "mappings": {
       "properties": {
@@ -175,7 +175,7 @@ field mapping is added to future backing indices created for the stream.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<indices-templates,put index template>> request changes the
+The following <<index-templates,put index template>> request changes the
 argument for the `host.ip` field's <<ignore-malformed,`ignore_malformed`>>
 mapping parameter to `true`.
 
@@ -185,7 +185,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
-  "priority": 200,
+  "priority": 500,
   "template": {
     "mappings": {
       "properties": {
@@ -281,7 +281,7 @@ applied to future backing indices created for the stream.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<indices-templates,put index template>> request changes the
+The following <<index-templates,put index template>> request changes the
 template's `index.refresh_interval` index setting to `30s` (30 seconds).
 
 [source,console]
@@ -290,7 +290,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
-  "priority": 200,
+  "priority": 500,
   "template": {
     "settings": {
       "index.refresh_interval": "30s"             <1>
@@ -335,7 +335,7 @@ backing index created after the update.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<indices-templates,put index template API>> requests adds new
+The following <<index-templates,put index template API>> requests adds new
 `sort.field` and `sort.order index` settings to the template.
 
 [source,console]
@@ -344,7 +344,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
-  "priority": 200,
+  "priority": 500,
   "template": {
     "settings": {
       "sort.field": [ "@timestamp"],             <1>
@@ -428,7 +428,7 @@ new template by copying an existing one and modifying it as needed.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<indices-templates,put index template API>> request creates a new
+The following <<index-templates,put index template API>> request creates a new
 index template, `new-data-stream-template`. `new-data-stream-template`
 uses `my-data-stream-template` as its basis, with the following
 changes:
@@ -446,7 +446,7 @@ PUT /_index_template/new-data-stream-template
 {
   "index_patterns": [ "new-data-stream*" ],
   "data_stream": { },
-  "priority": 200,
+  "priority": 500,
   "template": {
     "mappings": {
       "properties": {
@@ -471,7 +471,7 @@ PUT /_index_template/new-data-stream-template
 create the new data stream. The name of the data stream must match the index
 pattern defined in the new template's `index_patterns` property.
 +
-We do not recommend <<index-documents-to-create-a-data-stream,indexing new data
+We do not recommend <<create-a-data-stream,indexing new data
 to create this data stream>>. Later, you will reindex older data from an
 existing data stream into this new stream. This could result in one or more
 backing indices that contains a mix of new and old data.
@@ -546,10 +546,9 @@ The following get data stream API request retrieves information about
 GET /_data_stream/my-data-stream
 ----
 
-The API returns the following response. Note the `indices` property contains an
-array of the stream's current backing indices. The first item in the array
-contains information about the stream's oldest backing index,
-`.ds-my-data-stream-000001`.
+The response's `indices` property contains an array of the stream's current
+backing indices. The first item in the array contains information about the
+stream's oldest backing index.
 
 [source,console-result]
 ----
@@ -562,39 +561,42 @@ contains information about the stream's oldest backing index,
       },
       "indices": [
         {
-          "index_name": ".ds-my-data-stream-000001",        <1>
+          "index_name": ".ds-my-data-stream-2099.03.07-000001", <1>
           "index_uuid": "Gpdiyq8sRuK9WuthvAdFbw"
         },
         {
-          "index_name": ".ds-my-data-stream-000002",
+          "index_name": ".ds-my-data-stream-2099.03.08-000002",
           "index_uuid": "_eEfRrFHS9OyhqWntkgHAQ"
         }
       ],
       "generation": 2,
       "status": "GREEN",
-      "template": "my-data-stream-template"
+      "template": "my-data-stream-template",
+      "hidden": false
     }
   ]
 }
 ----
 // TESTRESPONSE[s/"index_uuid": "Gpdiyq8sRuK9WuthvAdFbw"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
 // TESTRESPONSE[s/"index_uuid": "_eEfRrFHS9OyhqWntkgHAQ"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
+// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099.03.07-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
+// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099.03.08-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
 // TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
 
-<1> First item in the `indices` array for `my-data-stream`. This
-item contains information about the stream's oldest backing index,
-`.ds-my-data-stream-000001`.
+<1> First item in the `indices` array for `my-data-stream`. This item contains
+information about the stream's oldest backing index,
+`.ds-my-data-stream-2099.03.07-000001`.
 
 The following <<docs-reindex,reindex API>> request copies documents from
-`.ds-my-data-stream-000001` to `new-data-stream`. Note the request's `op_type`
-is `create`.
+`.ds-my-data-stream-2099.03.07-000001` to `new-data-stream`. The request's
+`op_type` is `create`.
 
 [source,console]
 ----
 POST /_reindex
 {
   "source": {
-    "index": ".ds-my-data-stream-000001"
+    "index": ".ds-my-data-stream-2099.03.07-000001"
   },
   "dest": {
     "index": "new-data-stream",
@@ -602,6 +604,8 @@ POST /_reindex
   }
 }
 ----
+// TEST[setup:my_index]
+// TEST[s/.ds-my-data-stream-2099.03.07-000001/my-index-000001/]
 --
 +
 You can also use a query to reindex only a subset of documents with each

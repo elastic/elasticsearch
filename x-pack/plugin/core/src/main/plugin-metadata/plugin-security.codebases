@@ -1,0 +1,3 @@
+netty-common: io.netty.util.NettyRuntime
+netty-transport: io.netty.channel.Channel
+httpasyncclient: org.apache.http.nio.client.HttpAsyncClient

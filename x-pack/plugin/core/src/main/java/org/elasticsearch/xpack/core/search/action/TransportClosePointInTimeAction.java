@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.search.action;
@@ -49,7 +50,7 @@ public class TransportClosePointInTimeAction extends HandledTransportAction<Clos
             clusterService.state().nodes(),
             searchTransportService,
             contextIds,
-            ActionListener.map(listener, freed -> new ClosePointInTimeResponse(freed == contextIds.size(), freed))
+            listener.map(freed -> new ClosePointInTimeResponse(freed == contextIds.size(), freed))
         );
     }
 }

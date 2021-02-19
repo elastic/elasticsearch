@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
@@ -62,6 +63,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
+import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils.BucketKeyExtractor;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -871,6 +873,26 @@ public class AggregationResultUtilsTests extends ESTestCase {
         );
     }
 
+    public void testDefaultBucketKeyExtractor() {
+        BucketKeyExtractor extractor = new AggregationResultUtils.DefaultBucketKeyExtractor();
+
+        assertThat(extractor.value(42.0, "long"), equalTo(42L));
+        assertThat(extractor.value(42.2, "double"), equalTo(42.2));
+        assertThat(extractor.value(1577836800000L, "date"), equalTo("2020-01-01T00:00:00.000Z"));
+        assertThat(extractor.value(1577836800000L, "date_nanos"), equalTo("2020-01-01T00:00:00.000Z"));
+        assertThat(extractor.value(1577836800000L, "long"), equalTo(1577836800000L));
+    }
+
+    public void testDatesAsEpochBucketKeyExtractor() {
+        BucketKeyExtractor extractor = new AggregationResultUtils.DatesAsEpochBucketKeyExtractor();
+
+        assertThat(extractor.value(42.0, "long"), equalTo(42L));
+        assertThat(extractor.value(42.2, "double"), equalTo(42.2));
+        assertThat(extractor.value(1577836800000L, "date"), equalTo(1577836800000L));
+        assertThat(extractor.value(1577836800000L, "date_nanos"), equalTo(1577836800000L));
+        assertThat(extractor.value(1577836800000L, "long"), equalTo(1577836800000L));
+    }
+
     private void executeTest(
         GroupConfig groups,
         Collection<AggregationBuilder> aggregationBuilders,
@@ -923,7 +945,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 aggregationBuilders,
                 pipelineAggregationBuilders,
                 fieldTypeMap,
-                stats
+                stats,
+                true
             ).collect(Collectors.toList());
         }
     }

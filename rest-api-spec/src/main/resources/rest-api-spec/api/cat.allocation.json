@@ -5,6 +5,10 @@
       "description":"Provides a snapshot of how many shards are allocated to each data node and how much disk space they are using."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {

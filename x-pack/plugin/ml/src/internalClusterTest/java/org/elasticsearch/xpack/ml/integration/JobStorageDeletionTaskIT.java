@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -47,14 +48,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 
 /**
  * Test that ML does not touch unnecessary indices when removing job index aliases
  */
 public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
 
-    private static long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN.getMillis();
+    private static final long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN.getMillis();
     private static final String UNRELATED_INDEX = "unrelated-data";
 
     private JobResultsProvider jobResultsProvider;
@@ -63,7 +63,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
     @Before
     public void createComponents() {
         Settings settings = nodeSettings(0);
-        ThreadPool tp = mock(ThreadPool.class);
+        ThreadPool tp = mockThreadPool();
         ClusterSettings clusterSettings = new ClusterSettings(settings,
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
@@ -73,7 +73,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
-        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, settings);
+        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, settings);
         jobResultsProvider = new JobResultsProvider(client(), settings, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
         jobResultsPersister = new JobResultsPersister(
             originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), clusterService));
@@ -179,7 +179,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
             .indices()
             .prepareGetIndex()
             .setIndices(dedicatedIndex)
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get()
             .indices().length, equalTo(0));
 

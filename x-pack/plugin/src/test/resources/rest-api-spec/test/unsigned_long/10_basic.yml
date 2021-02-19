@@ -299,3 +299,80 @@ setup:
   - match: { hits.hits.2.fields.ul.0 : "9223372036854775808" }
   - match: { hits.hits.3.fields.ul.0 : "18446744073709551614" }
   - match: { hits.hits.4.fields.ul.0 : "18446744073709551615" }
+
+---
+"Composite aggregations":
+  - skip:
+      version: " - 7.99.99"
+      reason: "TODO: unsigned_long support for composite aggs was fixed in 7.11"
+
+  - do:
+      search:
+        index: test1
+        body:
+          size: 0
+          aggs:
+            test:
+              composite:
+                 size: 3
+                 sources: [{
+                  "ul": {
+                     "terms": {
+                       "field": "ul"
+                     }
+                   }
+                 }]
+
+  - set: { aggregations.test.after_key: after_key }
+  - length: { aggregations.test.buckets: 3 }
+  - match: { aggregations.test.buckets.0.key.ul: 0 }
+  - match: { aggregations.test.buckets.0.doc_count:  1 }
+  - match: { aggregations.test.buckets.1.key.ul: 9223372036854775807 }
+  - match: { aggregations.test.buckets.1.doc_count:  1 }
+  - match: { aggregations.test.buckets.2.key.ul: 9223372036854775808 }
+  - match: { aggregations.test.buckets.2.doc_count:  1 }
+
+  - do:
+      search:
+        index: test1
+        body:
+          size: 0
+          aggs:
+            test:
+              composite:
+                size: 3
+                after: $after_key
+                sources: [{
+                  "ul": {
+                    "terms": {
+                      "field": "ul"
+                    }
+                }
+              }]
+
+  - set: { aggregations.test.after_key: after_key }
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.ul: 18446744073709551614 }
+  - match: { aggregations.test.buckets.0.doc_count:  1 }
+  - match: { aggregations.test.buckets.1.key.ul: 18446744073709551615 }
+  - match: { aggregations.test.buckets.1.doc_count:  1 }
+
+  - do:
+      search:
+        index: test1
+        body:
+          size: 0
+          aggs:
+            test:
+              composite:
+                size: 3
+                after: $after_key
+                sources: [{
+                  "ul": {
+                    "terms": {
+                      "field": "ul"
+                    }
+                  }
+              }]
+
+  - length: { aggregations.test.buckets: 0 }

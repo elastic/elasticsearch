@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
@@ -9,7 +10,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
@@ -20,8 +20,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
 import java.io.IOException;
@@ -36,14 +36,14 @@ public class HistoBackedMinAggregator extends NumericMetricsAggregator.SingleVal
     public HistoBackedMinAggregator(
         String name,
         ValuesSourceConfig config,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
         this.valuesSource = config.hasValues() ? (HistogramValuesSource.Histogram) config.getValuesSource() : null;
         if (valuesSource != null) {
-            mins = context.bigArrays().newDoubleArray(1, false);
+            mins = bigArrays().newDoubleArray(1, false);
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         }
         this.format = config.format();
@@ -65,7 +65,6 @@ public class HistoBackedMinAggregator extends NumericMetricsAggregator.SingleVal
             }
         }
 
-        final BigArrays bigArrays = context.bigArrays();
         final HistogramValues values = valuesSource.getHistogramValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
 
@@ -73,7 +72,7 @@ public class HistoBackedMinAggregator extends NumericMetricsAggregator.SingleVal
             public void collect(int doc, long bucket) throws IOException {
                 if (bucket >= mins.size()) {
                     long from = mins.size();
-                    mins = bigArrays.grow(mins, bucket + 1);
+                    mins = bigArrays().grow(mins, bucket + 1);
                     mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
                 }
 

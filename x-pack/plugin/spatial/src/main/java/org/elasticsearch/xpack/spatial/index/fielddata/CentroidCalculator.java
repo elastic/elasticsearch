@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -27,106 +27,62 @@ import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
  * as the centroid of a shape.
  */
 public class CentroidCalculator {
-    CompensatedSum compSumX;
-    CompensatedSum compSumY;
-    CompensatedSum compSumWeight;
-    private CentroidCalculatorVisitor visitor;
-    private DimensionalShapeType dimensionalShapeType;
 
-    public CentroidCalculator(Geometry geometry) {
-        this.compSumX = new CompensatedSum(0, 0);
-        this.compSumY = new CompensatedSum(0, 0);
-        this.compSumWeight = new CompensatedSum(0, 0);
-        this.dimensionalShapeType = null;
-        this.visitor = new CentroidCalculatorVisitor(this);
-        geometry.visit(visitor);
-        this.dimensionalShapeType = visitor.calculator.dimensionalShapeType;
+    private final CentroidCalculatorVisitor visitor;
+
+    public CentroidCalculator() {
+        this.visitor = new CentroidCalculatorVisitor();
     }
 
     /**
-     * adds a single coordinate to the running sum and count of coordinates
-     * for centroid calculation
-     *  @param x the x-coordinate of the point
-     * @param y the y-coordinate of the point
-     * @param weight the associated weight of the coordinate
-     */
-    private void addCoordinate(double x, double y, double weight, DimensionalShapeType dimensionalShapeType) {
-        // x and y can be infinite due to really small areas and rounding problems
-        if (Double.isFinite(x) && Double.isFinite(y)) {
-            if (this.dimensionalShapeType == null || this.dimensionalShapeType == dimensionalShapeType) {
-                compSumX.add(x * weight);
-                compSumY.add(y * weight);
-                compSumWeight.add(weight);
-                this.dimensionalShapeType = dimensionalShapeType;
-            } else if (dimensionalShapeType.compareTo(this.dimensionalShapeType) > 0) {
-                // reset counters
-                compSumX.reset(x * weight, 0);
-                compSumY.reset(y * weight, 0);
-                compSumWeight.reset(weight, 0);
-                this.dimensionalShapeType = dimensionalShapeType;
-            }
-        }
-    }
-
-    /**
-     * Adjusts the existing calculator to add the running sum and count
-     * from another {@link CentroidCalculator}. This is used to keep
-     * a running count of points from different sub-shapes of a single
-     * geo-shape field
+     * Add a geometry to the calculator
      *
-     * @param otherCalculator the other centroid calculator to add from
+     * @param geometry the geometry to add
      */
-    public void addFrom(CentroidCalculator otherCalculator) {
-        int compared = dimensionalShapeType.compareTo(otherCalculator.dimensionalShapeType);
-        if (compared < 0) {
-            dimensionalShapeType = otherCalculator.dimensionalShapeType;
-            this.compSumX = otherCalculator.compSumX;
-            this.compSumY = otherCalculator.compSumY;
-            this.compSumWeight = otherCalculator.compSumWeight;
-
-        } else if (compared == 0) {
-            this.compSumX.add(otherCalculator.compSumX.value());
-            this.compSumY.add(otherCalculator.compSumY.value());
-            this.compSumWeight.add(otherCalculator.compSumWeight.value());
-        } // else (compared > 0) do not modify centroid calculation since otherCalculator is of lower dimension than this calculator
+    public void add(Geometry geometry) {
+        geometry.visit(visitor);
     }
 
     /**
      * @return the x-coordinate centroid
      */
     public double getX() {
-        // normalization required due to floating point precision errors
-        return GeoUtils.normalizeLon(compSumX.value() / compSumWeight.value());
+        return visitor.compSumX.value() / visitor.compSumWeight.value();
     }
 
     /**
      * @return the y-coordinate centroid
      */
     public double getY() {
-        // normalization required due to floating point precision errors
-        return GeoUtils.normalizeLat(compSumY.value() / compSumWeight.value());
+        return visitor.compSumY.value() / visitor.compSumWeight.value();
     }
 
     /**
      * @return the sum of all the weighted coordinates summed in the calculator
      */
     public double sumWeight() {
-        return compSumWeight.value();
+        return visitor.compSumWeight.value();
     }
 
     /**
      * @return the highest dimensional shape type summed in the calculator
      */
     public DimensionalShapeType getDimensionalShapeType() {
-        return dimensionalShapeType;
+        return visitor.dimensionalShapeType;
     }
 
     private static class CentroidCalculatorVisitor implements GeometryVisitor<Void, IllegalArgumentException> {
 
-        private final CentroidCalculator calculator;
+        final CompensatedSum compSumX;
+        final CompensatedSum compSumY;
+        final CompensatedSum compSumWeight;
+        DimensionalShapeType dimensionalShapeType;
 
-        private CentroidCalculatorVisitor(CentroidCalculator calculator) {
-            this.calculator = calculator;
+        private CentroidCalculatorVisitor() {
+            this.compSumX = new CompensatedSum(0, 0);
+            this.compSumY = new CompensatedSum(0, 0);
+            this.compSumWeight = new CompensatedSum(0, 0);
+            this.dimensionalShapeType = DimensionalShapeType.POINT;
         }
 
         @Override
@@ -144,7 +100,7 @@ public class CentroidCalculator {
 
         @Override
         public Void visit(Line line) {
-            if (calculator.dimensionalShapeType != DimensionalShapeType.POLYGON) {
+            if (dimensionalShapeType != DimensionalShapeType.POLYGON) {
                 visitLine(line.length(), line::getX, line::getY);
             }
             return null;
@@ -158,7 +114,7 @@ public class CentroidCalculator {
 
         @Override
         public Void visit(MultiLine multiLine) {
-            if (calculator.getDimensionalShapeType() != DimensionalShapeType.POLYGON) {
+            if (dimensionalShapeType != DimensionalShapeType.POLYGON) {
                 for (Line line : multiLine) {
                     visit(line);
                 }
@@ -168,7 +124,7 @@ public class CentroidCalculator {
 
         @Override
         public Void visit(MultiPoint multiPoint) {
-            if (calculator.getDimensionalShapeType() == null || calculator.getDimensionalShapeType() == DimensionalShapeType.POINT) {
+            if (dimensionalShapeType == DimensionalShapeType.POINT) {
                 for (Point point : multiPoint) {
                     visit(point);
                 }
@@ -186,7 +142,7 @@ public class CentroidCalculator {
 
         @Override
         public Void visit(Point point) {
-            if (calculator.getDimensionalShapeType() == null || calculator.getDimensionalShapeType() == DimensionalShapeType.POINT) {
+            if (dimensionalShapeType == DimensionalShapeType.POINT) {
                 visitPoint(point.getX(), point.getY());
             }
             return null;
@@ -211,11 +167,11 @@ public class CentroidCalculator {
                 sumWeight += w;
             }
 
-            if (sumWeight == 0 && calculator.dimensionalShapeType != DimensionalShapeType.POLYGON) {
+            if (sumWeight == 0 && dimensionalShapeType != DimensionalShapeType.POLYGON) {
                 visitLine(polygon.getPolygon().length(), polygon.getPolygon()::getX, polygon.getPolygon()::getY);
             } else {
                 for (int i = 0; i < 1 + polygon.getNumberOfHoles(); i++) {
-                    calculator.addCoordinate(centroidX[i], centroidY[i], weight[i], DimensionalShapeType.POLYGON);
+                    addCoordinate(centroidX[i], centroidY[i], weight[i], DimensionalShapeType.POLYGON);
                 }
             }
 
@@ -230,7 +186,7 @@ public class CentroidCalculator {
             if (rectWeight != 0) {
                 double sumX = rectangle.getMaxX() + rectangle.getMinX();
                 double sumY = rectangle.getMaxY() + rectangle.getMinY();
-                calculator.addCoordinate(sumX / 2, sumY / 2, rectWeight, DimensionalShapeType.POLYGON);
+                addCoordinate(sumX / 2, sumY / 2, rectWeight, DimensionalShapeType.POLYGON);
             } else {
                 // degenerated rectangle, transform to Line
                 Line line = new Line(new double[]{rectangle.getMinX(), rectangle.getMaxX()},
@@ -240,9 +196,8 @@ public class CentroidCalculator {
             return null;
         }
 
-
         private void visitPoint(double x, double y) {
-            calculator.addCoordinate(x, y, 1.0, DimensionalShapeType.POINT);
+            addCoordinate(x, y, 1.0, DimensionalShapeType.POINT);
         }
 
         private void visitLine(int length, CoordinateSupplier x, CoordinateSupplier y) {
@@ -258,7 +213,7 @@ public class CentroidCalculator {
                     // degenerated line, it can be considered a point
                     visitPoint(x.get(i), y.get(i));
                 } else {
-                    calculator.addCoordinate(xAvg, yAvg, weight, DimensionalShapeType.LINE);
+                    addCoordinate(xAvg, yAvg, weight, DimensionalShapeType.LINE);
                 }
             }
         }
@@ -288,6 +243,31 @@ public class CentroidCalculator {
             centroidX[idx] = sumX / (6 * totalRingArea);
             centroidY[idx] = sumY / (6 * totalRingArea);
             weight[idx] = sign * Math.abs(totalRingArea);
+        }
+
+        /**
+         * adds a single coordinate to the running sum and count of coordinates
+         * for centroid calculation
+         *  @param x the x-coordinate of the point
+         * @param y the y-coordinate of the point
+         * @param weight the associated weight of the coordinate
+         */
+        private void addCoordinate(double x, double y, double weight, DimensionalShapeType dimensionalShapeType) {
+            // x and y can be infinite due to really small areas and rounding problems
+            if (Double.isFinite(x) && Double.isFinite(y)) {
+                if (this.dimensionalShapeType == dimensionalShapeType) {
+                    compSumX.add(x * weight);
+                    compSumY.add(y * weight);
+                    compSumWeight.add(weight);
+                    this.dimensionalShapeType = dimensionalShapeType;
+                } else if (dimensionalShapeType.compareTo(this.dimensionalShapeType) > 0) {
+                    // reset counters
+                    compSumX.reset(x * weight, 0);
+                    compSumY.reset(y * weight, 0);
+                    compSumWeight.reset(weight, 0);
+                    this.dimensionalShapeType = dimensionalShapeType;
+                }
+            }
         }
     }
 

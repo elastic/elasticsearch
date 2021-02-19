@@ -22,6 +22,12 @@ POST /my-index-000001/_forcemerge
 
 `POST /_forcemerge`
 
+[[forcemerge-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `maintenance`
+or `manage` <<privileges-list-indices,index privilege>> for the target data
+stream, index, or index alias.
 
 [[forcemerge-api-desc]]
 ==== {api-description-title}
@@ -32,6 +38,7 @@ shard by merging some of them together, and also frees up the space used by
 deleted documents. Merging normally happens automatically, but sometimes it is
 useful to trigger a merge manually.
 
+// tag::force-merge-read-only-warn[]
 WARNING: **Force merge should only be called against an index after you have
 finished writing to it.** Force merge can cause very large (>5GB) segments to
 be produced, and if you continue to write to such an index then the automatic
@@ -39,6 +46,7 @@ merge policy will never consider these segments for future merges until they
 mostly consist of deleted documents. This can cause very large segments to
 remain in the index which can result in increased disk usage and worse search
 performance.
+// end::force-merge-read-only-warn[]
 
 
 [[forcemerge-blocks]]
@@ -90,7 +98,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 Defaults to `open`.
 
 `flush`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 {es} performs a <<indices-flush,flush>> on the indices
 after the force merge.
@@ -113,7 +121,7 @@ If so, executes it.
 `only_expunge_deletes`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 only expunge segments containing document deletions.
 Defaults to `false`.
@@ -176,10 +184,10 @@ its shards can be force-merged to a single segment.
 
 [source,console]
 --------------------------------------------------
-POST /.ds-logs-000001/_forcemerge?max_num_segments=1
+POST /.ds-my-data-stream-2099.03.07-000001/_forcemerge?max_num_segments=1
 --------------------------------------------------
 // TEST[setup:my_index]
-// TEST[s/.ds-logs-000001/my-index-000001/]
+// TEST[s/.ds-my-data-stream-2099.03.07-000001/my-index-000001/]
 
 This can be a good idea because single-segment shards can sometimes use simpler
 and more efficient data structures to perform searches.

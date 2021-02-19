@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.optimizer;
 
@@ -20,10 +21,15 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
@@ -35,13 +41,24 @@ import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.rule.Rule;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
+import java.time.DateTimeException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiFunction;
 
+import static java.lang.Math.signum;
+import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.combineAnd;
@@ -50,6 +67,12 @@ import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.inCommo
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitOr;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.subtract;
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.ADD;
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.DIV;
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.MOD;
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.MUL;
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.SUB;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 
@@ -219,6 +242,7 @@ public final class OptimizerRules {
         }
     }
 
+    // TODO: should this be renamed to just `LiteralsOnTheRight`? It swaps all literals, not just booleans. Or `MaybeLiteralsOnTheRight`?
     public static final class BooleanLiteralsOnTheRight extends OptimizerExpressionRule {
 
         public BooleanLiteralsOnTheRight() {
@@ -476,14 +500,14 @@ public final class OptimizerRules {
                         Integer upperComp = range.upper().foldable() ? BinaryComparison.compare(eqValue, range.upper().fold()) : null;
 
                         if (lowerComp != null && lowerComp == 0) {
-                            if (!range.includeLower()) { // a = 2 OR 2 < a < ? -> 2 <= a < ?
+                            if (range.includeLower() == false) { // a = 2 OR 2 < a < ? -> 2 <= a < ?
                                 ranges.set(i, new Range(range.source(), range.value(), range.lower(), true,
                                     range.upper(), range.includeUpper(), range.zoneId()));
                             } // else : a = 2 OR 2 <= a < ? -> 2 <= a < ?
                             removeEquals = true; // update range with lower equality instead or simply superfluous
                             break;
                         } else if (upperComp != null && upperComp == 0) {
-                            if (!range.includeUpper()) { // a = 2 OR ? < a < 2 -> ? < a <= 2
+                            if (range.includeUpper() == false) { // a = 2 OR ? < a < 2 -> ? < a <= 2
                                 ranges.set(i, new Range(range.source(), range.value(), range.lower(), range.includeLower(),
                                     range.upper(), true, range.zoneId()));
                             } // else : a = 2 OR ? < a <= 2 -> ? < a <= 2
@@ -591,7 +615,7 @@ public final class OptimizerRules {
                     } else {
                         ranges.add(r);
                     }
-                } else if (ex instanceof BinaryComparison && !(ex instanceof Equals || ex instanceof NotEquals)) {
+                } else if (ex instanceof BinaryComparison && (ex instanceof Equals || ex instanceof NotEquals) == false) {
                     BinaryComparison bc = (BinaryComparison) ex;
 
                     if (bc.right().foldable() && (findConjunctiveComparisonInRange(bc, ranges) || findExistingComparison(bc, bcs, true))) {
@@ -690,7 +714,7 @@ public final class OptimizerRules {
         }
 
         private static boolean findExistingRange(Range main, List<Range> ranges, boolean conjunctive) {
-            if (!main.lower().foldable() && !main.upper().foldable()) {
+            if (main.lower().foldable() == false && main.upper().foldable() == false) {
                 return false;
             }
             // NB: the loop modifies the list (hence why the int is used)
@@ -794,7 +818,7 @@ public final class OptimizerRules {
                         }
 
                         // if the range in included, no need to add it
-                        return compared && (!((lower && !lowerEq) || (upper && !upperEq)));
+                        return compared && (((lower && lowerEq == false) || (upper && upperEq == false)) == false);
                     }
                 }
             }
@@ -870,7 +894,7 @@ public final class OptimizerRules {
             for (int i = 0; i < bcs.size(); i++) {
                 BinaryComparison other = bcs.get(i);
                 // skip if cannot evaluate
-                if (!other.right().foldable()) {
+                if (other.right().foldable() == false) {
                     continue;
                 }
                 // if bc is a higher/lower value or gte vs gt, use it instead
@@ -1008,32 +1032,111 @@ public final class OptimizerRules {
             for (int i = 0; i < bcs.size(); i ++) {
                 BinaryComparison bc = bcs.get(i);
 
-                if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
-                    comp = bc.right().foldable() ? BinaryComparison.compare(neqVal, bc.right().fold()) : null;
-                    if (comp != null) {
-                        if (comp >= 0) {
-                            if (comp == 0 && bc instanceof LessThanOrEqual) { // a != 2 AND a <= 2 -> a < 2
-                                bcs.set(i, new LessThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
-                            } // else : comp > 0 (a != 2 AND a </<= 1 -> a </<= 1), or == 0 && bc i.of "<" (a != 2 AND a < 2 -> a < 2)
-                            return true;
-                        } // else: comp < 0 : a != 2 AND a </<= 3 -> nop
-                    } // else: non-comparable, nop
-                } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
-                    comp = bc.right().foldable() ? BinaryComparison.compare(neqVal, bc.right().fold()) : null;
-                    if (comp != null) {
-                        if (comp <= 0) {
-                            if (comp == 0 && bc instanceof GreaterThanOrEqual) { // a != 2 AND a >= 2 -> a > 2
-                                bcs.set(i, new GreaterThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
-                            } // else: comp < 0 (a != 2 AND a >/>= 3 -> a >/>= 3), or == 0 && bc i.of ">" (a != 2 AND a > 2 -> a > 2)
-                            return true;
-                        } // else: comp > 0 : a != 2 AND a >/>= 1 -> nop
-                    } // else: non-comparable, nop
-                } // else: other non-relevant type
+                if (notEquals.left().semanticEquals(bc.left())) {
+                    if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
+                        comp = bc.right().foldable() ? BinaryComparison.compare(neqVal, bc.right().fold()) : null;
+                        if (comp != null) {
+                            if (comp >= 0) {
+                                if (comp == 0 && bc instanceof LessThanOrEqual) { // a != 2 AND a <= 2 -> a < 2
+                                    bcs.set(i, new LessThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
+                                } // else : comp > 0 (a != 2 AND a </<= 1 -> a </<= 1), or == 0 && bc i.of "<" (a != 2 AND a < 2 -> a < 2)
+                                return true;
+                            } // else: comp < 0 : a != 2 AND a </<= 3 -> nop
+                        } // else: non-comparable, nop
+                    } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
+                        comp = bc.right().foldable() ? BinaryComparison.compare(neqVal, bc.right().fold()) : null;
+                        if (comp != null) {
+                            if (comp <= 0) {
+                                if (comp == 0 && bc instanceof GreaterThanOrEqual) { // a != 2 AND a >= 2 -> a > 2
+                                    bcs.set(i, new GreaterThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
+                                } // else: comp < 0 (a != 2 AND a >/>= 3 -> a >/>= 3), or == 0 && bc i.of ">" (a != 2 AND a > 2 -> a > 2)
+                                return true;
+                            } // else: comp > 0 : a != 2 AND a >/>= 1 -> nop
+                        } // else: non-comparable, nop
+                    } // else: other non-relevant type
+                }
             }
 
             return false;
         }
 
+    }
+
+    /**
+     * Combine disjunctions on the same field into an In expression.
+     * This rule looks for both simple equalities:
+     * 1. a == 1 OR a == 2 becomes a IN (1, 2)
+     * and combinations of In
+     * 2. a == 1 OR a IN (2) becomes a IN (1, 2)
+     * 3. a IN (1) OR a IN (2) becomes a IN (1, 2)
+     *
+     * This rule does NOT check for type compatibility as that phase has been
+     * already be verified in the analyzer.
+     */
+    public static class CombineDisjunctionsToIn extends OptimizerExpressionRule {
+        public CombineDisjunctionsToIn() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof Or) {
+                // look only at equals and In
+                List<Expression> exps = splitOr(e);
+
+                Map<Expression, Set<Expression>> found = new LinkedHashMap<>();
+                ZoneId zoneId = null;
+                List<Expression> ors = new LinkedList<>();
+
+                for (Expression exp : exps) {
+                    if (exp instanceof Equals) {
+                        Equals eq = (Equals) exp;
+                        // consider only equals against foldables
+                        if (eq.right().foldable()) {
+                            found.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
+                        } else {
+                            ors.add(exp);
+                        }
+                        if (zoneId == null) {
+                            zoneId = eq.zoneId();
+                        }
+                    }
+                    else if (exp instanceof In) {
+                        In in = (In) exp;
+                        found.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
+                        if (zoneId == null) {
+                            zoneId = in.zoneId();
+                        }
+                    } else {
+                        ors.add(exp);
+                    }
+                }
+
+                if (found.isEmpty() == false) {
+                    // combine equals alongside the existing ors
+                    final ZoneId finalZoneId = zoneId;
+                    found.forEach((k, v) -> {
+                        ors.add(v.size() == 1
+                            ? new Equals(k.source(), k, v.iterator().next(), finalZoneId)
+                            : createIn(k, new ArrayList<>(v), finalZoneId));
+                    });
+
+                    Expression combineOr = combineOr(ors);
+                    // check the result semantically since the result might different in order
+                    // but be actually the same which can trigger a loop
+                    // e.g. a == 1 OR a == 2 OR null --> null OR a in (1,2) --> literalsOnTheRight --> cycle
+                    if (e.semanticEquals(combineOr) == false) {
+                        e = combineOr;
+                    }
+                }
+            }
+
+            return e;
+        }
+
+        protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
+            return new In(key.source(), key, values, zoneId);
+        }
     }
 
     public static class ReplaceSurrogateFunction extends OptimizerExpressionRule {
@@ -1048,6 +1151,221 @@ public final class OptimizerRules {
                 e = ((SurrogateFunction) e).substitute();
             }
             return e;
+        }
+    }
+
+    // Simplifies arithmetic expressions with BinaryComparisons and fixed point fields, such as: (int + 2) / 3 > 4 => int > 10
+    public static final class SimplifyComparisonsArithmetics extends OptimizerExpressionRule {
+        BiFunction<DataType, DataType, Boolean> typesCompatible;
+
+        public SimplifyComparisonsArithmetics(BiFunction<DataType, DataType, Boolean> typesCompatible) {
+            super(TransformDirection.UP);
+            this.typesCompatible = typesCompatible;
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            return (e instanceof BinaryComparison) ? simplify((BinaryComparison) e) : e;
+        }
+
+        private Expression simplify(BinaryComparison bc) {
+            // optimize only once the expression has a literal on the right side of the binary comparison
+            if (bc.right() instanceof Literal) {
+                if (bc.left() instanceof ArithmeticOperation) {
+                    return simplifyBinaryComparison(bc);
+                }
+                if (bc.left() instanceof Neg) {
+                    return foldNegation(bc);
+                }
+            }
+            return bc;
+        }
+
+        private Expression simplifyBinaryComparison(BinaryComparison comparison) {
+            ArithmeticOperation operation = (ArithmeticOperation) comparison.left();
+            // Use symbol comp: SQL operations aren't available in this package (as dependencies)
+            String opSymbol = operation.symbol();
+            // Modulo can't be simplified.
+            if (opSymbol == MOD.symbol()) {
+                return comparison;
+            }
+            OperationSimplifier simplification = null;
+            if (isMulOrDiv(opSymbol)) {
+                simplification = new MulDivSimplifier(comparison);
+            } else if (opSymbol == ADD.symbol() || opSymbol == SUB.symbol()) {
+                simplification = new AddSubSimplifier(comparison);
+            }
+
+            return (simplification == null || simplification.isUnsafe(typesCompatible)) ? comparison : simplification.apply();
+        }
+
+        private static boolean isMulOrDiv(String opSymbol) {
+            return opSymbol == MUL.symbol() || opSymbol == DIV.symbol();
+        }
+
+        private static Expression foldNegation(BinaryComparison bc) {
+            Literal bcLiteral = (Literal) bc.right();
+            Expression literalNeg = tryFolding(new Neg(bcLiteral.source(), bcLiteral));
+            return literalNeg == null ? bc : bc.reverse().replaceChildren(asList(((Neg) bc.left()).field(), literalNeg));
+        }
+
+        private static Expression tryFolding(Expression expression) {
+            if (expression.foldable()) {
+                try {
+                    expression = new Literal(expression.source(), expression.fold(), expression.dataType());
+                } catch (ArithmeticException | DateTimeException e) {
+                    // null signals that folding would result in an over-/underflow (such as Long.MAX_VALUE+1); the optimisation is skipped.
+                    expression = null;
+                }
+            }
+            return expression;
+        }
+
+        private abstract static class OperationSimplifier {
+            final BinaryComparison comparison;
+            final Literal bcLiteral;
+            final ArithmeticOperation operation;
+            final Expression opLeft;
+            final Expression opRight;
+            final Literal opLiteral;
+
+            OperationSimplifier(BinaryComparison comparison) {
+                this.comparison = comparison;
+                operation = (ArithmeticOperation) comparison.left();
+                bcLiteral = (Literal) comparison.right();
+
+                opLeft = operation.left();
+                opRight = operation.right();
+
+                if (opLeft instanceof Literal) {
+                    opLiteral = (Literal) opLeft;
+                } else if (opRight instanceof Literal) {
+                    opLiteral = (Literal) opRight;
+                } else {
+                    opLiteral = null;
+                }
+            }
+
+            // can it be quickly fast-tracked that the operation can't be reduced?
+            final boolean isUnsafe(BiFunction<DataType, DataType, Boolean> typesCompatible) {
+                if (opLiteral == null) {
+                    // one of the arithm. operands must be a literal, otherwise the operation wouldn't simplify anything
+                    return true;
+                }
+
+                // Only operations on fixed point literals are supported, since optimizing float point operations can also change the
+                // outcome of the filtering:
+                //    x + 1e18 > 1e18::long will yield different results with a field value in [-2^6, 2^6], optimised vs original;
+                //    x * (1 + 1e-15d) > 1 : same with a field value of (1 - 1e-15d)
+                // so consequently, int fields optimisation requiring FP arithmetic isn't possible either: (x - 1e-15) * (1 + 1e-15) > 1.
+                if (opLiteral.dataType().isRational() || bcLiteral.dataType().isRational()) {
+                    return true;
+                }
+
+                // the Literal will be moved to the right of the comparison, but only if data-compatible with what's there
+                if (typesCompatible.apply(bcLiteral.dataType(), opLiteral.dataType()) == false) {
+                    return true;
+                }
+
+                return isOpUnsafe();
+            }
+
+            final Expression apply() {
+                // force float point folding for FlP field
+                Literal bcl = operation.dataType().isRational()
+                    ? Literal.of(bcLiteral, ((Number) bcLiteral.value()).doubleValue())
+                    : bcLiteral;
+
+                Expression bcRightExpression = ((BinaryComparisonInversible) operation).binaryComparisonInverse()
+                    .create(bcl.source(), bcl, opRight);
+                bcRightExpression = tryFolding(bcRightExpression);
+                return bcRightExpression != null
+                    ? postProcess((BinaryComparison) comparison.replaceChildren(List.of(opLeft, bcRightExpression)))
+                    : comparison;
+            }
+
+            // operation-specific operations:
+            //  - fast-tracking of simplification unsafety
+            abstract boolean isOpUnsafe();
+
+            //  - post optimisation adjustments
+            Expression postProcess(BinaryComparison binaryComparison) {
+                return binaryComparison;
+            }
+        }
+
+        private static class AddSubSimplifier extends OperationSimplifier {
+
+            AddSubSimplifier(BinaryComparison comparison) {
+                super(comparison);
+            }
+
+            @Override
+            boolean isOpUnsafe() {
+                // no ADD/SUB with floating fields
+                if (operation.dataType().isRational()) {
+                    return true;
+                }
+
+                if (operation.symbol() == SUB.symbol() && opRight instanceof Literal == false) { // such as: 1 - x > -MAX
+                    // if next simplification step would fail on overflow anyways, skip the optimisation already
+                    return tryFolding(new Sub(EMPTY, opLeft, bcLiteral)) == null;
+                }
+
+                return false;
+            }
+        }
+
+        private static class MulDivSimplifier extends OperationSimplifier {
+
+            private final boolean isDiv; // and not MUL.
+            private final int opRightSign; // sign of the right operand in: (left) (op) (right) (comp) (literal)
+
+            MulDivSimplifier(BinaryComparison comparison) {
+                super(comparison);
+                isDiv = operation.symbol() == DIV.symbol();
+                opRightSign = sign(opRight);
+            }
+
+            @Override
+            boolean isOpUnsafe() {
+                // Integer divisions are not safe to optimise: x / 5 > 1 <=/=> x > 5 for x in [6, 9]; same for the `==` comp
+                if (operation.dataType().isInteger() && isDiv) {
+                    return true;
+                }
+
+                // If current operation is a multiplication, it's inverse will be a division: safe only if outcome is still integral.
+                if (isDiv == false && opLeft.dataType().isInteger()) {
+                    long opLiteralValue = ((Number) opLiteral.value()).longValue();
+                    return opLiteralValue == 0 || ((Number) bcLiteral.value()).longValue() % opLiteralValue != 0;
+                }
+
+                // can't move a 0 in Mul/Div comparisons
+                return opRightSign == 0;
+            }
+
+            @Override
+            Expression postProcess(BinaryComparison binaryComparison) {
+                // negative multiplication/division changes the direction of the comparison
+                return opRightSign < 0 ? binaryComparison.reverse() : binaryComparison;
+            }
+
+            private static int sign(Object obj) {
+                int sign = 1;
+                if (obj instanceof Number) {
+                    sign = (int) signum(((Number) obj).doubleValue());
+                } else if (obj instanceof Literal) {
+                    sign = sign(((Literal) obj).value());
+                } else if (obj instanceof Neg) {
+                    sign = -sign(((Neg) obj).field());
+                } else if (obj instanceof ArithmeticOperation) {
+                    ArithmeticOperation operation = (ArithmeticOperation) obj;
+                    if (isMulOrDiv(operation.symbol())) {
+                        sign = sign(operation.left()) * sign(operation.right());
+                    }
+                }
+                return sign;
+            }
         }
     }
 
@@ -1066,7 +1384,7 @@ public final class OptimizerRules {
                 }
             }
 
-            if (!condition.equals(filter.condition())) {
+            if (condition.equals(filter.condition()) == false) {
                 return new Filter(filter.source(), filter.child(), condition);
             }
             return filter;
@@ -1146,19 +1464,26 @@ public final class OptimizerRules {
             super(TransformDirection.DOWN);
         }
 
+        @Override
         protected Expression rule(Expression e) {
             if (e instanceof RegexMatch) {
                 RegexMatch<?> regexMatch = (RegexMatch<?>) e;
                 StringPattern pattern = regexMatch.pattern();
                 if (pattern.matchesAll()) {
                     e = new IsNotNull(e.source(), regexMatch.field());
-                }
-                else if (pattern.isExactMatch()) {
-                    Literal literal = new Literal(regexMatch.source(), regexMatch.pattern().asString(), DataTypes.KEYWORD);
-                    e = new Equals(e.source(), regexMatch.field(), literal);
+                } else {
+                    String match = pattern.exactMatch();
+                    if (match != null) {
+                        Literal literal = new Literal(regexMatch.source(), match, DataTypes.KEYWORD);
+                        e = regexToEquals(regexMatch, literal);
+                    }
                 }
             }
             return e;
+        }
+
+        protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
+            return new Equals(regexMatch.source(), regexMatch.field(), literal);
         }
     }
 
@@ -1172,7 +1497,7 @@ public final class OptimizerRules {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            if (!plan.optimized()) {
+            if (plan.optimized() == false) {
                 plan.setOptimized();
             }
             return plan;
@@ -1195,7 +1520,7 @@ public final class OptimizerRules {
         @Override
         public final LogicalPlan apply(LogicalPlan plan) {
             return direction == TransformDirection.DOWN ?
-                plan.transformDown(this::rule, typeToken()) : plan.transformUp(this::rule, typeToken());
+                plan.transformDown(typeToken(), this::rule) : plan.transformUp(typeToken(), this::rule);
         }
 
         @Override

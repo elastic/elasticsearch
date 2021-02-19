@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher;
 
@@ -39,7 +40,7 @@ public class WatcherPluginTests extends ESTestCase {
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build(), logger));
-        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
+        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches]"));
 
         Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index",
                 ".watches,.triggered_watches,.watcher-history*").build(), logger);
@@ -48,16 +49,16 @@ public class WatcherPluginTests extends ESTestCase {
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watches").build(), logger));
-        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
+        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches]"));
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".triggered_watch").build(), logger));
-        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
+        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches]"));
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watcher-history-*").build(),
                         logger));
-        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
+        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches]"));
     }
 
     public void testWatcherDisabledTests() throws Exception {

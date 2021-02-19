@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.plan.logical;
@@ -23,9 +24,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
@@ -45,14 +44,14 @@ public class Pivot extends UnaryPlan {
     public Pivot(Source source, LogicalPlan child, Expression column, List<NamedExpression> values, List<NamedExpression> aggregates) {
         this(source, child, column, values, aggregates, null);
     }
-    
+
     public Pivot(Source source, LogicalPlan child, Expression column, List<NamedExpression> values, List<NamedExpression> aggregates,
             List<Attribute> grouping) {
         super(source, child);
         this.column = column;
         this.values = values;
         this.aggregates = aggregates;
-        
+
         // resolve the grouping set ASAP so it doesn't get re-resolved after analysis (since the aliasing information has been removed)
         if (grouping == null && expressionsResolved()) {
             AttributeSet columnSet = Expressions.references(singletonList(column));
@@ -90,11 +89,11 @@ public class Pivot extends UnaryPlan {
     public List<NamedExpression> aggregates() {
         return aggregates;
     }
-    
+
     public List<Attribute> groupings() {
         return grouping;
     }
-    
+
     public AttributeSet groupingSet() {
         if (groupingSet == null) {
             throw new SqlIllegalArgumentException("Cannot determine grouping in unresolved PIVOT");
@@ -131,10 +130,10 @@ public class Pivot extends UnaryPlan {
         }
         return valueOutput;
     }
-    
+
     public AttributeMap<Literal> valuesToLiterals() {
         AttributeSet outValues = valuesOutput();
-        Map<Attribute, Literal> valuesMap = new LinkedHashMap<>();
+        AttributeMap.Builder<Literal> valuesMap = AttributeMap.builder();
 
         int index = 0;
         // for each attribute, associate its value
@@ -152,7 +151,7 @@ public class Pivot extends UnaryPlan {
             }
         }
 
-        return new AttributeMap<>(valuesMap);
+        return valuesMap.build();
     }
 
     @Override
@@ -183,17 +182,17 @@ public class Pivot extends UnaryPlan {
     public int hashCode() {
         return Objects.hash(column, values, aggregates, child());
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         Pivot other = (Pivot) obj;
         return Objects.equals(column, other.column)
                 && Objects.equals(values, other.values)

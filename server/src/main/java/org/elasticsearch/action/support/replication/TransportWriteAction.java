@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.replication;
@@ -88,7 +77,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), force(request));
+        return indexingPressure.markPrimaryOperationStarted(primaryOperationCount(request), primaryOperationSize(request), force(request));
     }
 
     protected boolean force(ReplicatedWriteRequest<?> request) {
@@ -106,7 +95,8 @@ public abstract class TransportWriteAction<
             // If this primary request was received from a local reroute initiated by the node client, we
             // must mark a new primary operation local to the coordinating node.
             if (localRerouteInitiatedByNodeClient) {
-                return indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(primaryOperationSize(request));
+                return indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(primaryOperationCount(request),
+                    primaryOperationSize(request));
             } else {
                 return () -> {};
             }
@@ -114,7 +104,8 @@ public abstract class TransportWriteAction<
             // If this primary request was received directly from the network, we must mark a new primary
             // operation. This happens if the write action skips the reroute step (ex: rsync) or during
             // primary delegation, after the primary relocation hand-off.
-            return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), force(request));
+            return indexingPressure.markPrimaryOperationStarted(primaryOperationCount(request), primaryOperationSize(request),
+                force(request));
         }
     }
 
@@ -122,12 +113,20 @@ public abstract class TransportWriteAction<
         return 0;
     }
 
+    protected int primaryOperationCount(Request request) {
+        return 0;
+    }
+
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
-        return indexingPressure.markReplicaOperationStarted(replicaOperationSize(request), force(request));
+        return indexingPressure.markReplicaOperationStarted(replicaOperationCount(request), replicaOperationSize(request), force(request));
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {
+        return 0;
+    }
+
+    protected int replicaOperationCount(ReplicaRequest request) {
         return 0;
     }
 

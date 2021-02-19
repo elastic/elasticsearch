@@ -15,6 +15,13 @@ indices for data streams.
 
 `GET /_cat/indices`
 
+[[cat-indices-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API. You must
+also have the `monitor` or `manage` <<privileges-list-indices,index privilege>>
+for any data stream, index, or index alias you retrieve.
 
 [[cat-indices-api-desc]]
 ==== {api-description-title}
@@ -74,13 +81,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
-
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[pri-flag]]
 `pri` (primary shards)::
-(Optional, boolean) If `true`, the response only includes information from
+(Optional, Boolean) If `true`, the response only includes information from
 primary shards. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
@@ -98,7 +103,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 [[examples]]
 [source,console]
 --------------------------------------------------
-GET /_cat/indices/my-index-*?v&s=index
+GET /_cat/indices/my-index-*?v=true&s=index
 --------------------------------------------------
 // TEST[setup:my_index_huge]
 // TEST[s/^/PUT my-index-000002\n{"settings": {"number_of_replicas": 0}}\n/]

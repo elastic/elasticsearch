@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.broadcast.node;
@@ -54,6 +43,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -83,6 +75,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.object.HasToString.hasToString;
 
 public class TransportBroadcastByNodeActionTests extends ESTestCase {
@@ -146,7 +139,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         }
 
         @Override
-        protected EmptyResult shardOperation(Request request, ShardRouting shardRouting) {
+        protected EmptyResult shardOperation(Request request, ShardRouting shardRouting, Task task) {
             if (rarely()) {
                 shards.put(shardRouting, Boolean.TRUE);
                 return EmptyResult.INSTANCE;
@@ -321,6 +314,29 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         }
     }
 
+    public void testNoShardOperationsExecutedIfTaskCancelled() throws Exception {
+        ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
+        Set<ShardRouting> shards = new HashSet<>();
+        String nodeId = shardIt.iterator().next().currentNodeId();
+        for (ShardRouting shard : shardIt) {
+            if (nodeId.equals(shard.currentNodeId())) {
+                shards.add(shard);
+            }
+        }
+        final TransportBroadcastByNodeAction.BroadcastByNodeTransportRequestHandler handler =
+                action.new BroadcastByNodeTransportRequestHandler();
+
+        final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
+        TestTransportChannel channel = new TestTransportChannel(future);
+
+        expectThrows(TaskCancelledException.class, () -> handler.messageReceived(
+                action.new NodeRequest(nodeId, new Request(), new ArrayList<>(shards)),
+                channel,
+                cancelledTask()));
+
+        assertThat(action.getResults(), anEmptyMap());
+    }
+
     // simulate the master being removed from the cluster but before a new master is elected
     // as such, the shards assigned to the master will still show up in the cluster state as assigned to a node but
     // that node will not be in the local cluster state on any node that has detected the master as failing
@@ -343,7 +359,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
         Set<String> set = new HashSet<>();
         for (ShardRouting shard : shardIt) {
-            if (!shard.currentNodeId().equals(masterNode.getId())) {
+            if (shard.currentNodeId().equals(masterNode.getId()) == false) {
                 set.add(shard.currentNodeId());
             }
         }
@@ -389,7 +405,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         int successfulShards = 0;
         int failedShards = 0;
         for (Object result : action.getResults().values()) {
-            if (!(result instanceof ElasticsearchException)) {
+            if ((result instanceof ElasticsearchException) == false) {
                 successfulShards++;
             } else {
                 failedShards++;
@@ -429,7 +445,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         ShardsIterator shardIt = clusterService.state().getRoutingTable().allShards(new String[]{TEST_INDEX});
         Map<String, List<ShardRouting>> map = new HashMap<>();
         for (ShardRouting shard : shardIt) {
-            if (!map.containsKey(shard.currentNodeId())) {
+            if (map.containsKey(shard.currentNodeId()) == false) {
                 map.put(shard.currentNodeId(), new ArrayList<>());
             }
             map.get(shard.currentNodeId()).add(shard);
@@ -475,4 +491,28 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         assertEquals("failed shards", totalFailedShards, response.getFailedShards());
         assertEquals("accumulated exceptions", totalFailedShards, response.getShardFailures().length);
     }
+
+    public void testNoResultAggregationIfTaskCancelled() {
+        Request request = new Request(new String[]{TEST_INDEX});
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        action.new AsyncAction(cancelledTask(), request, listener).start();
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
+
+        for (Map.Entry<String, List<CapturingTransport.CapturedRequest>> entry : capturedRequests.entrySet()) {
+            transport.handleRemoteError(entry.getValue().get(0).requestId, new ElasticsearchException("simulated"));
+        }
+
+        assertTrue(listener.isDone());
+        expectThrows(ExecutionException.class, TaskCancelledException.class, listener::get);
+    }
+
+    private static Task cancelledTask() {
+        return new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap()) {
+            @Override
+            public boolean isCancelled() {
+                return true;
+            }
+        };
+    }
+
 }

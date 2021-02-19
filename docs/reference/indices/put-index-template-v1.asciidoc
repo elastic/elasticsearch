@@ -6,7 +6,7 @@
 
 IMPORTANT: This documentation is about legacy index templates, 
 which are deprecated and will be replaced by the composable templates introduced in {es} 7.8. 
-For information about composable templates, <<indices-templates>>.
+For information about composable templates, see <<index-templates>>.
 
 Creates or updates an index template.
 
@@ -50,6 +50,13 @@ DELETE _template/template_*
 ==== {api-request-title}
 
 `PUT /_template/<index-template>`
+
+[[put-index-template-v1-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
 
 
 [[put-index-template-v1-api-desc]]
@@ -95,7 +102,7 @@ Name of the index template to create.
 ==== {api-query-parms-title}
 
 `create`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, this request cannot replace or update existing index templates.
 Defaults to `false`.
 

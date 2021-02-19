@@ -1,7 +1,7 @@
 [[api-conventions]]
 == API conventions
 
-The *Elasticsearch* REST APIs are exposed using <<modules-http,JSON over HTTP>>.
+The *Elasticsearch* REST APIs are exposed using JSON over HTTP.
 
 The conventions listed in this chapter can be applied throughout the REST
 API, unless otherwise specified.
@@ -42,14 +42,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 The defaults settings for the above parameters depend on the API being used.
 
-Some indices (hereafter "system indices") are used by various system
-modules and/or plugins to store state or configuration. These indices
-are not intended to be accessed directly, and accessing them directly is
-deprecated. In the next major version, access to these indices will no longer be
-allowed to prevent accidental operations that may cause problems with
-Elasticsearch features which depend on the consistency of data in these
-indices.
-
 Some multi-target APIs that can target indices also support the following query
 string parameter:
 
@@ -58,6 +50,33 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 NOTE: Single index APIs, such as the <<docs>> and
 <<indices-aliases,single-index `alias` APIs>>, do not support multi-target
 syntax.
+
+[[hidden-indices]]
+==== Hidden data streams and indices
+
+For most APIs, wildcard expressions do not match hidden data streams and indices
+by default. To match hidden data streams and indices using a wildcard
+expression, you must specify the `expand_wildcards` query parameter.
+
+You can create hidden data streams by setting
+<<data-stream-hidden,`data_stream.hidden`>> to `true` in the stream's matching
+index template. You can hide indices using the <<index-hidden,`index.hidden`>>
+index setting.
+
+The backing indices for data streams are hidden automatically. Some features,
+such as {ml}, store information in hidden indices.
+
+Global index templates that match all indices are not applied to hidden indices.
+
+[[system-indices]]
+==== System indices
+
+{es} modules and plugins can store configuration and state information in internal _system indices_. 
+You should not directly access or modify system indices 
+as they contain data essential to the operation of the system.
+
+IMPORTANT: Direct access to system indices is deprecated and 
+will no longer be allowed in the next major version.
 
 [[date-math-index-names]]
 === Date math support in index names

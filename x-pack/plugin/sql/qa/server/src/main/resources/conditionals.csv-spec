@@ -326,6 +326,23 @@ Pettey
 Heyers
 ;
 
+iifConditionWhere
+SELECT last_name FROM test_emp WHERE IIF(LENGTH(last_name) < 7, true, false) LIMIT 10;
+
+  last_name
+-----------
+Simmel
+Peac
+Sluis
+Terkki
+Genin
+Peha
+Erde
+Famili
+Pettey
+Heyers
+;
+
 iifOrderBy
 SELECT last_name FROM test_emp ORDER BY IIF(languages >= 3, 'first', 'second'), emp_no LIMIT 10;
 

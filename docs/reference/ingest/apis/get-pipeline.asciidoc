@@ -41,12 +41,22 @@ GET /_ingest/pipeline/my-pipeline-id
 
 `GET /_ingest/pipeline`
 
+[[get-pipeline-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`read_pipeline`, `manage_pipeline`, `manage_ingest_pipelines`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[get-pipeline-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=path-pipeline]
-
+`<pipeline>`::
+(Optional, string)
+Comma-separated list of pipeline IDs to retrieve. Wildcard (`*`) expressions are
+supported.
++
+To get all ingest pipelines, omit this parameter or use `*`.
 
 
 [[get-pipeline-api-query-params]]

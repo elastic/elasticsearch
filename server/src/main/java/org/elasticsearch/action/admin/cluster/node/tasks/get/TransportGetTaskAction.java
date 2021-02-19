@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.node.tasks.get;
@@ -96,10 +85,6 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      * {@link #getFinishedTaskFromIndex(Task, GetTaskRequest, ActionListener)} on this node.
      */
     private void runOnNodeWithTaskIfPossible(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
-        TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-        if (request.getTimeout() != null) {
-            builder.withTimeout(request.getTimeout());
-        }
         DiscoveryNode node = clusterService.state().nodes().get(request.getTaskId().getNodeId());
         if (node == null) {
             // Node is no longer part of the cluster! Try and look the task up from the results index.
@@ -115,7 +100,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             return;
         }
         GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
-        transportService.sendRequest(node, GetTaskAction.NAME, nodeRequest, builder.build(),
+        transportService.sendRequest(node, GetTaskAction.NAME, nodeRequest, TransportRequestOptions.timeout(request.getTimeout()),
             new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, ThreadPool.Names.SAME));
     }
 

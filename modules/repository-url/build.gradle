@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 import org.elasticsearch.gradle.PropertyNormalization
@@ -23,7 +12,7 @@ import org.elasticsearch.gradle.test.AntFixture
 
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
-
+apply plugin: 'elasticsearch.test.fixtures'
 
 esplugin {
   description 'Module for URL repository'
@@ -39,29 +28,38 @@ restResources {
  // This directory is shared between two URL repositories and one FS repository in YAML integration tests
 File repositoryDir = new File(project.buildDir, "shared-repository")
 
-/** A task to start the URLFixture which exposes the repositoryDir over HTTP **/
-task urlFixture(type: AntFixture) {
-  dependsOn testClasses
-  doFirst {
-    repositoryDir.mkdirs()
-  }
-  env 'CLASSPATH', "${-> project.sourceSets.test.runtimeClasspath.asPath}"
-  executable = "${BuildParams.runtimeJavaHome}/bin/java"
-  args 'org.elasticsearch.repositories.url.URLFixture', baseDir, "${repositoryDir.absolutePath}"
-}
-yamlRestTest {
-  dependsOn urlFixture
+def testJar = tasks.register("testJar", Jar) {
+  from sourceSets.test.output
+  classifier = "test"
 }
 
-internalClusterTest {
-  dependsOn urlFixture
+tasks.named("preProcessFixture").configure {
+  inputs.files(testJar, sourceSets.test.runtimeClasspath)
+  doLast {
+    file("${testFixturesDir}/shared").mkdirs()
+    project.copy {
+      from testJar
+      from sourceSets.test.runtimeClasspath
+      into "${testFixturesDir}/shared"
+    }
+    repositoryDir.mkdirs()
+  }
 }
+
+testFixtures.useFixture()
+
+def fixtureAddress = {
+  int ephemeralPort = tasks.named("postProcessFixture").get().ext."test.fixtures.url-fixture.tcp.80"
+  assert ephemeralPort > 0
+  'http://127.0.0.1:' + ephemeralPort
+}
+
 testClusters.all {
   // repositoryDir is used by a FS repository to create snapshots
   setting 'path.repo', "${repositoryDir.absolutePath}", PropertyNormalization.IGNORE_VALUE
   // repositoryDir is used by two URL repositories to restore snapshots
   setting 'repositories.url.allowed_urls', {
-    "http://snapshot.test*,http://${urlFixture.addressAndPort}"
+    "http://snapshot.test*,${fixtureAddress()}"
   }, PropertyNormalization.IGNORE_VALUE
 }
 

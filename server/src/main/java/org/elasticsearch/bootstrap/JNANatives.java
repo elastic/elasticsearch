@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
@@ -25,9 +14,17 @@ import com.sun.jna.WString;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.snapshots.SnapshotUtils;
 
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.elasticsearch.bootstrap.JNAKernel32Library.SizeT;
@@ -184,7 +181,7 @@ class JNANatives {
             // Thus, we need to first increase the working set size of the JVM by
             // the amount of memory we wish to lock, plus a small overhead (1MB).
             SizeT size = new SizeT(JvmInfo.jvmInfo().getMem().getHeapInit().getBytes() + (1024 * 1024));
-            if (!kernel.SetProcessWorkingSetSize(process, size, size)) {
+            if (kernel.SetProcessWorkingSetSize(process, size, size) == false) {
                 logger.warn("Unable to lock JVM memory. Failed to set working set size. Error code {}", Native.getLastError());
             } else {
                 JNAKernel32Library.MemoryBasicInformation memInfo = new JNAKernel32Library.MemoryBasicInformation();
@@ -269,6 +266,42 @@ class JNANatives {
                 logger.debug("unable to install syscall filter", e);
             }
             logger.warn("unable to install syscall filter: ", e);
+        }
+    }
+
+    @SuppressForbidden(reason = "need access to fd on FileOutputStream")
+    static void fallocateSnapshotCacheFile(Environment environment, long fileSize) throws IOException {
+        final JNAFalloc falloc = JNAFalloc.falloc();
+        if (falloc == null) {
+            logger.debug("not trying to create a shared cache file using fallocate because native fallocate library could not be loaded.");
+            return;
+        }
+
+        Path cacheFile = SnapshotUtils.findCacheSnapshotCacheFilePath(environment, fileSize);
+        if (cacheFile == null) {
+            throw new IOException("could not find a directory with adequate free space for cache file");
+        }
+        boolean success = false;
+        try (FileOutputStream fileChannel = new FileOutputStream(cacheFile.toFile())) {
+            long currentSize = fileChannel.getChannel().size();
+            if (currentSize < fileSize) {
+                final Field field = fileChannel.getFD().getClass().getDeclaredField("fd");
+                field.setAccessible(true);
+                final int result = falloc.fallocate((int) field.get(fileChannel.getFD()), currentSize, fileSize - currentSize);
+                if (result == 0) {
+                    success = true;
+                    logger.info("allocated cache file [{}] using fallocate", cacheFile);
+                } else {
+                    logger.warn("failed to initialize cache file [{}] using fallocate errno [{}]", cacheFile, result);
+                }
+            }
+        } catch (Exception e) {
+            logger.warn(new ParameterizedMessage("failed to initialize cache file [{}] using fallocate", cacheFile), e);
+        } finally {
+            if (success == false) {
+                // if anything goes wrong, delete the potentially created file to not waste disk space
+                Files.deleteIfExists(cacheFile);
+            }
         }
     }
 }

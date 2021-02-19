@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.shard;
@@ -135,8 +124,7 @@ final class StoreRecovery {
                     internalRecoverFromStore(indexShard);
                     // just trigger a merge to do housekeeping on the
                     // copied segments - we will also see them in stats etc.
-                    indexShard.getEngine().forceMerge(false, -1, false,
-                        false, false, UUIDs.randomBase64UUID());
+                    indexShard.getEngine().forceMerge(false, -1, false, UUIDs.randomBase64UUID());
                     return true;
                 } catch (IOException ex) {
                     throw new IndexShardRecoveryException(indexShard.shardId(), "failed to recover from local shards", ex);
@@ -414,7 +402,7 @@ final class StoreRecovery {
                 }
                 index.setFileDetailsComplete();
             } else {
-                store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
+                store.createEmpty();
                 final String translogUUID = Translog.createEmptyTranslog(
                     indexShard.shardPath().resolveTranslog(), SequenceNumbers.NO_OPS_PERFORMED, shardId,
                     indexShard.getPendingPrimaryTerm());
@@ -490,8 +478,7 @@ final class StoreRecovery {
             // If the index UUID was not found in the recovery source we will have to load RepositoryData and resolve it by index name
             if (indexId.getId().equals(IndexMetadata.INDEX_UUID_NA_VALUE)) {
                 // BwC path, running against an old version master that did not add the IndexId to the recovery source
-                repository.getRepositoryData(ActionListener.map(
-                    indexIdListener, repositoryData -> repositoryData.resolveIndexId(indexId.getName())));
+                repository.getRepositoryData(indexIdListener.map(repositoryData -> repositoryData.resolveIndexId(indexId.getName())));
             } else {
                 indexIdListener.onResponse(indexId);
             }

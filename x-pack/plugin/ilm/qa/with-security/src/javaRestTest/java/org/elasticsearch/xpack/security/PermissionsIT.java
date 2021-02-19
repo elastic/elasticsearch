@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security;
@@ -146,7 +147,7 @@ public class PermissionsIT extends ESRestTestCase {
                 assertThat(stepInfo.get("reason"), equalTo("action [indices:monitor/stats] is unauthorized" +
                     " for user [test_ilm]" +
                     " on indices [not-ilm]," +
-                    " this action is granted by the privileges [monitor,manage,all]"));
+                    " this action is granted by the index privileges [monitor,manage,all]"));
             }
         });
     }
@@ -164,14 +165,14 @@ public class PermissionsIT extends ESRestTestCase {
             "\"indices\": [{ \"names\": [\".slm-history*\"],\"privileges\": [\"all\"] }] }");
         assertOK(adminClient().performRequest(roleRequest));
 
-        createUser("slm_admin", "slm-pass", "slm-manage");
-        createUser("slm_user", "slm-user-pass", "slm-read");
+        createUser("slm_admin", "slm-admin-password", "slm-manage");
+        createUser("slm_user", "slm-user-password", "slm-read");
 
         final HighLevelClient hlAdminClient = new HighLevelClient(adminClient());
 
         // Build two high level clients, each using a different user
         final RestClientBuilder adminBuilder = RestClient.builder(adminClient().getNodes().toArray(new Node[0]));
-        final String adminToken = basicAuthHeaderValue("slm_admin", new SecureString("slm-pass".toCharArray()));
+        final String adminToken = basicAuthHeaderValue("slm_admin", new SecureString("slm-admin-password".toCharArray()));
         configureClient(adminBuilder, Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", adminToken)
             .build());
@@ -179,7 +180,7 @@ public class PermissionsIT extends ESRestTestCase {
         final RestHighLevelClient adminHLRC = new RestHighLevelClient(adminBuilder);
 
         final RestClientBuilder userBuilder = RestClient.builder(adminClient().getNodes().toArray(new Node[0]));
-        final String userToken = basicAuthHeaderValue("slm_user", new SecureString("slm-user-pass".toCharArray()));
+        final String userToken = basicAuthHeaderValue("slm_user", new SecureString("slm-user-password".toCharArray()));
         configureClient(userBuilder, Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", userToken)
             .build());
@@ -283,7 +284,7 @@ public class PermissionsIT extends ESRestTestCase {
          * - Create role with just write and manage privileges on alias
          * - Create user and assign newly created role.
          */
-        createNewSingletonPolicy(adminClient(), "foo-policy", "hot", new RolloverAction(null, null, 2L));
+        createNewSingletonPolicy(adminClient(), "foo-policy", "hot", new RolloverAction(null, null, null, 2L));
         createIndexTemplate("foo-template", "foo-logs-*", "foo_alias", "foo-policy");
         createIndexAsAdmin("foo-logs-000001", "foo_alias", randomBoolean());
         createRole("foo_alias_role", "foo_alias");

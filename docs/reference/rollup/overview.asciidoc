@@ -39,10 +39,10 @@ such as hourly or daily trends.
 If we compress the 43 million documents into hourly summaries, we can save vast amounts of space.  The Rollup feature
 automates this process of summarizing historical data.
 
-Details about setting up and configuring Rollup are covered in <<rollup-put-job,Create Job API>>
+Details about setting up and configuring Rollup are covered in <<rollup-put-job,Create Job API>>.
 
 [discrete]
-==== Rollup uses standard query DSL
+==== Rollup uses standard Query DSL
 
 The Rollup feature exposes a new search endpoint (`/_rollup_search` vs the standard `/_search`) which knows how to search
 over rolled-up data.  Importantly, this endpoint accepts 100% normal {es} Query DSL.  Your application does not need to learn

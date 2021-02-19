@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
@@ -76,10 +77,10 @@ public interface Function {
          * TODO: it might be useful to have the full checkpoint data.
          *
          * @param lastCheckpointTimestamp the timestamp of the last checkpoint
-         * @param nextcheckpointTimestamp the timestamp of the next (in progress) checkpoint
+         * @param nextCheckpointTimestamp the timestamp of the next (in progress) checkpoint
          * @return a filter query, null in case of no filter
          */
-        QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextcheckpointTimestamp);
+        QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextCheckpointTimestamp);
 
         /**
          * Clear the internal state to free up memory.
@@ -151,6 +152,14 @@ public interface Function {
      * @param listener the result listener
      */
     void validateConfig(ActionListener<Boolean> listener);
+
+    /**
+     * Returns names of fields that are critical to achieve good transform performance.
+     * Such fields should ideally be indexed, not runtime or script fields.
+     *
+     * @return list of fields names
+     */
+    List<String> getPerformanceCriticalFields();
 
     /**
      * Runtime validation by querying the source and checking if source and config fit.

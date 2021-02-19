@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.test;
@@ -78,6 +67,9 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static final String BWC_DISTRIBUTION_SYSPROP = "tests.bwc-distribution";
     private static final String EXAMPLE_PLUGIN_SYSPROP = "tests.example-plugin";
 
+    private static final String QUOTA_AWARE_FS_PLUGIN_CONFIGURATION = "quotaAwareFsPlugin";
+    private static final String QUOTA_AWARE_FS_PLUGIN_SYSPROP = "tests.quota-aware-fs-plugin";
+
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
@@ -100,20 +92,24 @@ public class DistroTestPlugin implements Plugin<Project> {
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
 
         Configuration examplePlugin = configureExamplePlugin(project);
+        Configuration quotaAwareFsPlugin = configureQuotaAwareFsPlugin(project);
 
         List<TaskProvider<Test>> windowsTestTasks = new ArrayList<>();
         Map<Type, List<TaskProvider<Test>>> linuxTestTasks = new HashMap<>();
         Map<String, List<TaskProvider<Test>>> upgradeTestTasks = new HashMap<>();
         Map<String, TaskProvider<?>> depsTasks = new HashMap<>();
+
         for (ElasticsearchDistribution distribution : testDistributions) {
             String taskname = destructiveDistroTestTaskName(distribution);
             TaskProvider<?> depsTask = project.getTasks().register(taskname + "#deps");
-            depsTask.configure(t -> t.dependsOn(distribution, examplePlugin));
+            // explicitly depend on the archive not on the implicit extracted distribution
+            depsTask.configure(t -> t.dependsOn(distribution.getArchiveDependencies(), examplePlugin, quotaAwareFsPlugin));
             depsTasks.put(taskname, depsTask);
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                 t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);
                 addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
                 addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
+                addDistributionSysprop(t, QUOTA_AWARE_FS_PLUGIN_SYSPROP, () -> quotaAwareFsPlugin.getSingleFile().toString());
                 t.exclude("**/PackageUpgradeTests.class");
             }, depsTask);
 
@@ -313,6 +309,14 @@ public class DistroTestPlugin implements Plugin<Project> {
         DependencyHandler deps = project.getDependencies();
         Map<String, String> examplePluginProject = Map.of("path", ":example-plugins:custom-settings", "configuration", "zip");
         deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.project(examplePluginProject));
+        return examplePlugin;
+    }
+
+    private static Configuration configureQuotaAwareFsPlugin(Project project) {
+        Configuration examplePlugin = project.getConfigurations().create(QUOTA_AWARE_FS_PLUGIN_CONFIGURATION);
+        DependencyHandler deps = project.getDependencies();
+        Map<String, String> quotaAwareFsPluginProject = Map.of("path", ":x-pack:quota-aware-fs", "configuration", "zip");
+        deps.add(QUOTA_AWARE_FS_PLUGIN_CONFIGURATION, deps.project(quotaAwareFsPluginProject));
         return examplePlugin;
     }
 

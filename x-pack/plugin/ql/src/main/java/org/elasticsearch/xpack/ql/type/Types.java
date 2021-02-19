@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.type;
 
@@ -14,7 +15,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
@@ -27,7 +27,7 @@ public abstract class Types {
     @SuppressWarnings("unchecked")
     public static Map<String, EsField> fromEs(DataTypeRegistry typeRegistry, Map<String, Object> asMap) {
         Map<String, Object> props = null;
-        if (asMap != null && !asMap.isEmpty()) {
+        if (asMap != null && asMap.isEmpty() == false) {
             props = (Map<String, Object>) asMap.get("properties");
         }
         return props == null || props.isEmpty() ? emptyMap() : startWalking(typeRegistry, props);
@@ -49,7 +49,7 @@ public abstract class Types {
     private static DataType getType(DataTypeRegistry typeRegistry, Map<String, Object> content) {
         if (content.containsKey("type")) {
             String typeName = content.get("type").toString();
-            if ("wildcard".equals(typeName)) {
+            if ("constant_keyword".equals(typeName) || "wildcard".equals(typeName)) {
                 return KEYWORD;
             }
             try {
@@ -94,10 +94,8 @@ public abstract class Types {
                 int length = intSetting(content.get("ignore_above"), Short.MAX_VALUE);
                 boolean normalized = Strings.hasText(textSetting(content.get("normalizer"), null));
                 field = new KeywordEsField(name, properties, docValues, length, normalized);
-            } else if (esDataType == CONSTANT_KEYWORD) {
-                field = new ConstantKeywordEsField(name);
             } else if (esDataType == DATETIME) {
-                field = new DateEsField(name, properties, docValues);
+                field = DateEsField.dateEsField(name, properties, docValues);
             } else if (esDataType == UNSUPPORTED) {
                 String type = content.get("type").toString();
                 field = new UnsupportedEsField(name, type, null, properties);
@@ -122,7 +120,7 @@ public abstract class Types {
     private static int intSetting(Object value, int defaultValue) {
         return value == null ? defaultValue : Integer.parseInt(value.toString());
     }
-    
+
     private static void propagateUnsupportedType(String inherited, String originalType, Map<String, EsField> properties) {
         if (properties != null && properties.isEmpty() == false) {
             for (Entry<String, EsField> entry : properties.entrySet()) {

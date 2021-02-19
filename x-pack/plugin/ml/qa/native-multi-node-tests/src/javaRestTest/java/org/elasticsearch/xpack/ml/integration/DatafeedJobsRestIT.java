@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -118,6 +119,12 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         Request createAirlineDataRequest = new Request("PUT", "/airline-data");
         createAirlineDataRequest.setJsonEntity("{"
                 + "  \"mappings\": {"
+                + "    \"runtime\": {"
+                + "      \"airline_lowercase_rt\": { "
+                + "        \"type\":\"keyword\","
+                + "        \"script\" : { \"source\": \"emit(params._source.airline.toLowerCase())\" }"
+                + "      }"
+                + "    },"
                 + "    \"properties\": {"
                 + "      \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
                 + "      \"airline\": {"
@@ -127,11 +134,6 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 + "          \"keyword\":{\"type\":\"keyword\"}"
                 + "         }"
                 + "       },"
-                + "      \"airline_lowercase_rt\": { "
-                + "        \"type\":\"runtime\","
-                + "        \"runtime_type\": \"keyword\","
-                + "        \"script\" : { \"source\": \"emit(params._source.airline.toLowerCase())\" }"
-                + "      },"
                 + "      \"responsetime\": { \"type\":\"float\"}"
                 + "    }"
                 + "  }"

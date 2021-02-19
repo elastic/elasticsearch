@@ -53,16 +53,29 @@ Closed indices do not contribute to the shard count.
 
 You can dynamically adjust the cluster shard limit with the following setting:
 
+[[cluster-max-shards-per-node]]
 `cluster.max_shards_per_node`::
-     (<<dynamic-cluster-setting,Dynamic>>)
-     Controls the number of shards allowed in the cluster per data node.
++
+--
+(<<dynamic-cluster-setting,Dynamic>>)
+Limits the total number of primary and replica shards for the cluster. {es}
+calculates the limit as follows:
 
-With the default setting, a 3-node cluster allows 3,000 shards total, across all open indexes. 
-If you reduce the limit to 500, the cluster would allow 1,500 shards total.
+`cluster.max_shards_per_node * number of data nodes`
 
-NOTE: If there are no data nodes in the cluster, the limit will not be enforced.
-This allows the creation of indices during cluster creation if dedicated master
-nodes are set up before data nodes.
+Shards for closed indices do not count toward this limit. Defaults to `1000`.
+A cluster with no data nodes is unlimited.
+
+{es} rejects any request that creates more shards than this limit allows. For
+example, a cluster with a `cluster.max_shards_per_node` setting of `100` and
+three data nodes has a shard limit of 300. If the cluster already contains 296
+shards, {es} rejects any request that adds five or more shards to the cluster.
+
+NOTE: This setting does not limit shards for individual nodes. To limit the
+number of shards for each node, use the
+<<cluster-total-shards-per-node,`cluster.routing.allocation.total_shards_per_node`>>
+setting.
+--
 
 [[user-defined-data]]
 ===== User-defined cluster metadata

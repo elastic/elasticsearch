@@ -1,23 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.blobstore;
+
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -110,25 +101,35 @@ public interface BlobContainer {
     void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
 
     /**
-     * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
-     * using an atomic write operation if the implementation supports it.
-     *
-     * This method assumes the container does not already contain a blob of the same blobName.  If a blob by the
-     * same name already exists, the operation will fail and an {@link IOException} will be thrown.
+     * Reads blob content from a {@link BytesReference} and writes it to the container in a new blob with the given name.
      *
      * @param   blobName
      *          The name of the blob to write the contents of the input stream to.
-     * @param   inputStream
-     *          The input stream from which to retrieve the bytes to write to the blob.
-     * @param   blobSize
-     *          The size of the blob to be written, in bytes.  It is implementation dependent whether
-     *          this value is used in writing the blob to the repository.
+     * @param   bytes
+     *          The bytes to write
      * @param   failIfAlreadyExists
      *          whether to throw a FileAlreadyExistsException if the given blob already exists
      * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
-    void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
+    default void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        writeBlob(blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
+    }
+
+    /**
+     * Reads blob content from a {@link BytesReference} and writes it to the container in a new blob with the given name,
+     * using an atomic write operation if the implementation supports it.
+     *
+     * @param   blobName
+     *          The name of the blob to write the contents of the input stream to.
+     * @param   bytes
+     *          The bytes to write
+     * @param   failIfAlreadyExists
+     *          whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
+     * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
+     */
+    void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException;
 
     /**
      * Deletes this container and all its contents from the repository.

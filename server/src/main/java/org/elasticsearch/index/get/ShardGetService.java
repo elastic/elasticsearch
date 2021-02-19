@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.get;
@@ -25,7 +14,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.StoredFieldVisitor;
-import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,14 +35,12 @@ import org.elasticsearch.index.engine.TranslogLeafReader;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -128,7 +114,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
      */
     public GetResult get(Engine.GetResult engineGetResult, String id,
                             String[] fields, FetchSourceContext fetchSourceContext) {
-        if (!engineGetResult.exists()) {
+        if (engineGetResult.exists() == false) {
             return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
         }
 
@@ -170,8 +156,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                                long ifSeqNo, long ifPrimaryTerm, FetchSourceContext fetchSourceContext) {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
 
-        Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        Engine.GetResult get = indexShard.get(new Engine.Get(realtime, realtime, id, uidTerm)
+        Engine.GetResult get = indexShard.get(new Engine.Get(realtime, realtime, id)
             .version(version).versionType(versionType).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm));
         assert get.isFromTranslog() == false || realtime : "should only read from translog if realtime enabled";
         if (get.exists() == false) {
@@ -273,7 +258,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
 
             // put stored fields into result objects
-            if (!fieldVisitor.fields().isEmpty()) {
+            if (fieldVisitor.fields().isEmpty() == false) {
                 fieldVisitor.postProcess(mapperService::fieldType);
                 documentFields = new HashMap<>();
                 metadataFields = new HashMap<>();

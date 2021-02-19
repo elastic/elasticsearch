@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.test.rest;
 
@@ -32,6 +33,11 @@ public final class XPackRestTestConstants {
             STATE_INDEX_PREFIX,
             RESULTS_INDEX_PREFIX,
             CONFIG_INDEX);
+
+    public static final List<String> ML_POST_V7120_TEMPLATES =
+        List.of(
+            STATE_INDEX_PREFIX,
+            RESULTS_INDEX_PREFIX);
 
     // Transform constants:
     public static final String TRANSFORM_TASK_NAME = "data_frame/transforms";

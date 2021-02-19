@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest;
@@ -29,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
@@ -92,7 +82,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final UsageService usageService;
 
     public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-            NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
+                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
         if (handlerWrapper == null) {
@@ -168,6 +158,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
+        final RestApiCompatibleVersion version = maybeWrappedHandler.compatibleWithVersion();
+        assert RestApiCompatibleVersion.minimumSupported() == version || RestApiCompatibleVersion.currentVersion() == version
+            : "REST API compatibility is only supported for version " + RestApiCompatibleVersion.minimumSupported().major;
+
         handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),
             (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method));
     }
@@ -220,7 +214,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {
+    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler,
+                                 RestApiCompatibleVersion restApiCompatibleVersion)
+        throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
             final XContentType xContentType = request.getXContentType();
@@ -228,7 +224,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
-            if (handler.supportsContentStream() && xContentType != XContentType.JSON && xContentType != XContentType.SMILE) {
+            //TODO consider refactoring to handler.supportsContentStream(xContentType). It is only used with JSON and SMILE
+            if (handler.supportsContentStream() && xContentType.canonical() != XContentType.JSON
+                && xContentType.canonical() != XContentType.SMILE) {
                 channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, RestStatus.NOT_ACCEPTABLE,
                     "Content-Type [" + xContentType + "] does not support stream parsing. Use JSON or SMILE instead"));
                 return;
@@ -242,7 +240,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, restApiCompatibleVersion);
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
@@ -318,6 +316,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String rawPath = request.rawPath();
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
+
+        RestApiCompatibleVersion restApiCompatibleVersion = request.getRestApiCompatibleVersion();
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();
@@ -329,14 +329,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 if (handlers == null) {
                     handler = null;
                 } else {
-                    handler = handlers.getHandler(requestMethod);
+                    handler = handlers.getHandler(requestMethod, restApiCompatibleVersion);
                 }
                 if (handler == null) {
                   if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
                       return;
                   }
                 } else {
-                    dispatchRequest(request, channel, handler);
+                    dispatchRequest(request, channel, handler, restApiCompatibleVersion);
                     return;
                 }
             }
@@ -454,33 +454,40 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
+        private final RestApiCompatibleVersion restApiCompatibleVersion;
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
+        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength,
+                                    RestApiCompatibleVersion restApiCompatibleVersion) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
+            this.restApiCompatibleVersion = restApiCompatibleVersion;
         }
 
         @Override
         public XContentBuilder newBuilder() throws IOException {
-            return delegate.newBuilder();
+            return delegate.newBuilder()
+                .withCompatibleVersion(restApiCompatibleVersion);
         }
 
         @Override
         public XContentBuilder newErrorBuilder() throws IOException {
-            return delegate.newErrorBuilder();
+            return delegate.newErrorBuilder()
+                .withCompatibleVersion(restApiCompatibleVersion);
         }
 
         @Override
         public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
-            return delegate.newBuilder(xContentType, useFiltering);
+            return delegate.newBuilder(xContentType, useFiltering)
+                .withCompatibleVersion(restApiCompatibleVersion);
         }
 
         @Override
         public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
                 throws IOException {
-            return delegate.newBuilder(xContentType, responseContentType, useFiltering);
+            return delegate.newBuilder(xContentType, responseContentType, useFiltering)
+                .withCompatibleVersion(restApiCompatibleVersion);
         }
 
         @Override

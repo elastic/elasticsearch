@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport.netty4;
@@ -33,11 +22,9 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.InboundPipeline;
-import org.elasticsearch.transport.OutboundHandler;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.Transports;
 
-import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -93,15 +80,15 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
-        assert msg instanceof OutboundHandler.SendContext;
+        assert msg instanceof ByteBuf;
         assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
-        final boolean queued = queuedWrites.offer(new WriteOperation((OutboundHandler.SendContext) msg, promise));
+        final boolean queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
         assert queued;
         assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
     }
 
     @Override
-    public void channelWritabilityChanged(ChannelHandlerContext ctx) throws IOException {
+    public void channelWritabilityChanged(ChannelHandlerContext ctx) {
         assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
         if (ctx.channel().isWritable()) {
             doFlush(ctx);
@@ -110,7 +97,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void flush(ChannelHandlerContext ctx) throws IOException {
+    public void flush(ChannelHandlerContext ctx) {
         assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
         Channel channel = ctx.channel();
         if (channel.isWritable() || channel.isActive() == false) {
@@ -126,7 +113,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
         super.channelInactive(ctx);
     }
 
-    private void doFlush(ChannelHandlerContext ctx) throws IOException {
+    private void doFlush(ChannelHandlerContext ctx) {
         assert ctx.executor().inEventLoop();
         final Channel channel = ctx.channel();
         if (channel.isActive() == false) {
@@ -144,25 +131,24 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
                 break;
             }
             final WriteOperation write = currentWrite;
-            final ByteBuf currentBuffer = write.buffer();
-            if (currentBuffer.readableBytes() == 0) {
+            if (write.buf.readableBytes() == 0) {
                 write.promise.trySuccess();
                 currentWrite = null;
                 continue;
             }
-            final int readableBytes = currentBuffer.readableBytes();
+            final int readableBytes = write.buf.readableBytes();
             final int bufferSize = Math.min(readableBytes, 1 << 18);
-            final int readerIndex = currentBuffer.readerIndex();
+            final int readerIndex = write.buf.readerIndex();
             final boolean sliced = readableBytes != bufferSize;
             final ByteBuf writeBuffer;
             if (sliced) {
-                writeBuffer = currentBuffer.retainedSlice(readerIndex, bufferSize);
-                currentBuffer.readerIndex(readerIndex + bufferSize);
+                writeBuffer = write.buf.retainedSlice(readerIndex, bufferSize);
+                write.buf.readerIndex(readerIndex + bufferSize);
             } else {
-                writeBuffer = currentBuffer;
+                writeBuffer = write.buf;
             }
             final ChannelFuture writeFuture = ctx.write(writeBuffer);
-            if (sliced == false || currentBuffer.readableBytes() == 0) {
+            if (sliced == false || write.buf.readableBytes() == 0) {
                 currentWrite = null;
                 writeFuture.addListener(future -> {
                     assert ctx.executor().inEventLoop();
@@ -197,24 +183,13 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     private static final class WriteOperation {
 
-        private ByteBuf buf;
-
-        private OutboundHandler.SendContext context;
+        private final ByteBuf buf;
 
         private final ChannelPromise promise;
 
-        WriteOperation(OutboundHandler.SendContext context, ChannelPromise promise) {
-            this.context = context;
+        WriteOperation(ByteBuf buf, ChannelPromise promise) {
+            this.buf = buf;
             this.promise = promise;
-        }
-
-        ByteBuf buffer() throws IOException {
-            if (buf == null) {
-                buf = Netty4Utils.toByteBuf(context.get());
-                context = null;
-            }
-            assert context == null;
-            return buf;
         }
     }
 }

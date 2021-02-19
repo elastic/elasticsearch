@@ -13,7 +13,7 @@ These are the settings available for configuring
 
 [[slm-history-index-enabled]]
 `slm.history_index_enabled`::
-(<<static-cluster-setting,Static>>, boolean)
+(<<static-cluster-setting,Static>>, Boolean)
 Controls whether {slm-init} records the history of actions taken as part of {slm-init} policies
 to the `slm-history-*` indices. Defaults to `true`.
 

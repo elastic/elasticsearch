@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
@@ -72,7 +73,7 @@ public class DelayedDataCheckConfigTests extends AbstractSerializingTestCase<Del
         TimeValue timeWindow = instance.getCheckWindow();
         switch (between(0, 1)) {
         case 0:
-            enabled = !enabled;
+            enabled = enabled == false;
             if (randomBoolean()) {
                 timeWindow = TimeValue.timeValueMillis(randomLongBetween(1, 1000));
             } else {

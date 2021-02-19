@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.file;
 
@@ -85,7 +86,7 @@ public class FileUserRolesStore {
 
     /**
      * Internally in this class, we try to load the file, but if for some reason we can't, we're being more lenient by
-     * logging the error and skipping all enries. This is aligned with how we handle other auto-loaded files in security.
+     * logging the error and skipping all entries. This is aligned with how we handle other auto-loaded files in security.
      */
     static Map<String, String[]> parseFileLenient(Path path, Logger logger) {
         try {

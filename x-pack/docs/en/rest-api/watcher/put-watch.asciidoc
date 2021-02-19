@@ -53,7 +53,7 @@ is executed.
 ==== {api-query-parms-title}
 
 `active`::
-  (Optional, boolean) Defines whether the watch is active or inactive by default.
+  (Optional, Boolean) Defines whether the watch is active or inactive by default.
   The default value is `true`, which means the watch is active by default.
 
 [[watcher-api-put-watch-request-body]]

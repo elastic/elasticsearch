@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
@@ -13,11 +14,9 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyMap;
-
 public class AttributeSet implements Set<Attribute> {
 
-    private static final AttributeMap<Object> EMPTY_DELEGATE = new AttributeMap<>(emptyMap());
+    private static final AttributeMap<Object> EMPTY_DELEGATE = AttributeMap.emptyAttributeMap();
 
     public static final AttributeSet EMPTY = new AttributeSet(EMPTY_DELEGATE);
 
@@ -100,7 +99,7 @@ public class AttributeSet implements Set<Attribute> {
     @Override
     public boolean containsAll(Collection<?> c) {
         for (Object o : c) {
-            if (!delegate.containsKey(o)) {
+            if (delegate.containsKey(o) == false) {
                 return false;
             }
         }

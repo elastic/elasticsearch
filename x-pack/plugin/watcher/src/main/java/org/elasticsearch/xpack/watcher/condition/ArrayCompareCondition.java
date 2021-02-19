@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.condition;
 
@@ -97,7 +98,8 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
                                     if (token == XContentParser.Token.FIELD_NAME) {
                                         if (parser.currentName().equals("value")) {
                                             token = parser.nextToken();
-                                            if (!op.supportsStructures() && !token.isValue() && token != XContentParser.Token.VALUE_NULL) {
+                                            if (op.supportsStructures() == false && token.isValue() == false
+                                                    && token != XContentParser.Token.VALUE_NULL) {
                                                 throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. " +
                                                         "compared value for [{}] with operation [{}] must either be a numeric, string, " +
                                                         "boolean or null value, but found [{}] instead", TYPE, watchId, path,
@@ -153,7 +155,7 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
         Object configuredValue = resolveConfiguredValue(resolvedValues, model, value);
 
         Object object = ObjectPath.eval(arrayPath, model);
-        if (object != null && !(object instanceof List)) {
+        if (object != null && (object instanceof List) == false) {
             throw new IllegalStateException("array path " + arrayPath + " did not evaluate to array, was " + object);
         }
 
@@ -270,7 +272,7 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
                 for (Object value : values) {
                     Integer compare = LenientCompare.compare(value, configuredValue);
                     boolean comparison = compare != null && op.comparison(compare);
-                    if (!comparison) {
+                    if (comparison == false) {
                         return false;
                     }
                 }

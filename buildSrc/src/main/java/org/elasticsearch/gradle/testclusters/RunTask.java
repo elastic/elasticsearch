@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gradle.testclusters;
 
@@ -46,6 +35,8 @@ public class RunTask extends DefaultTestClustersTask {
 
     private Boolean debug = false;
 
+    private Boolean preserveData = false;
+
     private Path dataDir = null;
 
     private String keystorePassword = "";
@@ -63,6 +54,16 @@ public class RunTask extends DefaultTestClustersTask {
     @Option(option = "data-dir", description = "Override the base data directory used by the testcluster")
     public void setDataDir(String dataDirStr) {
         dataDir = Paths.get(dataDirStr).toAbsolutePath();
+    }
+
+    @Input
+    public Boolean getPreserveData() {
+        return preserveData;
+    }
+
+    @Option(option = "preserve-data", description = "Preserves data directory contents (path provided to --data-dir is always preserved)")
+    public void setPreserveData(Boolean preserveData) {
+        this.preserveData = preserveData;
     }
 
     @Option(option = "keystore-password", description = "Set the elasticsearch keystore password")
@@ -113,6 +114,7 @@ public class RunTask extends DefaultTestClustersTask {
             httpPort++;
             cluster.getFirstNode().setTransportPort(String.valueOf(transportPort));
             transportPort++;
+            cluster.setPreserveDataDir(preserveData);
             for (ElasticsearchNode node : cluster.getNodes()) {
                 additionalSettings.forEach(node::setting);
                 if (dataDir != null) {
@@ -134,10 +136,15 @@ public class RunTask extends DefaultTestClustersTask {
     public void runAndWait() throws IOException {
         List<BufferedReader> toRead = new ArrayList<>();
         List<BooleanSupplier> aliveChecks = new ArrayList<>();
+
+        if (getClusters().isEmpty()) {
+            throw new GradleException("Task " + getPath() + " is not configured to use any clusters. Be sure to call useCluster().");
+        }
+
         try {
             for (ElasticsearchCluster cluster : getClusters()) {
                 for (ElasticsearchNode node : cluster.getNodes()) {
-                    BufferedReader reader = Files.newBufferedReader(node.getEsStdoutFile());
+                    BufferedReader reader = Files.newBufferedReader(node.getEsLogFile());
                     toRead.add(reader);
                     aliveChecks.add(node::isProcessAlive);
                 }

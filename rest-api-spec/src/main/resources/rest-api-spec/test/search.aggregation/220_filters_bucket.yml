@@ -272,3 +272,123 @@ setup:
             the_filter:
               filters:
                 filters: []
+
+
+---
+"cache":
+  - skip:
+      version: " - 7.10.99"
+      reason:  cache fixed in 7.11.0
+
+  - do:
+       bulk:
+         refresh: true
+         body:
+           - index:
+               _index: test_1
+               _id:    100
+           - int_field: 1
+             double_field: 1.0
+             string_field: foo bar
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            f:
+              filters:
+                filters:
+                  foo:
+                    match:
+                      string_field: foo
+                  foo_bar:
+                    match:
+                      string_field: foo bar
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.f.buckets: 2 }
+  - match: { aggregations.f.buckets.foo.doc_count: 4 }
+  - match: { aggregations.f.buckets.foo_bar.doc_count: 1 }
+
+  # Modify the mapping configuration that generates queries. This should bust the cache.
+  - do:
+      indices.put_mapping:
+        index: test_1
+        body:
+          properties:
+            string_field:
+              type: keyword
+              split_queries_on_whitespace: true
+
+  # This should be entirely fresh because updating the mapping busted the cache.
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            f:
+              filters:
+                filters:
+                  foo:
+                    match:
+                      string_field: foo
+                  foo_bar:
+                    match:
+                      string_field: foo bar
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.f.buckets: 2 }
+  - match: { aggregations.f.buckets.foo.doc_count: 4 }
+  - match: { aggregations.f.buckets.foo_bar.doc_count: 4 }
+
+---
+nested:
+  - skip:
+      version: " - 7.10.99"
+      reason:  fixed in 7.11.0
+
+  # Tests that we don't accidentally match nested documents when the filter
+  # matches it.
+  - do:
+      indices.create:
+          index: test_nested
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                i:
+                  type: integer
+                nested:
+                  type: nested
+                  properties:
+                    j:
+                      type: integer
+
+  - do:
+       bulk:
+         refresh: true
+         index: test_nested
+         body:
+           - index: {}
+           - i: 1
+             nested:
+              - j: 2
+              - j: 3
+              - j: 4
+
+  - do:
+      search:
+        index: test_nested
+        body:
+          size: 0
+          aggs:
+            f:
+              filters:
+                filters:
+                  foo:
+                    match_all: {}
+  - match: { hits.total.value: 1 }
+  - length: { aggregations.f.buckets: 1 }
+  - match: { aggregations.f.buckets.foo.doc_count: 1 }

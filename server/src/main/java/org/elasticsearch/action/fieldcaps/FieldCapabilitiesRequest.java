@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -34,7 +23,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -48,6 +39,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
     private QueryBuilder indexFilter;
+    private Map<String, Object> runtimeFields = Collections.emptyMap();
     private Long nowInMillis;
 
     public FieldCapabilitiesRequest(StreamInput in) throws IOException {
@@ -63,6 +55,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         }
         indexFilter = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
         nowInMillis = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalLong() : null;
+        runtimeFields = in.getVersion().onOrAfter(Version.V_7_12_0) ? in.readMap() : Collections.emptyMap();
     }
 
     public FieldCapabilitiesRequest() {
@@ -101,6 +94,9 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             out.writeOptionalNamedWriteable(indexFilter);
             out.writeOptionalLong(nowInMillis);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+            out.writeMap(runtimeFields);
+        }
     }
 
     @Override
@@ -108,6 +104,9 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         builder.startObject();
         if (indexFilter != null) {
             builder.field("index_filter", indexFilter);
+        }
+        if (runtimeFields.isEmpty() == false) {
+            builder.field("runtime_mappings", runtimeFields);
         }
         builder.endObject();
         return builder;
@@ -132,6 +131,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     /**
      * The list of indices to lookup
      */
+    @Override
     public FieldCapabilitiesRequest indices(String... indices) {
         this.indices = Objects.requireNonNull(indices, "indices must not be null");
         return this;
@@ -177,6 +177,17 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     public QueryBuilder indexFilter() {
         return indexFilter;
     }
+    /**
+     * Allows adding search runtime fields if provided.
+     */
+    public FieldCapabilitiesRequest runtimeFields(Map<String, Object> runtimeFieldsSection) {
+        this.runtimeFields = runtimeFieldsSection;
+        return this;
+    }
+
+    public Map<String, Object> runtimeFields() {
+        return this.runtimeFields;
+    }
 
     Long nowInMillis() {
         return nowInMillis;
@@ -206,12 +217,13 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             indicesOptions.equals(that.indicesOptions) &&
             Arrays.equals(fields, that.fields) &&
             Objects.equals(indexFilter, that.indexFilter) &&
-            Objects.equals(nowInMillis, that.nowInMillis);
+            Objects.equals(nowInMillis, that.nowInMillis) &&
+            Objects.equals(runtimeFields, that.runtimeFields);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, includeUnmapped, mergeResults, indexFilter, nowInMillis);
+        int result = Objects.hash(indicesOptions, includeUnmapped, mergeResults, indexFilter, nowInMillis, runtimeFields);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(fields);
         return result;

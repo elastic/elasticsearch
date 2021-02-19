@@ -1,23 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -26,7 +16,6 @@ import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequ
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.monitor.NodeHealthService;
@@ -36,7 +25,6 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransport;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
@@ -229,7 +217,11 @@ public class FollowersCheckerTests extends ESTestCase {
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 assertFalse(node.equals(localNode));
                 if (action.equals(HANDSHAKE_ACTION_NAME)) {
-                    handleResponse(requestId, new TransportService.HandshakeResponse(node, ClusterName.DEFAULT, Version.CURRENT));
+                    handleResponse(requestId, new TransportService.HandshakeResponse(
+                            Version.CURRENT,
+                            Build.CURRENT.hash(),
+                            node,
+                            ClusterName.DEFAULT));
                     return;
                 }
                 deterministicTaskQueue.scheduleNow(new Runnable() {
@@ -425,12 +417,7 @@ public class FollowersCheckerTests extends ESTestCase {
         followersChecker.updateFastResponseState(followerTerm, Mode.FOLLOWER);
         final AtomicReference<TransportException> receivedException = new AtomicReference<>();
         transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(leaderTerm, leader),
-            new TransportResponseHandler<TransportResponse.Empty>() {
-                @Override
-                public TransportResponse.Empty read(StreamInput in) {
-                    return TransportResponse.Empty.INSTANCE;
-                }
-
+            new TransportResponseHandler.Empty() {
                 @Override
                 public void handleResponse(TransportResponse.Empty response) {
                     fail("unexpected success");
@@ -440,11 +427,6 @@ public class FollowersCheckerTests extends ESTestCase {
                 public void handleException(TransportException exp) {
                     assertThat(exp, not(nullValue()));
                     assertTrue(receivedException.compareAndSet(null, exp));
-                }
-
-                @Override
-                public String executor() {
-                    return Names.SAME;
                 }
             });
         deterministicTaskQueue.runAllTasks();
@@ -504,12 +486,7 @@ public class FollowersCheckerTests extends ESTestCase {
 
             final AtomicReference<TransportException> receivedException = new AtomicReference<>();
             transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(leaderTerm, leader),
-                new TransportResponseHandler<TransportResponse.Empty>() {
-                    @Override
-                    public TransportResponse.Empty read(StreamInput in) {
-                        return TransportResponse.Empty.INSTANCE;
-                    }
-
+                new TransportResponseHandler.Empty() {
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         fail("unexpected success");
@@ -519,11 +496,6 @@ public class FollowersCheckerTests extends ESTestCase {
                     public void handleException(TransportException exp) {
                         assertThat(exp, not(nullValue()));
                         assertTrue(receivedException.compareAndSet(null, exp));
-                    }
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
                     }
                 });
             deterministicTaskQueue.runAllTasks();
@@ -568,12 +540,7 @@ public class FollowersCheckerTests extends ESTestCase {
 
             final AtomicReference<TransportException> receivedException = new AtomicReference<>();
             transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(term, leader),
-                new TransportResponseHandler<TransportResponse.Empty>() {
-                    @Override
-                    public TransportResponse.Empty read(StreamInput in) {
-                        return TransportResponse.Empty.INSTANCE;
-                    }
-
+                new TransportResponseHandler.Empty() {
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         fail("unexpected success");
@@ -583,11 +550,6 @@ public class FollowersCheckerTests extends ESTestCase {
                     public void handleException(TransportException exp) {
                         assertThat(exp, not(nullValue()));
                         assertTrue(receivedException.compareAndSet(null, exp));
-                    }
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
                     }
                 });
             deterministicTaskQueue.runAllTasks();
@@ -653,11 +615,11 @@ public class FollowersCheckerTests extends ESTestCase {
         return settingsBuilder.build();
     }
 
-    private static class ExpectsSuccess implements TransportResponseHandler<Empty> {
+    private static class ExpectsSuccess extends TransportResponseHandler.Empty {
         private final AtomicBoolean responseReceived = new AtomicBoolean();
 
         @Override
-        public void handleResponse(Empty response) {
+        public void handleResponse(TransportResponse.Empty response) {
             assertTrue(responseReceived.compareAndSet(false, true));
         }
 
@@ -666,18 +628,8 @@ public class FollowersCheckerTests extends ESTestCase {
             throw new AssertionError("unexpected", exp);
         }
 
-        @Override
-        public String executor() {
-            return Names.SAME;
-        }
-
         public boolean succeeded() {
             return responseReceived.get();
-        }
-
-        @Override
-        public TransportResponse.Empty read(StreamInput in) {
-            return TransportResponse.Empty.INSTANCE;
         }
 
     }

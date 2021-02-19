@@ -913,3 +913,44 @@ setup:
         model_alias: "regression-model"
         model_id: "a-regression-model-1"
         reassign: false
+---
+"Test delete model alias":
+  - do:
+      ml.put_trained_model_alias:
+        model_alias: "regression-model"
+        model_id: "a-regression-model-0"
+  - do:
+      ml.get_trained_models:
+        model_id: "regression-model"
+
+  - match: { count: 1 }
+  - length: { trained_model_configs: 1 }
+  - match: { trained_model_configs.0.model_id: "a-regression-model-0" }
+
+  - do:
+      ml.delete_trained_model_alias:
+        model_alias: "regression-model"
+        model_id: "a-regression-model-0"
+
+  - do:
+      catch: missing
+      ml.get_trained_models:
+        model_id: "regression-model"
+---
+"Test delete model alias with missing alias":
+  - do:
+      catch: missing
+      ml.delete_trained_model_alias:
+        model_alias: "regression-model"
+        model_id: "a-regression-model-0"
+---
+"Test delete model alias where alias points to different model":
+  - do:
+      ml.put_trained_model_alias:
+        model_alias: "regression-model"
+        model_id: "a-regression-model-1"
+  - do:
+      catch: conflict
+      ml.delete_trained_model_alias:
+        model_alias: "regression-model"
+        model_id: "a-regression-model-0"

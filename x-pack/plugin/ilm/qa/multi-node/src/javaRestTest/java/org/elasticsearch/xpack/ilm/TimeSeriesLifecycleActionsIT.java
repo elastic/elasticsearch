@@ -229,7 +229,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    public void testRolloverActionWithMaxSinglePrimarySize() throws Exception {
+    public void testRolloverActionWithMaxPrimaryShardSize() throws Exception {
         String originalIndex = index + "-000001";
         String secondIndex = index + "-000002";
         createIndexWithSettings(client(), originalIndex, alias, Settings.builder()

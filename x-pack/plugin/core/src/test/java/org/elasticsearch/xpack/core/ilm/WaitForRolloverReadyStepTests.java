@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxSinglePrimarySizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -52,14 +52,14 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue maxSize = randomBoolean() ? null :
             new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
-        ByteSizeUnit maxSinglePrimarySizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue maxSinglePrimarySize = randomBoolean() ? null :
-            new ByteSizeValue(randomNonNegativeLong() / maxSinglePrimarySizeUnit.toBytes(1), maxSinglePrimarySizeUnit);
+        ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
+        ByteSizeValue maxPrimaryShardSize = randomBoolean() ? null :
+            new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
         Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();
         TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             : null;
-        return new WaitForRolloverReadyStep(stepKey, nextStepKey, client, maxSize, maxSinglePrimarySize, maxAge, maxDocs);
+        return new WaitForRolloverReadyStep(stepKey, nextStepKey, client, maxSize, maxPrimaryShardSize, maxAge, maxDocs);
     }
 
     @Override
@@ -67,7 +67,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         Step.StepKey key = instance.getKey();
         Step.StepKey nextKey = instance.getNextStepKey();
         ByteSizeValue maxSize = instance.getMaxSize();
-        ByteSizeValue maxSinglePrimarySize = instance.getMaxSinglePrimarySize();
+        ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
         TimeValue maxAge = instance.getMaxAge();
         Long maxDocs = instance.getMaxDocs();
 
@@ -85,9 +85,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 });
                 break;
             case 3:
-                maxSinglePrimarySize = randomValueOtherThan(maxSinglePrimarySize, () -> {
-                    ByteSizeUnit maxSinglePrimarySizeUnit = randomFrom(ByteSizeUnit.values());
-                    return new ByteSizeValue(randomNonNegativeLong() / maxSinglePrimarySizeUnit.toBytes(1), maxSinglePrimarySizeUnit);
+                maxPrimaryShardSize = randomValueOtherThan(maxPrimaryShardSize, () -> {
+                    ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
+                    return new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
                 });
                 break;
             case 4:
@@ -99,13 +99,13 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new WaitForRolloverReadyStep(key, nextKey, instance.getClient(), maxSize, maxSinglePrimarySize, maxAge, maxDocs);
+        return new WaitForRolloverReadyStep(key, nextKey, instance.getClient(), maxSize, maxPrimaryShardSize, maxAge, maxDocs);
     }
 
     @Override
     protected WaitForRolloverReadyStep copyInstance(WaitForRolloverReadyStep instance) {
         return new WaitForRolloverReadyStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
-            instance.getMaxSize(), instance.getMaxSinglePrimarySize(), instance.getMaxAge(), instance.getMaxDocs());
+            instance.getMaxSize(), instance.getMaxPrimaryShardSize(), instance.getMaxAge(), instance.getMaxDocs());
     }
 
     private static void assertRolloverIndexRequest(RolloverRequest request, String rolloverTarget, Set<Condition<?>> expectedConditions) {
@@ -234,8 +234,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             if (step.getMaxSize() != null) {
                 expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
             }
-            if (step.getMaxSinglePrimarySize() != null) {
-                expectedConditions.add(new MaxSinglePrimarySizeCondition(step.getMaxSinglePrimarySize()));
+            if (step.getMaxPrimaryShardSize() != null) {
+                expectedConditions.add(new MaxPrimaryShardSizeCondition(step.getMaxPrimaryShardSize()));
             }
             if (step.getMaxAge() != null) {
                 expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
@@ -406,8 +406,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             if (step.getMaxSize() != null) {
                 expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
             }
-            if (step.getMaxSinglePrimarySize() != null) {
-                expectedConditions.add(new MaxSinglePrimarySizeCondition(step.getMaxSinglePrimarySize()));
+            if (step.getMaxPrimaryShardSize() != null) {
+                expectedConditions.add(new MaxPrimaryShardSizeCondition(step.getMaxPrimaryShardSize()));
             }
             if (step.getMaxAge() != null) {
                 expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
@@ -460,8 +460,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             if (step.getMaxSize() != null) {
                 expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
             }
-            if (step.getMaxSinglePrimarySize() != null) {
-                expectedConditions.add(new MaxSinglePrimarySizeCondition(step.getMaxSinglePrimarySize()));
+            if (step.getMaxPrimaryShardSize() != null) {
+                expectedConditions.add(new MaxPrimaryShardSizeCondition(step.getMaxPrimaryShardSize()));
             }
             if (step.getMaxAge() != null) {
                 expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));

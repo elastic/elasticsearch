@@ -59,9 +59,9 @@ public class ResizeRequestTests extends ESTestCase {
         }
         {
             ResizeRequest request = new ResizeRequest("target", "source");
-            request.setMaxSinglePrimarySize(new ByteSizeValue(100, ByteSizeUnit.MB));
+            request.setMaxPrimaryShardSize(new ByteSizeValue(100, ByteSizeUnit.MB));
             String actualRequestBody = Strings.toString(request);
-            assertEquals("{\"settings\":{},\"aliases\":{},\"max_single_primary_size\":\"100mb\"}", actualRequestBody);
+            assertEquals("{\"settings\":{},\"aliases\":{},\"max_primary_shard_size\":\"100mb\"}", actualRequestBody);
         }
         {
             ResizeRequest request = new ResizeRequest();

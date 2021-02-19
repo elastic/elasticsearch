@@ -41,6 +41,7 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -359,12 +360,14 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /**
      * waits until all shard initialization is completed.
      *
+     * inspired by {@link ESRestTestCase}
+     *
      * @throws IOException
      */
     protected void ensureNoInitializingShards() throws IOException {
         ClusterHealthResponse actionGet = client().admin()
             .cluster()
-            .health(Requests.clusterHealthRequest("_all").timeout(TimeValue.timeValueSeconds(70)).waitForNoInitializingShards(true))
+            .health(Requests.clusterHealthRequest("_all").waitForNoInitializingShards(true))
             .actionGet();
 
         assertFalse("timed out waiting for shards to initialize", actionGet.isTimedOut());

@@ -119,9 +119,9 @@ public class NumberFieldMapper extends FieldMapper {
             "script",
             false,
             () -> null,
-            (n, c, o) -> new ScriptParameter(Script.parse(o), c.scriptService()),
+            (n, c, o) -> o == null ? null : new ScriptParameter(Script.parse(o), c.scriptService()),
             m -> toType(m).builder.script.get()
-        );
+        ).acceptsNull();
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 

@@ -12,6 +12,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -28,6 +29,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.network.InetAddresses;
@@ -35,10 +37,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -72,6 +76,9 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
@@ -112,6 +119,7 @@ import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.b
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class TermsAggregatorTests extends AggregatorTestCase {
@@ -192,7 +200,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
         globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
         assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
-        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap"));
+        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap using single bucket ords"));
 
         aggregationBuilder
             .collectMode(Aggregator.SubAggCollectionMode.DEPTH_FIRST);
@@ -200,7 +208,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
         globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
         assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
-        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap"));
+        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap using single bucket ords"));
 
         aggregationBuilder
             .collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST);
@@ -215,7 +223,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
         globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
-        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap"));
+        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap using single bucket ords"));
 
         indexReader.close();
         directory.close();
@@ -1601,6 +1609,67 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 );
             }
         }
+    }
+
+    public void testAsSubAgg() throws IOException {
+        DateFieldType dft = new DateFieldType("d");
+        KeywordFieldType kft = new KeywordFieldType("k", false, true, null);
+        AggregationBuilder builder = new DateHistogramAggregationBuilder("dh").field("d")
+            .calendarInterval(DateHistogramInterval.YEAR)
+            .subAggregation(new TermsAggregationBuilder("k").field("k"));
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            iw.addDocument(
+                List.of(
+                    new SortedNumericDocValuesField("d", dft.parse("2020-02-01T00:00:00Z")),
+                    new LongPoint("d", dft.parse("2020-02-01T00:00:00Z")),
+                    new SortedSetDocValuesField("k", new BytesRef("a"))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new SortedNumericDocValuesField("d", dft.parse("2020-03-01T00:00:00Z")),
+                    new LongPoint("d", dft.parse("2020-03-01T00:00:00Z")),
+                    new SortedSetDocValuesField("k", new BytesRef("a"))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new SortedNumericDocValuesField("d", dft.parse("2021-02-01T00:00:00Z")),
+                    new LongPoint("d", dft.parse("2021-02-01T00:00:00Z")),
+                    new SortedSetDocValuesField("k", new BytesRef("a"))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new SortedNumericDocValuesField("d", dft.parse("2021-03-01T00:00:00Z")),
+                    new LongPoint("d", dft.parse("2021-03-01T00:00:00Z")),
+                    new SortedSetDocValuesField("k", new BytesRef("a"))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new SortedNumericDocValuesField("d", dft.parse("2020-02-01T00:00:00Z")),
+                    new LongPoint("d", dft.parse("2020-02-01T00:00:00Z")),
+                    new SortedSetDocValuesField("k", new BytesRef("b"))
+                )
+            );
+        };
+        testCase(builder, new MatchAllDocsQuery(), buildIndex, (InternalDateHistogram dh) -> {
+            assertThat(
+                dh.getBuckets().stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(toList()),
+                equalTo(List.of("2020-01-01T00:00:00.000Z", "2021-01-01T00:00:00.000Z"))
+            );
+            StringTerms terms = dh.getBuckets().get(0).getAggregations().get("k");
+            assertThat(terms.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(List.of("a", "b")));
+            terms = dh.getBuckets().get(1).getAggregations().get("k");
+            assertThat(terms.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(List.of("a")));
+        }, dft, kft);
+        withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
+            TermsAggregator terms = (TermsAggregator) aggregator.subAggregator("k");
+            Map<String, Object> info = new HashMap<>();
+            terms.collectDebugInfo(info::put);
+            assertThat(info, hasEntry("collection_strategy", "remap using many bucket ords packed using [2/62] bits"));
+        }, dft, kft);
     }
 
     private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();

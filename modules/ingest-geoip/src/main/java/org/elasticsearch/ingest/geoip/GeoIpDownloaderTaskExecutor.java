@@ -31,6 +31,9 @@ import java.util.Map;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_V2_FEATURE_FLAG_ENABLED;
 
+/**
+ * c
+ */
 final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTaskParams> implements ClusterStateListener {
 
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("geoip.downloader.enabled", GEOIP_V2_FEATURE_FLAG_ENABLED,
@@ -57,9 +60,7 @@ final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTas
         if (ENABLED_SETTING.get(settings)) {
             clusterService.addListener(this);
         }
-        if (GEOIP_V2_FEATURE_FLAG_ENABLED) {
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
-        }
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
     }
 
     private void setEnabled(boolean enabled) {

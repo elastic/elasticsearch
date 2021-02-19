@@ -210,7 +210,7 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
             "      }\n" +
             "    }";
         client().admin().indices().prepareCreate(sourceIndex)
-            .setMapping(mapping)
+            .addMapping("_doc", mapping)
             .get();
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

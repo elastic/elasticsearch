@@ -839,7 +839,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String mappings = "{\"enabled\": false}";
 
         client().admin().indices().prepareCreate(sourceIndex)
-            .setMapping(mappings)
+            .addMapping("_doc", mappings, XContentType.JSON)
             .get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();

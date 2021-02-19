@@ -55,13 +55,15 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
             randomAlphaOfLengthBetween(1, 10));
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(3, steps.size());
+        assertEquals(4, steps.size());
         assertThat(steps.get(0).getKey().getName(), equalTo(CheckNotDataStreamWriteIndexStep.NAME));
         assertThat(steps.get(0).getNextStepKey().getName(), equalTo(ReadOnlyStep.NAME));
         assertThat(steps.get(1).getKey().getName(), equalTo(ReadOnlyStep.NAME));
-        assertThat(steps.get(1).getNextStepKey().getName(), equalTo(RollupStep.NAME));
-        assertThat(steps.get(2).getKey().getName(), equalTo(RollupStep.NAME));
-        assertThat(steps.get(2).getNextStepKey(), equalTo(nextStepKey));
+        assertThat(steps.get(1).getNextStepKey().getName(), equalTo(GenerateRollupIndexNameStep.NAME));
+        assertThat(steps.get(2).getKey().getName(), equalTo(GenerateRollupIndexNameStep.NAME));
+        assertThat(steps.get(2).getNextStepKey().getName(), equalTo(RollupStep.NAME));
+        assertThat(steps.get(3).getKey().getName(), equalTo(RollupStep.NAME));
+        assertThat(steps.get(3).getNextStepKey(), equalTo(nextStepKey));
     }
 
     public void testEqualsAndHashCode() {

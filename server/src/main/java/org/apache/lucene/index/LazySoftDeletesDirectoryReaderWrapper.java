@@ -22,6 +22,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.lucene.Lucene;
 
 /**
  * This is a modified version of {@link SoftDeletesDirectoryReaderWrapper} that materializes the liveDocs
@@ -29,7 +30,7 @@ import org.apache.lucene.util.FixedBitSet;
  * for non-NRT readers.
  *
  * This reader filters out documents that have a doc values value in the given field and treat these
- * documents as soft deleted. Hard deleted documents will also be filtered out in the life docs of this reader.
+ * documents as soft deleted. Hard deleted documents will also be filtered out in the live docs of this reader.
  * @see IndexWriterConfig#setSoftDeletesField(String)
  * @see IndexWriter#softUpdateDocument(Term, Iterable, Field...)
  * @see SoftDeletesRetentionMergePolicy
@@ -56,7 +57,7 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
     protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
         Map<CacheKey, LeafReader> readerCache = new HashMap<>();
         for (LeafReader reader : getSequentialSubReaders()) {
-            // we try to reuse the life docs instances here if the reader cache key didn't change
+            // we try to reuse the live docs instances here if the reader cache key didn't change
             if (reader instanceof LazySoftDeletesFilterCodecReader && reader.getReaderCacheHelper() != null) {
                 readerCache.put(((LazySoftDeletesFilterCodecReader) reader).reader.getReaderCacheHelper().getKey(), reader);
             }
@@ -109,14 +110,18 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
     }
 
     static LeafReader wrap(LeafReader reader, String field) throws IOException {
-        final int maxDoc = reader.maxDoc();
+        final SegmentReader segmentReader = Lucene.segmentReader(reader);
+        assert segmentReader.isNRT == false : "expected non-NRT reader";
+        final SegmentCommitInfo segmentInfo = segmentReader.getSegmentInfo();
+        final int numSoftDeletes = segmentInfo.getSoftDelCount();
+        if (numSoftDeletes == 0) {
+            return reader;
+        }
         final DocIdSetIterator iterator = DocValuesFieldExistsQuery.getDocValuesDocIdSetIterator(field, reader);
         if (iterator == null) {
             return reader;
         }
-        assert reader instanceof SegmentReader;
-        final SegmentReader segmentReader = (SegmentReader) reader;
-        final SegmentCommitInfo segmentInfo = segmentReader.getSegmentInfo();
+        final int maxDoc = reader.maxDoc();
         final int numDocs = maxDoc - segmentInfo.getDelCount() - segmentInfo.getSoftDelCount();
         final Bits lazyBits = new Bits() {
 
@@ -153,39 +158,57 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
                 if (liveDocs != null) {
                     bits = FixedBitSet.copyOf(liveDocs);
                 } else {
-                    bits = new FixedBitSet(reader.maxDoc());
-                    bits.set(0, reader.maxDoc());
+                    bits = new FixedBitSet(maxDoc);
+                    bits.set(0, maxDoc);
                 }
-                int numSoftDeletes = PendingSoftDeletes.applySoftDeletes(iterator, bits);
-                int numDeletes = reader.numDeletedDocs() + numSoftDeletes;
-                int numDocs = reader.maxDoc() - numDeletes;
-                assert assertDocCounts(numDocs, numSoftDeletes, reader);
+                int numComputedSoftDeletes = PendingSoftDeletes.applySoftDeletes(iterator, bits);
+                assert numComputedSoftDeletes == numSoftDeletes :
+                    "numComputedSoftDeletes: " + numComputedSoftDeletes + " expected: " + numSoftDeletes;
+
+                int numDeletes = reader.numDeletedDocs() + numComputedSoftDeletes;
+                int computedNumDocs = reader.maxDoc() - numDeletes;
+                assert computedNumDocs == numDocs : "computedNumDocs: " + computedNumDocs + " expected: " + numDocs;
                 return bits;
             }
         };
-        return new LazySoftDeletesFilterCodecReader(segmentReader, lazyBits, numDocs);
+        return reader instanceof CodecReader ? new LazySoftDeletesFilterCodecReader((CodecReader) reader, lazyBits, numDocs)
+            : new LazySoftDeletesFilterLeafReader(reader, lazyBits, numDocs);
     }
 
-    private static boolean assertDocCounts(int expectedNumDocs, int numSoftDeletes, LeafReader reader) {
-        if (reader instanceof SegmentReader) {
-            SegmentReader segmentReader = (SegmentReader) reader;
-            SegmentCommitInfo segmentInfo = segmentReader.getSegmentInfo();
-            assert segmentReader.isNRT == false;
-            int numDocs = segmentInfo.info.maxDoc() - segmentInfo.getSoftDelCount() - segmentInfo.getDelCount();
-            assert numDocs == expectedNumDocs : "numDocs: " + numDocs + " expected: " + expectedNumDocs
-                + " maxDoc: " + segmentInfo.info.maxDoc()
-                + " getDelCount: " + segmentInfo.getDelCount()
-                + " getSoftDelCount: " + segmentInfo.getSoftDelCount()
-                + " numSoftDeletes: " + numSoftDeletes
-                + " reader.numDeletedDocs(): " + reader.numDeletedDocs();
-            // in the NRT case we don't have accurate numbers for getDelCount and getSoftDelCount since they might not be
-            // flushed to disk when this reader is opened. We don't necessarily flush deleted doc on reopen but
-            // we do for docValues.
+    static final class LazySoftDeletesFilterLeafReader extends FilterLeafReader {
+        private final LeafReader reader;
+        private final Bits bits;
+        private final int numDocs;
+        private final CacheHelper readerCacheHelper;
 
-
+        private LazySoftDeletesFilterLeafReader(LeafReader reader, Bits bits, int numDocs) {
+            super(reader);
+            this.reader = reader;
+            this.bits = bits;
+            this.numDocs = numDocs;
+            this.readerCacheHelper = reader.getReaderCacheHelper() == null ? null :
+                new DelegatingCacheHelper(reader.getReaderCacheHelper());
         }
 
-        return true;
+        @Override
+        public Bits getLiveDocs() {
+            return bits;
+        }
+
+        @Override
+        public int numDocs() {
+            return numDocs;
+        }
+
+        @Override
+        public CacheHelper getCoreCacheHelper() {
+            return reader.getCoreCacheHelper();
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return readerCacheHelper;
+        }
     }
 
     static final class LazySoftDeletesFilterCodecReader extends FilterCodecReader {

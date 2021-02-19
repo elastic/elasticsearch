@@ -23,7 +23,7 @@ import java.util.Objects;
 public class ShrinkAction implements LifecycleAction, ToXContentObject {
     public static final String NAME = "shrink";
     private static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
-    private static final ParseField MAX_RIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
+    private static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
 
     private static final ConstructingObjectParser<ShrinkAction, Void> PARSER =
         new ConstructingObjectParser<>(NAME, true, a -> new ShrinkAction((Integer) a[0], (ByteSizeValue) a[1]));
@@ -31,8 +31,8 @@ public class ShrinkAction implements LifecycleAction, ToXContentObject {
     static {
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUMBER_OF_SHARDS_FIELD);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_RIMARY_SHARD_SIZE.getPreferredName()),
-            MAX_RIMARY_SHARD_SIZE, ObjectParser.ValueType.STRING);
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_PRIMARY_SHARD_SIZE.getPreferredName()),
+            MAX_PRIMARY_SHARD_SIZE, ObjectParser.ValueType.STRING);
     }
 
     private Integer numberOfShards;
@@ -82,7 +82,7 @@ public class ShrinkAction implements LifecycleAction, ToXContentObject {
             builder.field(NUMBER_OF_SHARDS_FIELD.getPreferredName(), numberOfShards);
         }
         if (maxPrimaryShardSize != null) {
-            builder.field(MAX_RIMARY_SHARD_SIZE.getPreferredName(), maxPrimaryShardSize);
+            builder.field(MAX_PRIMARY_SHARD_SIZE.getPreferredName(), maxPrimaryShardSize);
         }
         builder.endObject();
         return builder;

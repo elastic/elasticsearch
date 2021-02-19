@@ -171,9 +171,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String endPhase = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, endPhase, allocateAction);
         updatePolicy(client(), index, policy);
-        assertBusy(() -> {
-            assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(endPhase).getKey()));
-        });
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(endPhase).getKey())));
         ensureGreen(index);
     }
 

@@ -10,23 +10,41 @@ package org.elasticsearch.gradle;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.internal.deprecation.DeprecatableConfiguration;
 
+import javax.inject.Inject;
 import java.util.Collection;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.gradle.DistributionDownloadPlugin.DISTRO_EXTRACTED_CONFIG_PREFIX;
 
 public class ResolveAllDependencies extends DefaultTask {
 
+    private final ObjectFactory objectFactory;
+
     Collection<Configuration> configs;
+
+    @Inject
+    public ResolveAllDependencies(ObjectFactory objectFactory) {
+        this.objectFactory = objectFactory;
+    }
+
+    @InputFiles
+    public FileCollection getResolvedArtifacts() {
+        return objectFactory.fileCollection()
+            .from(configs.stream().filter(ResolveAllDependencies::canBeResolved).collect(Collectors.toList()));
+    }
 
     @TaskAction
     void resolveAll() {
-        configs.stream().filter(it -> canBeResolved(it)).forEach(it -> it.resolve());
+        // do nothing, dependencies are resolved when snapshotting task inputs
     }
 
-    static boolean canBeResolved(Configuration configuration) {
+    private static boolean canBeResolved(Configuration configuration) {
         if (configuration.isCanBeResolved() == false) {
             return false;
         }

@@ -604,8 +604,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
 
         // Re-start ILM so that subsequent tests don't fail
-        Request startILMReqest = new Request("POST", "_ilm/start");
-        assertOK(client().performRequest(startILMReqest));
+        Request startILMRequest = new Request("POST", "_ilm/start");
+        assertOK(client().performRequest(startILMRequest));
     }
 
     public void testWaitForActiveShardsStep() throws Exception {

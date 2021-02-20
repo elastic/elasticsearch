@@ -32,14 +32,14 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue maxSize = randomBoolean() ? null :
             new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
-        ByteSizeUnit maxSinglePrimarySizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue maxSinglePrimarySize = randomBoolean() ? null :
-            new ByteSizeValue(randomNonNegativeLong() / maxSinglePrimarySizeUnit.toBytes(1), maxSinglePrimarySizeUnit);
+        ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
+        ByteSizeValue maxPrimaryShardSize = randomBoolean() ? null :
+            new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
         Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();
         TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             : null;
-        return new RolloverAction(maxSize, maxSinglePrimarySize, maxAge, maxDocs);
+        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
     }
 
     @Override
@@ -50,7 +50,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
     @Override
     protected RolloverAction mutateInstance(RolloverAction instance) throws IOException {
         ByteSizeValue maxSize = instance.getMaxSize();
-        ByteSizeValue maxSinglePrimarySize = instance.getMaxSinglePrimarySize();
+        ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
         TimeValue maxAge = instance.getMaxAge();
         Long maxDocs = instance.getMaxDocs();
         switch (between(0, 3)) {
@@ -61,9 +61,9 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
                 });
                 break;
             case 1:
-                maxSinglePrimarySize = randomValueOtherThan(maxSinglePrimarySize, () -> {
-                    ByteSizeUnit maxSinglePrimarySizeUnit = randomFrom(ByteSizeUnit.values());
-                    return new ByteSizeValue(randomNonNegativeLong() / maxSinglePrimarySizeUnit.toBytes(1), maxSinglePrimarySizeUnit);
+                maxPrimaryShardSize = randomValueOtherThan(maxPrimaryShardSize, () -> {
+                    ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
+                    return new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
                 });
                 break;
             case 2:
@@ -76,7 +76,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new RolloverAction(maxSize, maxSinglePrimarySize, maxAge, maxDocs);
+        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
     }
 
     public void testNoConditions() {
@@ -113,7 +113,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         assertEquals(fourthStep.getKey(), thirdStep.getNextStepKey());
         assertEquals(fifthStep.getKey(), fourthStep.getNextStepKey());
         assertEquals(action.getMaxSize(), firstStep.getMaxSize());
-        assertEquals(action.getMaxSinglePrimarySize(), firstStep.getMaxSinglePrimarySize());
+        assertEquals(action.getMaxPrimaryShardSize(), firstStep.getMaxPrimaryShardSize());
         assertEquals(action.getMaxAge(), firstStep.getMaxAge());
         assertEquals(action.getMaxDocs(), firstStep.getMaxDocs());
         assertEquals(nextStepKey, fifthStep.getNextStepKey());

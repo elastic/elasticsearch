@@ -36,6 +36,7 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
 import org.elasticsearch.client.ml.EstimateModelMemoryResponse;
@@ -92,6 +93,7 @@ import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.PutTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.PutTrainedModelRequest;
 import org.elasticsearch.client.ml.PutTrainedModelResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
@@ -2387,6 +2389,83 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getCompressedDefinition(), is(nullValue()));
         assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getDefinition(), is(not(nullValue())));
         assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelIdCompressed));
+    }
+
+    public void testPutTrainedModelAlias() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String modelId = "model-with-an-alias";
+        putTrainedModel(modelId);
+        String modelId2 = "another-model-with-an-alias";
+        putTrainedModel(modelId2);
+
+        AcknowledgedResponse acknowledgedResponse = execute(
+            new PutTrainedModelAliasRequest("my-first-alias", modelId, null),
+            machineLearningClient::putTrainedModelAlias,
+            machineLearningClient::putTrainedModelAliasAsync
+        );
+        assertThat(acknowledgedResponse.isAcknowledged(), is(true));
+
+        GetTrainedModelsResponse getTrainedModelsResponse = execute(
+            new GetTrainedModelsRequest("my-first-alias"),
+            machineLearningClient::getTrainedModels,
+            machineLearningClient::getTrainedModelsAsync);
+
+        assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
+        assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(1));
+        assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelId));
+
+        acknowledgedResponse = execute(
+            new PutTrainedModelAliasRequest("my-first-alias", modelId2, true),
+            machineLearningClient::putTrainedModelAlias,
+            machineLearningClient::putTrainedModelAliasAsync
+        );
+        assertThat(acknowledgedResponse.isAcknowledged(), is(true));
+
+        getTrainedModelsResponse = execute(
+            new GetTrainedModelsRequest("my-first-alias"),
+            machineLearningClient::getTrainedModels,
+            machineLearningClient::getTrainedModelsAsync
+        );
+
+        assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
+        assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(1));
+        assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelId2));
+    }
+
+    public void testDeleteTrainedModelAlias() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String modelId = "model-with-an-deleted-alias";
+        putTrainedModel(modelId);
+
+        AcknowledgedResponse acknowledgedResponse = execute(
+            new PutTrainedModelAliasRequest("my-first-deleted-alias", modelId, null),
+            machineLearningClient::putTrainedModelAlias,
+            machineLearningClient::putTrainedModelAliasAsync
+        );
+        assertThat(acknowledgedResponse.isAcknowledged(), is(true));
+
+        GetTrainedModelsResponse getTrainedModelsResponse = execute(
+            new GetTrainedModelsRequest("my-first-deleted-alias"),
+            machineLearningClient::getTrainedModels,
+            machineLearningClient::getTrainedModelsAsync);
+
+        assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
+        assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(1));
+        assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelId));
+
+        acknowledgedResponse = execute(
+            new DeleteTrainedModelAliasRequest("my-first-deleted-alias", modelId),
+            machineLearningClient::deleteTrainedModelAlias,
+            machineLearningClient::deleteTrainedModelAliasAsync
+        );
+        assertThat(acknowledgedResponse.isAcknowledged(), is(true));
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(
+                new GetTrainedModelsRequest("my-first-deleted-alias"),
+                machineLearningClient::getTrainedModels,
+                machineLearningClient::getTrainedModelsAsync
+            ));
+        assertThat(exception.status().getStatus(), equalTo(404));
     }
 
     public void testGetTrainedModelsStats() throws Exception {

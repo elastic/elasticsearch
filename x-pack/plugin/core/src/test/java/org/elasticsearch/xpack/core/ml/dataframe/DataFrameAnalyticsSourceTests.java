@@ -84,12 +84,6 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
     }
 
     public static DataFrameAnalyticsSource mutateForVersion(DataFrameAnalyticsSource instance, Version version) {
-        if (version.before(Version.V_7_6_0)) {
-            return new DataFrameAnalyticsSource(instance.getIndex(), instance.getQueryProvider(), null, null);
-        }
-        if (version.before(Version.V_8_0_0)) {
-            return new DataFrameAnalyticsSource(instance.getIndex(), instance.getQueryProvider(), instance.getSourceFiltering(), null);
-        }
         return instance;
     }
 

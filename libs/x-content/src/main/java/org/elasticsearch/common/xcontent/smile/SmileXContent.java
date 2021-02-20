@@ -13,6 +13,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
@@ -100,7 +101,8 @@ public class SmileXContent implements XContent {
 
     @Override
     public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
-                                                       DeprecationHandler deprecationHandler, InputStream is) throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(is), true);
+                                                       DeprecationHandler deprecationHandler, InputStream is,
+                                                       RestApiCompatibleVersion restApiCompatibleVersion) throws IOException {
+        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(is), restApiCompatibleVersion);
     }
 }

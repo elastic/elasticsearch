@@ -102,7 +102,7 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
              charOccurrences = randomValueOtherThan(charOccurrences, this::randomCharOccurrences);
              break;
          case 6:
-             showDistribution = !showDistribution;
+             showDistribution = showDistribution == false;
              break;
          }
         return new InternalStringStats(name, count, totalLength, minLength, maxLength, charOccurrences, showDistribution,

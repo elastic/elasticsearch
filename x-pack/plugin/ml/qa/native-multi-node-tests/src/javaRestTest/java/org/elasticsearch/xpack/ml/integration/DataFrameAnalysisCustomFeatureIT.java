@@ -110,7 +110,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setId(jobId)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex },
-                QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()), null))
+                QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()), null, null))
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
             .setAnalysis(new Regression(NUMERICAL_FIELD,
                 BoostedTreeParams.builder().setNumTopFeatureImportanceValues(6).build(),

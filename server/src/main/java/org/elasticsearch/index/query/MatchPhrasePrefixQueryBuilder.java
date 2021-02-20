@@ -17,8 +17,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.search.MatchQuery;
-import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
+import org.elasticsearch.index.search.MatchQueryParser;
+import org.elasticsearch.index.search.MatchQueryParser.ZeroTermsQuery;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -38,11 +38,11 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
 
     private String analyzer;
 
-    private int slop = MatchQuery.DEFAULT_PHRASE_SLOP;
+    private int slop = MatchQueryParser.DEFAULT_PHRASE_SLOP;
 
     private int maxExpansions = FuzzyQuery.defaultMaxExpansions;
 
-    private ZeroTermsQuery zeroTermsQuery = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
+    private ZeroTermsQuery zeroTermsQuery = MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY;
 
     public MatchPhrasePrefixQueryBuilder(String fieldName, Object value) {
         if (fieldName == null) {
@@ -185,15 +185,15 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
             throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");
         }
 
-        MatchQuery matchQuery = new MatchQuery(context);
+        MatchQueryParser queryParser = new MatchQueryParser(context);
         if (analyzer != null) {
-            matchQuery.setAnalyzer(analyzer);
+            queryParser.setAnalyzer(analyzer);
         }
-        matchQuery.setPhraseSlop(slop);
-        matchQuery.setMaxExpansions(maxExpansions);
-        matchQuery.setZeroTermsQuery(zeroTermsQuery);
+        queryParser.setPhraseSlop(slop);
+        queryParser.setMaxExpansions(maxExpansions);
+        queryParser.setZeroTermsQuery(zeroTermsQuery);
 
-        return matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, fieldName, value);
+        return queryParser.parse(MatchQueryParser.Type.PHRASE_PREFIX, fieldName, value);
     }
 
     @Override
@@ -216,12 +216,12 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String analyzer = null;
-        int slop = MatchQuery.DEFAULT_PHRASE_SLOP;
+        int slop = MatchQueryParser.DEFAULT_PHRASE_SLOP;
         int maxExpansion = FuzzyQuery.defaultMaxExpansions;
         String queryName = null;
         XContentParser.Token token;
         String currentFieldName = null;
-        ZeroTermsQuery zeroTermsQuery = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
+        ZeroTermsQuery zeroTermsQuery = MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();

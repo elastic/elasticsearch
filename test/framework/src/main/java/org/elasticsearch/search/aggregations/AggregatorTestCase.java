@@ -180,7 +180,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
                                                         IndexSearcher searcher,
                                                         MappedFieldType... fieldTypes) throws IOException {
-        return createAggregator(aggregationBuilder, createAggregationContext(searcher, null, fieldTypes));
+        return createAggregator(aggregationBuilder, createAggregationContext(searcher, new MatchAllDocsQuery(), fieldTypes));
     }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder builder, AggregationContext context) throws IOException {
@@ -466,11 +466,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 a.preCollection();
                 Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
                 subSearcher.search(weight, a);
+                a.postCollection();
                 aggs.add(a.buildTopLevel());
             }
         } else {
             root.preCollection();
             searcher.search(rewritten, root);
+            root.postCollection();
             aggs.add(root.buildTopLevel());
         }
 

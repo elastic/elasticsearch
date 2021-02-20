@@ -912,7 +912,24 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testAggsInWhere() {
         assertEquals("1:33: Cannot use WHERE filtering on aggregate function [MAX(int)], use HAVING instead",
-                error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));
+            error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));
+    }
+
+    public void testHavingInAggs() {
+        assertEquals("1:29: [int] field must appear in the GROUP BY clause or in an aggregate function",
+            error("SELECT int FROM test HAVING MAX(int) = 0"));
+
+        assertEquals("1:35: [int] field must appear in the GROUP BY clause or in an aggregate function",
+                error("SELECT int FROM test HAVING int = count(1)"));
+    }
+
+    public void testHavingAsWhere() {
+        // TODO: this query works, though it normally shouldn't; a check about it could only be enforced if the Filter would be qualified
+        // (WHERE vs HAVING). Otoh, this "extra flexibility" shouldn't be harmful atp.
+        accept("SELECT int FROM test HAVING int = 1");
+        accept("SELECT int FROM test HAVING SIN(int) + 5 > 5.5");
+        // HAVING's expression being AND'ed to WHERE's
+        accept("SELECT int FROM test WHERE int > 3 HAVING POWER(int, 2) < 100");
     }
 
     public void testHistogramInFilter() {
@@ -1208,5 +1225,23 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         // inexact without underlying keyword (text only)
         assertEquals("1:36: [text] of data type [text] cannot be used for [CAST()] inside the WHERE clause",
                 error("SELECT * FROM test WHERE NOT (CAST(text AS string) = 'foo') OR true"));
+    }
+
+    public void testBinaryFieldWithDocValues() {
+        accept("SELECT binary_stored FROM test WHERE binary_stored IS NOT NULL");
+        accept("SELECT binary_stored FROM test GROUP BY binary_stored HAVING count(binary_stored) > 1");
+        accept("SELECT count(binary_stored) FROM test HAVING count(binary_stored) > 1");
+        accept("SELECT binary_stored FROM test ORDER BY binary_stored");
+    }
+
+    public void testBinaryFieldWithNoDocValues() {
+        assertEquals("1:31: Binary field [binary] cannot be used for filtering unless it has the doc_values setting enabled",
+            error("SELECT binary FROM test WHERE binary IS NOT NULL"));
+        assertEquals("1:34: Binary field [binary] cannot be used in aggregations unless it has the doc_values setting enabled",
+            error("SELECT binary FROM test GROUP BY binary"));
+        assertEquals("1:45: Binary field [binary] cannot be used for filtering unless it has the doc_values setting enabled",
+            error("SELECT count(binary) FROM test HAVING count(binary) > 1"));
+        assertEquals("1:34: Binary field [binary] cannot be used for ordering unless it has the doc_values setting enabled",
+            error("SELECT binary FROM test ORDER BY binary"));
     }
 }

@@ -17,7 +17,7 @@ public class AsyncSearchUser extends User {
     public static final AsyncSearchUser INSTANCE = new AsyncSearchUser();
     public static final String ROLE_NAME = UsernamesField.ASYNC_SEARCH_ROLE;
     public static final Role ROLE = Role.builder(new RoleDescriptor(ROLE_NAME,
-            null,
+            new String[] { "cancel_task" },
             new RoleDescriptor.IndicesPrivileges[] {
                     RoleDescriptor.IndicesPrivileges.builder()
                             .indices(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + "*")

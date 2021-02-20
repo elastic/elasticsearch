@@ -25,7 +25,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
-import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.After;
@@ -181,7 +181,7 @@ public class DisableGraphQueryTests extends ESSingleNodeTestCase {
         Query query = builder.toQuery(searchExecutionContext);
         assertThat(expectedQueryWithUnigram, equalTo(query));
 
-        builder.type(MatchQuery.Type.PHRASE);
+        builder.type(MatchQueryParser.Type.PHRASE);
         query = builder.toQuery(searchExecutionContext);
         assertThat(expectedPhraseQueryWithUnigram, equalTo(query));
 
@@ -189,7 +189,7 @@ public class DisableGraphQueryTests extends ESSingleNodeTestCase {
         query = builder.toQuery(searchExecutionContext);
         assertThat(expectedQuery, equalTo(query));
 
-        builder.type(MatchQuery.Type.PHRASE);
+        builder.type(MatchQueryParser.Type.PHRASE);
         query = builder.toQuery(searchExecutionContext);
         assertThat(expectedPhraseQuery, equalTo(query));
     }

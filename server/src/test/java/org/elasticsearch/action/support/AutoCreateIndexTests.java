@@ -190,9 +190,9 @@ public class AutoCreateIndexTests extends ESTestCase {
             new SystemIndices(Map.of()));
         assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(value));
 
-        Settings newSettings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), !value).build();
+        Settings newSettings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), value == false).build();
         clusterSettings.applySettings(newSettings);
-        assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(!value));
+        assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(value == false));
 
         newSettings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), "logs-*").build();
         clusterSettings.applySettings(newSettings);
@@ -300,7 +300,8 @@ public class AutoCreateIndexTests extends ESTestCase {
     }
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
-        SystemIndices systemIndices = new SystemIndices(Map.of("plugin", List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, ""))));
+        SystemIndices systemIndices = new SystemIndices(Map.of(
+            "plugin", new SystemIndices.Feature("test feature", List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, "")))));
         return new AutoCreateIndex(settings, new ClusterSettings(settings,
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), systemIndices);
     }

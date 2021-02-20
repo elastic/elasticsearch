@@ -9,8 +9,8 @@ esplugin {
 archivesBaseName = 'x-pack-graph'
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 addQaCheckDependencies()

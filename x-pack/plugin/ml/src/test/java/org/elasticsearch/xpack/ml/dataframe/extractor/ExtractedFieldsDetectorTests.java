@@ -1137,7 +1137,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
     private DataFrameAnalyticsConfig buildOutlierDetectionConfig() {
         return new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
-            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering))
+            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering, null))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
             .setAnalyzedFields(analyzedFields)
             .setAnalysis(new OutlierDetection.Builder().build())
@@ -1151,7 +1151,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
     private DataFrameAnalyticsConfig buildClassificationConfig(String dependentVariable) {
         return new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
-            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering))
+            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering, null))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
             .setAnalysis(new Classification(dependentVariable))
             .build();
@@ -1160,7 +1160,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
     private DataFrameAnalyticsConfig buildRegressionConfig(String dependentVariable, List<PreProcessor> featureprocessors) {
         return new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
-            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering))
+            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering, null))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
             .setAnalyzedFields(analyzedFields)
             .setAnalysis(new Regression(dependentVariable,

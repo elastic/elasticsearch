@@ -251,11 +251,11 @@ public class MappingsMergerTests extends ESTestCase {
     }
 
     private static DataFrameAnalyticsSource newSource() {
-        return new DataFrameAnalyticsSource(new String[] {"index"}, null, null);
+        return new DataFrameAnalyticsSource(new String[] {"index"}, null, null, null);
     }
 
     private static DataFrameAnalyticsSource newSourceWithExcludes(String... excludes) {
         return new DataFrameAnalyticsSource(new String[] {"index"}, null,
-            new FetchSourceContext(true, null, excludes));
+            new FetchSourceContext(true, null, excludes), null);
     }
 }

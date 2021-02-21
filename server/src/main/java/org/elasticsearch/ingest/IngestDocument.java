@@ -714,7 +714,7 @@ public final class IngestDocument {
         return (Map<K, V>) deepCopy(source);
     }
 
-    private static Object deepCopy(Object value) {
+    public static Object deepCopy(Object value) {
         if (value instanceof Map) {
             Map<?, ?> mapValue = (Map<?, ?>) value;
             Map<Object, Object> copy = new HashMap<>(mapValue.size());

@@ -17,8 +17,13 @@ import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -142,6 +147,64 @@ public class SetProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
+    }
+
+    public void testCopyFromDeepCopiesNonPrimitiveMutableTypes() throws Exception {
+        final String originalField = "originalField";
+        final String targetField = "targetField";
+        Processor processor = createSetProcessor(targetField, null, originalField, true, false);
+
+        // map types
+        Map<String, Object> document = new HashMap<>();
+        Map<String, Object> originalMap = new HashMap<>();
+        originalMap.put("foo", "bar");
+        document.put(originalField, originalMap);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IngestDocument output = processor.execute(ingestDocument);
+        originalMap.put("foo", "not-bar");
+        Map<?, ?> outputMap = output.getFieldValue(targetField, Map.class);
+        assertThat(outputMap.get("foo"), equalTo("bar"));
+
+        // set types
+        document = new HashMap<>();
+        Set<String> originalSet = randomUnique(() -> randomAlphaOfLength(5), 5);
+        Set<String> preservedSet = new HashSet<>(originalSet);
+        document.put(originalField, originalSet);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+        originalSet.add(randomValueOtherThanMany(originalSet::contains, () -> randomAlphaOfLength(5)));
+        assertThat(ingestDocument.getFieldValue(targetField, Object.class), equalTo(preservedSet));
+
+        // list types
+        document = new HashMap<>();
+        List<String> originalList = randomList(1, 5, () -> randomAlphaOfLength(5));
+        List<String> preservedList = new ArrayList<>(originalList);
+        document.put(originalField, originalList);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+        originalList.add(randomValueOtherThanMany(originalList::contains, () -> randomAlphaOfLength(5)));
+        assertThat(ingestDocument.getFieldValue(targetField, Object.class), equalTo(preservedList));
+
+        // byte[] types
+        document = new HashMap<>();
+        byte[] originalBytes = randomByteArrayOfLength(10);
+        byte[] preservedBytes = new byte[originalBytes.length];
+        System.arraycopy(originalBytes, 0, preservedBytes, 0, originalBytes.length);
+        document.put(originalField, originalBytes);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+        originalBytes[0] = originalBytes[0] == 0 ? (byte) 1 : (byte) 0;
+        assertThat(ingestDocument.getFieldValue(targetField, Object.class), equalTo(preservedBytes));
+
+        // Date types
+        document = new HashMap<>();
+        Date originalDate = new Date();
+        Date preservedDate = new Date(originalDate.getTime());
+        document.put(originalField, originalDate);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+        originalDate.setTime(originalDate.getTime() + 1);
+        assertThat(ingestDocument.getFieldValue(targetField, Object.class), equalTo(preservedDate));
     }
 
     private static Processor createSetProcessor(String fieldName, Object fieldValue, String copyFrom, boolean overrideEnabled,

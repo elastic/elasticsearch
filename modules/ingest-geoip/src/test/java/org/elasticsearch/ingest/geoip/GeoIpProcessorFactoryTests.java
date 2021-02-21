@@ -329,7 +329,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
                 path.resolve(databaseFilename));
     }
 
-    private static void copyDatabaseFiles(final Path path) throws IOException {
+    static void copyDatabaseFiles(final Path path) throws IOException {
         for (final String databaseFilename : IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES) {
             copyDatabaseFile(path, databaseFilename);
         }

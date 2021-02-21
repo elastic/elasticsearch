@@ -45,6 +45,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -717,7 +718,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                         try {
                             Engine engine = IndexShardTestCase.getEngine(indexShard);
                             assertThat(engine, instanceOf(ReadOnlyEngine.class));
-                            ((ReadOnlyEngine) engine).checkNoSoftDeletesLoaded();
+                            EngineTestCase.checkNoSoftDeletesLoaded((ReadOnlyEngine) engine);
                         } catch (AlreadyClosedException ace) {
                             // ok to ignore these
                         }

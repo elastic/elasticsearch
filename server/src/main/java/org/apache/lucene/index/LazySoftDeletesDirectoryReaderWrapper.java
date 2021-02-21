@@ -82,6 +82,7 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
             this.field = field;
         }
 
+        @Override
         protected LeafReader[] wrap(List<? extends LeafReader> readers) {
             List<LeafReader> wrapped = new ArrayList<>(readers.size());
             for (LeafReader reader : readers) {

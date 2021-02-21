@@ -80,7 +80,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 try (ReadOnlyEngine readOnlyEngineWithLazySoftDeletes = new ReadOnlyEngine(engine.engineConfig,
                     engine.getSeqNoStats(globalCheckpoint.get()),
                     engine.getTranslogStats(), false, Function.identity(), true, true)) {
-                    readOnlyEngineWithLazySoftDeletes.checkNoSoftDeletesLoaded();
+                    EngineTestCase.checkNoSoftDeletesLoaded(readOnlyEngineWithLazySoftDeletes);
                 }
                 Engine.Searcher external = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL);
                 Engine.Searcher internal = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);

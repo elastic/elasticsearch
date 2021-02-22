@@ -36,14 +36,13 @@ set `node.roles`, the node is assigned the following roles:
 [IMPORTANT]
 ====
 If you set `node.roles`, ensure you specify every node role your cluster needs.
-To access most {stack} features, a minimal cluster requires nodes with the
-following roles:
+Some {stack} features require specific node roles:
 
-- `master`
-- `ingest`
-- `transform`
-- `data`, `data_content`, or a combination of the `data_hot`, `data_warm`,
-  `data_cold`, and `data_frozen` roles
+- {ccs-cap} and {ccr} require the `remote_cluster_client` role.
+- {stack-monitor-app} and ingest pipelines require the `ingest` role.
+- The {security-app} and {transforms} require the `transform` role. The
+  `remote_cluster_client` role is also required to use {ccs} with these features.
+- {ml-cap} features, such as {anomaly-detect}, require the `ml` role.
 ====
 
 As the cluster grows and in particular if you have large {ml} jobs or

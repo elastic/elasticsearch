@@ -85,7 +85,7 @@ public class TokenCountFieldMapper extends FieldMapper {
             if (hasDocValues() == false) {
                 return lookup -> List.of();
             }
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+            return new DocValueFetcher(docValueFormat(format, null), name());
         }
     }
 

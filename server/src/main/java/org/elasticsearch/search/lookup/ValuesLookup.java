@@ -10,7 +10,6 @@ package org.elasticsearch.search.lookup;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.util.List;
@@ -28,7 +27,7 @@ public interface ValuesLookup {
     SourceLookup source();
 
     /**
-     * Returns a LeafDocLookup positioned on the current document
+     * Returns a list of formatted doc values for a given field on the current document
      */
     List<Object> docValues(String field, DocValueFormat format);
 

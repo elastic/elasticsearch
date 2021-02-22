@@ -57,6 +57,8 @@ import java.util.stream.Stream;
  */
 public class ReadOnlyEngine extends Engine {
 
+    public static final String FIELD_RANGE_SEARCH_SOURCE = "field_range";
+
     /**
      * Reader attributes used for read only engines. These attributes prevent loading term dictionaries on-heap even if the field is an
      * ID field.
@@ -542,7 +544,7 @@ public class ReadOnlyEngine extends Engine {
      */
     @Override
     public ShardLongFieldRange getRawFieldRange(String field) throws IOException {
-        try (Searcher searcher = acquireSearcher("field_range")) {
+        try (Searcher searcher = acquireSearcher(FIELD_RANGE_SEARCH_SOURCE)) {
             final DirectoryReader directoryReader = searcher.getDirectoryReader();
 
             final byte[] minPackedValue = PointValues.getMinPackedValue(directoryReader, field);

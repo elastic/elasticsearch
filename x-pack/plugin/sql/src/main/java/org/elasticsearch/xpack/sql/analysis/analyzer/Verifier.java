@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -76,6 +77,7 @@ import java.util.function.Consumer;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.versionIntroducingType;
@@ -228,6 +230,7 @@ public final class Verifier {
                 checkPivot(p, localFailures, attributeRefs);
                 checkMatrixStats(p, localFailures);
                 checkCastOnInexact(p, localFailures);
+                checkBinaryHasDocValues(p, localFailures);
                 // restricted array usage
                 checkForRestrictedFunctionInsideFunction(p, Array.class, localFailures);
                 checkArrayFunctionUsedInWhereOrOrderByOrAggregate(p, localFailures);
@@ -897,6 +900,23 @@ public final class Verifier {
                 }
             }
         }));
+    }
+
+    // check that any binary field used in WHERE, GROUP BY, HAVING or ORDER BY has doc_values, for ES to allow querying it
+    private static void checkBinaryHasDocValues(LogicalPlan plan, Set<Failure> localFailures) {
+        List<Tuple<FieldAttribute, String>> fields = new ArrayList<>();
+
+        plan.forEachDown(Filter.class, e -> e.condition().forEachDown(FieldAttribute.class,
+            f -> fields.add(Tuple.tuple(f, "for filtering"))));
+        plan.forEachDown(Aggregate.class, e -> e.groupings().forEach(g -> g.forEachDown(FieldAttribute.class,
+            f -> fields.add(Tuple.tuple(f, "in aggregations")))));
+        plan.forEachDown(OrderBy.class, e -> e.order().forEach(o -> o.child().forEachDown(FieldAttribute.class,
+            f -> fields.add(Tuple.tuple(f, "for ordering")))));
+
+        fields.stream().filter(t -> t.v1().dataType() == BINARY && t.v1().field().isAggregatable() == false).forEach(t -> {
+            localFailures.add(fail(t.v1(), "Binary field [" + t.v1().name() + "] cannot be used " + t.v2() + " unless it has the "
+                + "doc_values setting enabled"));
+        });
     }
 
     private static void checkArrayFunctionUsedInWhereOrOrderByOrAggregate(LogicalPlan plan, Set<Failure> localFailures) {

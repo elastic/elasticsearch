@@ -1118,7 +1118,8 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         // if it's nested, we use this field
         // if it's object, we need to strip every field starting from the end until we reach a nested field
         int endOfPathIndex = path.size() - 2; // -1 because we skip the leaf field at the end and another -1 because it's 0-based
-        while (path.get(endOfPathIndex--).v2() != NestedFieldType.NESTED) {} // find the first nested field starting from the end
+        while (path.get(endOfPathIndex--).v2() != NestedFieldType.NESTED) {
+        } // find the first nested field starting from the end
 
         StringBuilder stringPath = new StringBuilder(path.get(0).v1()); // the path we will ask for in the sql query
         for (int i = 1; i <= endOfPathIndex + 2; i++) { // +2 because the index is now at the [index_of_a_nested_field]-1
@@ -1129,20 +1130,25 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         }
 
         Map<String, Object> expected = new HashMap<>();
-        expected.put(
-            "columns",
-            singletonList(columnInfo("plain", stringPath.toString(), "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE))
-        );
+        expected.put("columns", singletonList(columnInfo("plain", stringPath.toString(), "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
         expected.put("rows", singletonList(singletonList(randomValue.get())));
         assertResponse(expected, runSql("SELECT " + stringPath.toString() + " FROM test"));
     }
 
     private enum NestedFieldType {
-        NESTED, OBJECT, LEAF;
+        NESTED,
+        OBJECT,
+        LEAF;
     }
 
-    private void addField(XContentBuilder index, boolean nestedFieldAdded, int remainingFields, List<Tuple<String, NestedFieldType>> path,
-        StringBuilder bulkContent, Holder<String> randomValue) throws IOException {
+    private void addField(
+        XContentBuilder index,
+        boolean nestedFieldAdded,
+        int remainingFields,
+        List<Tuple<String, NestedFieldType>> path,
+        StringBuilder bulkContent,
+        Holder<String> randomValue
+    ) throws IOException {
         String fieldName = randomAlphaOfLength(5);
         String leafFieldName = randomAlphaOfLength(5);
 

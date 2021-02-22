@@ -247,20 +247,6 @@ public class ClusterPrivilegeResolver {
     }
 
     /**
-     * Returns the names of privileges that grant the specified action.
-     * @return A collection of names, ordered (to the extent possible) from least privileged (e.g. {@link #MONITOR})
-     * to most privileged (e.g. {@link #ALL})
-     * @see #sortByAccessLevel(Collection)
-     * @see org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission#check(String)
-     */
-    public static Collection<String> findPrivilegesThatGrant(String action) {
-        return VALUES.entrySet().stream()
-            .filter(e -> e.getValue().permission().check(action))
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toUnmodifiableList());
-    }
-
-    /**
      * Sorts the collection of privileges from least-privilege to most-privilege (to the extent possible),
      * returning them in a sorted map keyed by name.
      */

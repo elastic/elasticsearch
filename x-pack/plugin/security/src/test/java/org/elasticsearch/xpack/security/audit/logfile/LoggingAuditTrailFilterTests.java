@@ -1997,7 +1997,6 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             "cluster:admin/xpack/security/saml/*",
             "cluster:admin/xpack/security/oidc/*",
             "cluster:admin/xpack/security/token/*",
-            "cluster:admin/xpack/security/api_key/*",
             "cluster:monitor/*",
             "cluster:monitor/xpack/ml/*",
             "cluster:monitor/text_structure/*",

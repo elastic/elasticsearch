@@ -1468,7 +1468,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         private boolean ignoreClusterPrivilegesPredicateTest(String action) {
             if (ignoreClusterPrivilegesPredicate.test(action)) return true;
-            Collection<String> privileges = ClusterPrivilegeResolver.findPrivilegesThatGrant(action);
+            Collection<String> privileges = ClusterPrivilegeResolver.findPrivilegesThatGrant(action, null, null);
             return privileges != null && privileges.stream().anyMatch((s) -> ignoreClusterPrivilegesPredicate.test(s));
         }
 

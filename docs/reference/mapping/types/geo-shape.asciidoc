@@ -644,8 +644,8 @@ POST /example/_doc
 Elasticsearch supports a `circle` type, which consists of a center
 point with a radius.
 
-IMPORTANT: The default <<geoshape-indexing-approach,BKD tree indexing approach>>
-does not support the `circle` type. Instead, use a
+IMPORTANT: You cannot index the `circle` type using the default
+<<geoshape-indexing-approach,BKD tree indexing approach>>. Instead, use a
 <<ingest-circle-processor,circle ingest processor>> to approximate the circle as
 a <<geo-polygon,`polygon`>>.
 

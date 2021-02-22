@@ -11,6 +11,10 @@ aggregation is very similar to the <<search-aggregations-bucket-terms-aggregatio
 it will be slower than the terms aggregation and will consume more memory. Therefore, if the same set of fields is constantly used,
 it would be more efficient to index a combined key for this fields as a separate field and use the terms aggregation on this field.
 
+The multi_term aggregations are the most useful when you need to sort by a number of document or a metric aggregation on a composite
+key and get top N results. If sorting is not required and all values are expected to be retrieved using nested terms aggregation or
+<<search-aggregations-bucket-composite-aggregation, `composite aggregations`>> will be a faster and more memory efficient solution.
+
 //////////////////////////
 
 [source,js]

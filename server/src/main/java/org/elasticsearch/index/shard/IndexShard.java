@@ -2022,10 +2022,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param requiredFullRange if {@code true} then {@link Translog.Snapshot#next()} will throw {@link IllegalStateException}
      *                          if any operation between {@code fromSeqNo} and {@code toSeqNo} is missing.
      *                          This parameter should be only enabled when the entire requesting range is below the global checkpoint.
+     * @param singleConsumer    true if the snapshot is accessed by a single thread that creates the snapshot
      */
     public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo,
-                                                    long toSeqNo, boolean requiredFullRange) throws IOException {
-        return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange);
+                                                long toSeqNo, boolean requiredFullRange, boolean singleConsumer) throws IOException {
+        return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer);
     }
 
     public List<Segment> segments(boolean verbose) {

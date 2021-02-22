@@ -292,7 +292,8 @@ public class RecoverySourceHandler {
 
                 final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
                 logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
-                final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot("peer-recovery", startingSeqNo, Long.MAX_VALUE, false);
+                final Translog.Snapshot phase2Snapshot =
+                    shard.newChangesSnapshot("peer-recovery", startingSeqNo, Long.MAX_VALUE, false, false);
                 resources.add(phase2Snapshot);
                 retentionLock.close();
 
@@ -337,7 +338,7 @@ public class RecoverySourceHandler {
     }
 
     private int estimateNumberOfHistoryOperations(long startingSeqNo) throws IOException {
-        try (Translog.Snapshot snapshot = shard.newChangesSnapshot("peer-recover", startingSeqNo, Long.MAX_VALUE, false)) {
+        try (Translog.Snapshot snapshot = shard.newChangesSnapshot("peer-recover", startingSeqNo, Long.MAX_VALUE, false, true)) {
             return snapshot.totalOperations();
         }
     }

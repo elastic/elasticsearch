@@ -952,7 +952,7 @@ The response includes a single document where the HTTP response is `304`:
     "hits" : [
       {
         "_index" : "my-index",
-        "_id" : "hNEhyncBRSB6iD-PoBqe",
+        "_id" : "A2qDy3cBWRMvVAuI7F8M",
         "_score" : 1.0,
         "_source" : {
           "timestamp" : "2020-04-30T14:31:22-05:00",
@@ -968,7 +968,7 @@ The response includes a single document where the HTTP response is `304`:
           "message" : [
             "247.37.0.0 - - [30/Apr/2020:14:31:22 -0500] \"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"
           ],
-          "clientip.http" : [
+          "http.client.ip" : [
             "247.37.0.0"
           ],
           "timestamp" : [
@@ -981,4 +981,4 @@ The response includes a single document where the HTTP response is `304`:
 }
 ----
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
-// TESTRESPONSE[s/"_id" : "hNEhyncBRSB6iD-PoBqe"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"_id" : "A2qDy3cBWRMvVAuI7F8M"/"_id": $body.hits.hits.0._id/]

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.blobstore.url;
 
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -27,6 +28,7 @@ public class URLBlobStore implements BlobStore {
     private final URL path;
 
     private final int bufferSizeInBytes;
+    private final CheckedFunction<BlobPath, BlobContainer, MalformedURLException> blobContainerFactory;
 
     /**
      * Constructs new read-only URL-based blob store
@@ -40,10 +42,22 @@ public class URLBlobStore implements BlobStore {
      * @param settings settings
      * @param path     base URL
      */
-    public URLBlobStore(Settings settings, URL path) {
+    public URLBlobStore(Settings settings, URL path, URLHttpClient httpClient) {
         this.path = path;
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.uri.buffer_size",
             new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
+        int maxRetries = settings.getAsInt("repositories.uri.http.max_retries", HttpClientSettings.DEFAULT_MAX_RETRIES);
+        int socketTimeout = settings.getAsInt("repositories.uri.http.socket_timeout", HttpClientSettings.DEFAULT_SOCKET_TIMEOUT);
+        final HttpClientSettings httpClientSettings = new HttpClientSettings();
+        httpClientSettings.setMaxRetries(maxRetries);
+        httpClientSettings.setSocketTimeoutMs(socketTimeout);
+
+        if (this.path.getProtocol().equals("http") || this.path.getProtocol().equals("https")) {
+            this.blobContainerFactory = (blobPath) ->
+                new HttpURLBlobContainer(this, blobPath, buildPath(blobPath), httpClient, httpClientSettings);
+        } else {
+            this.blobContainerFactory = (blobPath) -> new URLBlobContainer(this, blobPath, buildPath(blobPath));
+        }
     }
 
     @Override
@@ -72,7 +86,7 @@ public class URLBlobStore implements BlobStore {
     @Override
     public BlobContainer blobContainer(BlobPath path) {
         try {
-            return new URLBlobContainer(this, path, buildPath(path));
+            return blobContainerFactory.apply(path);
         } catch (MalformedURLException ex) {
             throw new BlobStoreException("malformed URL " + path, ex);
         }

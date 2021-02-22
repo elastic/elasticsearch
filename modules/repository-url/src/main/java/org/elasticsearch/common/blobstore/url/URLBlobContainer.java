@@ -15,6 +15,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 
 import java.io.BufferedInputStream;
 import java.io.FileNotFoundException;
@@ -107,13 +108,18 @@ public class URLBlobContainer extends AbstractBlobContainer {
         try {
             return new BufferedInputStream(getInputStream(new URL(path, name)), blobStore.bufferSizeInBytes());
         } catch (FileNotFoundException fnfe) {
-            throw new NoSuchFileException("[" + name + "] blob not found");
+            throw new NoSuchFileException("blob object [" + name + "] not found");
         }
     }
 
     @Override
     public InputStream readBlob(String blobName, long position, long length) throws IOException {
-        throw new UnsupportedOperationException();
+        final InputStream inputStream = getInputStream(new URL(path, blobName));
+        // This can be extremely inefficient for jar and ftp URLs
+        if (position > 0) {
+            inputStream.skip(position);
+        }
+        return Streams.limitStream(inputStream, length);
     }
 
     @Override

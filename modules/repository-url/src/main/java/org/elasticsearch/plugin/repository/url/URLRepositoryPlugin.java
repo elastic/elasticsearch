@@ -8,23 +8,41 @@
 
 package org.elasticsearch.plugin.repository.url;
 
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.url.URLHttpClient;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.url.URLRepository;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
+    private final AtomicReference<URLHttpClient> httpClient = new AtomicReference<>();
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -40,6 +58,41 @@ public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
                                                            ClusterService clusterService, BigArrays bigArrays,
                                                            RecoverySettings recoverySettings) {
         return Collections.singletonMap(URLRepository.TYPE,
-            metadata -> new URLRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings));
+            metadata ->  {
+            assert httpClient.get() != null : "Expected to get a configured http client";
+            return new URLRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, httpClient.get());
+        });
+    }
+
+    @Override
+    public Collection<Object> createComponents(Client client,
+                                               ClusterService clusterService,
+                                               ThreadPool threadPool,
+                                               ResourceWatcherService resourceWatcherService,
+                                               ScriptService scriptService,
+                                               NamedXContentRegistry xContentRegistry,
+                                               Environment environment,
+                                               NodeEnvironment nodeEnvironment,
+                                               NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver indexNameExpressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+
+        PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager();
+        final CloseableHttpClient apacheHttpClient = HttpClients.custom()
+            .disableAutomaticRetries()
+            .setConnectionManager(connManager)
+            .build();
+        final URLHttpClient apacheURLHttpClient = new URLHttpClient(apacheHttpClient, connManager);
+        httpClient.compareAndSet(null, apacheURLHttpClient);
+        return List.of(apacheURLHttpClient);
+    }
+
+    @Override
+    public void close() throws IOException {
+        super.close();
+        URLHttpClient urlHttpClient = httpClient.getAndSet(null);
+        if (urlHttpClient != null) {
+            IOUtils.closeWhileHandlingException(urlHttpClient);
+        }
     }
 }

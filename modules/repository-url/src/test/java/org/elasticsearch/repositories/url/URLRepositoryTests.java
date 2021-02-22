@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.url;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.blobstore.url.URLHttpClient;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -24,6 +25,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 
+import static org.elasticsearch.mock.orig.Mockito.mock;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -34,7 +36,8 @@ public class URLRepositoryTests extends ESTestCase {
         return new URLRepository(repositoryMetadata, TestEnvironment.newEnvironment(baseSettings),
             new NamedXContentRegistry(Collections.emptyList()), BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
-            new RecoverySettings(baseSettings, new ClusterSettings(baseSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
+            new RecoverySettings(baseSettings, new ClusterSettings(baseSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            mock(URLHttpClient.class)) {
             @Override
             protected void assertSnapshotOrGenericThread() {
                 // eliminate thread name check as we create repo manually on test/main threads

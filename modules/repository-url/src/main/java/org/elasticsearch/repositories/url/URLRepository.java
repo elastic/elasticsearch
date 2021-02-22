@@ -16,6 +16,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.url.URLBlobStore;
+import org.elasticsearch.common.blobstore.url.URLHttpClient;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.BigArrays;
@@ -73,12 +74,14 @@ public class URLRepository extends BlobStoreRepository {
 
     private final URL url;
 
+    private final URLHttpClient httpClient;
+
     /**
      * Constructs a read-only URL-based repository
      */
     public URLRepository(RepositoryMetadata metadata, Environment environment,
                          NamedXContentRegistry namedXContentRegistry, ClusterService clusterService, BigArrays bigArrays,
-                         RecoverySettings recoverySettings) {
+                         RecoverySettings recoverySettings, URLHttpClient urlHttpClient) {
         super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.cleanPath());
 
         if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(environment.settings()) ==  false) {
@@ -89,12 +92,13 @@ public class URLRepository extends BlobStoreRepository {
         urlWhiteList = ALLOWED_URLS_SETTING.get(environment.settings()).toArray(new URIPattern[]{});
         url = URL_SETTING.exists(metadata.settings())
             ? URL_SETTING.get(metadata.settings()) : REPOSITORIES_URL_SETTING.get(environment.settings());
+        this.httpClient = urlHttpClient;
     }
 
     @Override
     protected BlobStore createBlobStore() {
         URL normalizedURL = checkURL(url);
-        return new URLBlobStore(environment.settings(), normalizedURL);
+        return new URLBlobStore(environment.settings(), normalizedURL, httpClient);
     }
 
     // only use for testing

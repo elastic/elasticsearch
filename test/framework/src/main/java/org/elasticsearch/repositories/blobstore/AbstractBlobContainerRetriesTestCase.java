@@ -296,7 +296,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         return randomByteArrayOfLength(randomIntBetween(minSize, frequently() ? 512 : 1 << 20)); // rarely up to 1mb
     }
 
-    private static final Pattern RANGE_PATTERN = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$");
+    private static final Pattern RANGE_PATTERN = Pattern.compile("^bytes=([0-9]+)-([0-9]+)*$");
 
     protected static Tuple<Long, Long> getRange(HttpExchange exchange) {
         final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
@@ -307,7 +307,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final Matcher matcher = RANGE_PATTERN.matcher(rangeHeader);
         assertTrue(rangeHeader + " matches expected pattern", matcher.matches());
         long rangeStart = Long.parseLong(matcher.group(1));
-        long rangeEnd = Long.parseLong(matcher.group(2));
+        long rangeEnd = matcher.group(2) == null ? MAX_RANGE_VAL : Long.parseLong(matcher.group(2));
         assertThat(rangeStart, lessThanOrEqualTo(rangeEnd));
         return Tuple.tuple(rangeStart, rangeEnd);
     }

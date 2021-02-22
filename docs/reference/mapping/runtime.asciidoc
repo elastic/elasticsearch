@@ -847,7 +847,7 @@ timestamp falls within the defined range.
     "hits" : [
       {
         "_index" : "my-index",
-        "_id" : "GtLqu3cBhqheMnFKd0gK",
+        "_id" : "hdEhyncBRSB6iD-PoBqe",
         "_score" : 1.0,
         "_source" : {
           "timestamp" : "2020-04-30T14:31:27-05:00",
@@ -856,7 +856,7 @@ timestamp falls within the defined range.
       },
       {
         "_index" : "my-index",
-        "_id" : "G9Lqu3cBhqheMnFKd0gK",
+        "_id" : "htEhyncBRSB6iD-PoBqe",
         "_score" : 1.0,
         "_source" : {
           "timestamp" : "2020-04-30T14:31:28-05:00",
@@ -868,4 +868,5 @@ timestamp falls within the defined range.
 }
 ----
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
-// TESTRESPONSE[s/"_id" : "GtLqu3cBhqheMnFKd0gK"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"_id" : "hdEhyncBRSB6iD-PoBqe"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"_id" : "htEhyncBRSB6iD-PoBqe"/"_id": $body.hits.hits.1._id/]

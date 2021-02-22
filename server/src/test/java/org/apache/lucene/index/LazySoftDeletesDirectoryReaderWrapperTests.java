@@ -73,84 +73,6 @@ public class LazySoftDeletesDirectoryReaderWrapperTests extends LuceneTestCase {
         }
     }
 
-    public void testReuseUnchangedLeafReader() throws IOException {
-        Directory dir = newDirectory();
-        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
-        String softDeletesField = "soft_delete";
-        indexWriterConfig.setSoftDeletesField(softDeletesField);
-        indexWriterConfig.setMergePolicy(NoMergePolicy.INSTANCE);
-        IndexWriter writer = new IndexWriter(dir, indexWriterConfig);
-
-        Document doc = new Document();
-        doc.add(new StringField("id", "1", Field.Store.YES));
-        doc.add(new StringField("version", "1", Field.Store.YES));
-        writer.addDocument(doc);
-        doc = new Document();
-        doc.add(new StringField("id", "2", Field.Store.YES));
-        doc.add(new StringField("version", "1", Field.Store.YES));
-        writer.addDocument(doc);
-        writer.commit();
-        DirectoryReader reader =
-            new LazySoftDeletesDirectoryReaderWrapper(DirectoryReader.open(dir), softDeletesField);
-        assertEquals(2, reader.numDocs());
-        assertEquals(2, reader.maxDoc());
-        assertEquals(0, reader.numDeletedDocs());
-
-        doc = new Document();
-        doc.add(new StringField("id", "1", Field.Store.YES));
-        doc.add(new StringField("version", "2", Field.Store.YES));
-        writer.softUpdateDocument(
-            new Term("id", "1"), doc, new NumericDocValuesField("soft_delete", 1));
-
-        doc = new Document();
-        doc.add(new StringField("id", "3", Field.Store.YES));
-        doc.add(new StringField("version", "1", Field.Store.YES));
-        writer.addDocument(doc);
-        writer.commit();
-
-        DirectoryReader newReader = DirectoryReader.openIfChanged(reader);
-        assertNotSame(newReader, reader);
-        reader.close();
-        reader = newReader;
-        assertEquals(3, reader.numDocs());
-        assertEquals(4, reader.maxDoc());
-        assertEquals(1, reader.numDeletedDocs());
-
-        doc = new Document();
-        doc.add(new StringField("id", "1", Field.Store.YES));
-        doc.add(new StringField("version", "3", Field.Store.YES));
-        writer.softUpdateDocument(
-            new Term("id", "1"), doc, new NumericDocValuesField("soft_delete", 1));
-        writer.commit();
-
-        newReader = DirectoryReader.openIfChanged(reader);
-        assertNotSame(newReader, reader);
-        assertEquals(3, newReader.getSequentialSubReaders().size());
-        assertEquals(2, reader.getSequentialSubReaders().size());
-        assertSame(reader.getSequentialSubReaders().get(0), newReader.getSequentialSubReaders().get(0));
-        assertNotSame(
-            reader.getSequentialSubReaders().get(1), newReader.getSequentialSubReaders().get(1));
-        assertTrue(isWrapped(reader.getSequentialSubReaders().get(0)));
-        // last one has no soft deletes
-        assertFalse(isWrapped(reader.getSequentialSubReaders().get(1)));
-
-        assertTrue(isWrapped(newReader.getSequentialSubReaders().get(0)));
-        assertTrue(isWrapped(newReader.getSequentialSubReaders().get(1)));
-        // last one has no soft deletes
-        assertFalse(isWrapped(newReader.getSequentialSubReaders().get(2)));
-        reader.close();
-        reader = newReader;
-        assertEquals(3, reader.numDocs());
-        assertEquals(5, reader.maxDoc());
-        assertEquals(2, reader.numDeletedDocs());
-        IOUtils.close(reader, writer, dir);
-    }
-
-    private boolean isWrapped(LeafReader reader) {
-        return reader instanceof LazySoftDeletesDirectoryReaderWrapper.LazySoftDeletesFilterLeafReader
-            || reader instanceof LazySoftDeletesDirectoryReaderWrapper.LazySoftDeletesFilterCodecReader;
-    }
-
     public void testMixSoftAndHardDeletes() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
@@ -237,7 +159,8 @@ public class LazySoftDeletesDirectoryReaderWrapperTests extends LuceneTestCase {
         writer.commit();
         assertEquals(0, leafCalled.get());
         assertEquals(0, dirCalled.get());
-        DirectoryReader newReader = DirectoryReader.openIfChanged(reader);
+        DirectoryReader newReader =
+            new LazySoftDeletesDirectoryReaderWrapper(DirectoryReader.open(dir), softDeletesField);
         assertEquals(0, leafCalled.get());
         assertEquals(0, dirCalled.get());
         assertNotSame(

@@ -43,7 +43,7 @@ Geo::
 * Deprecate `GeoPolygon` query in favour of `GeoShape` query {es-pull}64227[#64227] (issue: {es-issue}48928[#48928])
 
 Machine Learning::
-* Add deprecation check for job model snapshots that need upgraded {es-pull}66062[#66062] (issue: {es-issue}64154[#64154])
+* Add deprecation check for job model snapshots that need upgrade {es-pull}66062[#66062] (issue: {es-issue}64154[#64154])
 
 Security::
 * Deprecate the `id` field for the `InvalidateApiKey` API {es-pull}66317[#66317] (issue: {es-issue}63224[#63224])
@@ -104,7 +104,7 @@ Authentication::
 Authorization::
 * Add more context to cluster access denied messages {es-pull}66900[#66900] (issues: {es-issue}42166[#42166], {es-issue}60357[#60357])
 * Add more context to index access denied errors {es-pull}60357[#60357] (issue: {es-issue}42166[#42166])
-* Allow kibana to create Fleet Server indices {es-pull}68152[#68152]
+* Allow Kibana to create Fleet Server indices {es-pull}68152[#68152]
 * Phase 2 support for operator privileges: Cluster settings {es-pull}66684[#66684]
 * `view_index_metadata` and `manage` privs now grant access to field capabilities {es-pull}67392[#67392] (issue: {es-issue}66867[#66867])
 
@@ -179,12 +179,17 @@ License::
 Machine Learning::
 * Add new multi custom processor for data frame analytics and model inference {es-pull}67362[#67362]
 * Allow data frame analytics memory estimation on non-ML nodes {es-pull}68146[#68146] (issue: {es-issue}67840[#67840])
-* Automatic management for ML system indices {es-pull}68044[#68044]
-* Expand regression/classification hyperparameters {es-pull}67950[#67950]
+* Automatic management for machine learning system indices {es-pull}68044[#68044]
+* Expand regression and classification hyperparameters {es-pull}67950[#67950]
 * Improve resuming a data frame analytics job stopped during inference {es-pull}67623[#67623]
 * Move find file structure to a new API endpoint {es-pull}67123[#67123] (issue: {es-issue}67001[#67001])
-* Preserve inference progress upon starting data frame analytics {es-pull}68222[#68222]
+* Preserve inference progress when starting data frame analytics {es-pull}68222[#68222]
 * Write notification messages indicating required capacity when a job is not assigned to a node {es-pull}67181[#67181]
+* Fix edge case which could cause spurious anomalies early in the learning process if the time series has non-diurnal seasonality {ml-pull}1634[#1634]
+* Compute importance of hyperparameters optimized in the fine parameter tuning step {ml-pull}1627[#1627]
+* Early stopping for the fine parameter tuning step of classification and regression model training {ml-pull}1676[#1676]
+* Correct upgrade for pre-6.3 state for lat_long anomaly anomaly detectors {ml-pull}1681[#1681]
+* Per tree feature bag to speed up training of regression and classification models and improve scalability for large numbers of features {ml-pull}1733[#1733]
 
 Mapping::
 * Shortcut to avoid fmod {es-pull}66909[#66909]
@@ -281,6 +286,8 @@ Machine Learning::
 * Make `find_structure` validate `lines_to_sample` at least 2 {es-pull}68199[#68199] (issue: {es-issue}68128[#68128])
 * Return 400 status for invalid charset in `find_structure` {es-pull}68201[#68201] (issue: {es-issue}68130[#68130])
 * Return status 400 for `grok_pattern` errors in `find_structure` {es-pull}68205[#68205] (issue: {es-issue}68132[#68132])
+* Fix a source of instability in time series modeling for anomaly detection. This has been observed to cause spurious anomalies for a partition which no longer receives any data {ml-pull}1675[#1675]
+* Ensure that we stop modeling seasonality for data which flatlines. This is important for count and sum detectors which treat empty buckets as zero. We could see spurious anomalies in realtime detection after a partition no longer received any data as a result {ml-pull}1654[#1654]
 
 SQL::
 * Fix `ZonedDateTime` with nanos serialisation {es-pull}68253[#68253] (issue: {es-issue}67666[#67666])

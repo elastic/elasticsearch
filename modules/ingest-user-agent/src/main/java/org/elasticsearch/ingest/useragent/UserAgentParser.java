@@ -162,10 +162,6 @@ final class UserAgentParser {
         return devicePatterns;
     }
 
-    String getName() {
-        return name;
-    }
-
     public Details parse(String agentString) {
         Details details = cache.get(name, agentString);
 
@@ -225,6 +221,14 @@ final class UserAgentParser {
             this.minor = minor;
             this.patch = patch;
             this.build = build;
+        }
+
+        VersionedName(String name) {
+            this.name = name;
+            this.major = null;
+            this.minor = null;
+            this.patch = null;
+            this.build = null;
         }
     }
 

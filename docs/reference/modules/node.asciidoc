@@ -44,10 +44,6 @@ with the following roles:
 - `transform`
 - `data`, `data_content`, or a combination of the `data_hot`, `data_warm`,
   `data_cold`, and `data_frozen` roles
-
-For resiliency, production clusters must have at least three nodes with the
-`master` role and at least two nodes of each needed role. See
-<<high-availability-cluster-design>>.
 ====
 
 As the cluster grows and in particular if you have large {ml} jobs or

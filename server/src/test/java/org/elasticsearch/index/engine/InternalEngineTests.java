@@ -2541,7 +2541,6 @@ public class InternalEngineTests extends EngineTestCase {
                     }
                 }
                 holder.close();
-
                 assertEquals(store.refCount(), refCount);
             }
         }

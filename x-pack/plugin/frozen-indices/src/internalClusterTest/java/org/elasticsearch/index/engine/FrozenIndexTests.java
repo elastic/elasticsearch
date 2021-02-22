@@ -532,8 +532,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").toEpochMilli()));
 
         for (ShardStats shardStats : client().admin().indices().prepareStats("index").clear().setRefresh(true).get().getShards()) {
-            assertThat("shard " + shardStats.getShardRouting() + " refreshed to get the timestamp range",
-                    shardStats.getStats().refresh.getTotal(), greaterThanOrEqualTo(1L));
+            assertThat("shard " + shardStats.getShardRouting() + " not refreshed to get the timestamp range",
+                    shardStats.getStats().refresh.getTotal(), equalTo(0L));
         }
     }
 
@@ -567,8 +567,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             equalTo(resolution.convert(Instant.parse("2010-01-06T02:03:04.567890123Z"))));
 
         for (ShardStats shardStats : client().admin().indices().prepareStats("index").clear().setRefresh(true).get().getShards()) {
-            assertThat("shard " + shardStats.getShardRouting() + " refreshed to get the timestamp range",
-                    shardStats.getStats().refresh.getTotal(), greaterThanOrEqualTo(1L));
+            assertThat("shard " + shardStats.getShardRouting() + " not refreshed to get the timestamp range",
+                    shardStats.getStats().refresh.getTotal(), equalTo(0L));
         }
     }
 

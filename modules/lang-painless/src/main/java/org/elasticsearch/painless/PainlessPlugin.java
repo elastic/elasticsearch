@@ -37,6 +37,13 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.runtimefields.mapper.BooleanFieldScript;
+import org.elasticsearch.runtimefields.mapper.DateFieldScript;
+import org.elasticsearch.runtimefields.mapper.DoubleFieldScript;
+import org.elasticsearch.runtimefields.mapper.GeoPointFieldScript;
+import org.elasticsearch.runtimefields.mapper.IpFieldScript;
+import org.elasticsearch.runtimefields.mapper.LongFieldScript;
+import org.elasticsearch.runtimefields.mapper.StringFieldScript;
 import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
@@ -88,6 +95,15 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         ingest.add(ingestWhitelist);
         map.put(IngestScript.CONTEXT, ingest);
 
+        // Functions available to runtime fields
+        map.put(BooleanFieldScript.CONTEXT, getRuntimeFieldWhitelist("boolean"));
+        map.put(DateFieldScript.CONTEXT, getRuntimeFieldWhitelist("date"));
+        map.put(DoubleFieldScript.CONTEXT, getRuntimeFieldWhitelist("double"));
+        map.put(LongFieldScript.CONTEXT, getRuntimeFieldWhitelist("long"));
+        map.put(StringFieldScript.CONTEXT, getRuntimeFieldWhitelist("string"));
+        map.put(GeoPointFieldScript.CONTEXT, getRuntimeFieldWhitelist("geopoint"));
+        map.put(IpFieldScript.CONTEXT, getRuntimeFieldWhitelist("ip"));
+
         // Execute context gets everything
         List<Whitelist> test = new ArrayList<>(Whitelist.BASE_WHITELISTS);
         test.add(movFnWhitelist);
@@ -97,6 +113,14 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         map.put(PainlessExecuteAction.PainlessTestScript.CONTEXT, test);
 
         whitelists = map;
+    }
+
+    private static List<Whitelist> getRuntimeFieldWhitelist(String fieldType) {
+        List<Whitelist> scriptField = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        Whitelist whitelist = WhitelistLoader.loadFromResourceFiles(Whitelist.class,
+            "org.elasticsearch.runtimefields." + fieldType + ".txt");
+        scriptField.add(whitelist);
+        return scriptField;
     }
 
     private final SetOnce<PainlessScriptEngine> painlessScriptEngine = new SetOnce<>();

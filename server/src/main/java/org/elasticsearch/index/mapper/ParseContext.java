@@ -15,7 +15,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -685,7 +684,6 @@ public abstract class ParseContext {
 
     /**
      * Retrieve the builder for dynamically created runtime fields
-     * @see MapperPlugin#getDynamicRuntimeFieldsBuilder()
      */
     public abstract DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder();
 }

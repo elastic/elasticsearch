@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.plugins.MapperPlugin;
 
 import static org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 
@@ -18,7 +17,6 @@ import static org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
  * Plugins that provide runtime field implementations can also plug in their implementation of this interface
  * to define how leaf fields of each supported type can be dynamically created in dynamic runtime mode.
  *
- * @see MapperPlugin#getDynamicRuntimeFieldsBuilder()
  * @see Dynamic
  */
 public interface DynamicRuntimeFieldsBuilder {

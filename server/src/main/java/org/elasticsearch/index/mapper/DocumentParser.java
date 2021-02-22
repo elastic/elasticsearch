@@ -39,11 +39,10 @@ final class DocumentParser {
     private final DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder;
 
     DocumentParser(NamedXContentRegistry xContentRegistry,
-                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext,
-                   DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder) {
+                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext) {
         this.xContentRegistry = xContentRegistry;
         this.dateParserContext = dateParserContext;
-        this.dynamicRuntimeFieldsBuilder = dynamicRuntimeFieldsBuilder;
+        this.dynamicRuntimeFieldsBuilder = org.elasticsearch.runtimefields.mapper.DynamicRuntimeFieldsBuilder.INSTANCE;
     }
 
     ParsedDocument parseDocument(SourceToParse source,

@@ -217,6 +217,19 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     /**
+     * Check that the manager will try to upgrade indices where the version in the metadata is null or absent.
+     */
+    public void testManagerProcessesIndicesWithNullVersionMetadata() {
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
+        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
+
+        final ClusterState.Builder clusterStateBuilder = createClusterState(Strings.toString(getMappings(null)));
+        markShardsAvailable(clusterStateBuilder);
+
+        assertThat(manager.getUpgradeStatus(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE));
+    }
+
+    /**
      * Check that the manager submits the expected request for an index whose mappings are out-of-date.
      */
     public void testManagerSubmitsPutRequest() {

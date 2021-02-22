@@ -143,20 +143,8 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        FiltersAggregator filterOrder = buildFilterOrderOrNull(
-            name,
-            factories,
-            keys,
-            filters,
-            keyed,
-            otherBucketKey,
-            context,
-            parent,
-            cardinality,
-            metadata
-        );
-        if (filterOrder != null) {
-            return filterOrder;
+        if (canUseFilterByFilter(parent, factories, otherBucketKey)) {
+            return buildFilterByFilter(name, factories, keys, filters, keyed, otherBucketKey, context, parent, cardinality, metadata);
         }
         return new FiltersAggregator.Compatible(
             name,
@@ -173,13 +161,21 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     }
 
     /**
+     * Can this aggregation be executed using the {@link FilterByFilter}? That
+     * aggregator is much faster than the fallback {@link Compatible} aggregator.
+     */
+    public static boolean canUseFilterByFilter(Aggregator parent, AggregatorFactories factories, String otherBucketKey) {
+        return parent == null && factories.countAggregators() == 0 && otherBucketKey == null;
+    }
+
+    /**
      * Build an {@link Aggregator} for a {@code filters} aggregation if we
      * can collect {@link FilterByFilter}, otherwise return {@code null}. We can
      * collect filter by filter if there isn't a parent, there aren't children,
      * and we don't collect "other" buckets. Collecting {@link FilterByFilter}
      * is generally going to be much faster than the {@link Compatible} aggregator.
      */
-    public static FilterByFilter buildFilterOrderOrNull(
+    public static FilterByFilter buildFilterByFilter(
         String name,
         AggregatorFactories factories,
         String[] keys,
@@ -191,14 +187,8 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        if (parent != null) {
-            return null;
-        }
-        if (factories.countAggregators() != 0) {
-            return null;
-        }
-        if (otherBucketKey != null) {
-            return null;
+        if (false == canUseFilterByFilter(parent, factories, otherBucketKey)) {
+            throw new IllegalStateException("Can't execute filter-by-filter");
         }
         return new FiltersAggregator.FilterByFilter(
             name,

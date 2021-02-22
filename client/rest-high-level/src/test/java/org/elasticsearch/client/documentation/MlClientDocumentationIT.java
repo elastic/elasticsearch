@@ -38,6 +38,7 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
 import org.elasticsearch.client.ml.EstimateModelMemoryResponse;
@@ -104,6 +105,7 @@ import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.PutTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.PutTrainedModelRequest;
 import org.elasticsearch.client.ml.PutTrainedModelResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
@@ -3890,6 +3892,129 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .deleteTrainedModel(new DeleteTrainedModelRequest("my-new-trained-model"), RequestOptions.DEFAULT);
         }
     }
+
+    public void testPutTrainedModelAlias() throws Exception {
+        putTrainedModel("my-trained-model-with-alias");
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::put-trained-model-alias-request
+            PutTrainedModelAliasRequest request = new PutTrainedModelAliasRequest(
+                "my-alias", // <1>
+                "my-trained-model-with-alias", // <2>
+                false // <3>
+            );
+            // end::put-trained-model-alias-request
+
+            // tag::put-trained-model-alias-execute
+            AcknowledgedResponse response =
+                client.machineLearning().putTrainedModelAlias(request, RequestOptions.DEFAULT);
+            // end::put-trained-model-alias-execute
+
+            // tag::put-trained-model-alias-response
+            boolean acknowledged = response.isAcknowledged();
+            // end::put-trained-model-alias-response
+
+            assertThat(acknowledged, is(true));
+        }
+        {
+            PutTrainedModelAliasRequest request = new PutTrainedModelAliasRequest(
+                "my-second-alias",
+                "my-trained-model-with-alias",
+                false
+            );
+            // tag::put-trained-model-alias-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::put-trained-model-alias-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-trained-model-alias-execute-async
+            client.machineLearning()
+                .putTrainedModelAliasAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-trained-model-alias-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteTrainedModelAlias() throws Exception {
+        putTrainedModel("my-trained-model-with-delete-alias");
+        RestHighLevelClient client = highLevelClient();
+        {
+            client.machineLearning()
+                .putTrainedModelAlias(
+                    new PutTrainedModelAliasRequest("my-alias-to-delete", "my-trained-model-with-delete-alias", false),
+                    RequestOptions.DEFAULT
+                );
+
+            // tag::delete-trained-model-alias-request
+            DeleteTrainedModelAliasRequest request = new DeleteTrainedModelAliasRequest(
+                "my-alias-to-delete", // <1>
+                "my-trained-model-with-delete-alias" // <2>
+            );
+            // end::delete-trained-model-alias-request
+
+            // tag::delete-trained-model-alias-execute
+            AcknowledgedResponse response =
+                client.machineLearning().deleteTrainedModelAlias(request, RequestOptions.DEFAULT);
+            // end::delete-trained-model-alias-execute
+
+            // tag::delete-trained-model-alias-response
+            boolean acknowledged = response.isAcknowledged();
+            // end::delete-trained-model-alias-response
+
+            assertThat(acknowledged, is(true));
+        }
+        {
+            client.machineLearning()
+                .putTrainedModelAlias(
+                    new PutTrainedModelAliasRequest("my-alias-to-delete", "my-trained-model-with-delete-alias", false),
+                    RequestOptions.DEFAULT
+                );
+
+            DeleteTrainedModelAliasRequest request = new DeleteTrainedModelAliasRequest(
+                "my-alias-to-delete",
+                "my-trained-model-with-delete-alias"
+            );
+            // tag::delete-trained-model-alias-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-trained-model-alias-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-trained-model-alias-execute-async
+            client.machineLearning()
+                .deleteTrainedModelAliasAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-trained-model-alias-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
 
     public void testGetTrainedModelsStats() throws Exception {
         putTrainedModel("my-trained-model");

@@ -17,6 +17,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
+
 /**
  * An allocation decider that prevents multiple instances of the same shard to
  * be allocated on the same {@code node}.
@@ -58,6 +60,9 @@ public class SameShardAllocationDecider extends AllocationDecider {
     private static final Decision YES_NONE_HOLD_COPY =
             Decision.single(Decision.Type.YES, NAME, "none of the nodes on this host hold a copy of this shard");
 
+    private static final Decision YES_AUTO_EXPAND_ALL = Decision.single(Decision.Type.YES, NAME,
+            "same-host allocation is ignored, this index is set to auto-expand to all nodes");
+
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         Iterable<ShardRouting> assignedShards = allocation.routingNodes().assignedShards(shardRouting.shardId());
@@ -65,6 +70,10 @@ public class SameShardAllocationDecider extends AllocationDecider {
         if (decision.type() == Decision.Type.NO || sameHost == false) {
             // if its already a NO decision looking at the node, or we aren't configured to look at the host, return the decision
             return decision;
+        }
+        if (INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(
+                allocation.metadata().getIndexSafe(shardRouting.index()).getSettings()).expandToAllNodes()) {
+            return YES_AUTO_EXPAND_ALL;
         }
         if (node.node() != null) {
             for (RoutingNode checkNode : allocation.routingNodes()) {

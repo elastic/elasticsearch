@@ -28,6 +28,7 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.file.Directory;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
@@ -155,12 +156,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             .register("transformV" + compatibleVersion + "RestTests", RestCompatTestTransformTask.class, task -> {
                 task.getSourceDirectory().set(copyCompatYamlTestTask.flatMap(CopyRestTestsTask::getOutputResourceDir));
                 task.getOutputDirectory()
-                    .set(
-                        project.getLayout()
-                            .getBuildDirectory()
-                            .dir(compatTestsDir.resolve("transformed").resolve(RELATIVE_TEST_PATH).toString())
-                    );
-
+                    .set(project.getLayout().getBuildDirectory().dir(compatTestsDir.resolve("transformed").toString()));
                 task.onlyIf(t -> isEnabled(project));
             });
 
@@ -168,18 +164,29 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         yamlCompatTestSourceSet.getOutput().dir(copyCompatYamlSpecTask.map(CopyRestApiTask::getOutputResourceDir));
         yamlCompatTestSourceSet.getOutput().dir(transformCompatTestTask.map(RestCompatTestTransformTask::getOutputDirectory));
 
+        // Grab the original rest resources locations so we can omit them from the compatibility testing classpath down below
+        Provider<Directory> originalYamlSpecsDir = project.getTasks()
+            .withType(CopyRestApiTask.class)
+            .named(RestResourcesPlugin.COPY_REST_API_SPECS_TASK)
+            .flatMap(CopyRestApiTask::getOutputResourceDir);
+        Provider<Directory> originalYamlTestsDir = project.getTasks()
+            .withType(CopyRestTestsTask.class)
+            .named(RestResourcesPlugin.COPY_YAML_TESTS_TASK)
+            .flatMap(CopyRestTestsTask::getOutputResourceDir);
+
         // setup the yamlRestTest task
         Provider<RestIntegTestTask> yamlRestCompatTestTask = RestTestUtil.registerTask(project, yamlCompatTestSourceSet);
         project.getTasks().withType(RestIntegTestTask.class).named(SOURCE_SET_NAME).configure(testTask -> {
             // Use test runner and classpath from "normal" yaml source set
-            testTask.setTestClassesDirs(yamlTestSourceSet.getOutput().getClassesDirs());
+            testTask.setTestClassesDirs(
+                yamlTestSourceSet.getOutput().getClassesDirs().plus(yamlCompatTestSourceSet.getOutput().getClassesDirs())
+            );
             testTask.setClasspath(
-                yamlTestSourceSet.getRuntimeClasspath()
+                yamlCompatTestSourceSet.getRuntimeClasspath()
                     // remove the "normal" api and tests
                     .minus(project.files(yamlTestSourceSet.getOutput().getResourcesDir()))
-                    // add any additional classes/resources from the compatible source set
-                    // the api and tests are copied to the compatible source set
-                    .plus(yamlCompatTestSourceSet.getRuntimeClasspath())
+                    .minus(project.files(originalYamlSpecsDir))
+                    .minus(project.files(originalYamlTestsDir))
             );
             // run compatibility tests after "normal" tests
             testTask.mustRunAfter(project.getTasks().named(YamlRestTestPlugin.SOURCE_SET_NAME));

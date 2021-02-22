@@ -68,7 +68,7 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
                 for (Path path : iterable) {
                     String parserName = path.getFileName().toString();
                     try (InputStream regexStream = Files.newInputStream(path, StandardOpenOption.READ)) {
-                        userAgentParsers.put(parserName, new UserAgentParser(parserName, regexStream,regexStream, cache));
+                        userAgentParsers.put(parserName, new UserAgentParser(parserName, regexStream, cache));
                     }
                 }
             }

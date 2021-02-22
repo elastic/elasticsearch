@@ -109,6 +109,33 @@ public class UserAgentProcessorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testWIndowsOS() throws Exception {
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        processor.execute(ingestDocument);
+        Map<String, Object> data = ingestDocument.getSourceAndMetadata();
+
+        assertThat(data, hasKey("target_field"));
+        Map<String, Object> target = (Map<String, Object>) data.get("target_field");
+
+        assertThat(target.get("name"), is("Chrome"));
+        assertThat(target.get("version"), is("87.0.4280.141"));
+
+        Map<String, String> os = new HashMap<>();
+        os.put("name", "Windows");
+        os.put("version", "10");
+        os.put("full", "Windows 10");
+        assertThat(target.get("os"), is(os));
+        Map<String, String> device = new HashMap<>();
+        device.put("name", "Other");
+        device.put("type", "Desktop");
+        assertThat(target.get("device"), is(device));
+    }
+
+    @SuppressWarnings("unchecked")
     public void testUncommonDevice() throws Exception {
         Map<String, Object> document = new HashMap<>();
         document.put("source_field",

@@ -50,6 +50,17 @@ final class UserAgentParser {
         }
     }
 
+    UserAgentParser(String name, InputStream regexStream, UserAgentCache cache) {
+        this.name = name;
+        this.cache = cache;
+
+        try {
+            init(regexStream);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("error parsing regular expression file", e);
+        }
+    }
+
     private void init(InputStream regexStream) throws IOException {
         // EMPTY is safe here because we don't use namedObject
         XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML).createParser(NamedXContentRegistry.EMPTY,

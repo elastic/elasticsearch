@@ -100,8 +100,8 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
     }
 
     public void testCollectsFromManyBucketsSmall() {
-        int owningBucketOrds = scaledRandomIntBetween(1, 10000);
-        long maxValue = randomLongBetween(10000 / owningBucketOrds, 2^(16 * 3));
+        int owningBucketOrds = scaledRandomIntBetween(2, 10000);
+        long maxValue = randomLongBetween(10000 / owningBucketOrds, 2 << (16 * 3));
         CardinalityUpperBound cardinality = CardinalityUpperBound.ONE.multiply(owningBucketOrds);
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.buildForValueRange(bigArrays, cardinality, 0, maxValue)) {
             assertCollectsFromManyBuckets(ords, owningBucketOrds, 0, maxValue);

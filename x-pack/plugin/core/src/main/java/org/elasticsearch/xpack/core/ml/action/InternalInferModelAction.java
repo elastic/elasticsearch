@@ -157,11 +157,7 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             super(in);
             this.inferenceResults = Collections.unmodifiableList(in.readNamedWriteableList(InferenceResults.class));
             this.isLicensed = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                this.modelId = in.readOptionalString();
-            } else {
-                this.modelId = null;
-            }
+            this.modelId = in.readOptionalString();
         }
 
         public List<InferenceResults> getInferenceResults() {
@@ -180,9 +176,7 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
         public void writeTo(StreamOutput out) throws IOException {
             out.writeNamedWriteableList(inferenceResults);
             out.writeBoolean(isLicensed);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalString(modelId);
-            }
+            out.writeOptionalString(modelId);
         }
 
         @Override

@@ -49,14 +49,14 @@ public final class FrozenEngine extends ReadOnlyEngine {
     private volatile ElasticsearchDirectoryReader lastOpenedReader;
     private final ElasticsearchDirectoryReader canMatchReader;
 
-    public FrozenEngine(EngineConfig config, boolean requireCompleteHistory) {
-        this(config, null, null, true, Function.identity(), requireCompleteHistory);
+    public FrozenEngine(EngineConfig config, boolean requireCompleteHistory, boolean lazilyLoadSoftDeletes) {
+        this(config, null, null, true, Function.identity(), requireCompleteHistory, lazilyLoadSoftDeletes);
     }
 
     public FrozenEngine(EngineConfig config, SeqNoStats seqNoStats, TranslogStats translogStats, boolean obtainLock,
-                        Function<DirectoryReader, DirectoryReader> readerWrapperFunction, boolean requireCompleteHistory) {
-        super(config, seqNoStats, translogStats, obtainLock, readerWrapperFunction, requireCompleteHistory);
-
+                        Function<DirectoryReader, DirectoryReader> readerWrapperFunction, boolean requireCompleteHistory,
+                        boolean lazilyLoadSoftDeletes) {
+        super(config, seqNoStats, translogStats, obtainLock, readerWrapperFunction, requireCompleteHistory, lazilyLoadSoftDeletes);
         boolean success = false;
         Directory directory = store.directory();
         try (DirectoryReader reader = openDirectory(directory)) {

@@ -45,13 +45,7 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.snapshots.SnapshotsService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SHARED_CACHE_SETTINGS_PREFIX;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE;
+import static org.elasticsearch.snapshots.SnapshotsService.*;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class FrozenCacheService implements Releasable {
@@ -90,6 +84,9 @@ public class FrozenCacheService implements Releasable {
     private final SharedBytes sharedBytes;
     private final long regionSize;
     private final long smallRegionSize;
+
+    private final long tinyRegionSize;
+
     private final ByteSizeValue rangeSize;
     private final ByteSizeValue recoveryRangeSize;
 
@@ -113,6 +110,7 @@ public class FrozenCacheService implements Releasable {
         final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
         this.smallRegionSize = Math.min(SNAPSHOT_CACHE_SMALL_REGION_SIZE.get(settings).getBytes(), regionSize / 2);
+        this.tinyRegionSize = SNAPSHOT_CACHE_TINY_REGION_SIZE.get(settings).getBytes();
         final float smallRegionShare = SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.get(settings);
         final int numRegions = Math.round(Math.toIntExact(cacheSize / regionSize) * (1 - smallRegionShare));
         final int numSmallRegions = Math.round(Math.toIntExact(cacheSize / smallRegionSize) * smallRegionShare);

@@ -180,6 +180,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             Setting.Property.NodeScope
     );
 
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_TINY_REGION_SIZE = Setting.byteSizeSetting(
+            SHARED_CACHE_SETTINGS_PREFIX + "tiny_region_size_",
+            new ByteSizeValue(1, ByteSizeUnit.KB),
+            Setting.Property.NodeScope
+    );
+
     public static final String CACHE_FILE_NAME = "shared_snapshot_cache";
 
     public static final String NO_FEATURE_STATES_VALUE = "none";

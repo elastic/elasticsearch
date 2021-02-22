@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.MemoizedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
@@ -47,21 +48,30 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
             if (supports(indicesRequest) && shouldIntercept) {
                 final IndicesAccessControl indicesAccessControl =
                     threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-                for (String index : requestIndices(indicesRequest)) {
+                boolean fieldLevelSecurityEnabled = false;
+                boolean documentLevelSecurityEnabled = false;
+                final String[] requestIndices = requestIndices(indicesRequest);
+                for (String index : requestIndices) {
                     IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
                     if (indexAccessControl != null) {
-                        boolean fieldLevelSecurityEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                        boolean documentLevelSecurityEnabled = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                        if ((fieldLevelSecurityEnabled || documentLevelSecurityEnabled) && licenseChecker.get()) {
-                            logger.trace("intercepted request for index [{}] with field level access controls [{}] " +
-                                "document level access controls [{}]. disabling conflicting features",
-                                index, fieldLevelSecurityEnabled, documentLevelSecurityEnabled);
-                            disableFeatures(indicesRequest, fieldLevelSecurityEnabled, documentLevelSecurityEnabled, listener);
-                            return;
+                        fieldLevelSecurityEnabled =
+                            fieldLevelSecurityEnabled || indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
+                        documentLevelSecurityEnabled =
+                            documentLevelSecurityEnabled || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
+                        if (fieldLevelSecurityEnabled && documentLevelSecurityEnabled) {
+                            break;
                         }
                     }
-                    logger.trace("intercepted request for index [{}] without field or document level access controls", index);
                 }
+                if ((fieldLevelSecurityEnabled || documentLevelSecurityEnabled) && licenseChecker.get()) {
+                    logger.trace("intercepted request for indices [{}] with field level access controls [{}] " +
+                            "document level access controls [{}]. disabling conflicting features",
+                        Strings.arrayToDelimitedString(requestIndices, ","), fieldLevelSecurityEnabled, documentLevelSecurityEnabled);
+                    disableFeatures(indicesRequest, fieldLevelSecurityEnabled, documentLevelSecurityEnabled, listener);
+                    return;
+                }
+                logger.trace("intercepted request for indices [{}] without field or document level access controls",
+                    Strings.arrayToDelimitedString(requestIndices, ","));
             }
         }
         listener.onResponse(null);

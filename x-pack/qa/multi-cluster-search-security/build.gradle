@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'

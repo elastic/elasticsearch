@@ -33,11 +33,24 @@ set `node.roles`, the node is assigned the following roles:
 * `remote_cluster_client`
 * `transform`
 
+[IMPORTANT]
+====
 IMPORTANT: If you set `node.roles`, ensure you specify every node role your
-cluster needs. For example, to use {transforms}, you must specify the
-`transform` role for one or more nodes in your cluster. For resiliency,
-production {es} clusters require an elected `master` node and at least one node
-for each role. See <<high-availability-cluster-design>>.
+cluster needs. To access most {stack} features, a minimal cluster requires nodes
+with the following roles:
+
+- `master`
+- `ingest`
+- `transform`
+- `data`, `data_content`, or a combination of the `data_hot`, `data_warm`,
+  `data_cold`, and `data_frozen` roles
+
+Additional roles may be needed for advanced features, such as {ml}.
+
+For resiliency, production clusters must have at least three nodes with the
+`master` role and at least two nodes of each needed role. See
+<<high-availability-cluster-design>>.
+====
 
 As the cluster grows and in particular if you have large {ml} jobs or
 {ctransforms}, consider separating dedicated master-eligible nodes from

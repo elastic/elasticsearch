@@ -3,7 +3,7 @@
 [[operator-only-snapshot-and-restore]]
 === Operator Privileges and Snapshot/Restore
 The invocation of <<operator-only-apis>> and update of <<operator-only-dynamic-cluster-settings>>
-result changes in the cluster state, which can be <<snapshot-restore,snapshot and restored>>.
+typically result in changes in the cluster state. This cluster state may be included in a  cluster <<snapshot-restore,snapshot>>.
 Restoring snapshot data associated to <<operator-only-functionality,operator-only functionality>>
 is problematic because:
 

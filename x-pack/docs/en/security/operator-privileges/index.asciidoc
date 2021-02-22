@@ -11,7 +11,7 @@ However, in more managed environments, such as {ess-trial}[{ess}], there is a di
 of the cluster infrastructure and the administrator of the cluster.
 The operator privileges feature enhances the {es} security model so that some functionality
 is restricted to be used by infrastructure operators and is not available to cluster administrators,
-even if they log in as a highly privileged user (such as `superuser`).
+even if they log in as a highly privileged user (such as the `elastic` user, or another user with the `superuser` role).
 
 
 include::configure-operator-privileges.asciidoc[]

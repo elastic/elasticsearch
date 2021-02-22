@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -176,6 +177,19 @@ public class IndicesModuleTests extends ESTestCase {
             }
         };
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new IndicesModule(plugins));
+        assertThat(e.getMessage(), containsString("already registered"));
+    }
+
+    public void testRuntimeFieldPluginWithBuiltinFieldType() {
+        MapperPlugin plugin = new MapperPlugin() {
+            @Override
+            public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
+                return Map.of(KeywordFieldMapper.CONTENT_TYPE, (name, node, parserContext) -> null);
+            }
+        };
+        List<MapperPlugin> plugins = Collections.singletonList(plugin);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new IndicesModule(plugins));
         assertThat(e.getMessage(), containsString("already registered"));

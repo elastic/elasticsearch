@@ -222,6 +222,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
             case "segments":
             case "segments_stats":
             case "completion_stats":
+            case FIELD_RANGE_SEARCH_SOURCE: // special case for field_range - we use the cached point values reader
             case CAN_MATCH_SEARCH_SOURCE: // special case for can_match phase - we use the cached point values reader
                 maybeOpenReader = false;
                 break;
@@ -230,7 +231,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
         }
         ElasticsearchDirectoryReader reader = maybeOpenReader ? getOrOpenReader() : getReader();
         if (reader == null) {
-            if (CAN_MATCH_SEARCH_SOURCE.equals(source)) {
+            if (CAN_MATCH_SEARCH_SOURCE.equals(source) || FIELD_RANGE_SEARCH_SOURCE.equals(source)) {
                 canMatchReader.incRef();
                 return new Searcher(source, canMatchReader, engineConfig.getSimilarity(), engineConfig.getQueryCache(),
                     engineConfig.getQueryCachingPolicy(), canMatchReader::decRef);

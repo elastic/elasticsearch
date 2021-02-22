@@ -71,7 +71,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -80,7 +79,6 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
@@ -1431,28 +1429,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return l.stream().map(f -> f.isEmpty() ? "//" : f).collect(Collectors.toList());
         }
 
-        private boolean ignorePrivilegesPredicateTest(String action) {
-            Collection<String> privileges = null;
-            if (AuthorizationService.isIndexAction(action)) {
-                privileges = IndexPrivilege.findPrivilegesThatGrant(action);
-            } else if (ClusterPrivilegeResolver.isClusterAction(action)) {
-                privileges = ClusterPrivilegeResolver.findPrivilegesThatGrant(action, null, null);
-            }
-            return privileges != null ? privileges.stream().anyMatch((s) -> ignorePrivilegesPredicate.test(s)) : false;
-        }
-
         /**
          * ANDs the predicates of this filter policy. The `indices` and `roles` fields
          * of an audit event are multi-valued and all values should match the filter
          * predicate of the corresponding field.
          */
         Predicate<AuditEventMetaInfo> ignorePredicate() {
-            return eventInfo -> eventInfo.principal != null && ignorePrincipalsPredicate.test(eventInfo.principal)
+            return eventInfo -> {
+                    final Collection<String> privileges  = IndexPrivilege.findPrivilegesThatGrant(eventInfo.action);
+                    return eventInfo.principal != null && ignorePrincipalsPredicate.test(eventInfo.principal)
                     && eventInfo.realm != null && ignoreRealmsPredicate.test(eventInfo.realm)
-                    && eventInfo.action != null && (ignorePrivilegesPredicate.test(eventInfo.action) ||
-                                                    ignorePrivilegesPredicateTest(eventInfo.action))
+                    && eventInfo.action != null && ignorePrivilegesPredicate.test(privileges.size() > 0 ? privileges.iterator().next() : "")
                     && eventInfo.roles.get().allMatch(role -> role != null && ignoreRolesPredicate.test(role))
                     && eventInfo.indices.get().allMatch(index -> index != null && ignoreIndicesPredicate.test(index));
+            };
         }
 
         @Override

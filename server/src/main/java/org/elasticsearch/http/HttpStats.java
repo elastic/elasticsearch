@@ -8,6 +8,7 @@
 
 package org.elasticsearch.http;
 
+import joptsimple.internal.Strings;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -109,12 +110,12 @@ public class HttpStats implements Writeable, ToXContentFragment {
 
     public static class ClientStats implements Writeable {
         int id;
-        String agent;
-        String localAddress;
-        String remoteAddress;
-        String lastUri;
-        String forwardedFor;
-        String opaqueId;
+        String agent = Strings.EMPTY;
+        String localAddress = Strings.EMPTY;
+        String remoteAddress = Strings.EMPTY;
+        String lastUri = Strings.EMPTY;
+        String forwardedFor = Strings.EMPTY;
+        String opaqueId = Strings.EMPTY;
         long openedTimeMillis;
         long closedTimeMillis = -1;
         volatile long lastRequestTimeMillis = -1;

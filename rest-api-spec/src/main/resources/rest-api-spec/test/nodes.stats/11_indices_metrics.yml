@@ -225,3 +225,30 @@
   - is_false:  nodes.$node_id.indices.recovery
   - is_true:   nodes.$node_id.indices.segments.file_sizes
 
+---
+"Metric - http":
+  - skip:
+      features: [arbitrary_key]
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: http }
+
+  - is_true:  nodes.$node_id
+  - gte: { nodes.$node_id.http.current_open: 1 }
+  - is_true:  nodes.$node_id.http.clients
+  - is_true:  nodes.$node_id.http.clients.0.id
+  - is_true:  nodes.$node_id.http.clients.0.agent
+  - is_true:  nodes.$node_id.http.clients.0.local_address
+  - is_true:  nodes.$node_id.http.clients.0.remote_address
+  - is_true:  nodes.$node_id.http.clients.0.last_uri
+  - is_true:  nodes.$node_id.http.clients.0.opened_time_millis
+  - is_true:  nodes.$node_id.http.clients.0.closed_time_millis
+  - is_true:  nodes.$node_id.http.clients.0.last_request_time_millis
+  - is_true:  nodes.$node_id.http.clients.0.request_count
+  - is_true:  nodes.$node_id.http.clients.0.request_size_bytes
+  - is_true:  nodes.$node_id.http.clients.0.x_forwarded_for
+  - is_true:  nodes.$node_id.http.clients.0.x_opaque_id

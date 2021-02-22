@@ -19,16 +19,16 @@ import java.util.List;
  */
 public final class DocValueFetcher implements ValueFetcher {
     private final DocValueFormat format;
-    private final MappedFieldType fieldType;
+    private final String field;
 
-    public DocValueFetcher(DocValueFormat format, MappedFieldType fieldType) {
+    public DocValueFetcher(DocValueFormat format, String field) {
         this.format = format;
-        this.fieldType = fieldType;
+        this.field = field;
     }
 
     @Override
     public List<Object> fetchValues(ValuesLookup lookup) throws IOException {
-        return lookup.docValues(fieldType, format);
+        return lookup.docValues(field, format);
     }
 
 }

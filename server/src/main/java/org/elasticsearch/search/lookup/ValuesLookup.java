@@ -30,7 +30,7 @@ public interface ValuesLookup {
     /**
      * Returns a LeafDocLookup positioned on the current document
      */
-    List<Object> docValues(MappedFieldType fieldType, DocValueFormat format);
+    List<Object> docValues(String field, DocValueFormat format);
 
     /**
      * Override the source exposed by a ValuesLookup
@@ -46,8 +46,8 @@ public interface ValuesLookup {
             }
 
             @Override
-            public List<Object> docValues(MappedFieldType fieldType, DocValueFormat format) {
-                return in.docValues(fieldType, format);
+            public List<Object> docValues(String field, DocValueFormat format) {
+                return in.docValues(field, format);
             }
         };
     }
@@ -65,7 +65,7 @@ public interface ValuesLookup {
             }
 
             @Override
-            public List<Object> docValues(MappedFieldType fieldType, DocValueFormat format) {
+            public List<Object> docValues(String field, DocValueFormat format) {
                 throw new UnsupportedOperationException("FieldData is not available from a source-only lookup");
             }
         };
@@ -84,7 +84,7 @@ public interface ValuesLookup {
             }
 
             @Override
-            public List<Object> docValues(MappedFieldType fieldType, DocValueFormat format) {
+            public List<Object> docValues(String field, DocValueFormat format) {
                 throw new UnsupportedOperationException("FieldData is not available from a source-only lookup");
             }
         };

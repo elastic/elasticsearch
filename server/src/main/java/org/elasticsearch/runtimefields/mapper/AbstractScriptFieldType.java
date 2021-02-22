@@ -200,7 +200,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
 
     @Override
     public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        return new DocValueFetcher(docValueFormat(format, null), this);
+        return new DocValueFetcher(docValueFormat(format, null), name());
     }
 
     @Override

@@ -329,6 +329,9 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                     }
                 }
             }
+            if (profiling && estimateCostTime == 0) {
+                estimateCostTime = System.nanoTime() - start;
+            }
             return estimatedCost;
         }
 

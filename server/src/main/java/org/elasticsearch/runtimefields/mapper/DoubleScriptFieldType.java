@@ -51,7 +51,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         super(name, scriptFactory::newFactory, builder);
     }
 
-    DoubleScriptFieldType(String name) {
+    public DoubleScriptFieldType(String name) {
         this(name, DoubleFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, includeDefaults) -> {});
     }
 

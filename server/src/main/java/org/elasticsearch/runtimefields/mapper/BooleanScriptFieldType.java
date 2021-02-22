@@ -51,7 +51,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         super(name, scriptFactory::newFactory, builder);
     }
 
-    BooleanScriptFieldType(String name) {
+    public BooleanScriptFieldType(String name) {
         this(name, BooleanFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, includeDefaults) -> {});
     }
 

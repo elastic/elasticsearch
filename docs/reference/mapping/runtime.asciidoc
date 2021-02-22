@@ -694,6 +694,9 @@ The mapping contains two fields: `@timestamp` and `message`.
         },
         "message" : {
           "type" : "wildcard"
+        },
+        "timestamp" : {
+          "type" : "date"
         }
       }
     },

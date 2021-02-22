@@ -1,7 +1,7 @@
 --
 :api: grant-api-key
 :request: GrantApiKeyRequest
-:response: GrantApiKeyResponse
+:response: CreateApiKeyResponse
 --
 [role="xpack"]
 [id="{upid}-{api}"]

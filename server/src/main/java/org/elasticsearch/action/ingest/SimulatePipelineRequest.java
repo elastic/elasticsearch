@@ -175,7 +175,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
                 dataMap, Metadata.ROUTING.getFieldName());
             Long version = null;
             if (dataMap.containsKey(Metadata.VERSION.getFieldName())) {
-                String versionValue = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
+                String versionValue = ConfigurationUtils.readOptionalStringOrLongProperty(null, null,
                     dataMap, Metadata.VERSION.getFieldName());
                 if (versionValue != null) {
                     version = Long.valueOf(versionValue);
@@ -191,7 +191,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             IngestDocument ingestDocument =
                 new IngestDocument(index, id, routing, version, versionType, document);
             if (dataMap.containsKey(Metadata.IF_SEQ_NO.getFieldName())) {
-                String ifSeqNoValue = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
+                String ifSeqNoValue = ConfigurationUtils.readOptionalStringOrLongProperty(null, null,
                     dataMap, Metadata.IF_SEQ_NO.getFieldName());
                 if (ifSeqNoValue != null) {
                     Long ifSeqNo = Long.valueOf(ifSeqNoValue);
@@ -201,7 +201,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
                 }
             }
             if (dataMap.containsKey(Metadata.IF_PRIMARY_TERM.getFieldName())) {
-                String ifPrimaryTermValue = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
+                String ifPrimaryTermValue = ConfigurationUtils.readOptionalStringOrLongProperty(null, null,
                     dataMap, Metadata.IF_PRIMARY_TERM.getFieldName());
                 if (ifPrimaryTermValue != null) {
                     Long ifPrimaryTerm = Long.valueOf(ifPrimaryTermValue);

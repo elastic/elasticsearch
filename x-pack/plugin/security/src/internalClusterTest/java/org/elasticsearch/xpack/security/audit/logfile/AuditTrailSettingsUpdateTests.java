@@ -24,9 +24,6 @@ import java.util.HashSet;
 import java.util.List;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailFilterTests.randomNonEmptyListOfFilteredClusterActions;
-import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailFilterTests.randomNonEmptyListOfFilteredIndexActions;
-import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailFilterTests.randomNonEmptyListOfFilteredPrivileges;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.Matchers.is;
@@ -100,42 +97,11 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
                 "xpack.security.audit.logfile.events.ignore_filters.invalid.realms",
                 "xpack.security.audit.logfile.events.ignore_filters.invalid.roles",
                 "xpack.security.audit.logfile.events.ignore_filters.invalid.indices",
-                "xpack.security.audit.logfile.events.ignore_filters.invalid.index_privileges",
-                "xpack.security.audit.logfile.events.ignore_filters.invalid.cluster_privileges"};
+                "xpack.security.audit.logfile.events.ignore_filters.invalid.index_privileges"};
         settingsBuilder.put(randomFrom(allSettingsKeys), invalidLuceneRegex);
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder.build()).get());
         assertThat(e.getMessage(), containsString("invalid pattern [/invalid]"));
-    }
-
-    public void testInvalidPrivilegesFilterSettings() throws Exception {
-        final Settings.Builder settingsBuilder1 = Settings.builder();
-        settingsBuilder1.putList("xpack.security.audit.logfile.events.ignore_filters.invalid.index_privileges", "hkrgbkj");
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> updateSettings(settingsBuilder1.build(), randomBoolean()));
-        assertThat(e.getMessage(), containsString("illegal value can't update"));
-
-        final Settings.Builder settingsBuilder2 = Settings.builder();
-        settingsBuilder1.putList("xpack.security.audit.logfile.events.ignore_filters.invalid.index_privileges", "hkrgbkj");
-
-        e = expectThrows(IllegalArgumentException.class,
-            () -> updateSettings(settingsBuilder2.build(), randomBoolean()));
-        assertThat(e.getMessage(), containsString("illegal value can't update"));
-    }
-
-    public void testInvalidBothPrivilegesFilterSettings() throws Exception {
-        final Settings.Builder settingsBuilder1 = Settings.builder();
-        settingsBuilder1.putList("xpack.security.audit.logfile.events.ignore_filters.BothPrivilegesFilter.index_privileges",
-            "read");
-        updateSettings(settingsBuilder1.build(), true);
-
-        final Settings.Builder settingsBuilder2 = Settings.builder();
-        settingsBuilder2.putList("xpack.security.audit.logfile.events.ignore_filters.BothPrivilegesFilter.cluster_privileges", "monitor");
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> updateSettings(settingsBuilder2.build(), true));
-        assertThat(e.getMessage(), containsString("illegal value can't update"));
     }
 
     public void testDynamicHostSettings() {
@@ -259,15 +225,9 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
                 settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters." + policyName + ".indices", filteredIndices);
             }
             if (randomBoolean()) {
-                // filter by index privileges
-                final List<String> filteredIndexActions = randomNonEmptyListOfFilteredIndexActions();
-                final List<String> filteredPrivileges = randomNonEmptyListOfFilteredPrivileges(filteredIndexActions);
+                // filter by privileges
+                final List<String> filteredPrivileges = randomNonEmptyListOfFilteredNames();
                 settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters." + policyName + ".index_privileges",
-                    filteredPrivileges);
-            } else {
-                final List<String> filteredClusterActions = randomNonEmptyListOfFilteredClusterActions();
-                final List<String> filteredPrivileges = randomNonEmptyListOfFilteredPrivileges(filteredClusterActions);
-                settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters." + policyName + ".cluster_privileges",
                     filteredPrivileges);
             }
         } while (settingsBuilder.build().isEmpty());

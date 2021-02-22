@@ -155,10 +155,6 @@ public class AuthorizationService {
         getAuthorizationEngine(authentication).getUserPrivileges(authentication, getAuthorizationInfoFromContext(), request, listener);
     }
 
-    public static boolean isIndexAction(String action) {
-        return IndexPrivilege.ACTION_MATCHER.test(action);
-    }
-
     private AuthorizationInfo getAuthorizationInfoFromContext() {
         return Objects.requireNonNull(threadContext.getTransient(AUTHORIZATION_INFO_KEY), "authorization info is missing from context");
     }
@@ -576,6 +572,10 @@ public class AuthorizationService {
     private static IllegalArgumentException illegalArgument(String message) {
         assert false : message;
         return new IllegalArgumentException(message);
+    }
+
+    public static boolean isIndexAction(String action) {
+        return IndexPrivilege.ACTION_MATCHER.test(action);
     }
 
     private static String getAction(BulkItemRequest item) {

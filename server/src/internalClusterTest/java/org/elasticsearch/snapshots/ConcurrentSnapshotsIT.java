@@ -142,7 +142,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final PlainActionFuture<Collection<AcknowledgedResponse>> allDeletesDone = new PlainActionFuture<>();
         final ActionListener<AcknowledgedResponse> deletesListener = new GroupedActionListener<>(allDeletesDone, deleteFutures.size());
         for (StepListener<AcknowledgedResponse> deleteFuture : deleteFutures) {
-            deleteFuture.whenComplete(deletesListener::onResponse, deletesListener::onFailure);
+            deleteFuture.addListener(deletesListener);
         }
         allDeletesDone.get();
 

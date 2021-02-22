@@ -169,7 +169,7 @@ public final class TimeSeriesRestDriver {
     public static void createFullPolicy(RestClient client, String policyName, TimeValue hotTime) throws IOException {
         Map<String, LifecycleAction> hotActions = new HashMap<>();
         hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
-        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, 1L));
+        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, null, 1L));
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));

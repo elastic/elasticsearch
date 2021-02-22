@@ -263,8 +263,11 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
             .build();
 
+        // !!!make sure that the file size on disk for the two pem CAs is different!!!
+        // otherwise, the resource watcher has to rely on the last modified timestamp to detect changes,
+        // and the resolution for that can be as low as a second, and the test would spuriously fail
         final Path realCa = getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-ca.crt");
-        final Path fakeCa = getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/smb_ca.crt");
+        final Path fakeCa = getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ad.crt");
 
         final Environment environment = TestEnvironment.newEnvironment(settings);
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
@@ -277,6 +280,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             new SSLConfigurationReloader(environment, resourceWatcher, SSLService.getSSLConfigurations(environment.settings()).values())
                 .setSSLService(sslService);
             Files.copy(fakeCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
+            // resourceWatcher looks at the file size and last access timestamp to detect changes
             resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);
 
             UncategorizedExecutionException e =

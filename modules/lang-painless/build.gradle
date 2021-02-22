@@ -77,6 +77,16 @@ dependencies {
   docImplementation project(':server')
   docImplementation project(':modules:lang-painless')
   docImplementation 'com.github.javaparser:javaparser-core:3.18.0'
+  docImplementation 'org.jsoup:jsoup:1.13.1'
+  if (isEclipse) {
+    /*
+     * Eclipse isn't quite "with it" enough to understand the different
+     * source sets. This adds the dependency to all source sets so it
+     * can compile the doc java files.
+     */
+    implementation 'com.github.javaparser:javaparser-core:3.18.0'
+    implementation 'org.jsoup:jsoup:1.13.1'
+  }
 }
 
 testClusters {
@@ -114,6 +124,7 @@ tasks.register("generateContextApiSpec", DefaultTestClustersTask) {
       classpath = sourceSets.doc.runtimeClasspath
       systemProperty "cluster.uri", "${-> testClusters.generateContextApiSpecCluster.singleNode().getAllHttpSocketURI().get(0)}"
       systemProperty "jdksrc", System.getProperty("jdksrc")
+      systemProperty "packageSources", System.getProperty("packageSources")
     }.assertNormalExitValue()
   }
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -44,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.mockito.Mockito.mock;
@@ -88,8 +90,10 @@ public class TransportNodesActionTests extends ESTestCase {
     }
 
     public void testNewResponseNullArray() {
-        TransportNodesAction action = getTestTransportNodesAction();
-        expectThrows(NullPointerException.class, () -> action.newResponse(new TestNodesRequest(), null));
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
+        final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
+        action.newResponse(new Task(1, "test", "test", "", null, emptyMap()), new TestNodesRequest(), null, future);
+        expectThrows(NullPointerException.class, future::actionGet);
     }
 
     public void testNewResponse() {
@@ -97,9 +101,6 @@ public class TransportNodesActionTests extends ESTestCase {
         TestNodesRequest request = new TestNodesRequest();
         List<TestNodeResponse> expectedNodeResponses = mockList(TestNodeResponse::new, randomIntBetween(0, 2));
         expectedNodeResponses.add(new TestNodeResponse());
-        List<BaseNodeResponse> nodeResponses = new ArrayList<>(expectedNodeResponses);
-        // This should be ignored:
-        nodeResponses.add(new OtherNodeResponse());
         List<FailedNodeException> failures = mockList(
             () -> new FailedNodeException(
                 randomAlphaOfLength(8),
@@ -114,7 +115,9 @@ public class TransportNodesActionTests extends ESTestCase {
 
         AtomicReferenceArray<?> atomicArray = new AtomicReferenceArray<>(allResponses.toArray());
 
-        TestNodesResponse response = action.newResponse(request, atomicArray);
+        final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
+        action.newResponse(new Task(1, "test", "test", "", null, emptyMap()), request, atomicArray, future);
+        TestNodesResponse response = future.actionGet();
 
         assertSame(request, response.request);
         // note: I shuffled the overall list, so it's not possible to guarantee that it's in the right order

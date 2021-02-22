@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
 
-    private static long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN.getMillis();
+    private static final long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN.getMillis();
     private static final String UNRELATED_INDEX = "unrelated-data";
 
     private JobResultsProvider jobResultsProvider;
@@ -181,7 +181,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
             .indices()
             .prepareGetIndex()
             .setIndices(dedicatedIndex)
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get()
             .indices().length, equalTo(0));
 

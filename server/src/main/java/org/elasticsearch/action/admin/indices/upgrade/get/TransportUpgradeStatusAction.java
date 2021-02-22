@@ -25,6 +25,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -82,7 +83,7 @@ public class TransportUpgradeStatusAction
     }
 
     @Override
-    protected ShardUpgradeStatus shardOperation(UpgradeStatusRequest request, ShardRouting shardRouting) {
+    protected ShardUpgradeStatus shardOperation(UpgradeStatusRequest request, ShardRouting shardRouting, Task task) {
         IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
         List<Segment> segments = indexShard.segments(false);

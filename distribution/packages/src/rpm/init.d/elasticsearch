@@ -56,6 +56,7 @@ prog="elasticsearch"
 pidfile="$PID_DIR/${prog}.pid"
 
 export ES_JAVA_OPTS
+export ES_JAVA_HOME
 export JAVA_HOME
 export ES_PATH_CONF
 export ES_STARTUP_SLEEP_TIME

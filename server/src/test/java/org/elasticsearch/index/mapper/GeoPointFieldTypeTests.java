@@ -47,5 +47,9 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
         sourceValue = "POINT (42.0 27.1)";
         assertEquals(Collections.singletonList(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(Collections.singletonList(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a malformed value
+        sourceValue = "malformed";
+        assertEquals(Collections.emptyList(), fetchSourceValue(mapper, sourceValue, null));
     }
 }

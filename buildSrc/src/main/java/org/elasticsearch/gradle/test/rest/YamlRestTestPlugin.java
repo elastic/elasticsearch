@@ -54,7 +54,6 @@ public class YamlRestTestPlugin implements Plugin<Project> {
 
         // setup the copy for the rest resources
         project.getTasks().withType(CopyRestApiTask.class).configureEach(copyRestApiTask -> {
-            copyRestApiTask.setOutputResourceDir(yamlTestSourceSet.getOutput().getResourcesDir());
             copyRestApiTask.setSourceResourceDir(
                 yamlTestSourceSet.getResources()
                     .getSrcDirs()
@@ -64,12 +63,27 @@ public class YamlRestTestPlugin implements Plugin<Project> {
                     .orElse(null)
             );
         });
+
         project.getTasks()
             .named(yamlTestSourceSet.getProcessResourcesTaskName())
             .configure(t -> t.dependsOn(project.getTasks().withType(CopyRestApiTask.class)));
-        project.getTasks()
-            .withType(CopyRestTestsTask.class)
-            .configureEach(copyRestTestTask -> copyRestTestTask.setOutputResourceDir(yamlTestSourceSet.getOutput().getResourcesDir()));
+
+        // Register rest resources with source set
+        yamlTestSourceSet.getOutput()
+            .dir(
+                project.getTasks()
+                    .withType(CopyRestApiTask.class)
+                    .named(RestResourcesPlugin.COPY_REST_API_SPECS_TASK)
+                    .map(CopyRestApiTask::getOutputResourceDir)
+            );
+
+        yamlTestSourceSet.getOutput()
+            .dir(
+                project.getTasks()
+                    .withType(CopyRestTestsTask.class)
+                    .named(RestResourcesPlugin.COPY_YAML_TESTS_TASK)
+                    .map(CopyRestTestsTask::getOutputResourceDir)
+            );
 
         // setup IDE
         GradleUtils.setupIdeForTestSourceSet(project, yamlTestSourceSet);

@@ -177,6 +177,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String UPLOADED_DATA_BLOB_PREFIX = "__";
 
+    // Expose a copy of URLRepository#TYPE here too, for a better error message until https://github.com/elastic/elasticsearch/issues/68918
+    // is resolved.
+    public static final String URL_REPOSITORY_TYPE = "url";
+
     /**
      * All {@link BlobStoreRepository} implementations can be made read-only by setting this key to {@code true} in their settings.
      */
@@ -1365,7 +1369,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         assert clusterService.localNode().isMasterNode() : "should only load repository data on master nodes";
 
         if (latestKnownRepoGen.get() == RepositoryData.CORRUPTED_REPO_GEN) {
-            listener.onFailure(corruptedStateException(null));
+            listener.onFailure(corruptedStateException(null, null));
             return;
         }
         final CachedRepositoryData cached = latestKnownRepositoryData.get();
@@ -1558,8 +1562,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 if (bestEffortConsistency == false && ExceptionsHelper.unwrap(e, NoSuchFileException.class) != null) {
                     // We did not find the expected index-N even though the cluster state continues to point at the missing value
                     // of N so we mark this repository as corrupted.
+                    Tuple<Long, String> previousWriterInformation = null;
+                    try {
+                        previousWriterInformation = readLastWriterInfo();
+                    } catch (Exception ex) {
+                        e.addSuppressed(ex);
+                    }
+                    final Tuple<Long, String> finalLastInfo = previousWriterInformation;
                     markRepoCorrupted(genToLoad, e,
-                        ActionListener.wrap(v -> listener.onFailure(corruptedStateException(e)), listener::onFailure));
+                        ActionListener.wrap(v -> listener.onFailure(corruptedStateException(e, finalLastInfo)), listener::onFailure));
                 } else {
                     listener.onFailure(e);
                 }
@@ -1624,14 +1635,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private RepositoryException corruptedStateException(@Nullable Exception cause) {
+    private RepositoryException corruptedStateException(@Nullable Exception cause, @Nullable Tuple<Long, String> previousWriterInfo) {
         return new RepositoryException(metadata.name(),
             "Could not read repository data because the contents of the repository do not match its " +
                 "expected state. This is likely the result of either concurrently modifying the contents of the " +
                 "repository by a process other than this cluster or an issue with the repository's underlying storage. " +
                 "The repository has been disabled to prevent corrupting its contents. To re-enable it " +
                 "and continue using it please remove the repository from the cluster and add it again to make " +
-                "the cluster recover the known state of the repository from its physical contents.", cause);
+                "the cluster recover the known state of the repository from its physical contents." +
+                previousWriterMessage(previousWriterInfo),
+                cause);
+    }
+
+    private String previousWriterMessage(@Nullable Tuple<Long, String> previousWriterInfo) {
+        return previousWriterInfo == null ? "" : " The last cluster to write to this repository was [" + previousWriterInfo.v2()
+                + "] at generation [" + previousWriterInfo.v1() + "].";
     }
 
     /**
@@ -1905,6 +1923,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryData updateRepositoryData(RepositoryData repositoryData, Version repositoryMetaversion, long newGen) {
+        if (SnapshotsService.includesClusterUUID(repositoryMetaversion)) {
+            final String clusterUUID = clusterService.state().metadata().clusterUUID();
+            if (repositoryData.getClusterUUID().equals(clusterUUID) == false) {
+                repositoryData = repositoryData.withClusterUuid(clusterUUID);
+            }
+        }
         if (SnapshotsService.includesRepositoryUuid(repositoryMetaversion) && repositoryData.getUuid().equals(MISSING_UUID)) {
             return repositoryData.withGenId(newGen).withUuid(UUIDs.randomBase64UUID());
         } else {
@@ -1942,9 +1966,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private boolean ensureSafeGenerationExists(long safeGeneration, Consumer<Exception> onFailure) throws IOException {
         logger.debug("Ensure generation [{}] that is the basis for this write exists in [{}]", safeGeneration, metadata.name());
         if (safeGeneration != RepositoryData.EMPTY_REPO_GEN && blobContainer().blobExists(INDEX_FILE_PREFIX + safeGeneration) == false) {
+            Tuple<Long, String> previousWriterInfo = null;
+            Exception readRepoDataEx = null;
+            try {
+                previousWriterInfo = readLastWriterInfo();
+            } catch (Exception ex) {
+                readRepoDataEx = ex;
+            }
             final Exception exception = new RepositoryException(metadata.name(),
-                    "concurrent modification of the index-N file, expected current generation [" + safeGeneration +
-                            "] but it was not found in the repository");
+                    "concurrent modification of the index-N file, expected current generation [" + safeGeneration
+                            + "] but it was not found in the repository." + previousWriterMessage(previousWriterInfo));
+            if (readRepoDataEx != null) {
+                exception.addSuppressed(readRepoDataEx);
+            }
             markRepoCorrupted(safeGeneration, exception, new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void aVoid) {
@@ -1959,6 +1993,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return false;
         }
         return true;
+    }
+
+    /**
+     * Tries to find the latest cluster UUID that wrote to this repository on a best effort basis by listing out repository root contents
+     * to find the latest repository generation and then reading the cluster UUID of the last writer from the {@link RepositoryData} found
+     * at this generation.
+     *
+     * @return tuple of repository generation and cluster UUID of the last cluster to write to this repository
+     */
+    private Tuple<Long, String> readLastWriterInfo() throws IOException {
+        assert bestEffortConsistency == false : "This should only be used for adding information to errors in consistent mode";
+        final long latestGeneration = latestIndexBlobId();
+        final RepositoryData actualRepositoryData = getRepositoryData(latestGeneration);
+        return Tuple.tuple(latestGeneration, actualRepositoryData.getClusterUUID());
     }
 
     /**
@@ -2444,17 +2492,47 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         });
     }
 
-    private static InputStream maybeRateLimit(InputStream stream, Supplier<RateLimiter> rateLimiterSupplier, CounterMetric metric) {
-        return new RateLimitingInputStream(stream, rateLimiterSupplier, metric::inc);
+    private static InputStream maybeRateLimit(
+            InputStream stream,
+            Supplier<RateLimiter> rateLimiterSupplier,
+            RateLimitingInputStream.Listener throttleListener) {
+        return new RateLimitingInputStream(stream, rateLimiterSupplier, throttleListener);
     }
 
+    /**
+     * Wrap the restore rate limiter (controlled by the repository setting `max_restore_bytes_per_sec` and the cluster setting
+     * `indices.recovery.max_bytes_per_sec`) around the given stream. Any throttling is reported to the given listener and not otherwise
+     * recorded in the value returned by {@link BlobStoreRepository#getRestoreThrottleTimeInNanos}.
+     */
     public InputStream maybeRateLimitRestores(InputStream stream) {
-        return maybeRateLimit(maybeRateLimit(stream, () -> restoreRateLimiter, restoreRateLimitingTimeInNanos),
-            recoverySettings::rateLimiter, restoreRateLimitingTimeInNanos);
+        return maybeRateLimitRestores(stream, restoreRateLimitingTimeInNanos::inc);
     }
 
+    /**
+     * Wrap the restore rate limiter (controlled by the repository setting `max_restore_bytes_per_sec` and the cluster setting
+     * `indices.recovery.max_bytes_per_sec`) around the given stream. Any throttling is recorded in the value returned by {@link
+     * BlobStoreRepository#getRestoreThrottleTimeInNanos}.
+     */
+    public InputStream maybeRateLimitRestores(InputStream stream, RateLimitingInputStream.Listener throttleListener) {
+        return maybeRateLimit(maybeRateLimit(stream, () -> restoreRateLimiter, throttleListener),
+            recoverySettings::rateLimiter, throttleListener);
+    }
+
+    /**
+     * Wrap the snapshot rate limiter (controlled by the repository setting `max_snapshot_bytes_per_sec`) around the given stream. Any
+     * throttling is recorded in the value returned by {@link BlobStoreRepository#getSnapshotThrottleTimeInNanos()}.
+     */
     public InputStream maybeRateLimitSnapshots(InputStream stream) {
-        return maybeRateLimit(stream, () -> snapshotRateLimiter, snapshotRateLimitingTimeInNanos);
+        return maybeRateLimitSnapshots(stream, snapshotRateLimitingTimeInNanos::inc);
+    }
+
+    /**
+     * Wrap the snapshot rate limiter (controlled by the repository setting `max_snapshot_bytes_per_sec`) around the given stream. Any
+     * throttling is reported to the given listener and not otherwise recorded in the value returned by {@link
+     * BlobStoreRepository#getSnapshotThrottleTimeInNanos()}.
+     */
+    public InputStream maybeRateLimitSnapshots(InputStream stream, RateLimitingInputStream.Listener throttleListener) {
+        return maybeRateLimit(stream, () -> snapshotRateLimiter, throttleListener);
     }
 
     @Override
@@ -2692,6 +2770,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.warn("store cannot be marked as corrupted", inner);
             }
         }
+    }
+
+    public boolean supportURLRepo() {
+        return supportURLRepo;
     }
 
     /**

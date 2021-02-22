@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -31,6 +33,7 @@ import static org.elasticsearch.action.admin.indices.mapping.put.TransportPutMap
 public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNodeAction<PutMappingRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportAutoPutMappingAction.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportAutoPutMappingAction.class);
 
     private final MetadataMappingService metadataMappingService;
     private final SystemIndices systemIndices;
@@ -72,9 +75,7 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
 
         final String message = TransportPutMappingAction.checkForSystemIndexViolations(systemIndices, concreteIndices, request);
         if (message != null) {
-            logger.warn(message);
-            listener.onFailure(new IllegalStateException(message));
-            return;
+            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access", message);
         }
 
         performMappingUpdate(concreteIndices, request, listener, metadataMappingService);

@@ -39,6 +39,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.FrozenEngine;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.Store;
@@ -55,9 +56,12 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
@@ -237,6 +241,21 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         }
     }
 
+    public static BlobStoreRepository getSearchableRepository(Repository repository) {
+        if (repository instanceof SourceOnlySnapshotRepository) {
+            repository = ((SourceOnlySnapshotRepository) repository).getDelegate();
+        }
+        if (repository instanceof BlobStoreRepository == false) {
+            throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
+        }
+        if (repository.getMetadata().type().equals(BlobStoreRepository.URL_REPOSITORY_TYPE)) {
+            throw new IllegalArgumentException(
+                "Searchable snapshots are not supported on URL repositories [" + repository.getMetadata().name() + "]"
+            );
+        }
+        return (BlobStoreRepository) repository;
+    }
+
     @Override
     public List<Setting<?>> getSettings() {
         return org.elasticsearch.common.collect.List.of(
@@ -258,9 +277,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             CacheService.SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING,
             CacheService.SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT,
             SearchableSnapshotEnableAllocationDecider.SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART,
-            FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING,
-            FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING,
-            FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING,
+            SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING,
+            SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING,
+            SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING,
             FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_MAX_FREQ_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING,
@@ -352,6 +371,16 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     @Override
+    public String getFeatureName() {
+        return "searchable_snapshots";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages caches and configuration for searchable snapshots";
+    }
+
+    @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         return org.elasticsearch.common.collect.Map.of(SNAPSHOT_DIRECTORY_FACTORY_KEY, (indexSettings, shardPath) -> {
             final RepositoriesService repositories = repositoriesServiceSupplier.get();
@@ -377,20 +406,38 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())
-            && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
-            return Optional.of(
-                engineConfig -> new ReadOnlyEngine(
-                    engineConfig,
-                    null,
-                    new TranslogStats(),
-                    false,
-                    indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
-                        ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
-                        : Function.identity(),
-                    false
-                )
-            );
+        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())) {
+            final Boolean frozen = indexSettings.getSettings().getAsBoolean("index.frozen", null);
+            final boolean useFrozenEngine = SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.get(indexSettings.getSettings())
+                && (frozen == null || frozen.equals(Boolean.TRUE));
+
+            if (useFrozenEngine) {
+                return Optional.of(
+                    engineConfig -> new FrozenEngine(
+                        engineConfig,
+                        null,
+                        new TranslogStats(),
+                        false,
+                        indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
+                            ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
+                            : Function.identity(),
+                        false
+                    )
+                );
+            } else {
+                return Optional.of(
+                    engineConfig -> new ReadOnlyEngine(
+                        engineConfig,
+                        null,
+                        new TranslogStats(),
+                        false,
+                        indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
+                            ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
+                            : Function.identity(),
+                        false
+                    )
+                );
+            }
         }
         return Optional.empty();
     }

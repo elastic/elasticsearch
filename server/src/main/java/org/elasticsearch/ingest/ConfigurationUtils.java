@@ -38,6 +38,7 @@ public final class ConfigurationUtils {
 
     public static final String TAG_KEY = "tag";
     public static final String DESCRIPTION_KEY = "description";
+    public static final String[] VALID_MEDIA_TYPES = {"application/json", "text/plain", "application/x-www-form-urlencoded"};
 
     private ConfigurationUtils() {
     }
@@ -136,6 +137,34 @@ public final class ConfigurationUtils {
             return null;
         }
         return readStringOrInt(processorType, processorTag, propertyName, value);
+    }
+
+    private static String readStringOrLong(String processorType, String processorTag,
+                                           String propertyName, Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String) {
+            return (String) value;
+        } else if (value instanceof Long || value instanceof Integer) {
+            return String.valueOf(value);
+        }
+        throw newConfigurationException(processorType, processorTag, propertyName,
+            "property isn't a string or long, but of type [" + value.getClass().getName() + "]");
+    }
+
+    /**
+     * Returns and removes the specified property from the specified configuration map.
+     *
+     * If the property value isn't of type string or long a {@link ElasticsearchParseException} is thrown.
+     */
+    public static String readOptionalStringOrLongProperty(String processorType, String processorTag,
+                                                         Map<String, Object> configuration, String propertyName) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            return null;
+        }
+        return readStringOrLong(processorType, processorTag, propertyName, value);
     }
 
     public static Boolean readBooleanProperty(String processorType, String processorTag, Map<String, Object> configuration,
@@ -292,6 +321,18 @@ public final class ConfigurationUtils {
             throw newConfigurationException(processorType, processorTag, propertyName, "required property is missing");
         }
         return value;
+    }
+
+    public static String readMediaTypeProperty(String processorType, String processorTag, Map<String, Object> configuration,
+        String propertyName, String defaultValue) {
+        String mediaType = readStringProperty(processorType, processorTag, configuration, propertyName, defaultValue);
+
+        if (Arrays.asList(VALID_MEDIA_TYPES).contains(mediaType) == false) {
+            throw newConfigurationException(processorType, processorTag, propertyName,
+                "property does not contain a supported media type [" + mediaType + "]");
+        }
+
+        return mediaType;
     }
 
     public static ElasticsearchException newConfigurationException(String processorType, String processorTag,

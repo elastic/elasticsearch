@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.security.transport;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.gateway.TransportNodesListGatewayMetaState;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
@@ -162,21 +162,21 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                     ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG))) {
                 // handshake should be ok
                 final DiscoveryNode handshake =
-                        PlainActionFuture.get(fut -> instance.handshake(connection, TimeValue.timeValueSeconds(10), fut));
+                    PlainActionFuture.get(fut -> instance.handshake(connection, TimeValue.timeValueSeconds(10), fut));
                 assertEquals(transport.boundAddress().publishAddress(), handshake.getAddress());
                 CountDownLatch latch = new CountDownLatch(1);
-                instance.sendRequest(connection, NodeMappingRefreshAction.ACTION_NAME,
-                        new NodeMappingRefreshAction.NodeMappingRefreshRequest("foo", "bar", "baz"),
-                        TransportRequestOptions.EMPTY,
-                        new TransportResponseHandler<TransportResponse>() {
-                    @Override
-                    public TransportResponse read(StreamInput in) {
-                        try {
-                            fail("never get that far");
-                        } finally {
-                            latch.countDown();
-                        }
-                        return null;
+                instance.sendRequest(connection, TransportNodesListGatewayMetaState.ACTION_NAME,
+                    new TransportNodesListGatewayMetaState.Request("foo", "bar", "baz"),
+                    TransportRequestOptions.EMPTY,
+                    new TransportResponseHandler<TransportResponse>() {
+                        @Override
+                        public TransportResponse read(StreamInput in) {
+                            try {
+                                fail("never get that far");
+                            } finally {
+                                latch.countDown();
+                            }
+                            return null;
                     }
 
                     @Override

@@ -48,6 +48,11 @@ public class URLRepository extends BlobStoreRepository {
 
     public static final String TYPE = "url";
 
+    static {
+        //noinspection ConstantConditions
+        assert TYPE.equals(BlobStoreRepository.URL_REPOSITORY_TYPE);
+    }
+
     public static final Setting<List<String>> SUPPORTED_PROTOCOLS_SETTING =
         Setting.listSetting("repositories.url.supported_protocols", Arrays.asList("http", "https", "ftp", "file", "jar"),
             Function.identity(), Property.NodeScope);

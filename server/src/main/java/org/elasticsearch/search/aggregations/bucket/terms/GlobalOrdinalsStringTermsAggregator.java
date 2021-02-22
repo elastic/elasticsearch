@@ -326,12 +326,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        protected void doPostCollection() throws IOException {
             if (mapping != null) {
                 mapSegmentCountsToGlobalCounts(mapping);
                 mapping = null;
             }
-            return super.buildAggregations(owningBucketOrds);
         }
 
         @Override
@@ -465,12 +464,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private final LongKeyedBucketOrds bucketOrds;
 
         private RemapGlobalOrds(CardinalityUpperBound cardinality) {
-            bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
+            bucketOrds = LongKeyedBucketOrds.buildForValueRange(bigArrays(), cardinality, 0, valueCount - 1);
         }
 
         @Override
         String describe() {
-            return "remap";
+            return "remap using " + bucketOrds.decribe();
         }
 
         @Override

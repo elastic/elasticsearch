@@ -158,11 +158,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
             // Finally respond to the outer listener with the response from the original cluster state update
             updateRepoUuidStep.whenComplete(
-                    ignored -> acknowledgementStep.whenComplete(listener::onResponse, listener::onFailure),
+                    ignored -> acknowledgementStep.addListener(listener),
                     listener::onFailure);
 
         } else {
-            acknowledgementStep.whenComplete(listener::onResponse, listener::onFailure);
+            acknowledgementStep.addListener(listener);
         }
 
         clusterService.submitStateUpdateTask("put_repository [" + request.name() + "]",
@@ -380,7 +380,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         });
     }
 
-    static boolean isDedicatedVotingOnlyNode(Set<DiscoveryNodeRole> roles) {
+    public static boolean isDedicatedVotingOnlyNode(Set<DiscoveryNodeRole> roles) {
         return roles.contains(DiscoveryNodeRole.MASTER_ROLE) && roles.contains(DiscoveryNodeRole.DATA_ROLE) == false &&
             roles.stream().anyMatch(role -> role.roleName().equals("voting_only"));
     }

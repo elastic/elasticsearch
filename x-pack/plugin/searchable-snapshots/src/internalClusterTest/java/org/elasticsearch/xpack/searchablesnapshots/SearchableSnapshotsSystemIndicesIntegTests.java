@@ -92,5 +92,15 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
                 new SystemIndexDescriptor(INDEX_NAME, "System index for [" + getTestClass().getName() + ']')
             );
         }
+
+        @Override
+        public String getFeatureName() {
+            return SearchableSnapshotsSystemIndicesIntegTests.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "test plugin";
+        }
     }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
@@ -106,7 +107,7 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
     }
 
     @Override
-    protected ShardOperationResult shardOperation(Request request, ShardRouting shardRouting) throws IOException {
+    protected ShardOperationResult shardOperation(Request request, ShardRouting shardRouting, Task task) throws IOException {
         SearchableSnapshots.ensureValidLicense(licenseState);
         final IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
         final SearchableSnapshotDirectory directory = unwrapDirectory(indexShard.store().directory());

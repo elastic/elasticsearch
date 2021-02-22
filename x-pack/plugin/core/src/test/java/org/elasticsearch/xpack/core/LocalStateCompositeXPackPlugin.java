@@ -565,4 +565,14 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
             .flatMap(p -> p.getSystemIndexDescriptors(this.settings).stream())
             .collect(Collectors.toList());
     }
+
+    @Override
+    public String getFeatureName() {
+        return this.getClass().getSimpleName();
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return this.getClass().getCanonicalName();
+    }
 }

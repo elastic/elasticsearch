@@ -38,6 +38,11 @@ if (project == rootProject) {
 Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'))
 version = props.getProperty("elasticsearch")
 
+gradlePlugin {
+  // We already configure publication and we don't need or want the one that comes
+  // with the java-gradle-plugin
+  automatedPublishing = false
+}
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
   outputFile = "${buildDir}/version.properties"
   comment = 'Generated version properties'
@@ -54,6 +59,12 @@ tasks.named("processResources").configure {
 
 if (JavaVersion.current() < JavaVersion.VERSION_11) {
   throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
+}
+
+allprojects {
+  apply plugin: 'java'
+  targetCompatibility = '11'
+  sourceCompatibility = '11'
 }
 
 sourceSets {
@@ -141,10 +152,9 @@ if (project != rootProject) {
   apply plugin: 'elasticsearch.build'
   apply plugin: 'elasticsearch.publish'
 
-  allprojects {
-    targetCompatibility = 10
-    sourceCompatibility = 10
-  }
+  // We have to set this again down here since the elasticsearch.java plugin defaults to minimumRuntimeVersion
+  targetCompatibility = '11'
+  sourceCompatibility = '11'
 
   // groovydoc succeeds, but has some weird internal exception...
   tasks.named("groovydoc").configure {
@@ -237,16 +247,6 @@ if (project != rootProject) {
     maxParallelForks = providers.systemProperty('tests.jvms').forUseAtConfigurationTime().getOrElse(org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
   }
 
-  /*
-   * We already configure publication and we don't need or want this one that
-   * comes from the java-gradle-plugin.
-   */
-  afterEvaluate {
-    tasks.named("generatePomFileForPluginMavenPublication").configure {
-      enabled = false
-    }
-  }
-
   publishing.publications.named("nebula").configure {
     suppressPomMetadataWarningsFor("testFixturesApiElements")
     suppressPomMetadataWarningsFor("testFixturesRuntimeElements")
@@ -278,7 +278,7 @@ class VersionPropertiesLoader {
           elasticsearch
       )
     }
-    String qualifier = systemProperties.getProperty("build.version_qualifier", "");
+    String qualifier = systemProperties.getProperty("build.version_qualifier", "")
     if (qualifier.isEmpty() == false) {
       if (qualifier.matches("(alpha|beta|rc)\\d+") == false) {
         throw new IllegalStateException("Invalid qualifier: " + qualifier)

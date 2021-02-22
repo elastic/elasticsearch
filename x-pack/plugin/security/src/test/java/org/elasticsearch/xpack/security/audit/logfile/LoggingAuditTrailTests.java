@@ -273,8 +273,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
                         LoggingAuditTrail.INCLUDE_EVENT_SETTINGS, LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS,
                         LoggingAuditTrail.INCLUDE_REQUEST_BODY, LoggingAuditTrail.FILTER_POLICY_IGNORE_PRINCIPALS,
                         LoggingAuditTrail.FILTER_POLICY_IGNORE_REALMS, LoggingAuditTrail.FILTER_POLICY_IGNORE_ROLES,
-                        LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES, LoggingAuditTrail.FILTER_POLICY_IGNORE_INDEX_PRIVILEGES,
-                        LoggingAuditTrail.FILTER_POLICY_IGNORE_CLUSTER_PRIVILEGES, Loggers.LOG_LEVEL_SETTING));
+                        LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES, LoggingAuditTrail.FILTER_POLICY_IGNORE_PRIVILEGES,
+                        Loggers.LOG_LEVEL_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         commonFields = new LoggingAuditTrail.EntryCommonFields(settings, localNode).commonFields;
         threadContext = new ThreadContext(Settings.EMPTY);
@@ -346,11 +346,11 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         Settings settings5 = Settings.builder()
             .putList(prefix + "ignore_filters.filter2.users", Arrays.asList("tom", "cruise"))
-            .putList(prefix + "ignore_filters.filter2.index_privileges", Arrays.asList("read", "/foo")).build();
+            .putList(prefix + "ignore_filters.filter2.privileges", Arrays.asList("read", "/foo")).build();
         assertThat(LoggingAuditTrail.FILTER_POLICY_IGNORE_PRINCIPALS.getConcreteSettingForNamespace("filter2").get(settings5),
             containsInAnyOrder("tom", "cruise"));
         e = expectThrows(IllegalArgumentException.class,
-            () -> LoggingAuditTrail.FILTER_POLICY_IGNORE_INDEX_PRIVILEGES.getConcreteSettingForNamespace("filter2").get(settings5));
+            () -> LoggingAuditTrail.FILTER_POLICY_IGNORE_PRIVILEGES.getConcreteSettingForNamespace("filter2").get(settings5));
         assertThat(e, hasToString(containsString("invalid pattern [/foo]")));
     }
 

@@ -16,7 +16,7 @@ advanced use-cases. Each script context provides support for a different
 environment such as ingest or scoring and determines what data is available and
 how to access that data.
 
-==== Design Philosophy
+==== Design philosophy
 
 Now, before we dive into the basics of writing a Painless script, let's discuss
 the design philosophy we have in mind when choosing the syntax and available
@@ -39,16 +39,16 @@ of a Java-like syntax has the additional benefit of a natural compilation path
 into JVM bytecode that the syntax and semantics of other languages tend to
 heavily complicate.
 
-With that said, let's jump into a few examples of a queries using a Painless
+With that said, let's jump into a few examples of queries using a Painless
 script.
 
-==== Hello, World!
+==== Hello, world!
 
 For our examples in this introduction we use the
 <<painless-execute-api, painless execute API>> which by default allows
 us to test a script with simple user-defined parameters and receive a result.
 
-===== Hello, World! as a simple REST query
+===== Hello, world! as a simple REST query
 
 Let's take a look at a simple script and break out the individual pieces.
 
@@ -74,9 +74,9 @@ optionally `params` defined by the user.
 <3> This is our actual script. We return a `String` value (converted to `Object`)
 of `Hello, world!`, and our response will display this value.
 
-===== Hello, World! with parameters
+===== Hello, world! with parameters
 
-Let's take a look at `lang` and `params` as part of the `script` JSON object.
+Let's add `lang` and `params` as part of the `script` JSON object.
 
 [source,console]
 ----
@@ -86,7 +86,7 @@ POST /_scripts/painless/_execute
     "source": "return params.get('hello_world');", <1>
     "lang": "painless", <2>
     "params": { <3>
-        "hello_world": "Hello, World!"
+        "hello_world": "Hello, world!"
     }
   }
 }
@@ -101,10 +101,10 @@ actually necessary here as `Painless` is the default under most script
 contexts.
 <3> User-defined parameters are a JSON object that is parsed into a `Map`
 made available as a `params` variable within a Painless script. In this
-case, we have added a `String` value of `Hello, World!` with a `String`
+case, we have added a `String` value of `Hello, world!` with a `String`
 key of `hello_world`. We then access this value within the example script.
 
-===== Hello, World! but concise
+===== Hello, world! but concise
 
 Let's make our script a bit more concise using some of the built-in sugar.
 
@@ -115,7 +115,7 @@ POST /_scripts/painless/_execute
   "script": {
     "source": "params['hello_world']",
     "params": {
-        "hello_world": "Hello, World!"
+        "hello_world": "Hello, world!"
     }
   }
 }
@@ -138,7 +138,7 @@ instead of the lengthier `get` method.
 Admittedly, this last example contains a huge amount of information all at once.
 Let's break Painless down into more palatable chunks in the next section.
 
-==== The Basics of Painless
+==== The basics of Painless
 
 A Painless script is structured as one or more statements and optionally
 has one or more user-defined functions at the beginning. A script must always

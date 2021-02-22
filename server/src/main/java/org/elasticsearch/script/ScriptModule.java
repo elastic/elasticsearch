@@ -12,6 +12,13 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IntervalFilterScript;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.runtimefields.mapper.BooleanFieldScript;
+import org.elasticsearch.runtimefields.mapper.DateFieldScript;
+import org.elasticsearch.runtimefields.mapper.DoubleFieldScript;
+import org.elasticsearch.runtimefields.mapper.GeoPointFieldScript;
+import org.elasticsearch.runtimefields.mapper.IpFieldScript;
+import org.elasticsearch.runtimefields.mapper.LongFieldScript;
+import org.elasticsearch.runtimefields.mapper.StringFieldScript;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 
 import java.util.Collections;
@@ -51,7 +58,14 @@ public class ScriptModule {
             ScriptedMetricAggContexts.MapScript.CONTEXT,
             ScriptedMetricAggContexts.CombineScript.CONTEXT,
             ScriptedMetricAggContexts.ReduceScript.CONTEXT,
-            IntervalFilterScript.CONTEXT
+            IntervalFilterScript.CONTEXT,
+            BooleanFieldScript.CONTEXT,
+            DateFieldScript.CONTEXT,
+            DoubleFieldScript.CONTEXT,
+            GeoPointFieldScript.CONTEXT,
+            IpFieldScript.CONTEXT,
+            LongFieldScript.CONTEXT,
+            StringFieldScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 

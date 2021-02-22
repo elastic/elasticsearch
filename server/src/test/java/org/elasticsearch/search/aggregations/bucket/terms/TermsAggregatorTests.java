@@ -102,6 +102,7 @@ import org.elasticsearch.test.geo.RandomGeoGenerator;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -256,6 +257,33 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             assertEquals(1L, result.getBuckets().get(4).getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(result));
         }, fieldType);
+    }
+
+    public void testStringShardMinDocCount() throws IOException {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", true, true, null);
+        for (TermsAggregatorFactory.ExecutionMode executionMode : TermsAggregatorFactory.ExecutionMode.values()) {
+            TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
+                .field("string")
+                .executionHint(executionMode.toString())
+                .size(2)
+                .minDocCount(2)
+                .shardMinDocCount(2)
+                .order(BucketOrder.key(true));
+            testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                // force single shard/segment
+                iw.addDocuments(Arrays.asList(
+                    doc(fieldType, "a", "b"),
+                    doc(fieldType, "", "c", "d"),
+                    doc(fieldType, "b", "d"),
+                    doc(fieldType, "b")));
+            }, (InternalTerms<?, ?> result) -> {
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("b", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(3L, result.getBuckets().get(0).getDocCount());
+                assertEquals("d", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+            }, fieldType);
+        }
     }
 
     public void testManyUniqueTerms() throws Exception {

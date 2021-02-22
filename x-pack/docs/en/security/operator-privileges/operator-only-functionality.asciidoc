@@ -4,7 +4,8 @@
 === Operator-only functionality
 Operator privileges provides protection for APIs and dynamic cluster settings.
 Any API or cluster setting that is protected by operator privileges is known as _operator-only functionality_
-When the operator privileges feature is enabled, they can only be actioned/updated by operators.
+When the operator privileges feature is enabled, operator-only APIs may only be executed by an
+operator user. Likewise, operator-only settings may only be updated by operator users.
 The list of operator-only APIs and dynamic cluster settings are pre-determined in the codebase.
 They may evolve in future releases, but are otherwise fixed in a given {es} version.
 

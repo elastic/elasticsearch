@@ -46,7 +46,7 @@ public abstract class QueryToFilterAdapter {
     public static QueryToFilterAdapter build(IndexSearcher searcher, String key, Query query) throws IOException {
         query = searcher.rewrite(query);
         if (query instanceof TermQuery) {
-            return new TermFilter(searcher, key, (TermQuery) query);
+            return new TermQueryToFilterAdapter(searcher, key, (TermQuery) query);
         }
         if (query instanceof MatchAllDocsQuery) {
             return new MatchAllQueryToFilterAdapter(searcher, key);
@@ -309,10 +309,10 @@ public abstract class QueryToFilterAdapter {
         }
     }
 
-    private static class TermFilter extends CommonQueryToFilterAdapter<TermQuery> {
+    private static class TermQueryToFilterAdapter extends CommonQueryToFilterAdapter<TermQuery> {
         private int resultsFromMetadata;
 
-        private TermFilter(IndexSearcher searcher, String key, TermQuery query) {
+        private TermQueryToFilterAdapter(IndexSearcher searcher, String key, TermQuery query) {
             super(searcher, key, query);
         }
 

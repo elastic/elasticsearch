@@ -162,10 +162,6 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
 }
 
 tasks.named("yamlRestCompatTest").configure {
-  onlyIf {
-    // These are broken right now so mute
-    false
-  }
   systemProperty 'tests.rest.blacklist', [
     'reindex/20_validation/reindex without source gives useful error message', /* type in exception message */
     'reindex/85_scripting/Reindex all docs with one doc deletion', /*type in a request*/

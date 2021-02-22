@@ -159,6 +159,9 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
             };
             OrdBucket spare = null;
             for (InternalFilters.InternalBucket b : filters.getBuckets()) {
+                if (b.getDocCount() < bucketCountThresholds.getShardMinDocCount()) {
+                    continue;
+                }
                 if (spare == null) {
                     spare = new OrdBucket(showTermDocCountError, format);
                 } else {
@@ -194,6 +197,9 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         } else {
             buckets = new ArrayList<>(filters.getBuckets().size());
             for (InternalFilters.InternalBucket b : filters.getBuckets()) {
+                if (b.getDocCount() < bucketCountThresholds.getShardMinDocCount()) {
+                    continue;
+                }
                 buckets.add(buildBucket(b));
             }
             Collections.sort(buckets, reduceOrder.comparator());

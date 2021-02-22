@@ -2541,6 +2541,7 @@ public class InternalEngineTests extends EngineTestCase {
                     }
                 }
                 holder.close();
+
                 assertEquals(store.refCount(), refCount);
             }
         }
@@ -5269,7 +5270,7 @@ public class InternalEngineTests extends EngineTestCase {
                     @Override
                     protected void doRun() throws Exception {
                         latch.await();
-                        Translog.Snapshot changes = engine.newChangesSnapshot("test", min, max, true);
+                        Translog.Snapshot changes = engine.newChangesSnapshot("test", min, max, true, randomBoolean());
                         changes.close();
                     }
                 });

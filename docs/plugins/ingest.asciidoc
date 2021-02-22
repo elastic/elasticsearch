@@ -37,7 +37,3 @@ The following plugin has been contributed by our community:
 * https://github.com/johtani/elasticsearch-ingest-csv[Ingest CSV Processor Plugin] (by Jun Ohtani)
 
 include::ingest-attachment.asciidoc[]
-
-include::ingest-geoip.asciidoc[]
-
-include::ingest-user-agent.asciidoc[]

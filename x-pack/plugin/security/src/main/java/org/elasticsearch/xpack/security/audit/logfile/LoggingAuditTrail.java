@@ -220,8 +220,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             Setting.affixKeySetting(FILTER_POLICY_PREFIX, "indices",
                     (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(),
                             value -> EventFilterPolicy.parsePredicate(value), Property.NodeScope, Property.Dynamic));
-    protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_PRIVILEGES =
-        Setting.affixKeySetting(FILTER_POLICY_PREFIX, "privileges",
+    protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_ACTIONS =
+        Setting.affixKeySetting(FILTER_POLICY_PREFIX, "actions",
                     (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(),
                             value -> EventFilterPolicy.parsePredicate(value), Property.NodeScope, Property.Dynamic));
 
@@ -283,10 +283,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).changeIndicesFilter(filtersList);
             this.eventFilterPolicyRegistry.set(policyName, newPolicy);
         }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
-        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_PRIVILEGES, (policyName, filtersList) -> {
+        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_ACTIONS, (policyName, filtersList) -> {
             final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
             final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).
-                changePrivilegesFilter(filtersList);
+                changeActionsFilter(filtersList);
             this.eventFilterPolicyRegistry.set(policyName, newPolicy);
         }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
         // this log filter ensures that audit events are not filtered out because of the log level
@@ -1344,7 +1344,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         settings.add(FILTER_POLICY_IGNORE_INDICES);
         settings.add(FILTER_POLICY_IGNORE_ROLES);
         settings.add(FILTER_POLICY_IGNORE_REALMS);
-        settings.add(FILTER_POLICY_IGNORE_PRIVILEGES);
+        settings.add(FILTER_POLICY_IGNORE_ACTIONS);
     }
 
     /**
@@ -1360,14 +1360,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         private final Predicate<String> ignoreRealmsPredicate;
         private final Predicate<String> ignoreRolesPredicate;
         private final Predicate<String> ignoreIndicesPredicate;
-        private final Predicate<String> ignorePrivilegesPredicate;
+        private final Predicate<String> ignoreActionsPredicate;
 
         EventFilterPolicy(String name, Settings settings) {
             this(name, parsePredicate(FILTER_POLICY_IGNORE_PRINCIPALS.getConcreteSettingForNamespace(name).get(settings)),
                     parsePredicate(FILTER_POLICY_IGNORE_REALMS.getConcreteSettingForNamespace(name).get(settings)),
                     parsePredicate(FILTER_POLICY_IGNORE_ROLES.getConcreteSettingForNamespace(name).get(settings)),
                     parsePredicate(FILTER_POLICY_IGNORE_INDICES.getConcreteSettingForNamespace(name).get(settings)),
-                    parsePredicate(FILTER_POLICY_IGNORE_PRIVILEGES.getConcreteSettingForNamespace(name).get(settings)));
+                    parsePredicate(FILTER_POLICY_IGNORE_ACTIONS.getConcreteSettingForNamespace(name).get(settings)));
         }
 
         /**
@@ -1384,30 +1384,30 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             this.ignoreRealmsPredicate = ignoreRealmsPredicate;
             this.ignoreRolesPredicate = ignoreRolesPredicate;
             this.ignoreIndicesPredicate = ignoreIndicesPredicate;
-            this.ignorePrivilegesPredicate = ignoreActionsPredicate;
+            this.ignoreActionsPredicate = ignoreActionsPredicate;
         }
 
         private EventFilterPolicy changePrincipalsFilter(List<String> filtersList) {
             return new EventFilterPolicy(name, parsePredicate(filtersList), ignoreRealmsPredicate, ignoreRolesPredicate,
-                    ignoreIndicesPredicate, ignorePrivilegesPredicate);
+                    ignoreIndicesPredicate, ignoreActionsPredicate);
         }
 
         private EventFilterPolicy changeRealmsFilter(List<String> filtersList) {
             return new EventFilterPolicy(name, ignorePrincipalsPredicate, parsePredicate(filtersList), ignoreRolesPredicate,
-                    ignoreIndicesPredicate, ignorePrivilegesPredicate);
+                    ignoreIndicesPredicate, ignoreActionsPredicate);
         }
 
         private EventFilterPolicy changeRolesFilter(List<String> filtersList) {
             return new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate, parsePredicate(filtersList),
-                    ignoreIndicesPredicate, ignorePrivilegesPredicate);
+                    ignoreIndicesPredicate, ignoreActionsPredicate);
         }
 
         private EventFilterPolicy changeIndicesFilter(List<String> filtersList) {
             return new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate, ignoreRolesPredicate,
-                    parsePredicate(filtersList), ignorePrivilegesPredicate);
+                    parsePredicate(filtersList), ignoreActionsPredicate);
         }
 
-        private EventFilterPolicy changePrivilegesFilter(List<String> filtersList) {
+        private EventFilterPolicy changeActionsFilter(List<String> filtersList) {
             return new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate, ignoreRolesPredicate,
                 ignoreIndicesPredicate, parsePredicate(filtersList));
         }
@@ -1439,7 +1439,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     final Collection<String> privileges  = IndexPrivilege.findPrivilegesThatGrant(eventInfo.action);
                     return eventInfo.principal != null && ignorePrincipalsPredicate.test(eventInfo.principal)
                     && eventInfo.realm != null && ignoreRealmsPredicate.test(eventInfo.realm)
-                    && eventInfo.action != null && ignorePrivilegesPredicate.test(privileges.size() > 0 ? privileges.iterator().next() : "")
+                    && eventInfo.action != null && ignoreActionsPredicate.test(eventInfo.action)
                     && eventInfo.roles.get().allMatch(role -> role != null && ignoreRolesPredicate.test(role))
                     && eventInfo.indices.get().allMatch(index -> index != null && ignoreIndicesPredicate.test(index));
             };
@@ -1449,7 +1449,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         public String toString() {
             return "[users]:" + ignorePrincipalsPredicate.toString() + "&[realms]:" + ignoreRealmsPredicate.toString() + "&[roles]:"
                     + ignoreRolesPredicate.toString() + "&[indices]:" + ignoreIndicesPredicate.toString() + "&[actions]:"
-                    + ignorePrivilegesPredicate.toString();
+                    + ignoreActionsPredicate.toString();
         }
     }
 

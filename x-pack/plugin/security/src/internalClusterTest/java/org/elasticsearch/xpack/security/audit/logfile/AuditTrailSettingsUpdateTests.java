@@ -108,21 +108,19 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         assertThat(e.getMessage(), containsString("invalid pattern [/invalid]"));
     }
 
-    public void testInvalidIndexPrivilegesFilterSettings() throws Exception {
-        final Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.invalid.index_privileges", "hkrgbkj");
+    public void testInvalidPrivilegesFilterSettings() throws Exception {
+        final Settings.Builder settingsBuilder1 = Settings.builder();
+        settingsBuilder1.putList("xpack.security.audit.logfile.events.ignore_filters.invalid.index_privileges", "hkrgbkj");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> updateSettings(settingsBuilder.build(), randomBoolean()));
+            () -> updateSettings(settingsBuilder1.build(), randomBoolean()));
         assertThat(e.getMessage(), containsString("illegal value can't update"));
-    }
 
-    public void testInvalidlusterPrivilegesFilterSettings() throws Exception {
-        final Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.invalid.index_privileges", "hkrgbkj");
+        final Settings.Builder settingsBuilder2 = Settings.builder();
+        settingsBuilder1.putList("xpack.security.audit.logfile.events.ignore_filters.invalid.index_privileges", "hkrgbkj");
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> updateSettings(settingsBuilder.build(), randomBoolean()));
+        e = expectThrows(IllegalArgumentException.class,
+            () -> updateSettings(settingsBuilder2.build(), randomBoolean()));
         assertThat(e.getMessage(), containsString("illegal value can't update"));
     }
 

@@ -31,6 +31,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A search action request builder.
@@ -590,6 +591,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setPreFilterShardSize(int preFilterShardSize) {
         this.request.setPreFilterShardSize(preFilterShardSize);
+        return this;
+    }
+
+    /**
+     * Set runtime mappings to create runtime fields that exist only as part of this particular search.
+     */
+    public SearchRequestBuilder setRuntimeMappings(Map<String, Object> runtimeMappings) {
+        sourceBuilder().runtimeMappings(runtimeMappings);
         return this;
     }
 }

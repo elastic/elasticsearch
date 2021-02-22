@@ -8,14 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.function.Function;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
@@ -31,6 +23,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Function;
+
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
 
@@ -39,11 +39,10 @@ final class DocumentParser {
     private final DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder;
 
     DocumentParser(NamedXContentRegistry xContentRegistry,
-                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext,
-                   DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder) {
+                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext) {
         this.xContentRegistry = xContentRegistry;
         this.dateParserContext = dateParserContext;
-        this.dynamicRuntimeFieldsBuilder = dynamicRuntimeFieldsBuilder;
+        this.dynamicRuntimeFieldsBuilder = org.elasticsearch.runtimefields.mapper.DynamicRuntimeFieldsBuilder.INSTANCE;
     }
 
     ParsedDocument parseDocument(SourceToParse source,

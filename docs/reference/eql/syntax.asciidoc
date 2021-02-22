@@ -77,7 +77,7 @@ escape event categories that:
 [[eql-syntax-escape-a-field-name]]
 === Escape a field name
 
-Use enclosing enclosing backticks (+++`+++) to escape field names that:
+Use enclosing backticks (+++`+++) to escape field names that:
 
 * Contain a hyphen (`-`)
 * Contain a space
@@ -132,19 +132,6 @@ Returns `true` if strings to the left and right of the operator are equal.
 Otherwise returns `false`. Can only be used to compare strings. Supports
 <<eql-syntax-wildcards,wildcards>> and <<eql-syntax-lookup-operators,list
 lookups>>.
-
-[IMPORTANT]
-====
-Avoid using the `==` or `:` operators to perform exact matching on
-<<text,`text`>> field values.
-
-By default, {es} changes the values of `text` fields as part of <<analysis,
-analysis>>. This can make finding exact matches for `text` field values
-difficult.
-
-To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
-DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
-====
 
 `!=` (not equal, case-sensitive)::
 Returns `true` if the values to the left and right of the operator are not
@@ -786,6 +773,14 @@ another field. This applies even if the fields are changed using a
 <<eql-functions,function>>.
 
 [discrete]
+[[eql-text-fields]]
+==== Text fields are not supported
+
+EQL searches do not support <<text,`text`>> fields. To a search a `text` field,
+use the EQL search API's <<eql-search-filter-query-dsl,Query DSL `filter`>>
+parameter.
+
+[discrete]
 [[eql-array-fields]]
 ==== Array field values are not supported
 
@@ -808,15 +803,24 @@ sub-fields of a `nested` field. However, data streams and indices containing
 {es} EQL differs from the {eql-ref}/index.html[Elastic Endgame EQL syntax] as
 follows:
 
-* Most operators and functions in {es} EQL are case-sensitive by default. For
-case-insensitive equality comparisons, use the `:` operator. To make a function
-case-insensitive, use the `~` operator after the function name. See
-<<eql-case-insensitive-functions>>.
+* In {es} EQL, most operators are case-sensitive. For example,
+`process_name == "cmd.exe"` is not equivalent to 
+`process_name == "Cmd.exe"`.
 
-* Comparisons using the `==` and `!=` operators do not expand wildcard
-characters. For example, `process_name == "cmd*.exe"` interprets `*` as a
-literal asterisk, not a wildcard. For case-sensitive wildcard matching, use the
-<<eql-fn-wildcard,`wildcard`>> function.
+* In {es} EQL, functions are case-sensitive. To make a function
+case-insensitive, use `~`, such as `endsWith~(process_name, ".exe")`.
+
+* For case-insensitive equality comparisons, use the `:` operator. Both `*` and
+`?` are recognized wildcard characters.
+
+* The `==` and `!=` operators do not expand wildcard characters. For example,
+`process_name == "cmd*.exe"` interprets `*` as a literal asterisk, not a
+wildcard.
+
+* For wildcard matching, use the `like` keyword when case-sensitive and
+`like~` when case-insensitive. The `:` operator is equivalent to `like~`.
+
+* For regular expression matching, use `regex` or `regex~`.
 
 * `=` cannot be substituted for the `==` operator.
 

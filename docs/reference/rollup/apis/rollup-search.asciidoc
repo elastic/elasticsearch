@@ -10,7 +10,7 @@ ifdef::permanently-unreleased-branch[]
 
 include::put-job.asciidoc[tag=legacy-rollup-admon]
 
-Searches legacy rollup data using <<query-dsl,query DSL>>.
+Searches legacy rollup data using <<query-dsl,Query DSL>>.
 
 endif::[]
 ifndef::permanently-unreleased-branch[]
@@ -23,7 +23,7 @@ ifndef::permanently-unreleased-branch[]
 <titleabbrev>Rollup search</titleabbrev>
 ++++
 
-Enables searching rolled-up data using the standard query DSL.
+Enables searching rolled-up data using the standard Query DSL.
 
 experimental[]
 
@@ -39,7 +39,7 @@ endif::[]
 
 The rollup search endpoint is needed because, internally, rolled-up documents
 utilize a different document structure than the original data. The rollup search
-endpoint rewrites standard query DSL into a format that matches the rollup
+endpoint rewrites standard Query DSL into a format that matches the rollup
 documents, then takes the response and rewrites it back to what a client would
 expect given the original query.
 
@@ -128,7 +128,7 @@ PUT _rollup/job/sensor
 
 This rolls up the `sensor-*` pattern and stores the results in `sensor_rollup`.
 To search this rolled up data, we need to use the `_rollup_search` endpoint.
-However, you'll notice that we can use regular query DSL to search the rolled-up
+However, you'll notice that we can use regular Query DSL to search the rolled-up
 data:
 
 [source,console]

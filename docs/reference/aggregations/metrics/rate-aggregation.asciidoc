@@ -195,7 +195,7 @@ GET sales/_search
 --------------------------------------------------
 // TEST[setup:sales]
 <1> Histogram is grouped by month.
-<2> Calculate number of of all sale prices
+<2> Calculate number of all sale prices
 <3> Convert to annual counts
 <4> Changing the mode to value count
 

@@ -176,6 +176,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String UPLOADED_DATA_BLOB_PREFIX = "__";
 
+    // Expose a copy of URLRepository#TYPE here too, for a better error message until https://github.com/elastic/elasticsearch/issues/68918
+    // is resolved.
+    public static final String URL_REPOSITORY_TYPE = "url";
+
     /**
      * All {@link BlobStoreRepository} implementations can be made read-only by setting this key to {@code true} in their settings.
      */
@@ -1412,7 +1416,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                     existingListener.onFailure(e);
                 };
-                threadPool.generic().execute(() -> doGetRepositoryData(
+                threadPool.generic().execute(ActionRunnable.wrap(
                         ActionListener.wrap(repoData -> clusterService.submitStateUpdateTask(
                                 "set initial safe repository generation [" + metadata.name() + "][" + repoData.getGenId() + "]",
                                 new ClusterStateUpdateTask() {
@@ -1455,7 +1459,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                                     , metadata.name(), repoData.getGenId());
                                         });
                                     }
-                                }), onFailure)));
+                                }), onFailure), this::doGetRepositoryData));
             } else {
                 logger.trace("[{}] waiting for existing initialization of repository metadata generation in cluster state",
                         metadata.name());
@@ -1485,9 +1489,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final long generation;
                 try {
                     generation = latestIndexBlobId();
-                } catch (IOException ioe) {
+                } catch (Exception e) {
                     listener.onFailure(
-                        new RepositoryException(metadata.name(), "Could not determine repository generation from root blobs", ioe));
+                        new RepositoryException(metadata.name(), "Could not determine repository generation from root blobs", e));
                     return;
                 }
                 genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));

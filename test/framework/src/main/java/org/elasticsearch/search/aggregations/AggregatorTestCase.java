@@ -83,8 +83,8 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
@@ -180,7 +180,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
                                                         IndexSearcher searcher,
                                                         MappedFieldType... fieldTypes) throws IOException {
-        return createAggregator(aggregationBuilder, createAggregationContext(searcher, null, fieldTypes));
+        return createAggregator(aggregationBuilder, createAggregationContext(searcher, new MatchAllDocsQuery(), fieldTypes));
     }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder builder, AggregationContext context) throws IOException {
@@ -874,7 +874,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     private static class MockParserContext extends Mapper.TypeParser.ParserContext {
         MockParserContext() {
-            super(null, null, null, null, null, null, null, null, null, null, false);
+            super(null, null, null, null, null, null, null, null, null, null);
         }
 
         @Override

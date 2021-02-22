@@ -156,5 +156,6 @@ public class RestResourcesPlugin implements Plugin<Project> {
             });
 
         defaultSourceSet.getOutput().dir(copyRestYamlApiTask.map(CopyRestApiTask::getOutputResourceDir));
+        defaultSourceSet.getOutput().dir(copyRestYamlTestTask.map(CopyRestTestsTask::getOutputResourceDir));
     }
 }

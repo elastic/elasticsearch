@@ -123,6 +123,18 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         ), deprecationIssues.get(0));
     }
 
+    public void testRealmOrderIsNotRequiredIfRealmIsDisabled() {
+        final RealmConfig.RealmIdentifier realmIdentifier =
+            new RealmConfig.RealmIdentifier(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(4, 12));
+        final Settings settings =
+            Settings.builder()
+                .put("xpack.security.authc.realms." + realmIdentifier.getType() + "." + realmIdentifier.getName() + ".enabled", "false")
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules);
+        assertTrue(deprecationIssues.isEmpty());
+    }
+
     public void testCheckUniqueRealmOrders() {
         final int order = randomInt(9999);
 
@@ -168,7 +180,96 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
         final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules);
 
-        assertEquals(0, deprecationIssues.size());
+        assertTrue(deprecationIssues.isEmpty());
+    }
+
+    public void testCheckImplicitlyDisabledNativeRealms() {
+        final Settings.Builder builder = Settings.builder();
+
+        final boolean otherRealmConfigured = randomBoolean();
+        final boolean otherRealmEnabled = randomBoolean();
+        if (otherRealmConfigured) {
+            final int otherRealmId = randomIntBetween(0, 9);
+            final String otherRealmName = randomAlphaOfLengthBetween(4, 12);
+            if (otherRealmEnabled) {
+                builder.put("xpack.security.authc.realms.type_" + otherRealmId + ".realm_" + otherRealmName + ".order", 1);
+            } else {
+                builder.put("xpack.security.authc.realms.type_" + otherRealmId + ".realm_" + otherRealmName + ".enabled", false);
+            }
+        }
+        final boolean fileRealmConfigured = randomBoolean();
+        final boolean fileRealmEnabled = randomBoolean();
+        if (fileRealmConfigured) {
+            final String fileRealmName = randomAlphaOfLengthBetween(4, 12);
+            // Configure file realm or explicitly disable it
+            if (fileRealmEnabled) {
+                builder.put("xpack.security.authc.realms.file." + fileRealmName + ".order", 10);
+            } else {
+                builder.put("xpack.security.authc.realms.file." + fileRealmName + ".enabled", false);
+            }
+        }
+        final boolean nativeRealmConfigured = randomBoolean();
+        final boolean nativeRealmEnabled = randomBoolean();
+        if (nativeRealmConfigured) {
+            final String nativeRealmName = randomAlphaOfLengthBetween(4, 12);
+            // Configure native realm or explicitly disable it
+            if (nativeRealmEnabled) {
+                builder.put("xpack.security.authc.realms.native." + nativeRealmName + ".order", 20);
+            } else {
+                builder.put("xpack.security.authc.realms.native." + nativeRealmName + ".enabled", false);
+            }
+        }
+        final Settings settings = builder.build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules);
+
+        if (otherRealmConfigured && otherRealmEnabled) {
+            if (false == fileRealmConfigured && false == nativeRealmConfigured) {
+                assertCommonImplicitDisabledRealms(deprecationIssues);
+                assertEquals("Found implicitly disabled native realms: [file,native]. " +
+                        "They are disabled because there are other explicitly configured realms." +
+                        "In next major release, native realms will always be enabled unless explicitly disabled.",
+                    deprecationIssues.get(0).getDetails());
+            } else if (false == fileRealmConfigured) {
+                assertCommonImplicitDisabledRealms(deprecationIssues);
+                assertEquals("Found implicitly disabled native realm: [file]. " +
+                        "It is disabled because there are other explicitly configured realms." +
+                        "In next major release, native realms will always be enabled unless explicitly disabled.",
+                    deprecationIssues.get(0).getDetails());
+            } else if (false == nativeRealmConfigured) {
+                assertCommonImplicitDisabledRealms(deprecationIssues);
+                assertEquals("Found implicitly disabled native realm: [native]. " +
+                        "It is disabled because there are other explicitly configured realms." +
+                        "In next major release, native realms will always be enabled unless explicitly disabled.",
+                    deprecationIssues.get(0).getDetails());
+            } else {
+                assertTrue(deprecationIssues.isEmpty());
+            }
+        } else {
+            if (false == fileRealmConfigured && false == nativeRealmConfigured) {
+                assertTrue(deprecationIssues.isEmpty());
+            } else if (false == fileRealmConfigured) {
+                if (nativeRealmEnabled) {
+                    assertCommonImplicitDisabledRealms(deprecationIssues);
+                    assertEquals("Found implicitly disabled native realm: [file]. " +
+                            "It is disabled because there are other explicitly configured realms." +
+                            "In next major release, native realms will always be enabled unless explicitly disabled.",
+                        deprecationIssues.get(0).getDetails());
+                } else {
+                    assertTrue(deprecationIssues.isEmpty());
+                }
+            } else if (false == nativeRealmConfigured) {
+                if (fileRealmEnabled) {
+                    assertCommonImplicitDisabledRealms(deprecationIssues);
+                    assertEquals("Found implicitly disabled native realm: [native]. " +
+                            "It is disabled because there are other explicitly configured realms." +
+                            "In next major release, native realms will always be enabled unless explicitly disabled.",
+                        deprecationIssues.get(0).getDetails());
+                } else {
+                    assertTrue(deprecationIssues.isEmpty());
+                }
+            }
+        }
     }
 
     public void testThreadPoolListenerQueueSize() {
@@ -348,5 +449,14 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         }
 
         return issues;
+    }
+
+    private void assertCommonImplicitDisabledRealms(List<DeprecationIssue> deprecationIssues) {
+        assertEquals(1, deprecationIssues.size());
+        assertEquals("File and/or native realms cannot be implicitly disabled in next major release.",
+            deprecationIssues.get(0).getMessage());
+        assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference" +
+                "/7.13/breaking-changes-7.13.html#implicitly-disabled-native-realms",
+            deprecationIssues.get(0).getUrl());
     }
 }

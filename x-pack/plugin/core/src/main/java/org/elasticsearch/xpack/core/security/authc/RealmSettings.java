@@ -30,9 +30,10 @@ import java.util.stream.Collectors;
 public class RealmSettings {
 
     public static final String PREFIX = "xpack.security.authc.realms.";
+    public static final String ENABLED_SETTING_KEY = "enabled";
     public static final String ORDER_SETTING_KEY = "order";
 
-    public static final Function<String, Setting.AffixSetting<Boolean>> ENABLED_SETTING = affixSetting("enabled",
+    public static final Function<String, Setting.AffixSetting<Boolean>> ENABLED_SETTING = affixSetting(ENABLED_SETTING_KEY,
             key -> Setting.boolSetting(key, true, Setting.Property.NodeScope));
     public static final Function<String, Setting.AffixSetting<Integer>> ORDER_SETTING = affixSetting(ORDER_SETTING_KEY,
             key -> Setting.intSetting(key, Integer.MAX_VALUE, Setting.Property.NodeScope));

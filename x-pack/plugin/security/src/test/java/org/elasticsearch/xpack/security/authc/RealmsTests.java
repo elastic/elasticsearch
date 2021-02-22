@@ -639,6 +639,87 @@ public class RealmsTests extends ESTestCase {
             + "In next major release, node will fail to start with missing realm order.");
     }
 
+    public void testWarningsForImplicitlyDisabledNativeRealms() throws Exception {
+        final Settings.Builder builder = Settings.builder()
+            .put("path.home", createTempDir());
+        final boolean otherRealmConfigured = randomBoolean();
+        final boolean otherRealmEnabled = randomBoolean();
+        if (otherRealmConfigured) {
+            final int otherRealmId = randomIntBetween(0, randomRealmTypesCount - 1);
+            final String otherRealmName = randomAlphaOfLengthBetween(4, 12);
+            if (otherRealmEnabled) {
+                builder.put("xpack.security.authc.realms.type_" + otherRealmId + ".realm_" + otherRealmName + ".order", 1);
+            } else {
+                builder.put("xpack.security.authc.realms.type_" + otherRealmId + ".realm_" + otherRealmName + ".enabled", false);
+            }
+        }
+        final boolean fileRealmConfigured = randomBoolean();
+        final boolean fileRealmEnabled = randomBoolean();
+        if (fileRealmConfigured) {
+            final String fileRealmName = randomAlphaOfLengthBetween(4, 12);
+            // Configure file realm or explicitly disable it
+            if (fileRealmEnabled) {
+                builder.put("xpack.security.authc.realms.file." + fileRealmName + ".order", 10);
+            } else {
+                builder.put("xpack.security.authc.realms.file." + fileRealmName + ".enabled", false);
+            }
+        }
+        final boolean nativeRealmConfigured = randomBoolean();
+        final boolean nativeRealmEnabled = randomBoolean();
+        if (nativeRealmConfigured) {
+            final String nativeRealmName = randomAlphaOfLengthBetween(4, 12);
+            // Configure native realm or explicitly disable it
+            if (nativeRealmEnabled) {
+                builder.put("xpack.security.authc.realms.native." + nativeRealmName + ".order", 20);
+            } else {
+                builder.put("xpack.security.authc.realms.native." + nativeRealmName + ".enabled", false);
+            }
+        }
+        final Settings settings = builder.build();
+        final Realms realms =
+            new Realms(settings, TestEnvironment.newEnvironment(settings), factories, licenseState, threadContext, reservedRealm);
+
+        if (otherRealmConfigured && otherRealmEnabled) {
+            if (false == fileRealmConfigured && false == nativeRealmConfigured) {
+                assertWarnings("Found implicitly disabled native realms: [file,native]. " +
+                    "They are disabled because there are other explicitly configured realms." +
+                    "In next major release, native realms will always be enabled unless explicitly disabled.");
+            } else if (false == fileRealmConfigured) {
+                assertWarnings("Found implicitly disabled native realm: [file]. " +
+                    "It is disabled because there are other explicitly configured realms." +
+                    "In next major release, native realms will always be enabled unless explicitly disabled.");
+            } else if (false == nativeRealmConfigured) {
+                assertWarnings("Found implicitly disabled native realm: [native]. " +
+                    "It is disabled because there are other explicitly configured realms." +
+                    "In next major release, native realms will always be enabled unless explicitly disabled.");
+            }
+        } else {
+            if (false == fileRealmConfigured && false == nativeRealmConfigured) {
+                // Default behaviour of implicitly enabling file and native realms
+                assertNotNull(realms.realm(FileRealmSettings.DEFAULT_NAME));
+                assertNotNull(realms.realm(NativeRealmSettings.DEFAULT_NAME));
+            } else if (false == fileRealmConfigured) {
+                if (nativeRealmEnabled) {
+                    assertWarnings("Found implicitly disabled native realm: [file]. " +
+                        "It is disabled because there are other explicitly configured realms." +
+                        "In next major release, native realms will always be enabled unless explicitly disabled.");
+                } else {
+                    assertNotNull(realms.realm(FileRealmSettings.DEFAULT_NAME));
+                    assertNotNull(realms.realm(NativeRealmSettings.DEFAULT_NAME));
+                }
+            } else if (false == nativeRealmConfigured) {
+                if (fileRealmEnabled) {
+                    assertWarnings("Found implicitly disabled native realm: [native]. " +
+                        "It is disabled because there are other explicitly configured realms." +
+                        "In next major release, native realms will always be enabled unless explicitly disabled.");
+                } else {
+                    assertNotNull(realms.realm(FileRealmSettings.DEFAULT_NAME));
+                    assertNotNull(realms.realm(NativeRealmSettings.DEFAULT_NAME));
+                }
+            }
+        }
+    }
+
     static class DummyRealm extends Realm {
 
         DummyRealm(String type, RealmConfig config) {

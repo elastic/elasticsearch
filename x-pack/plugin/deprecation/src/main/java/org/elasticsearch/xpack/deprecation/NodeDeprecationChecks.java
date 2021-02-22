@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -19,8 +20,12 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -52,6 +57,7 @@ class NodeDeprecationChecks {
         final Set<String> orderNotConfiguredRealms = RealmSettings.getRealmSettings(settings).entrySet()
                 .stream()
                 .filter(e -> false == e.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY))
+                .filter(e -> e.getValue().getAsBoolean(RealmSettings.ENABLED_SETTING_KEY, true))
                 .map(e -> RealmSettings.realmSettingPrefix(e.getKey()) + RealmSettings.ORDER_SETTING_KEY)
                 .collect(Collectors.toSet());
 
@@ -100,6 +106,40 @@ class NodeDeprecationChecks {
             DeprecationIssue.Level.CRITICAL,
             "Realm orders must be unique in next major release.",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/breaking-changes-7.7.html#deprecate-duplicated-realm-orders",
+            details
+        );
+    }
+
+    static DeprecationIssue checkImplicitlyDisabledNativeRealms(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        final Map<RealmConfig.RealmIdentifier, Settings> realmSettings = RealmSettings.getRealmSettings(settings);
+        if (realmSettings.isEmpty()) {
+            return null;
+        }
+        // If all configured realms are disabled, this equals to no realm is configured. The implicitly behaviour in this case
+        // is to add file and native realms. So we are good here.
+        if (false == realmSettings.entrySet().stream().anyMatch(
+            e -> e.getValue().getAsBoolean(RealmSettings.ENABLED_SETTING_KEY, true))) {
+            return null;
+        }
+        final List<String> implicitlyDisabledNativeRealmTypes =
+            new ArrayList<>(org.elasticsearch.common.collect.List.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE));
+        realmSettings.keySet().forEach(ri -> implicitlyDisabledNativeRealmTypes.remove(ri.getType()));
+        if (implicitlyDisabledNativeRealmTypes.isEmpty()) {
+            return null;
+        }
+
+        final String details = String.format(
+            Locale.ROOT,
+            "Found implicitly disabled native %s: [%s]. %s disabled because there are other explicitly configured realms." +
+                "In next major release, native realms will always be enabled unless explicitly disabled.",
+            implicitlyDisabledNativeRealmTypes.size() == 1 ? "realm" : "realms",
+            Strings.collectionToDelimitedString(implicitlyDisabledNativeRealmTypes, ","),
+            implicitlyDisabledNativeRealmTypes.size() == 1 ? "It is" : "They are");
+
+        return new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "File and/or native realms cannot be implicitly disabled in next major release.",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#implicitly-disabled-native-realms",
             details
         );
     }

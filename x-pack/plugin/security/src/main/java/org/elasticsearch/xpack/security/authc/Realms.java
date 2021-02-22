@@ -176,10 +176,16 @@ public class Realms implements Iterable<Realm> {
         Map<String, Set<String>> nameToRealmIdentifier = new HashMap<>();
         Set<String> missingOrderRealmSettingKeys = new TreeSet<>();
         Map<String, Set<String>> orderToRealmOrderSettingKeys = new HashMap<>();
+        List<String> implicitlyDisabledNativeRealmTypes = new ArrayList<>(
+            org.elasticsearch.common.collect.List.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE));
         for (final Map.Entry<RealmConfig.RealmIdentifier, Settings> entry: realmsSettings.entrySet()) {
             final RealmConfig.RealmIdentifier identifier = entry.getKey();
             if (false == entry.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY)) {
-                missingOrderRealmSettingKeys.add(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING));
+                // If the realm is disabled, it is ok to have no order setting. This is only really useful for file/native realm.
+                // Because settings of other realms can just be entirely removed.
+                if (entry.getValue().getAsBoolean(RealmSettings.ENABLED_SETTING_KEY, true)) {
+                    missingOrderRealmSettingKeys.add(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING));
+                }
             } else {
                 orderToRealmOrderSettingKeys.computeIfAbsent(entry.getValue().get(RealmSettings.ORDER_SETTING_KEY), k -> new TreeSet<>())
                     .add(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING));
@@ -189,6 +195,7 @@ public class Realms implements Iterable<Realm> {
                 throw new IllegalArgumentException("unknown realm type [" + identifier.getType() + "] for realm [" + identifier + "]");
             }
             RealmConfig config = new RealmConfig(identifier, settings, env, threadContext);
+            implicitlyDisabledNativeRealmTypes.remove(identifier.getType());
             if (config.enabled() == false) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("realm [{}] is disabled", identifier);
@@ -220,6 +227,7 @@ public class Realms implements Iterable<Realm> {
 
         if (realms.isEmpty() == false) {
             Collections.sort(realms);
+            logDeprecationForImplicitlyDisabledNativeRealms(implicitlyDisabledNativeRealmTypes);
         } else {
             // there is no "realms" configuration, add the defaults
             addNativeRealms(realms);
@@ -369,4 +377,16 @@ public class Realms implements Iterable<Realm> {
         }
     }
 
+    private void logDeprecationForImplicitlyDisabledNativeRealms(List<String> implicitlyDisabledNativeRealmTypes) {
+        if (implicitlyDisabledNativeRealmTypes.isEmpty()) {
+            return;
+        }
+        deprecationLogger.deprecate(DeprecationCategory.SECURITY, "implicitly_disabled_native_realms",
+            "Found implicitly disabled native {}: [{}]. {} disabled because there are other explicitly configured realms." +
+            "In next major release, native realms will always be enabled unless explicitly disabled.",
+            implicitlyDisabledNativeRealmTypes.size() == 1 ? "realm" : "realms",
+            Strings.collectionToDelimitedString(implicitlyDisabledNativeRealmTypes, ","),
+            implicitlyDisabledNativeRealmTypes.size() == 1 ? "It is" : "They are"
+        );
+    }
 }

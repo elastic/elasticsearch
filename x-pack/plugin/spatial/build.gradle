@@ -15,6 +15,10 @@ dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
   api project(path: ':modules:geo')
   restTestConfig project(path: ':modules:geo', configuration: 'restTests')
+  api "com.wdtinc:mapbox-vector-tile:3.1.0"
+  //compile group: 'com.google.protobuf', name: 'protobuf-java', version: '3.14.0'
+  api "com.google.protobuf:protobuf-java:3.14.0"
+
 }
 
 restResources {

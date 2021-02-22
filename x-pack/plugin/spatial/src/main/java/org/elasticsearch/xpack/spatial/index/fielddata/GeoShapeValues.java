@@ -98,6 +98,10 @@ public abstract class GeoShapeValues {
             return boundingBox;
         }
 
+        public void visit(TriangleTreeReader.Visitor visitor) {
+            reader.visit(visitor);
+        }
+
         public GeoRelation relate(Rectangle rectangle) {
             int minX = CoordinateEncoder.GEO.encodeX(rectangle.getMinX());
             int maxX = CoordinateEncoder.GEO.encodeX(rectangle.getMaxX());

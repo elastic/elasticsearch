@@ -173,9 +173,10 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @SuppressForbidden(reason = "we manage references explicitly here")
-    private synchronized ElasticsearchDirectoryReader getReader() {
-        if (lastOpenedReader != null && lastOpenedReader.tryIncRef()) {
-            return lastOpenedReader;
+    private ElasticsearchDirectoryReader getReader() {
+        final ElasticsearchDirectoryReader readerRef = lastOpenedReader; // volatile read
+        if (readerRef != null && readerRef.tryIncRef()) {
+            return readerRef;
         }
         return null;
     }

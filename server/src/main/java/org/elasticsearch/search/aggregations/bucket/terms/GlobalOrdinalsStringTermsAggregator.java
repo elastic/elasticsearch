@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -72,10 +71,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         AggregatorFactories factories,
         Function<GlobalOrdinalsStringTermsAggregator, ResultStrategy<?, ?, ?>> resultStrategy,
         ValuesSource.Bytes.WithOrdinals valuesSource,
+        SortedSetDocValues values,
         BucketOrder order,
         DocValueFormat format,
         BucketCountThresholds bucketCountThresholds,
-        IncludeExclude.OrdinalsFilter includeExclude,
+        LongPredicate acceptedOrds,
         AggregationContext context,
         Aggregator parent,
         boolean remapGlobalOrds,
@@ -87,12 +87,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.valuesSource = valuesSource;
-        final IndexReader reader = context.searcher().getIndexReader();
-        final SortedSetDocValues values = reader.leaves().size() > 0 ?
-            valuesSource.globalOrdinalsValues(context.searcher().getIndexReader().leaves().get(0)) : DocValues.emptySortedSet();
         this.valueCount = values.getValueCount();
         this.lookupGlobalOrd = values::lookupOrd;
-        this.acceptedGlobalOrdinals = includeExclude == null ? ALWAYS_TRUE : includeExclude.acceptedGlobalOrdinals(values)::get;
+        this.acceptedGlobalOrdinals = acceptedOrds;
         if (remapGlobalOrds) {
             this.collectionStrategy = new RemapGlobalOrds(cardinality);
         } else {
@@ -267,6 +264,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             AggregatorFactories factories,
             Function<GlobalOrdinalsStringTermsAggregator, ResultStrategy<?, ?, ?>> resultStrategy,
             ValuesSource.Bytes.WithOrdinals valuesSource,
+            SortedSetDocValues values,
             BucketOrder order,
             DocValueFormat format,
             BucketCountThresholds bucketCountThresholds,
@@ -277,8 +275,24 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             boolean showTermDocCountError,
             Map<String, Object> metadata
         ) throws IOException {
-            super(name, factories, resultStrategy, valuesSource, order, format, bucketCountThresholds, null, context,
-                parent, remapGlobalOrds, collectionMode, showTermDocCountError, CardinalityUpperBound.ONE, metadata);
+            super(
+                name,
+                factories,
+                resultStrategy,
+                valuesSource,
+                values,
+                order,
+                format,
+                bucketCountThresholds,
+                l -> true,
+                context,
+                parent,
+                remapGlobalOrds,
+                collectionMode,
+                showTermDocCountError,
+                CardinalityUpperBound.ONE,
+                metadata
+            );
             assert factories == null || factories.countAggregators() == 0;
             this.segmentDocCounts = context.bigArrays().newLongArray(1, true);
         }
@@ -907,5 +921,5 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     /**
      * Predicate used for {@link #acceptedGlobalOrdinals} if there is no filter.
      */
-    private static final LongPredicate ALWAYS_TRUE = l -> true;
+    static final LongPredicate ALWAYS_TRUE = l -> true;
 }

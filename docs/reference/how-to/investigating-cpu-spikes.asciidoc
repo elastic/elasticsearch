@@ -27,7 +27,7 @@ These are indicators of high CPU utilization:
 Occasional high CPU jobs are expected, but constant high CPU usage on 
 long running jobs should be investigated.  If CPU utilization on a system
 with an Elasticsearch node is high then find out which Elasticsearch
-threads are contributing to this by using the <<cluster-nodes-hot-threads,hot threads>> API:
+threads are contributing to this by using the <<cluster-nodes-hot-threads,nodes hot threads API>>:
 
 [source,console]
 --------------------------------------------------
@@ -40,7 +40,7 @@ GET _nodes/hot_threads
 Common high CPU causes are heavy read/write. Certain elasticsearch operations
 can also be CPU intensive, like lookup, analyzer, nested aggregation, force
 merge, percolate query, machine learning jobs. Some watcher jobs can also be
-expansive (depends on the script)
+expansive (depending on the script).  Find long running tasks using the <<tasks,task management API>>: 
 
 [source,console]
 --------------------------------------------------

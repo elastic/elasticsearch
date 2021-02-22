@@ -8,21 +8,18 @@
 
 package org.apache.lucene.index;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * This is a modified version of {@link SoftDeletesDirectoryReaderWrapper} that materializes the liveDocs
@@ -36,7 +33,6 @@ import org.elasticsearch.common.lucene.Lucene;
  * @see SoftDeletesRetentionMergePolicy
  */
 public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectoryReader {
-    private final String field;
     private final CacheHelper readerCacheHelper;
     /**
      * Creates a new soft deletes wrapper.
@@ -44,26 +40,13 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
      * @param field the soft deletes field
      */
     public LazySoftDeletesDirectoryReaderWrapper(DirectoryReader in, String field) throws IOException {
-        this(in, new LazySoftDeletesSubReaderWrapper(Collections.emptyMap(), field));
-    }
-
-    private LazySoftDeletesDirectoryReaderWrapper(DirectoryReader in, LazySoftDeletesSubReaderWrapper wrapper) throws IOException {
-        super(in, wrapper);
-        this.field = wrapper.field;
+        super(in, new LazySoftDeletesSubReaderWrapper(field));
         readerCacheHelper = in.getReaderCacheHelper() == null ? null : new DelegatingCacheHelper(in.getReaderCacheHelper());
     }
 
     @Override
     protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-        Map<CacheKey, LeafReader> readerCache = new HashMap<>();
-        for (LeafReader reader : getSequentialSubReaders()) {
-            // we try to reuse the live docs instances here if the reader cache key didn't change
-            if (reader instanceof LazySoftDeletesFilterCodecReader && reader.getReaderCacheHelper() != null) {
-                readerCache.put(((LazySoftDeletesFilterCodecReader) reader).reader.getReaderCacheHelper().getKey(), reader);
-            }
-
-        }
-        return new LazySoftDeletesDirectoryReaderWrapper(in, new LazySoftDeletesSubReaderWrapper(readerCache, field));
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -72,13 +55,10 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
     }
 
     private static class LazySoftDeletesSubReaderWrapper extends SubReaderWrapper {
-        private final Map<CacheKey, LeafReader> mapping;
         private final String field;
 
-        LazySoftDeletesSubReaderWrapper(Map<CacheKey, LeafReader> oldReadersCache, String field) {
+        LazySoftDeletesSubReaderWrapper(String field) {
             Objects.requireNonNull(field, "Field must not be null");
-            assert oldReadersCache != null;
-            this.mapping = oldReadersCache;
             this.field = field;
         }
 
@@ -97,20 +77,11 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
 
         @Override
         public LeafReader wrap(LeafReader reader) {
-            CacheHelper readerCacheHelper = reader.getReaderCacheHelper();
-            if (readerCacheHelper != null && mapping.containsKey(readerCacheHelper.getKey())) {
-                // if the reader cache helper didn't change and we have it in the cache don't bother creating a new one
-                return mapping.get(readerCacheHelper.getKey());
-            }
-            try {
-                return LazySoftDeletesDirectoryReaderWrapper.wrap(reader, field);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            return LazySoftDeletesDirectoryReaderWrapper.wrap(reader, field);
         }
     }
 
-    static LeafReader wrap(LeafReader reader, String field) throws IOException {
+    static LeafReader wrap(LeafReader reader, String field) {
         final SegmentReader segmentReader = Lucene.segmentReader(reader);
         assert segmentReader.isNRT == false : "expected non-NRT reader";
         final SegmentCommitInfo segmentInfo = segmentReader.getSegmentInfo();

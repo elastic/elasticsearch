@@ -82,7 +82,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         analyticsConfig = new DataFrameAnalyticsConfig.Builder()
             .setId(JOB_ID)
             .setDescription(JOB_DESCRIPTION)
-            .setSource(new DataFrameAnalyticsSource(new String[] {"my_source"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"my_source"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("my_dest", null))
             .setAnalysis(new Regression("foo"))
             .build();

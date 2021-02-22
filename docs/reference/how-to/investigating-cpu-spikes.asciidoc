@@ -15,6 +15,7 @@ https://www.elastic.co/guide/en/kibana/current/alerting-getting-started.html
 [discrete]
 === Detecting high CPU utilization
 These are indicators of high CPU utilization:
+
 - monitoring reports high utilization
 - high load averages
 - frequesnt or long Java garbage collection (GC) cycles

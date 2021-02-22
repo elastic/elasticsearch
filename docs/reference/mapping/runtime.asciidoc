@@ -870,3 +870,115 @@ timestamp falls within the defined range.
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 // TESTRESPONSE[s/"_id" : "hdEhyncBRSB6iD-PoBqe"/"_id": $body.hits.hits.0._id/]
 // TESTRESPONSE[s/"_id" : "htEhyncBRSB6iD-PoBqe"/"_id": $body.hits.hits.1._id/]
+
+[[runtime-examples-dissect]]
+==== Define a runtime field with a dissect pattern
+<<dissect-processor,Dissect patterns>> are similar to grok patterns, but they
+don't accept regular expressions. This difference allows dissect’s syntax to be
+simple and for some cases faster than grok.
+
+You can use dissect to achieve the same results as a grok pattern, such as the
+<<runtime-examples-grok,`clientip` grok pattern>>. Instead of matching on a log
+pattern, you include the parts of the string that you want to discard. Paying
+special attention to the parts of the string you want to discard will help build
+successful dissect patterns.
+
+[source,console]
+----
+PUT my-index/_mappings
+{
+  "runtime": {
+    "http.client.ip": {
+      "type": "ip",
+      "script": """
+        String clientip=dissect('%{clientip} %{ident} %{auth} [%{@timestamp}] "%{verb} %{request} HTTP/%{httpversion}" %{status} %{size}').extract(doc["message"].value)?.clientip;
+        if (clientip != null) emit(clientip);
+      """
+    }
+  }
+}
+----
+// TEST[continued]
+
+Similarly, you can define a dissect pattern to discard everything in the log
+message except the HTTP response:
+
+[source,console]
+----
+PUT my-index/_mappings
+{
+  "runtime": {
+    "http.response": {
+      "type": "long",
+      "script": """
+        String response=dissect('%{clientip} %{ident} %{auth} [%{@timestamp}] "%{verb} %{request} HTTP/%{httpversion}" %{response} %{size}').extract(doc["message"].value)?.response;
+        if (response != null) emit(Integer.parseInt(response));
+      """
+    }
+  }
+}
+----
+// TEST[continued]
+
+You can then run a query to retrieve a specific HTTP response using the
+`http.response` runtime field:
+
+[source,console]
+----
+GET my-index/_search
+{
+  "query": {
+    "match": {
+      "http.response": "304"
+    }
+  },
+  "fields" : ["*"]
+}
+----
+// TEST[continued]
+
+The response includes a single document where the HTTP response is `304`:
+
+[source,console-result]
+----
+{
+  ...
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "my-index",
+        "_id" : "hNEhyncBRSB6iD-PoBqe",
+        "_score" : 1.0,
+        "_source" : {
+          "timestamp" : "2020-04-30T14:31:22-05:00",
+          "message" : "247.37.0.0 - - [30/Apr/2020:14:31:22 -0500] "\GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"
+        },
+        "fields" : {
+          "http.clientip" : [
+            "247.37.0.0"
+          ],
+          "http.response" : [
+            304
+          ],
+          "message" : [
+            "247.37.0.0 - - [30/Apr/2020:14:31:22 -0500] "\GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"
+          ],
+          "clientip.http" : [
+            "247.37.0.0"
+          ],
+          "timestamp" : [
+            "2020-04-30T19:31:22.000Z"
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+// TESTRESPONSE[s/"_id" : "hNEhyncBRSB6iD-PoBqe"/"_id": $body.hits.hits.0._id/]

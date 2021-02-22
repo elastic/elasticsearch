@@ -12,6 +12,14 @@ import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.painless.spi.annotation.CompileTimeOnlyAnnotation;
+import org.elasticsearch.runtimefields.mapper.AbstractFieldScript;
+import org.elasticsearch.runtimefields.mapper.BooleanFieldScript;
+import org.elasticsearch.runtimefields.mapper.DateFieldScript;
+import org.elasticsearch.runtimefields.mapper.DoubleFieldScript;
+import org.elasticsearch.runtimefields.mapper.GeoPointFieldScript;
+import org.elasticsearch.runtimefields.mapper.IpFieldScript;
+import org.elasticsearch.runtimefields.mapper.LongFieldScript;
+import org.elasticsearch.runtimefields.mapper.StringFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 
@@ -19,12 +27,11 @@ import java.util.List;
 import java.util.Map;
 
 public class RuntimeFieldsPainlessExtension implements PainlessExtension {
-    private final Whitelist commonWhitelist = WhitelistLoader.loadFromResourceFiles(AbstractFieldScript.class, "common_whitelist.txt");
-
-    private final Whitelist grokWhitelist;
+    private final List<Whitelist> whitelists;
 
     public RuntimeFieldsPainlessExtension(RuntimeFields plugin) {
-        grokWhitelist = new Whitelist(
+        Whitelist commonWhitelist = WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "common_whitelist.txt");
+        Whitelist grokWhitelist = new Whitelist(
             commonWhitelist.classLoader,
             org.elasticsearch.common.collect.List.of(),
             org.elasticsearch.common.collect.List.of(),
@@ -40,26 +47,19 @@ public class RuntimeFieldsPainlessExtension implements PainlessExtension {
                 )
             )
         );
-    }
-
-    private List<Whitelist> load(String path) {
-        return org.elasticsearch.common.collect.List.of(
-            commonWhitelist,
-            grokWhitelist,
-            WhitelistLoader.loadFromResourceFiles(AbstractFieldScript.class, path)
-        );
+        this.whitelists = org.elasticsearch.common.collect.List.of(commonWhitelist, grokWhitelist);
     }
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
         return org.elasticsearch.common.collect.Map.ofEntries(
-            org.elasticsearch.common.collect.Map.entry(BooleanFieldScript.CONTEXT, load("boolean_whitelist.txt")),
-            org.elasticsearch.common.collect.Map.entry(DateFieldScript.CONTEXT, load("date_whitelist.txt")),
-            org.elasticsearch.common.collect.Map.entry(DoubleFieldScript.CONTEXT, load("double_whitelist.txt")),
-            org.elasticsearch.common.collect.Map.entry(GeoPointFieldScript.CONTEXT, load("geo_point_whitelist.txt")),
-            org.elasticsearch.common.collect.Map.entry(IpFieldScript.CONTEXT, load("ip_whitelist.txt")),
-            org.elasticsearch.common.collect.Map.entry(LongFieldScript.CONTEXT, load("long_whitelist.txt")),
-            org.elasticsearch.common.collect.Map.entry(StringFieldScript.CONTEXT, load("string_whitelist.txt"))
+            org.elasticsearch.common.collect.Map.entry(BooleanFieldScript.CONTEXT, whitelists),
+            org.elasticsearch.common.collect.Map.entry(DateFieldScript.CONTEXT, whitelists),
+            org.elasticsearch.common.collect.Map.entry(DoubleFieldScript.CONTEXT, whitelists),
+            org.elasticsearch.common.collect.Map.entry(GeoPointFieldScript.CONTEXT, whitelists),
+            org.elasticsearch.common.collect.Map.entry(IpFieldScript.CONTEXT, whitelists),
+            org.elasticsearch.common.collect.Map.entry(LongFieldScript.CONTEXT, whitelists),
+            org.elasticsearch.common.collect.Map.entry(StringFieldScript.CONTEXT, whitelists)
         );
     }
 }

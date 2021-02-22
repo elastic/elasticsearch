@@ -121,16 +121,15 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
         ArgumentCaptor<PutComposableIndexTemplateAction.Request> argumentCaptor =
             ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
-        verify(client, times(3)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
+        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
 
         // now delete one template from the cluster state and lets retry
         Map<String, Integer> existingTemplates = new HashMap<>();
         existingTemplates.put(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
-        existingTemplates.put(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
         ClusterChangedEvent newEvent = createClusterChangedEvent(existingTemplates, nodes);
         registry.clusterChanged(newEvent);
         argumentCaptor = ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
-        verify(client, times(3)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
+        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
         PutComposableIndexTemplateAction.Request req = argumentCaptor.getAllValues().stream()
             .filter(r -> r.name().equals(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME))
             .findFirst()
@@ -149,16 +148,15 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
         ArgumentCaptor<PutComposableIndexTemplateAction.Request> argumentCaptor =
             ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
-        verify(client, times(3)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
+        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
 
         // now delete one template from the cluster state and lets retry
         Map<String, Integer> existingTemplates = new HashMap<>();
         existingTemplates.put(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
-        existingTemplates.put(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
         ClusterChangedEvent newEvent = createClusterChangedEvent(existingTemplates, nodes);
         registry.clusterChanged(newEvent);
         ArgumentCaptor<PutIndexTemplateRequest> captor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
-        verify(client, times(3)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
+        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
         captor.getAllValues().forEach(req -> assertNull(req.settings().get("index.lifecycle.name")));
         verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), anyObject(), anyObject());
     }
@@ -264,15 +262,13 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("master").add(localNode).add(masterNode).build();
 
         Map<String, Integer> existingTemplates = new HashMap<>();
-        existingTemplates.put(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
-        existingTemplates.put(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
         existingTemplates.put(".watch-history-6", 6);
         ClusterChangedEvent event = createClusterChangedEvent(existingTemplates, nodes);
         registry.clusterChanged(event);
 
         ArgumentCaptor<PutComposableIndexTemplateAction.Request> argumentCaptor =
             ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
-        verify(client, times(3)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
+        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
         assertTrue(argumentCaptor.getAllValues().stream()
             .anyMatch(r -> r.name().equals(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME)));
     }
@@ -283,8 +279,6 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("master").add(localNode).add(masterNode).build();
 
         Map<String, Integer> existingTemplates = new HashMap<>();
-        existingTemplates.put(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME, null);
-        existingTemplates.put(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME, null);
         existingTemplates.put(".watch-history-6", null);
         ClusterChangedEvent event = createClusterChangedEvent(existingTemplates, nodes);
         registry.clusterChanged(event);
@@ -297,8 +291,6 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").add(localNode).build();
 
         Map<String, Integer> existingTemplates = new HashMap<>();
-        existingTemplates.put(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME, null);
-        existingTemplates.put(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME, null);
         existingTemplates.put(".watch-history-6", null);
         ClusterChangedEvent event = createClusterChangedEvent(existingTemplates, nodes);
         registry.clusterChanged(event);

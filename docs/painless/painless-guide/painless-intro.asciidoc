@@ -1,6 +1,8 @@
 [[painless-intro]]
 === A Painless Introduction
 
+==== Welcome to Painless
+
 Welcome to the Painless scripting language!
 
 If you have reached this documentation, you are probably looking to come up
@@ -14,12 +16,10 @@ advanced use-cases. Each script context provides support for a different
 environment such as ingest or scoring and determines what data is available and
 how to access that data.
 
-For our examples in this introduction we use the
-<<painless-execute-api, painless execute API>> which by default allows
-us to test a script with simple user-defined parameters and receive a result.
+==== Design Philosophy
 
 Now, before we dive into the basics of writing a Painless script, let's discuss
-the design goals we have in mind when choosing the syntax and available
+the design philosophy we have in mind when choosing the syntax and available
 features for the language.
 
 * Safety: Our primary goal is to ensure the security of your cluster. To
@@ -34,28 +34,109 @@ optimizations the JVM provides which are numerous. We also generally avoid
 features that require additional slower checks at runtime.
 * Syntax: Our final goal is to implement a syntax with a natural familiarity to
 anyone with some basic coding experience. Painless uses a subset of Java syntax
-with some additional sugar to improve readability and remove some boilerplate.
-Use of a Java-like syntax has the additional benefit a of natural compilation
-path into JVM bytecode that the syntax and semantics of other languages tend to
+with some additional sugar to improve readability and remove boilerplate. Use
+of a Java-like syntax has the additional benefit of a natural compilation path
+into JVM bytecode that the syntax and semantics of other languages tend to
 heavily complicate.
 
-With that said, let's jump into the basics of a Painless script.
+With that said, let's jump into a few examples of a queries using a Painless
+script.
 
-==== The Basics of a Painless Script
+==== Hello, World!
 
-A Painless script is structured as one or more statements and optionally
-has one or more user-defined functions at the beginning. A script must always
-have at least one statement.
+For our examples in this introduction we use the
+<<painless-execute-api, painless execute API>> which by default allows
+us to test a script with simple user-defined parameters and receive a result.
 
-Let's take a look at simple script and then break out the individual pieces.
+===== Hello, World! as a simple REST query
+
+Let's take a look at a simple script and break out the individual pieces.
+
+[source,console]
+----
+POST /_scripts/painless/_execute <1>
+{
+  "script": { <2>
+    "source": "return 'Hello, world!';" <3>
+  }
+}
+----
+[TEST]
+<1> The url partially determines what script contexts are available. In this
+case we are using the painless execute API directly without any url parameters.
+This means we use the `painless_test` context that optionally makes available
+a `Map` of user-defined parameters, and then returns a value as an `Object`.
+`Map` and `Object` are known as types, and we will discuss this more in a bit.
+<2> We use a standard `script` JSON object to define scripts under most APIs
+in Elasticsearch. This particular blob requires `source` as shown here to
+define the code, optionally `lang` (though, Painless is the default), and
+optionally `params` defined by the user.
+<3> This is our actual script. We return a `String` value (converted to `Object`)
+of `Hello, world!`, and our response will display this value.
+
+===== Hello, World! with parameters
+
+Let's take a look at `lang` and `params` as part of the `script` JSON object.
 
 [source,console]
 ----
 POST /_scripts/painless/_execute
 {
   "script": {
-    "source": "'Hello, world!'"
+    "source": "return params.get('hello_world');", <1>
+    "lang": "painless", <2>
+    "params": { <3>
+        "hello_world": "Hello, World!"
+    }
   }
 }
 ----
 [TEST]
+<1> This is a big departure from the previous example. Here we have a
+`Map` of params that are user-defined. We then call the `get` method on
+params to access a value using the `String` key of `hello_world`. There
+are a lot of moving pieces here that we will discuss more about later on.
+<2> We explicitly specify the `Painless` language, but again, it's not
+actually necessary here as `Painless` is the default under most script
+contexts.
+<3> User-defined parameters are a JSON object that is parsed into a `Map`
+made available as a `params` variable within a Painless script. In this
+case, we have added a `String` value of `Hello, World!` with a `String`
+key of `hello_world`. We then access this value within the example script.
+
+===== Hello, World! but concise
+
+Let's make our script a bit more concise using some of the built-in sugar.
+
+[source,console]
+----
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": "params['hello_world']",
+    "params": {
+        "hello_world": "Hello, World!"
+    }
+  }
+}
+----
+[TEST]
+
+We have used three pieces of syntactic sugar to replace some verbosity for a
+simple script that is only a single line.
+
+. We first removed the `return` keyword. Painless automatically uses the final
+statement in a script (when able) to produce a return value in a script context
+that requires one.
+. We then removed the semicolon at the end of the statement. Painless does not
+require semicolons for the final statement of a block. (However, it does require
+them in other cases as to remove ambiguity.)
+. Finally, we removed the `get` method and replaced it with braces. Painless
+uses a shortcut specifically for the `Map` type that allows us to use braces
+instead of the lengthier `get` method.
+
+==== The Basics of Painless
+
+A Painless script is structured as one or more statements and optionally
+has one or more user-defined functions at the beginning. A script must always
+have at least one statement.

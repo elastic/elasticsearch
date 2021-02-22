@@ -69,7 +69,9 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                 typedChainTaskExecutor.execute(ActionListener.wrap(
                     inferenceResultsInterfaces -> {
                         model.release();
-                        listener.onResponse(responseBuilder.setInferenceResults(inferenceResultsInterfaces).build());
+                        listener.onResponse(responseBuilder.setInferenceResults(inferenceResultsInterfaces)
+                            .setModelId(model.getModelId())
+                            .build());
                     },
                     e -> {
                         model.release();

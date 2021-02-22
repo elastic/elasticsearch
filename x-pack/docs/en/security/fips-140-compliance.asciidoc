@@ -153,8 +153,8 @@ features are not available while running in FIPS 140-2 mode. The list is as foll
 * Ingest Attachment Plugin
 * The <<certutil,`elasticsearch-certutil`>> tool. However,
  `elasticsearch-certutil` can very well be used in a non FIPS 140-2
-  configured JVM (pointing `JAVA_HOME` environment variable to a different java
-  installation) in order to generate the keys and certificates that
+  configured JVM (pointing `ES_JAVA_HOME` environment variable to a different
+  java installation) in order to generate the keys and certificates that
   can be later used in the FIPS 140-2 configured JVM.
 * The SQL CLI client cannot run in a FIPS 140-2 configured JVM while using
   TLS for transport security or PKI for client authentication.

@@ -43,10 +43,8 @@ such as keywords and dates.
 get the values for specific stored fields (fields that use the
 <<mapping-store,`store`>> mapping option).
 
-If needed, you can use the <<script-fields,`script_field`>> parameter to
-transform field values in the response using a script. However, scripts can’t
-make use of {es}'s index structures or related optimizations. This can sometimes
-result in slower search speeds.
+You can also use the <<script-fields,`script_field`>> parameter to transform
+field values in the response using a script.
 
 You can find more detailed information on each of these methods in the
 following sections:

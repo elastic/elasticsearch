@@ -8,10 +8,12 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.NoMergePolicy;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -204,6 +206,50 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         for (Follower follower : followers) {
             follower.join();
             IOUtils.close(follower.engine, follower.engine.store);
+        }
+    }
+
+    public void testAccessStoredFieldsSequentially() throws Exception {
+        try (Store store = createStore();
+             Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
+            int smallBatch = between(5, 9);
+            long seqNo = 0;
+            for (int i = 0; i < smallBatch; i++) {
+                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), null), 1, seqNo, true));
+                seqNo++;
+            }
+            engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(1000), null), 1, 1000, true));
+            seqNo = 11;
+            int largeBatch = between(15, 100);
+            for (int i = 0; i < largeBatch; i++) {
+                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), null), 1, seqNo, true));
+                seqNo++;
+            }
+            // disable optimization for a small batch
+            Translog.Operation op;
+            try (LuceneChangesSnapshot snapshot =
+                     (LuceneChangesSnapshot) engine.newChangesSnapshot("test", 0L, between(1, smallBatch), false)) {
+                while ((op = snapshot.next()) != null) {
+                    assertFalse(op.toString(), snapshot.useSequentialStoredFieldsReader());
+                }
+                assertFalse(snapshot.useSequentialStoredFieldsReader());
+            }
+            // disable optimization for non-sequential accesses
+            try (LuceneChangesSnapshot snapshot =
+                     (LuceneChangesSnapshot) engine.newChangesSnapshot("test", between(1, 3), between(20, 100), false)) {
+                while ((op = snapshot.next()) != null) {
+                    assertFalse(op.toString(), snapshot.useSequentialStoredFieldsReader());
+                }
+                assertFalse(snapshot.useSequentialStoredFieldsReader());
+            }
+            // enable optimization for sequential access of 10+ docs
+            try (LuceneChangesSnapshot snapshot =
+                     (LuceneChangesSnapshot) engine.newChangesSnapshot("test", 11, between(21, 100), false)) {
+                while ((op = snapshot.next()) != null) {
+                    assertTrue(op.toString(), snapshot.useSequentialStoredFieldsReader());
+                }
+                assertTrue(snapshot.useSequentialStoredFieldsReader());
+            }
         }
     }
 

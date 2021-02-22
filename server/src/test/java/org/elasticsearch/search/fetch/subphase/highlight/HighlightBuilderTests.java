@@ -681,7 +681,9 @@ public class HighlightBuilderTests extends ESTestCase {
                 highlightBuilder.requireFieldMatch(toggleOrSet(highlightBuilder.requireFieldMatch()));
                 break;
             case 17:
-                highlightBuilder.maxAnalyzedOffset(randomIntBetween(1, 100));
+                highlightBuilder.maxAnalyzedOffset(
+                    randomValueOtherThan(highlightBuilder.maxAnalyzedOffset(), () -> randomIntBetween(1, 100))
+                );
                 break;
         }
     }

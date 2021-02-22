@@ -176,6 +176,8 @@ public class DataFrameDataExtractor {
             searchRequestBuilder.addDocValueField(docValueField.getSearchField(), docValueField.getDocValueFormat());
         }
 
+        searchRequestBuilder.setRuntimeMappings(context.runtimeMappings);
+
         return searchRequestBuilder;
     }
 
@@ -341,7 +343,8 @@ public class DataFrameDataExtractor {
             .setIndices(context.indices)
             .setSize(0)
             .setQuery(summaryQuery)
-            .setTrackTotalHits(true);
+            .setTrackTotalHits(true)
+            .setRuntimeMappings(context.runtimeMappings);
     }
 
     private QueryBuilder allExtractedFieldsExistQuery() {

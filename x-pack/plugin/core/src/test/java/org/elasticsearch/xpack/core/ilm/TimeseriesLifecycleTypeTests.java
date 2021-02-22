@@ -54,7 +54,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final DeleteAction TEST_DELETE_ACTION = new DeleteAction();
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
-    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null);
+    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null, null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
     private static final FreezeAction TEST_FREEZE_ACTION = new FreezeAction();
@@ -254,7 +254,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
-            Phase hot = new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L),
+            Phase hot = new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1L),
             SearchableSnapshotAction.NAME, new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10))));
             Phase warm = new Phase("warm", TimeValue.ZERO, Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null)));
             Phase cold = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction()));
@@ -570,6 +570,10 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertNextActionName("cold", SetPriorityAction.NAME, null, new String[] { SetPriorityAction.NAME });
         assertNextActionName("cold", SetPriorityAction.NAME, null, new String[] {});
 
+        assertNextActionName("cold", UnfollowAction.NAME, ReadOnlyAction.NAME,
+            new String[] {ReadOnlyAction.NAME, SearchableSnapshotAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME});
+        assertNextActionName("cold", UnfollowAction.NAME, SearchableSnapshotAction.NAME,
+            new String[] {SearchableSnapshotAction.NAME, AllocateAction.NAME, FreezeAction.NAME});
         assertNextActionName("cold", UnfollowAction.NAME, AllocateAction.NAME,
             new String[] {SetPriorityAction.NAME, AllocateAction.NAME, FreezeAction.NAME});
         assertNextActionName("cold", UnfollowAction.NAME, AllocateAction.NAME,
@@ -588,7 +592,6 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertInvalidAction("cold", "foo", new String[] { AllocateAction.NAME });
         assertInvalidAction("cold", DeleteAction.NAME, new String[] { AllocateAction.NAME });
         assertInvalidAction("cold", ForceMergeAction.NAME, new String[] { AllocateAction.NAME });
-        assertInvalidAction("cold", ReadOnlyAction.NAME, new String[] { AllocateAction.NAME });
         assertInvalidAction("cold", RolloverAction.NAME, new String[] { AllocateAction.NAME });
         assertInvalidAction("cold", ShrinkAction.NAME, new String[] { AllocateAction.NAME });
 
@@ -727,7 +730,11 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             case ReadOnlyAction.NAME:
                 return new ReadOnlyAction();
             case RolloverAction.NAME:
-                return new RolloverAction(ByteSizeValue.parseBytesSizeValue("0b", "test"), TimeValue.ZERO, 1L);
+                return new RolloverAction(
+                    ByteSizeValue.parseBytesSizeValue("0b", "test"),
+                    ByteSizeValue.parseBytesSizeValue("0b", "test"),
+                    TimeValue.ZERO,
+                    1L);
             case ShrinkAction.NAME:
                 return new ShrinkAction(1, null);
             case FreezeAction.NAME:
@@ -740,6 +747,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 return new MigrateAction(true);
             case RollupILMAction.NAME:
                 return TEST_ROLLUP_ACTION;
+            case SearchableSnapshotAction.NAME:
+                return TEST_SEARCHABLE_SNAPSHOT_ACTION;
             }
             return new DeleteAction();
         }).collect(Collectors.toConcurrentMap(LifecycleAction::getWriteableName, Function.identity()));

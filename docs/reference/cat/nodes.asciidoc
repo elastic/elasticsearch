@@ -48,11 +48,20 @@ Valid columns are:
 (Default) Used file descriptors percentage, such as `1`.
 
 `node.role`, `r`, `role`, `nodeRole`::
-(Default) Roles of the node. Returned values include `c` (cold node), `d` (data
-node), `h` (hot node), `i` (ingest node), `l` (machine learning node), `m`
-(master-eligible node), `r` (remote cluster client node), `s` (content node),
-`t` ({transform} node), `v` (voting-only node), `w` (warm node) and `-`
-(coordinating node only).
+(Default) Roles of the node. Returned values include
+`c` (cold node),
+`d` (data node),
+`f` (frozen node),
+`h` (hot node),
+`i` (ingest node),
+`l` (machine learning node),
+`m` (master-eligible node),
+`r` (remote cluster client node),
+`s` (content node),
+`t` ({transform} node),
+`v` (voting-only node),
+`w` (warm node), and 
+`-` (coordinating node only).
 +
 For example, `dim` indicates a master-eligible data and ingest node. See
 <<modules-node>>.

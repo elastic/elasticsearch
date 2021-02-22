@@ -792,8 +792,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         break;
                     }
                 }
-                if (missingIndex == false) {
-                    dataStreams.put(dataStreamName, dataStream);
+                final DataStream reconciled = missingIndex ? dataStream.snapshot(indicesInSnapshot) : dataStream;
+                if (reconciled != null) {
+                    dataStreams.put(dataStreamName, reconciled);
                 }
             }
         }

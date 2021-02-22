@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -114,6 +116,21 @@ public class TransportPutDataFrameAnalyticsAction
                                    ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
 
         final DataFrameAnalyticsConfig config = request.getConfig();
+
+        // Check if runtime mappings are used but the cluster contains nodes on a version
+        // before runtime fields were introduced and reject such configs.
+        if (config.getSource().getRuntimeMappings().isEmpty() == false && state.nodes().getMinNodeVersion().before(Version.V_7_11_0)) {
+            listener.onFailure(ExceptionsHelper.badRequestException(
+                    "at least one cluster node is on a version [{}] that does not support [{}]; " +
+                    "all nodes should be at least on version [{}] in order to create data frame analytics with [{}]",
+                    state.nodes().getMinNodeVersion(),
+                    SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName(),
+                    Version.V_7_11_0,
+                    SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()
+                )
+            );
+            return;
+        }
 
         ActionListener<Boolean> sourceDestValidationListener = ActionListener.wrap(
             aBoolean -> putValidatedConfig(config, listener),

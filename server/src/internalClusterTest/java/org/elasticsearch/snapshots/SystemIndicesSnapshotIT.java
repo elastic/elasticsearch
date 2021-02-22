@@ -820,9 +820,11 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String fullIndexName = AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME;
         final String nonsystemIndex = "nonsystem-idx";
 
+        final int nodesInCluster = internalCluster().size();
         // Stop one data node so we only have one data node to start with
         internalCluster().stopNode(dataNodes.get(1));
         dataNodes.remove(1);
+        ensureStableCluster(nodesInCluster - 1);
 
         createRepositoryNoVerify(REPO_NAME, "mock");
 
@@ -864,7 +866,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         unblockNode(REPO_NAME, dataNodes.get(1));
 
         logger.info("--> Repo unblocked, checking that snapshot finished...");
-        CreateSnapshotResponse createSnapshotResponse = createSnapshotFuture.actionGet();
+        CreateSnapshotResponse createSnapshotResponse = createSnapshotFuture.get();
         logger.info(createSnapshotResponse.toString());
         assertThat(createSnapshotResponse.status(), equalTo(RestStatus.OK));
 

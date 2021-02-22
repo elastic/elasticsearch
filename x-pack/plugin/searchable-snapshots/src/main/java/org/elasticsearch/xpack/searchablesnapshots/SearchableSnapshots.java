@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.FrozenEngine;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.Store;
@@ -54,6 +55,8 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -230,6 +233,21 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         }
     }
 
+    public static BlobStoreRepository getSearchableRepository(Repository repository) {
+        if (repository instanceof SourceOnlySnapshotRepository) {
+            repository = ((SourceOnlySnapshotRepository) repository).getDelegate();
+        }
+        if (repository instanceof BlobStoreRepository == false) {
+            throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
+        }
+        if (repository.getMetadata().type().equals(BlobStoreRepository.URL_REPOSITORY_TYPE)) {
+            throw new IllegalArgumentException(
+                "Searchable snapshots are not supported on URL repositories [" + repository.getMetadata().name() + "]"
+            );
+        }
+        return (BlobStoreRepository) repository;
+    }
+
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
@@ -371,20 +389,38 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())
-            && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
-            return Optional.of(
-                engineConfig -> new ReadOnlyEngine(
-                    engineConfig,
-                    null,
-                    new TranslogStats(),
-                    false,
-                    indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
-                        ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
-                        : Function.identity(),
-                    false
-                )
-            );
+        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())) {
+            final Boolean frozen = indexSettings.getSettings().getAsBoolean("index.frozen", null);
+            final boolean useFrozenEngine = SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.get(indexSettings.getSettings())
+                && (frozen == null || frozen.equals(Boolean.TRUE));
+
+            if (useFrozenEngine) {
+                return Optional.of(
+                    engineConfig -> new FrozenEngine(
+                        engineConfig,
+                        null,
+                        new TranslogStats(),
+                        false,
+                        indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
+                            ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
+                            : Function.identity(),
+                        false
+                    )
+                );
+            } else {
+                return Optional.of(
+                    engineConfig -> new ReadOnlyEngine(
+                        engineConfig,
+                        null,
+                        new TranslogStats(),
+                        false,
+                        indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
+                            ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
+                            : Function.identity(),
+                        false
+                    )
+                );
+            }
         }
         return Optional.empty();
     }

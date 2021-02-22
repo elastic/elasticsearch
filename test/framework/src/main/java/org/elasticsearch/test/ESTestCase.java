@@ -47,6 +47,7 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -111,11 +112,13 @@ import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -1292,7 +1295,11 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, String data) throws IOException {
-        return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
+        if (randomBoolean()) {
+            return createParserWithCompatibilityFor(xContent, data, RestApiCompatibleVersion.minimumSupported());
+        } else {
+            return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
+        }
     }
 
     /**
@@ -1327,6 +1334,12 @@ public abstract class ESTestCase extends LuceneTestCase {
                     namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, array.array(), array.offset(), array.length());
         }
         return xContent.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, data.streamInput());
+    }
+
+    protected final XContentParser createParserWithCompatibilityFor(XContent xContent, String data,
+                                                            RestApiCompatibleVersion restApiCompatibleVersion) throws IOException {
+        return xContent.createParserForCompatibility(xContentRegistry(), LoggingDeprecationHandler.INSTANCE,
+            new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8)), restApiCompatibleVersion);
     }
 
     private static final NamedXContentRegistry DEFAULT_NAMED_X_CONTENT_REGISTRY =

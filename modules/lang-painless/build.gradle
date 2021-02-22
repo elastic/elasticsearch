@@ -124,6 +124,7 @@ tasks.register("generateContextApiSpec", DefaultTestClustersTask) {
       classpath = sourceSets.doc.runtimeClasspath
       systemProperty "cluster.uri", "${-> testClusters.generateContextApiSpecCluster.singleNode().getAllHttpSocketURI().get(0)}"
       systemProperty "jdksrc", System.getProperty("jdksrc")
+      systemProperty "packageSources", System.getProperty("packageSources")
     }.assertNormalExitValue()
   }
 }

@@ -33,8 +33,10 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 import java.util.stream.StreamSupport;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -911,12 +913,22 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED), empty());
     }
 
-    public void testExplanationWithoutForcedAttributes() {
+    public void testExplanation() {
         testExplanation(Settings.builder()
                         .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone"),
+                UnaryOperator.identity(),
                 "there are [5] copies of this shard and [2] values for attribute [zone] ([a, b] from nodes in the cluster and " +
                         "no forced awareness) so there may be at most [3] copies of this shard allocated to nodes with each " +
                         "value, but (including this copy) there would be [4] copies allocated to nodes with [node.attr.zone: a]");
+    }
+
+    public void testExplanationWithMissingAttribute() {
+        testExplanation(Settings.builder()
+                        .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone"),
+                n -> n.add(newNode("X-0", emptyMap())),
+                "there are [5] copies of this shard and [3] values for attribute [zone] ([<missing>, a, b] from nodes in the cluster and " +
+                        "no forced awareness) so there may be at most [2] copies of this shard allocated to nodes with each " +
+                        "value, but (including this copy) there would be [3] copies allocated to nodes with [node.attr.zone: a]");
     }
 
     public void testExplanationWithForcedAttributes() {
@@ -924,12 +936,16 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                         .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
                         .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values",
                                 "b,c"),
+                UnaryOperator.identity(),
                 "there are [5] copies of this shard and [3] values for attribute [zone] ([a, b] from nodes in the cluster and " +
                         "[b, c] from forced awareness) so there may be at most [2] copies of this shard allocated to nodes with each " +
                         "value, but (including this copy) there would be [3] copies allocated to nodes with [node.attr.zone: a]");
     }
 
-    private void testExplanation(Settings.Builder settingsBuilder, String expectedMessage) {
+    private void testExplanation(
+            Settings.Builder settingsBuilder,
+            UnaryOperator<DiscoveryNodes.Builder> nodesOperator,
+            String expectedMessage) {
         final Settings settings = settingsBuilder
                 .build();
 
@@ -945,13 +961,13 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                         .routingTable(RoutingTable.builder()
                                 .addAsNew(metadata.index("test"))
                                 .build())
-                        .nodes(DiscoveryNodes.builder()
+                        .nodes(nodesOperator.apply(DiscoveryNodes.builder()
                                 .add(newNode("A-0", singletonMap("zone", "a")))
                                 .add(newNode("A-1", singletonMap("zone", "a")))
                                 .add(newNode("A-2", singletonMap("zone", "a")))
                                 .add(newNode("A-3", singletonMap("zone", "a")))
                                 .add(newNode("A-4", singletonMap("zone", "a")))
-                                .add(newNode("B-0", singletonMap("zone", "b")))
+                                .add(newNode("B-0", singletonMap("zone", "b"))))
                         ).build(), strategy);
 
         final ShardRouting unassignedShard = clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0);

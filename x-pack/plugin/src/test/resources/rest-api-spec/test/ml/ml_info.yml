@@ -8,11 +8,6 @@ teardown:
 
 ---
 "Test ml info":
-
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/66885"
-
   - do:
       ml.info: {}
   - match: { defaults.anomaly_detectors.categorization_analyzer.tokenizer: "ml_classic" }

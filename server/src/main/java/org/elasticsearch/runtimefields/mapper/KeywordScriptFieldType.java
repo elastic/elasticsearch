@@ -55,7 +55,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         }
     });
 
-    KeywordScriptFieldType(String name) {
+    public KeywordScriptFieldType(String name) {
         this(name, StringFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, includeDefaults) -> {});
     }
 

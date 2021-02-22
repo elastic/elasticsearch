@@ -956,7 +956,7 @@ The response includes a single document where the HTTP response is `304`:
         "_score" : 1.0,
         "_source" : {
           "timestamp" : "2020-04-30T14:31:22-05:00",
-          "message" : "247.37.0.0 - - [30/Apr/2020:14:31:22 -0500] "\GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"
+          "message" : "247.37.0.0 - - [30/Apr/2020:14:31:22 -0500] \"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"
         },
         "fields" : {
           "http.clientip" : [
@@ -966,7 +966,7 @@ The response includes a single document where the HTTP response is `304`:
             304
           ],
           "message" : [
-            "247.37.0.0 - - [30/Apr/2020:14:31:22 -0500] "\GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"
+            "247.37.0.0 - - [30/Apr/2020:14:31:22 -0500] \"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"
           ],
           "clientip.http" : [
             "247.37.0.0"

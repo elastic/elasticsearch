@@ -421,7 +421,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                         indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
                             ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
                             : Function.identity(),
-                        false
+                        false,
+                        true
                     )
                 );
             } else {
@@ -434,7 +435,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                         indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
                             ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
                             : Function.identity(),
-                        false
+                        false,
+                        true
                     )
                 );
             }

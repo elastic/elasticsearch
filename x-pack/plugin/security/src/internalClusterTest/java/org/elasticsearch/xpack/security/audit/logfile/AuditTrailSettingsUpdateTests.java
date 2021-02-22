@@ -124,6 +124,20 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         assertThat(e.getMessage(), containsString("illegal value can't update"));
     }
 
+    public void testInvalidBothPrivilegesFilterSettings() throws Exception {
+        final Settings.Builder settingsBuilder1 = Settings.builder();
+        settingsBuilder1.putList("xpack.security.audit.logfile.events.ignore_filters.BothPrivilegesFilter.index_privileges",
+            "read");
+        updateSettings(settingsBuilder1.build(), true);
+
+        final Settings.Builder settingsBuilder2 = Settings.builder();
+        settingsBuilder2.putList("xpack.security.audit.logfile.events.ignore_filters.BothPrivilegesFilter.cluster_privileges", "monitor");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> updateSettings(settingsBuilder2.build(), true));
+        assertThat(e.getMessage(), containsString("illegal value can't update"));
+    }
+
     public void testDynamicHostSettings() {
         final boolean persistent = randomBoolean();
         final Settings.Builder settingsBuilder = Settings.builder();

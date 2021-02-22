@@ -43,9 +43,12 @@ public class UserAgentProcessorTests extends ESTestCase {
     @BeforeClass
     public static void setupProcessor() throws IOException {
         InputStream regexStream = UserAgentProcessor.class.getResourceAsStream("/regexes.yml");
-        assertNotNull(regexStream);
+        InputStream deviceTypeRegexStream = UserAgentProcessor.class.getResourceAsStream("/device_type_regexes.yml");
 
-        UserAgentParser parser = new UserAgentParser(randomAlphaOfLength(10), regexStream, new UserAgentCache(1000));
+        assertNotNull(regexStream);
+        assertNotNull(deviceTypeRegexStream);
+
+        UserAgentParser parser = new UserAgentParser(randomAlphaOfLength(10), regexStream,deviceTypeRegexStream, new UserAgentCache(1000));
 
         processor = new UserAgentProcessor(randomAlphaOfLength(10), null, "source_field", "target_field", parser,
                 EnumSet.allOf(UserAgentProcessor.Property.class), false);
@@ -112,6 +115,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         assertThat(target.get("os"), is(os));
         Map<String, String> device = new HashMap<>();
         device.put("name", "Mac");
+        device.put("type", "Desktop");
         assertThat(target.get("device"), is(device));
     }
 
@@ -140,6 +144,7 @@ public class UserAgentProcessorTests extends ESTestCase {
 
         Map<String, String> device = new HashMap<>();
         device.put("name", "Motorola Xoom");
+        device.put("type", "Mobile");
         assertThat(target.get("device"), is(device));
     }
 
@@ -163,6 +168,36 @@ public class UserAgentProcessorTests extends ESTestCase {
 
         Map<String, String> device = new HashMap<>();
         device.put("name", "Spider");
+        device.put("type", "Robot");
+        assertThat(target.get("device"), is(device));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testTablet() throws Exception {
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field",
+            "Mozilla/5.0 (iPad; CPU OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1 Mobile/15E148 Safari/604.1");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        processor.execute(ingestDocument);
+        Map<String, Object> data = ingestDocument.getSourceAndMetadata();
+
+        assertThat(data, hasKey("target_field"));
+        Map<String, Object> target = (Map<String, Object>) data.get("target_field");
+
+        assertThat(target.get("name"), is("Mobile Safari"));
+
+        assertThat(target.get("version"), is("12.1"));
+
+        Map<String, String> os = new HashMap<>();
+        os.put("name", "iOS");
+        os.put("version", "12.2");
+        os.put("full", "iOS 12.2");
+        assertThat(target.get("os"), is(os));
+
+        Map<String, String> device = new HashMap<>();
+        device.put("name", "iPad");
+        device.put("type", "Tablet");
         assertThat(target.get("device"), is(device));
     }
 
@@ -188,6 +223,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         assertNull(target.get("os"));
         Map<String, String> device = new HashMap<>();
         device.put("name", "Other");
+        device.put("type", "Other");
         assertThat(target.get("device"), is(device));
     }
 }

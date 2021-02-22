@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.async;
 
@@ -51,7 +52,6 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
         plugins.add(TestPlugin.class);
-        plugins.add(ExpirationTimeScriptPlugin.class);
         return plugins;
     }
 
@@ -62,6 +62,16 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
             return List.of(AsyncTaskIndexService.getSystemIndexDescriptor());
+        }
+
+        @Override
+        public String getFeatureName() {
+            return this.getClass().getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return this.getClass().getCanonicalName();
         }
     }
 
@@ -155,7 +165,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         // And so does updating the expiration time
         {
             PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
-            indexService.extendExpirationTime("0", 10L, future);
+            indexService.updateExpirationTime("0", 10L, future);
             expectThrows(Exception.class, future::get);
             assertSettings();
         }
@@ -176,6 +186,4 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         Settings expected = AsyncTaskIndexService.settings();
         assertEquals(expected, settings.filter(expected::hasValue));
     }
-
-
 }

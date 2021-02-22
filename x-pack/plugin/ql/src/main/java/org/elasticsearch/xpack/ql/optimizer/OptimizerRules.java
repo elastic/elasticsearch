@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.optimizer;
 
@@ -499,14 +500,14 @@ public final class OptimizerRules {
                         Integer upperComp = range.upper().foldable() ? BinaryComparison.compare(eqValue, range.upper().fold()) : null;
 
                         if (lowerComp != null && lowerComp == 0) {
-                            if (!range.includeLower()) { // a = 2 OR 2 < a < ? -> 2 <= a < ?
+                            if (range.includeLower() == false) { // a = 2 OR 2 < a < ? -> 2 <= a < ?
                                 ranges.set(i, new Range(range.source(), range.value(), range.lower(), true,
                                     range.upper(), range.includeUpper(), range.zoneId()));
                             } // else : a = 2 OR 2 <= a < ? -> 2 <= a < ?
                             removeEquals = true; // update range with lower equality instead or simply superfluous
                             break;
                         } else if (upperComp != null && upperComp == 0) {
-                            if (!range.includeUpper()) { // a = 2 OR ? < a < 2 -> ? < a <= 2
+                            if (range.includeUpper() == false) { // a = 2 OR ? < a < 2 -> ? < a <= 2
                                 ranges.set(i, new Range(range.source(), range.value(), range.lower(), range.includeLower(),
                                     range.upper(), true, range.zoneId()));
                             } // else : a = 2 OR ? < a <= 2 -> ? < a <= 2
@@ -614,7 +615,7 @@ public final class OptimizerRules {
                     } else {
                         ranges.add(r);
                     }
-                } else if (ex instanceof BinaryComparison && !(ex instanceof Equals || ex instanceof NotEquals)) {
+                } else if (ex instanceof BinaryComparison && (ex instanceof Equals || ex instanceof NotEquals) == false) {
                     BinaryComparison bc = (BinaryComparison) ex;
 
                     if (bc.right().foldable() && (findConjunctiveComparisonInRange(bc, ranges) || findExistingComparison(bc, bcs, true))) {
@@ -713,7 +714,7 @@ public final class OptimizerRules {
         }
 
         private static boolean findExistingRange(Range main, List<Range> ranges, boolean conjunctive) {
-            if (!main.lower().foldable() && !main.upper().foldable()) {
+            if (main.lower().foldable() == false && main.upper().foldable() == false) {
                 return false;
             }
             // NB: the loop modifies the list (hence why the int is used)
@@ -817,7 +818,7 @@ public final class OptimizerRules {
                         }
 
                         // if the range in included, no need to add it
-                        return compared && (!((lower && !lowerEq) || (upper && !upperEq)));
+                        return compared && (((lower && lowerEq == false) || (upper && upperEq == false)) == false);
                     }
                 }
             }
@@ -893,7 +894,7 @@ public final class OptimizerRules {
             for (int i = 0; i < bcs.size(); i++) {
                 BinaryComparison other = bcs.get(i);
                 // skip if cannot evaluate
-                if (!other.right().foldable()) {
+                if (other.right().foldable() == false) {
                     continue;
                 }
                 // if bc is a higher/lower value or gte vs gt, use it instead
@@ -1383,7 +1384,7 @@ public final class OptimizerRules {
                 }
             }
 
-            if (!condition.equals(filter.condition())) {
+            if (condition.equals(filter.condition()) == false) {
                 return new Filter(filter.source(), filter.child(), condition);
             }
             return filter;
@@ -1470,12 +1471,19 @@ public final class OptimizerRules {
                 StringPattern pattern = regexMatch.pattern();
                 if (pattern.matchesAll()) {
                     e = new IsNotNull(e.source(), regexMatch.field());
-                } else if (pattern.isExactMatch()) {
-                    Literal literal = new Literal(regexMatch.source(), regexMatch.pattern().asString(), DataTypes.KEYWORD);
-                    e = new Equals(e.source(), regexMatch.field(), literal);
+                } else {
+                    String match = pattern.exactMatch();
+                    if (match != null) {
+                        Literal literal = new Literal(regexMatch.source(), match, DataTypes.KEYWORD);
+                        e = regexToEquals(regexMatch, literal);
+                    }
                 }
             }
             return e;
+        }
+
+        protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
+            return new Equals(regexMatch.source(), regexMatch.field(), literal);
         }
     }
 
@@ -1489,7 +1497,7 @@ public final class OptimizerRules {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            if (!plan.optimized()) {
+            if (plan.optimized() == false) {
                 plan.setOptimized();
             }
             return plan;

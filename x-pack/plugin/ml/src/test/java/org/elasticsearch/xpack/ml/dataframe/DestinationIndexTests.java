@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
@@ -462,7 +463,7 @@ public class DestinationIndexTests extends ESTestCase {
     private static DataFrameAnalyticsConfig createConfig(DataFrameAnalysis analysis) {
         return new DataFrameAnalyticsConfig.Builder()
             .setId(ANALYTICS_ID)
-            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, null))
+            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, null, null))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, null))
             .setAnalysis(analysis)
             .build();

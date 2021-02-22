@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.transform.rest.action;
 
@@ -169,6 +170,16 @@ public class RestCatTransformAction extends AbstractCatAction {
                     .build()
             )
             .addCell(
+                "delete_time",
+                TableColumnAttributeBuilder.builder("total time spent deleting documents", false).setAliases("dtime").build()
+            )
+            .addCell(
+                "documents_deleted",
+                TableColumnAttributeBuilder.builder("the number of documents deleted from the destination index", false)
+                    .setAliases("docd")
+                    .build()
+            )
+            .addCell(
                 "trigger_count",
                 TableColumnAttributeBuilder.builder("the number of times the transform has been triggered", false).setAliases("tc").build()
             )
@@ -265,6 +276,8 @@ public class RestCatTransformAction extends AbstractCatAction {
                 .addCell(transformIndexerStats == null ? null : TimeValue.timeValueMillis(transformIndexerStats.getIndexTime()))
 
                 .addCell(transformIndexerStats == null ? null : transformIndexerStats.getOutputDocuments())
+                .addCell(transformIndexerStats == null ? null : TimeValue.timeValueMillis(transformIndexerStats.getDeleteTime()))
+                .addCell(transformIndexerStats == null ? null : transformIndexerStats.getNumDeletedDocuments())
                 .addCell(transformIndexerStats == null ? null : transformIndexerStats.getNumInvocations())
                 .addCell(transformIndexerStats == null ? null : transformIndexerStats.getNumPages())
                 .addCell(transformIndexerStats == null ? null : TimeValue.timeValueMillis(transformIndexerStats.getProcessingTime()))

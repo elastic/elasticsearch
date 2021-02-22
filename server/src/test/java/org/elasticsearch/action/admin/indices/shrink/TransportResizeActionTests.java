@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.shrink;
@@ -241,19 +230,19 @@ public class TransportResizeActionTests extends ESTestCase {
         assertEquals(TransportResizeAction.calTargetShardsNum(60, 31), 60);
     }
 
-    public void testShrinkWithMaxSinglePrimarySize() {
+    public void testShrinkWithMaxPrimaryShardSize() {
         int sourceIndexShardsNum = randomIntBetween(2, 42);
         IndexMetadata state = createClusterState("source", sourceIndexShardsNum, randomIntBetween(0, 10),
             Settings.builder().put("index.blocks.write", true).build()).metadata().index("source");
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
-        resizeRequest.setMaxSinglePrimarySize(new ByteSizeValue(10));
+        resizeRequest.setMaxPrimaryShardSize(new ByteSizeValue(10));
         resizeRequest.getTargetIndexRequest()
             .settings(Settings.builder().put("index.number_of_shards", 2).build());
         assertTrue(
             expectThrows(IllegalArgumentException.class, () ->
                 TransportResizeAction.prepareCreateIndexRequest(resizeRequest, state, new StoreStats(between(1, 100), between(1, 100)),
                     (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100)), "target")
-            ).getMessage().startsWith("Cannot set both index.number_of_shards and max_single_primary_size for the target index"));
+            ).getMessage().startsWith("Cannot set both index.number_of_shards and max_primary_shard_size for the target index"));
 
         // create one that won't fail
         ClusterState clusterState = ClusterState.builder(createClusterState("source", 10, 0,
@@ -274,9 +263,9 @@ public class TransportResizeActionTests extends ESTestCase {
         int numSourceShards = clusterState.metadata().index("source").getNumberOfShards();
         DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / numSourceShards), between(1, 1000), between(1, 10000));
 
-        // each shard's storage will not be greater than the `max_single_primary_size`
+        // each shard's storage will not be greater than the `max_primary_shard_size`
         ResizeRequest target1 = new ResizeRequest("target", "source");
-        target1.setMaxSinglePrimarySize(new ByteSizeValue(2));
+        target1.setMaxPrimaryShardSize(new ByteSizeValue(2));
         StoreStats storeStats = new StoreStats(10, between(1, 100));
         final int targetIndexShardsNum1 = 5;
         final ActiveShardCount activeShardCount1 = ActiveShardCount.from(targetIndexShardsNum1);
@@ -290,10 +279,10 @@ public class TransportResizeActionTests extends ESTestCase {
         assertEquals("shrink_index", request1.cause());
         assertEquals(request1.waitForActiveShards(), activeShardCount1);
 
-        // if `max_single_primary_size` is less than the single shard size of the source index,
+        // if `max_primary_shard_size` is less than the single shard size of the source index,
         // the shards number of the target index will be equal to the source index's shards number
         ResizeRequest target2 = new ResizeRequest("target2", "source");
-        target2.setMaxSinglePrimarySize(new ByteSizeValue(1));
+        target2.setMaxPrimaryShardSize(new ByteSizeValue(1));
         StoreStats storeStats2 = new StoreStats(100, between(1, 100));
         final int targetIndexShardsNum2 = 10;
         final ActiveShardCount activeShardCount2 = ActiveShardCount.from(targetIndexShardsNum2);

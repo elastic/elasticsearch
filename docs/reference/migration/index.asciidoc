@@ -1,5 +1,5 @@
 [[breaking-changes]]
-= Breaking changes
+= Migration guide
 
 [partintro]
 --
@@ -35,7 +35,7 @@ For more information about {minor-version},
 see the <<release-highlights>> and <<es-release-notes>>.
 For information about how to upgrade your cluster, see <<setup-upgrade>>.	For information about how to upgrade your cluster, see <<setup-upgrade>>.
 
-* <<breaking-changes-8.0,Breaking changes in 8.0>>
+* <<migrating-8.0,Migrating to 8.0>>
 
 --
 include::migrate_8_0.asciidoc[]

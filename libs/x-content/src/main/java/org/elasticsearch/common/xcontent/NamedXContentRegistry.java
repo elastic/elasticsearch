@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -149,7 +139,8 @@ public class NamedXContentRegistry {
      */
     public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
 
-        Map<String, Entry> parsers = parser.useCompatibility() ? compatibleRegistry.get(categoryClass) : registry.get(categoryClass);
+        Map<String, Entry> parsers = parser.getRestApiCompatibleVersion() == RestApiCompatibleVersion.minimumSupported() ?
+            compatibleRegistry.get(categoryClass) : registry.get(categoryClass);
         if (parsers == null) {
             if (registry.isEmpty()) {
                 // The "empty" registry will never work so we throw a better exception as a hint.

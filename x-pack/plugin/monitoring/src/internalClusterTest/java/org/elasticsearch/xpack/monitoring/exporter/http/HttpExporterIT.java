@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -326,7 +327,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 }
             }
             // opposite of if it existed before
-            enqueuePipelineResponses(secondWebServer, !pipelineExistsAlready);
+            enqueuePipelineResponses(secondWebServer, pipelineExistsAlready == false);
             enqueueWatcherResponses(secondWebServer, remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
             enqueueResponse(secondWebServer, 200, "{\"errors\": false}");
 
@@ -350,7 +351,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                     assertThat(recordedRequest.getBody(), equalTo(getExternalTemplateRepresentation(template.v2())));
                 }
             }
-            assertMonitorPipelines(secondWebServer, !pipelineExistsAlready, null, null);
+            assertMonitorPipelines(secondWebServer, pipelineExistsAlready == false, null, null);
             assertMonitorWatches(secondWebServer, remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists,
                                  null, null);
             assertBulk(secondWebServer);

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.searchablesnapshots;
@@ -71,7 +72,8 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
             indexName,
             Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean()).build(),
             Strings.EMPTY_ARRAY,
-            true
+            true,
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         );
 
         final ElasticsearchException exception = expectThrows(
@@ -88,6 +90,16 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
             return List.of(new SystemIndexDescriptor(INDEX_NAME, "System index for [" + getTestClass().getName() + ']'));
+        }
+
+        @Override
+        public String getFeatureName() {
+            return SearchableSnapshotsSystemIndicesIntegTests.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "test plugin";
         }
     }
 }

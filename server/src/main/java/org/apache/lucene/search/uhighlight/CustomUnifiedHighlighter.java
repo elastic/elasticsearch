@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.apache.lucene.search.uhighlight;
@@ -44,6 +33,8 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
+
 /**
  * Subclass of the {@link UnifiedHighlighter} that works for a single field in a single document.
  * Uses a custom {@link PassageFormatter}. Accepts field content as a constructor
@@ -65,6 +56,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private final int noMatchSize;
     private final FieldHighlighter fieldHighlighter;
     private final int maxAnalyzedOffset;
+    private final Integer queryMaxAnalyzedOffset;
 
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
@@ -96,7 +88,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                                     int noMatchSize,
                                     int maxPassages,
                                     Predicate<String> fieldMatcher,
-                                    int maxAnalyzedOffset) throws IOException {
+                                    int maxAnalyzedOffset,
+                                    Integer queryMaxAnalyzedOffset) throws IOException {
         super(searcher, analyzer);
         this.offsetSource = offsetSource;
         this.breakIterator = breakIterator;
@@ -107,6 +100,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         this.noMatchSize = noMatchSize;
         this.setFieldMatcher(fieldMatcher);
         this.maxAnalyzedOffset = maxAnalyzedOffset;
+        this.queryMaxAnalyzedOffset = queryMaxAnalyzedOffset;
         fieldHighlighter = getFieldHighlighter(field, query, extractTerms(query), maxPassages);
     }
 
@@ -123,22 +117,13 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             return null;
         }
         int fieldValueLength = fieldValue.length();
-        if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset)) {
+        if (((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset > maxAnalyzedOffset) &&
+                (offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset))) {
             throw new IllegalArgumentException(
-                "The length of ["
-                    + field
-                    + "] field of ["
-                    + docId
-                    + "] doc of ["
-                    + index
-                    + "] index "
-                    + "has exceeded ["
-                    + maxAnalyzedOffset
-                    + "] - maximum allowed to be analyzed for highlighting. "
-                    + "This maximum can be set by changing the ["
-                    + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey()
-                    + "] index level setting. "
-                    + "For large texts, indexing with offsets or term vectors is recommended!"
+                "The length [" + fieldValueLength + "] of field [" + field +"] in doc[" + docId + "]/index[" + index +"] exceeds the ["
+                    + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] limit [" + maxAnalyzedOffset + "]. To avoid this error, set "
+                    + "the query parameter [" + MAX_ANALYZED_OFFSET_FIELD.toString() + "] to a value less than index setting ["
+                    + maxAnalyzedOffset + "] and this will tolerate long field values by truncating them."
             );
         }
         Snippet[] result = (Snippet[]) fieldHighlighter.highlightFieldForDoc(reader, docId, fieldValue);
@@ -234,5 +219,4 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         }
         return offsetSource;
     }
-
 }

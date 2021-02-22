@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -23,10 +12,10 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.function.Consumer;
 
 /**
  * Base implementation for a runtime field that can be defined as part of the runtime section of the index mappings
@@ -61,14 +50,30 @@ public abstract class RuntimeFieldType extends MappedFieldType implements ToXCon
             throws MapperParsingException;
     }
 
-    public static void parseRuntimeFields(Map<String, Object> node,
-                                          Mapper.TypeParser.ParserContext parserContext,
-                                          Consumer<RuntimeFieldType> runtimeFieldTypeConsumer) {
+    /**
+     * Parse runtime fields from the provided map, using the provided parser context.
+     * @param node the map that holds the runtime fields configuration
+     * @param parserContext the parser context that holds info needed when parsing mappings
+     * @param supportsRemoval whether a null value for a runtime field should be properly parsed and
+     *                        translated to the removal of such runtime field
+     * @return the parsed runtime fields
+     */
+    public static Map<String, RuntimeFieldType> parseRuntimeFields(Map<String, Object> node,
+                                                                   Mapper.TypeParser.ParserContext parserContext,
+                                                                   boolean supportsRemoval) {
+        Map<String, RuntimeFieldType> runtimeFields = new HashMap<>();
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Object> entry = iterator.next();
             String fieldName = entry.getKey();
-            if (entry.getValue() instanceof Map) {
+            if (entry.getValue() == null) {
+                if (supportsRemoval) {
+                    runtimeFields.put(fieldName, null);
+                } else {
+                    throw new MapperParsingException("Runtime field [" + fieldName + "] was set to null but its removal is not supported " +
+                        "in this context");
+                }
+            } else if (entry.getValue() instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> propNode = new HashMap<>(((Map<String, Object>) entry.getValue()));
                 Object typeNode = propNode.get("type");
@@ -83,14 +88,15 @@ public abstract class RuntimeFieldType extends MappedFieldType implements ToXCon
                     throw new MapperParsingException("No handler for type [" + type +
                         "] declared on runtime field [" + fieldName + "]");
                 }
-                runtimeFieldTypeConsumer.accept(typeParser.parse(fieldName, propNode, parserContext));
+                runtimeFields.put(fieldName, typeParser.parse(fieldName, propNode, parserContext));
                 propNode.remove("type");
-                DocumentMapperParser.checkNoRemainingFields(fieldName, propNode);
+                MappingParser.checkNoRemainingFields(fieldName, propNode);
                 iterator.remove();
             } else {
                 throw new MapperParsingException("Expected map for runtime field [" + fieldName + "] definition but got a "
-                    + fieldName.getClass().getName());
+                    + entry.getValue().getClass().getName());
             }
         }
+        return Collections.unmodifiableMap(runtimeFields);
     }
 }

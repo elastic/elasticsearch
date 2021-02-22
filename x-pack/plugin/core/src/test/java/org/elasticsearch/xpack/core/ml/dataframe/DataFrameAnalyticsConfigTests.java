@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
@@ -467,7 +468,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setVersion(Version.CURRENT)
             .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", null))
             .setAnalysis(regression)
             .build();
@@ -486,7 +487,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setVersion(Version.V_7_5_0)
             .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", null))
             .setAnalysis(regression)
             .build();
@@ -508,7 +509,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     public void testCtor_GivenMaxNumThreadsIsZero() {
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new DataFrameAnalyticsConfig.Builder()
             .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", null))
             .setAnalysis(new Regression("foo"))
             .setMaxNumThreads(0)
@@ -521,7 +522,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     public void testCtor_GivenMaxNumThreadsIsNegative() {
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new DataFrameAnalyticsConfig.Builder()
             .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", null))
             .setAnalysis(new Regression("foo"))
             .setMaxNumThreads(randomIntBetween(Integer.MIN_VALUE, 0))

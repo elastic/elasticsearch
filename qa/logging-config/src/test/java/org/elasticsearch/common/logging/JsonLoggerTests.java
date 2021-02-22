@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.logging;
@@ -117,6 +106,61 @@ public class JsonLoggerTests extends ESTestCase {
         }
 
         assertWarnings("deprecated message1");
+    }
+
+    public void testCompatibleLog() throws Exception {
+        withThreadContext(threadContext -> {
+            threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
+            final DeprecationLogger testLogger = DeprecationLogger.getLogger("test");
+            testLogger.deprecate(DeprecationCategory.OTHER,"someKey", "deprecated message1")
+                .compatibleApiWarning("compatibleKey","compatible API message");
+
+            final Path path = PathUtils.get(
+                System.getProperty("es.logs.base_path"),
+                System.getProperty("es.logs.cluster_name") + "_deprecated.json"
+            );
+
+            try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+                List<Map<String, String>> jsonLogs = stream.collect(Collectors.toList());
+
+                assertThat(
+                    jsonLogs,
+                    contains(
+                        allOf(
+                            hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.type", "logs"),
+                            hasEntry("log.logger", "deprecation.test"),
+                            hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
+                            hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                            hasEntry("elasticsearch.node.name", "sample-name"),
+                            hasEntry("message", "deprecated message1"),
+                            hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "someKey"),
+                            hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
+                            hasEntry("elasticsearch.event.category", "other")
+                        ),
+                        allOf(
+                            hasEntry("log.level", "DEPRECATION"),
+                            // event.dataset and data_stream.dataset have to be the same across the data stream
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.type", "logs"),
+                            hasEntry("log.logger", "deprecation.test"),
+                            hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
+                            hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                            hasEntry("elasticsearch.node.name", "sample-name"),
+                            hasEntry("message", "compatible API message"),
+                            hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "compatibleKey"),
+                            hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
+                            hasEntry("elasticsearch.event.category", "compatible_api")
+                        )
+                    )
+                );
+            }
+
+            assertWarnings("deprecated message1", "compatible API message");
+        });
     }
 
     public void testDeprecatedMessage() throws Exception {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.tree;
 
@@ -117,7 +118,7 @@ public abstract class Node<T extends Node<T>> {
     @SuppressWarnings("unchecked")
     public boolean anyMatch(Predicate<? super T> predicate) {
         boolean result = predicate.test((T) this);
-        if (!result) {
+        if (result == false) {
             for (T child : children) {
                 if (child.anyMatch(predicate)) {
                     return true;
@@ -342,7 +343,7 @@ public abstract class Node<T extends Node<T>> {
         sb.append(nodeString());
 
         List<T> children = children();
-        if (!children.isEmpty()) {
+        if (children.isEmpty() == false) {
             sb.append("\n");
         }
         for (int i = 0; i < children.size(); i++) {
@@ -374,7 +375,7 @@ public abstract class Node<T extends Node<T>> {
         for (Object prop : props) {
             // consider a property if it is not ignored AND
             // it's not a child (optional)
-            if (!(skipIfChild && (children.contains(prop) || children.equals(prop)))) {
+            if ((skipIfChild && (children.contains(prop) || children.equals(prop))) == false) {
                 if (remainingProperties-- < 0) {
                     sb.append("...").append(props.size() - TO_STRING_MAX_PROP).append("fields not shown");
                     break;

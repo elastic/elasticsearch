@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.type;
@@ -32,7 +33,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.HALF_FLOAT;
@@ -162,14 +162,13 @@ public class SqlDataTypes {
             .collect(toUnmodifiableList());
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream()
-            .filter(t -> t != DATETIME_NANOS)
             .collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
     private static final Map<String, DataType> ES_TO_TYPE;
 
     static {
         Map<String, DataType> map = TYPES.stream().filter(e -> e.esType() != null).collect(Collectors.toMap(DataType::esType, t -> t));
-        map.put(DATETIME_NANOS.esType(), DATETIME_NANOS);
+        map.put("date_nanos", DATETIME);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
@@ -272,17 +271,13 @@ public class SqlDataTypes {
     }
 
     public static String format(DataType type) {
-        if (type == DATETIME_NANOS) {
-            return "strict_date_optional_time_nanos";
-        }
-        return isDateOrTimeBased(type) ? "epoch_millis" : null;
+        return isDateOrTimeBased(type) ? "strict_date_optional_time_nanos" : null;
     }
 
     public static boolean isFromDocValuesOnly(DataType dataType) {
         return dataType == KEYWORD // because of ignore_above. Extracting this from _source wouldn't make sense
                 || dataType == DATE         // because of date formats
                 || dataType == DATETIME
-                || dataType == DATETIME_NANOS
                 || dataType == SCALED_FLOAT // because of scaling_factor
                 || dataType == GEO_POINT
                 || dataType == SHAPE;

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -25,8 +26,8 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         String shrunkIndexPrefix = randomAlphaOfLength(10);
-        String nextStepName = randomStepKey().getName();
-        return new CopyExecutionStateStep(stepKey, nextStepKey, shrunkIndexPrefix, nextStepName);
+        StepKey targetNextStepKey = randomStepKey();
+        return new CopyExecutionStateStep(stepKey, nextStepKey, shrunkIndexPrefix, targetNextStepKey);
     }
 
     @Override
@@ -34,7 +35,7 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         String shrunkIndexPrefix = instance.getTargetIndexPrefix();
-        String nextStepName = instance.getTargetNextStepName();
+        StepKey targetNextStepKey = instance.getTargetNextStepKey();
 
         switch (between(0, 2)) {
             case 0:
@@ -47,19 +48,20 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
                 shrunkIndexPrefix += randomAlphaOfLength(5);
                 break;
             case 3:
-                nextStepName = randomAlphaOfLengthBetween(1, 10);
+                targetNextStepKey = new StepKey(targetNextStepKey.getPhase(), targetNextStepKey.getAction(),
+                    targetNextStepKey.getName() + randomAlphaOfLength(5));
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new CopyExecutionStateStep(key, nextKey, shrunkIndexPrefix, nextStepName);
+        return new CopyExecutionStateStep(key, nextKey, shrunkIndexPrefix, targetNextStepKey);
     }
 
     @Override
     protected CopyExecutionStateStep copyInstance(CopyExecutionStateStep instance) {
         return new CopyExecutionStateStep(instance.getKey(), instance.getNextStepKey(), instance.getTargetIndexPrefix(),
-            instance.getTargetNextStepName());
+            instance.getTargetNextStepKey());
     }
 
     public void testPerformAction() {
@@ -88,10 +90,11 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         LifecycleExecutionState newIndexData = LifecycleExecutionState
             .fromIndexMetadata(newClusterState.metadata().index(step.getTargetIndexPrefix() + indexName));
 
+        StepKey targetNextStepKey = step.getTargetNextStepKey();
         assertEquals(newIndexData.getLifecycleDate(), oldIndexData.getLifecycleDate());
-        assertEquals(newIndexData.getPhase(), oldIndexData.getPhase());
-        assertEquals(newIndexData.getAction(), oldIndexData.getAction());
-        assertEquals(newIndexData.getStep(), step.getTargetNextStepName());
+        assertEquals(newIndexData.getPhase(), targetNextStepKey.getPhase());
+        assertEquals(newIndexData.getAction(), targetNextStepKey.getAction());
+        assertEquals(newIndexData.getStep(), targetNextStepKey.getName());
         assertEquals(newIndexData.getSnapshotRepository(), oldIndexData.getSnapshotRepository());
         assertEquals(newIndexData.getSnapshotName(), oldIndexData.getSnapshotName());
     }

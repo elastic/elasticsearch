@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.blobstore;
@@ -39,7 +28,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -186,6 +175,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private static final String SNAPSHOT_INDEX_NAME_FORMAT = SNAPSHOT_INDEX_PREFIX + "%s";
 
     private static final String UPLOADED_DATA_BLOB_PREFIX = "__";
+
+    // Expose a copy of URLRepository#TYPE here too, for a better error message until https://github.com/elastic/elasticsearch/issues/68918
+    // is resolved.
+    public static final String URL_REPOSITORY_TYPE = "url";
 
     /**
      * All {@link BlobStoreRepository} implementations can be made read-only by setting this key to {@code true} in their settings.
@@ -1390,7 +1383,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     // Listener used to ensure that repository data is only initialized once in the cluster state by #initializeRepoGenerationTracking
-    private PlainListenableActionFuture<RepositoryData> repoDataInitialized;
+    private ListenableActionFuture<RepositoryData> repoDataInitialized;
 
     /**
      * Method used to set the current repository generation in the cluster state's {@link RepositoryMetadata} to the latest generation that
@@ -1411,7 +1404,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     return;
                 }
                 logger.trace("[{}] initializing repository generation in cluster state", metadata.name());
-                repoDataInitialized = PlainListenableActionFuture.newListenableFuture();
+                repoDataInitialized = new ListenableActionFuture<>();
                 repoDataInitialized.addListener(listener);
                 final Consumer<Exception> onFailure = e -> {
                     logger.warn(new ParameterizedMessage("[{}] Exception when initializing repository generation in cluster state",
@@ -1423,9 +1416,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                     existingListener.onFailure(e);
                 };
-                threadPool.generic().execute(() -> doGetRepositoryData(
+                threadPool.generic().execute(ActionRunnable.wrap(
                         ActionListener.wrap(repoData -> clusterService.submitStateUpdateTask(
-                                "set safe repository generation [" + metadata.name() + "][" + repoData + "]",
+                                "set initial safe repository generation [" + metadata.name() + "][" + repoData.getGenId() + "]",
                                 new ClusterStateUpdateTask() {
                                     @Override
                                     public ClusterState execute(ClusterState currentState) {
@@ -1452,6 +1445,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                                     @Override
                                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                                        logger.trace("[{}] initialized repository generation in cluster state to [{}]",
+                                                metadata.name(), repoData.getGenId());
                                         // Resolve listeners on generic pool since some callbacks for repository data do additional IO
                                         threadPool.generic().execute(() -> {
                                             final ActionListener<RepositoryData> existingListener;
@@ -1460,9 +1455,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                                 repoDataInitialized = null;
                                             }
                                             existingListener.onResponse(repoData);
+                                            logger.trace("[{}] called listeners after initializing repository to generation [{}]"
+                                                    , metadata.name(), repoData.getGenId());
                                         });
                                     }
-                                }), onFailure)));
+                                }), onFailure), this::doGetRepositoryData));
             } else {
                 logger.trace("[{}] waiting for existing initialization of repository metadata generation in cluster state",
                         metadata.name());
@@ -1492,9 +1489,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final long generation;
                 try {
                     generation = latestIndexBlobId();
-                } catch (IOException ioe) {
+                } catch (Exception e) {
                     listener.onFailure(
-                        new RepositoryException(metadata.name(), "Could not determine repository generation from root blobs", ioe));
+                        new RepositoryException(metadata.name(), "Could not determine repository generation from root blobs", e));
                     return;
                 }
                 genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
@@ -1730,6 +1727,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     protected void writeIndexGen(RepositoryData repositoryData, long expectedGen, Version version,
                                  Function<ClusterState, ClusterState> stateFilter, ActionListener<RepositoryData> listener) {
+        logger.trace("[{}] writing repository data on top of expected generation [{}]", metadata.name(), expectedGen);
         assert isReadOnly() == false; // can not write to a read only repository
         final long currentGen = repositoryData.getGenId();
         if (currentGen != expectedGen) {
@@ -1787,6 +1785,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    logger.trace("[{}] successfully set pending repository generation to [{}]", metadata.name(), newGen);
                     setPendingStep.onResponse(newGen);
                 }
             });
@@ -1883,6 +1882,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        logger.trace("[{}] successfully set safe repository generation to [{}]", metadata.name(), newGen);
                         cacheRepositoryData(repoDataToCache, newGen);
                         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
                             // Delete all now outdated index files up to 1000 blobs back from the new generation.
@@ -2475,17 +2475,47 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         });
     }
 
-    private static InputStream maybeRateLimit(InputStream stream, Supplier<RateLimiter> rateLimiterSupplier, CounterMetric metric) {
-        return new RateLimitingInputStream(stream, rateLimiterSupplier, metric::inc);
+    private static InputStream maybeRateLimit(
+            InputStream stream,
+            Supplier<RateLimiter> rateLimiterSupplier,
+            RateLimitingInputStream.Listener throttleListener) {
+        return new RateLimitingInputStream(stream, rateLimiterSupplier, throttleListener);
     }
 
+    /**
+     * Wrap the restore rate limiter (controlled by the repository setting `max_restore_bytes_per_sec` and the cluster setting
+     * `indices.recovery.max_bytes_per_sec`) around the given stream. Any throttling is reported to the given listener and not otherwise
+     * recorded in the value returned by {@link BlobStoreRepository#getRestoreThrottleTimeInNanos}.
+     */
     public InputStream maybeRateLimitRestores(InputStream stream) {
-        return maybeRateLimit(maybeRateLimit(stream, () -> restoreRateLimiter, restoreRateLimitingTimeInNanos),
-            recoverySettings::rateLimiter, restoreRateLimitingTimeInNanos);
+        return maybeRateLimitRestores(stream, restoreRateLimitingTimeInNanos::inc);
     }
 
+    /**
+     * Wrap the restore rate limiter (controlled by the repository setting `max_restore_bytes_per_sec` and the cluster setting
+     * `indices.recovery.max_bytes_per_sec`) around the given stream. Any throttling is recorded in the value returned by {@link
+     * BlobStoreRepository#getRestoreThrottleTimeInNanos}.
+     */
+    public InputStream maybeRateLimitRestores(InputStream stream, RateLimitingInputStream.Listener throttleListener) {
+        return maybeRateLimit(maybeRateLimit(stream, () -> restoreRateLimiter, throttleListener),
+            recoverySettings::rateLimiter, throttleListener);
+    }
+
+    /**
+     * Wrap the snapshot rate limiter (controlled by the repository setting `max_snapshot_bytes_per_sec`) around the given stream. Any
+     * throttling is recorded in the value returned by {@link BlobStoreRepository#getSnapshotThrottleTimeInNanos()}.
+     */
     public InputStream maybeRateLimitSnapshots(InputStream stream) {
-        return maybeRateLimit(stream, () -> snapshotRateLimiter, snapshotRateLimitingTimeInNanos);
+        return maybeRateLimitSnapshots(stream, snapshotRateLimitingTimeInNanos::inc);
+    }
+
+    /**
+     * Wrap the snapshot rate limiter (controlled by the repository setting `max_snapshot_bytes_per_sec`) around the given stream. Any
+     * throttling is reported to the given listener and not otherwise recorded in the value returned by {@link
+     * BlobStoreRepository#getSnapshotThrottleTimeInNanos()}.
+     */
+    public InputStream maybeRateLimitSnapshots(InputStream stream, RateLimitingInputStream.Listener throttleListener) {
+        return maybeRateLimit(stream, () -> snapshotRateLimiter, throttleListener);
     }
 
     @Override
@@ -2723,6 +2753,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.warn("store cannot be marked as corrupted", inner);
             }
         }
+    }
+
+    public boolean supportURLRepo() {
+        return supportURLRepo;
     }
 
     /**

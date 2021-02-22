@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.test.rest.transform;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.util.Iterator;
@@ -56,10 +46,16 @@ public class RestTestTransformer {
             .collect(Collectors.toList());
 
         // Collect any transformations that are identified by an object key.
-        Map<String, RestTestTransformByObjectKey> objectKeyFinders = transformations.stream()
-            .filter(transform -> transform instanceof RestTestTransformByObjectKey)
-            .map(transform -> (RestTestTransformByObjectKey) transform)
-            .collect(Collectors.toMap(RestTestTransformByObjectKey::getKeyToFind, transform -> transform));
+        Map<String, List<RestTestTransformByParentObject>> objectKeyFinders = transformations.stream()
+            .filter(transform -> transform instanceof RestTestTransformByParentObject)
+            .map(transform -> (RestTestTransformByParentObject) transform)
+            .collect(Collectors.groupingBy(RestTestTransformByParentObject::getKeyToFind));
+
+        // Collect any transformations that are identified by an object key where the value is an array
+        Map<String, List<RestTestTransformByParentArray>> arrayByObjectKeyFinders = transformations.stream()
+            .filter(transform -> transform instanceof RestTestTransformByParentArray)
+            .map(transform -> (RestTestTransformByParentArray) transform)
+            .collect(Collectors.groupingBy(RestTestTransformByParentArray::getKeyOfArrayToFind));
 
         // transform the tests and include the global setup and teardown as part of the transform
         for (ObjectNode test : tests) {
@@ -73,7 +69,7 @@ public class RestTestTransformer {
                 if ("teardown".equals(testName)) {
                     teardownSection = test;
                 }
-                traverseTest(test, objectKeyFinders);
+                traverseTest(new RestTestContext(testName), test, null, objectKeyFinders, arrayByObjectKeyFinders);
             }
         }
 
@@ -109,19 +105,52 @@ public class RestTestTransformer {
     /**
      * Recursive method to traverse the test.
      *
-     * @param currentNode      The current node that is being evaluated.
-     * @param objectKeyFinders A Map of object keys to find and their associated transformation
+     * @param testContext             A pojo to hold information about the current state of the test that is being traversed.
+     * @param currentNode             The current node that is being evaluated.
+     * @param parentKeyName           The name of the parent key object for the current node. null if none.
+     * @param objectKeyFinders        A Map of object keys to find and their associated transformation by parent Object
+     * @param arrayByObjectKeyFinders A Map of object keys to find and their associated transformation by parent Array
      */
-    private void traverseTest(JsonNode currentNode, Map<String, RestTestTransformByObjectKey> objectKeyFinders) {
+    private void traverseTest(
+        RestTestContext testContext,
+        JsonNode currentNode,
+        String parentKeyName,
+        Map<String, List<RestTestTransformByParentObject>> objectKeyFinders,
+        Map<String, List<RestTestTransformByParentArray>> arrayByObjectKeyFinders
+    ) {
         if (currentNode.isArray()) {
-            currentNode.elements().forEachRemaining(node -> { traverseTest(node, objectKeyFinders); });
+            if (parentKeyName != null) {
+                List<RestTestTransformByParentArray> transforms = arrayByObjectKeyFinders.get(parentKeyName);
+                if (transforms != null) {
+                    for (RestTestTransformByParentArray transform : transforms) {
+                        if (transform.shouldApply(testContext)) {
+                            transform.transformTest((ArrayNode) currentNode);
+                        }
+                    }
+                }
+            }
+            currentNode.elements()
+                .forEachRemaining(node -> { traverseTest(testContext, node, parentKeyName, objectKeyFinders, arrayByObjectKeyFinders); });
         } else if (currentNode.isObject()) {
             currentNode.fields().forEachRemaining(entry -> {
-                RestTestTransformByObjectKey transform = objectKeyFinders.get(entry.getKey());
-                if (transform == null) {
-                    traverseTest(entry.getValue(), objectKeyFinders);
+                List<RestTestTransformByParentObject> transforms = objectKeyFinders.get(entry.getKey());
+                if (transforms == null) {
+                    traverseTest(testContext, entry.getValue(), entry.getKey(), objectKeyFinders, arrayByObjectKeyFinders);
                 } else {
-                    transform.transformTest((ObjectNode) currentNode);
+                    for (RestTestTransformByParentObject transform : transforms) {
+                        if (transform.shouldApply(testContext)) {
+                            if (transform.requiredChildKey() == null) {
+                                transform.transformTest((ObjectNode) currentNode);
+                            } else {
+                                if (entry.getValue().isObject()) {
+                                    ObjectNode child = (ObjectNode) entry.getValue();
+                                    if (child.has(transform.requiredChildKey())) {
+                                        transform.transformTest((ObjectNode) currentNode);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             });
         }

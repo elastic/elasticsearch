@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -791,6 +780,26 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return true;
     }
 
+    /**
+     * Reconciles the cluster state metadata taken at the end of a snapshot with the data streams and indices
+     * contained in the snapshot. Certain actions taken during a snapshot such as rolling over a data stream
+     * or deleting a backing index may result in situations where some reconciliation is required.
+     *
+     * @return Reconciled {@link Metadata} instance
+     */
+    public static Metadata snapshot(Metadata metadata, List<String> dataStreams, List<String> indices) {
+        var builder = Metadata.builder(metadata);
+        for (var dsName : dataStreams) {
+            var dataStream = metadata.dataStreams().get(dsName);
+            if (dataStream == null) {
+                // should never occur since data streams cannot be deleted while they have snapshots underway
+                throw new IllegalArgumentException("unable to find data stream [" + dsName + "]");
+            }
+            builder.put(dataStream.snapshot(indices));
+        }
+        return builder.build();
+    }
+
     @Override
     public Diff<Metadata> diff(Metadata previousState) {
         return new MetadataDiff(previousState, this);
@@ -1491,7 +1500,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             metadata.coordinationMetadata().toXContent(builder, params);
             builder.endObject();
 
-            if (context != XContentContext.API && !metadata.persistentSettings().isEmpty()) {
+            if (context != XContentContext.API && metadata.persistentSettings().isEmpty() == false) {
                 builder.startObject("settings");
                 metadata.persistentSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
                 builder.endObject();

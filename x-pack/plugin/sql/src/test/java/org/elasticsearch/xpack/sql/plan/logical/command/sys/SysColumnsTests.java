@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
@@ -54,7 +55,7 @@ public class SysColumnsTests extends ESTestCase {
     private static final String CLUSTER_NAME = "cluster";
     private static final Map<String, EsField> MAPPING1 = loadMapping("mapping-multi-field-with-nested.json", true);
     private static final Map<String, EsField> MAPPING2 = loadMapping("mapping-multi-field-variation.json", true);
-    private static final int FIELD_COUNT1 = 16;
+    private static final int FIELD_COUNT1 = 18;
     private static final int FIELD_COUNT2 = 17;
 
     private final SqlParser parser = new SqlParser();

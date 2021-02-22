@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest;
@@ -24,6 +13,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -244,7 +234,7 @@ public class RestControllerTests extends ESTestCase {
 
     private RestHandler v8mockHandler() {
         RestHandler mock = mock(RestHandler.class);
-        Mockito.when(mock.compatibleWithVersion()).thenReturn(Version.CURRENT);
+        Mockito.when(mock.compatibleWithVersion()).thenReturn(RestApiCompatibleVersion.currentVersion());
         return mock;
     }
 
@@ -379,7 +369,7 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                assertThat(request.contentParser().useCompatibility(), is(false));
+                assertThat(request.contentParser().getRestApiCompatibleVersion(), is(RestApiCompatibleVersion.currentVersion()));
 
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
@@ -406,7 +396,7 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                assertThat(request.contentParser().useCompatibility(), is(false));
+                assertThat(request.contentParser().getRestApiCompatibleVersion(), is(RestApiCompatibleVersion.currentVersion()));
 
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
@@ -638,7 +628,7 @@ public class RestControllerTests extends ESTestCase {
 
         RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
 
-        final byte version = Version.CURRENT.minimumRestCompatibilityVersion().major;
+        final byte version = RestApiCompatibleVersion.minimumSupported().major;
 
         final String mediaType = randomCompatibleMediaType(version);
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
@@ -647,15 +637,16 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                assertThat(request.contentParser().useCompatibility(), is(true));
+                // in real use case we will use exact version RestApiCompatibleVersion.V_7
                 XContentBuilder xContentBuilder = channel.newBuilder();
-                assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
+                assertThat(xContentBuilder.getRestApiCompatibilityVersion(), equalTo(RestApiCompatibleVersion.minimumSupported()));
+                assertThat(request.contentParser().getRestApiCompatibleVersion(), equalTo(RestApiCompatibleVersion.minimumSupported()));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
             @Override
-            public Version compatibleWithVersion() {
-                return Version.CURRENT.minimumRestCompatibilityVersion();
+            public RestApiCompatibleVersion compatibleWithVersion() {
+                return RestApiCompatibleVersion.minimumSupported();
             }
         });
 
@@ -668,7 +659,7 @@ public class RestControllerTests extends ESTestCase {
 
         RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
 
-        final byte version = Version.CURRENT.minimumRestCompatibilityVersion().major;
+        final byte version = RestApiCompatibleVersion.minimumSupported().major;
 
         final String mediaType = randomCompatibleMediaType(version);
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
@@ -678,19 +669,20 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                assertThat(request.contentParser().useCompatibility(), is(true));
 
                 XContentBuilder xContentBuilder = channel.newBuilder();
                 // even though the handler is CURRENT, the xContentBuilder has the version requested by a client.
                 // This allows to implement the compatible logic within the serialisation without introducing V7 (compatible) handler
                 // when only response shape has changed
-                assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
+                assertThat(xContentBuilder.getRestApiCompatibilityVersion(), equalTo(RestApiCompatibleVersion.minimumSupported()));
+                assertThat(request.contentParser().getRestApiCompatibleVersion(), equalTo(RestApiCompatibleVersion.minimumSupported()));
+
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
             @Override
-            public Version compatibleWithVersion() {
-                return Version.CURRENT;
+            public RestApiCompatibleVersion compatibleWithVersion() {
+                return RestApiCompatibleVersion.currentVersion();
             }
         });
 
@@ -724,39 +716,22 @@ public class RestControllerTests extends ESTestCase {
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 // the media type is in application/vnd.elasticsearch form but with compatible-with=CURRENT.
                 // Hence compatibility is not used.
-                assertThat(request.contentParser().useCompatibility(), is(false));
 
                 XContentBuilder xContentBuilder = channel.newBuilder();
-                assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
+                assertThat(request.contentParser().getRestApiCompatibleVersion(), equalTo(RestApiCompatibleVersion.currentVersion()));
+                assertThat(xContentBuilder.getRestApiCompatibilityVersion(), equalTo(RestApiCompatibleVersion.currentVersion()));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
             @Override
-            public Version compatibleWithVersion() {
-                return Version.CURRENT;
+            public RestApiCompatibleVersion compatibleWithVersion() {
+                return RestApiCompatibleVersion.currentVersion();
             }
         });
 
         assertFalse(channel.getSendResponseCalled());
         restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
         assertTrue(channel.getSendResponseCalled());
-    }
-
-    public void testRegisterIncompatibleVersionHandler() {
-        //using restController which uses a compatible version function returning always Version.CURRENT
-        final byte version = (byte) (Version.CURRENT.major - 2);
-
-        expectThrows(AssertionError.class,
-            () -> restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
-                @Override
-                public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                }
-
-                @Override
-                public Version compatibleWithVersion() {
-                    return Version.fromString(version + ".0.0");
-                }
-            }));
     }
 
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements

@@ -1,9 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
+
+import org.elasticsearch.client.Request;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.jdbc.EsType;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,20 +60,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.elasticsearch.client.Request;
-import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.jdbc.EsType;
-import org.junit.Before;
-
 import static java.lang.String.format;
 import static java.util.Calendar.DAY_OF_MONTH;
 import static java.util.Calendar.ERA;
@@ -70,7 +71,6 @@ import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
 import static java.util.regex.Pattern.compile;
 import static java.util.regex.Pattern.quote;
-import static org.hamcrest.Matchers.matchesPattern;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
@@ -80,6 +80,7 @@ import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.extractNanosOnly
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.of;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.randomTimeInNanos;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.versionSupportsDateNanos;
+import static org.hamcrest.Matchers.matchesPattern;
 
 public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
@@ -302,7 +303,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 format(Locale.ROOT, "Unable to convert value [%.128s] of type [KEYWORD] to [Byte]", randomString),
                 sqle.getMessage()
             );
-            
+
             sqle = expectThrows(SQLException.class, () -> results.getByte("test_date"));
             assertErrorMessageForDateTimeValues(sqle, Byte.class, randomDate);
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Byte.class));
@@ -738,7 +739,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 format(Locale.ROOT, "Unable to convert value [%.128s] of type [KEYWORD] to [Double]", randomString),
                 sqle.getMessage()
             );
-            
+
             sqle = expectThrows(SQLException.class, () -> results.getDouble("test_date"));
             assertErrorMessageForDateTimeValues(sqle, Double.class, randomDate);
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Double.class));
@@ -1124,7 +1125,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertErrorMessageForDateTimeValues(sqle, Boolean.class, toMilliSeconds(randomDateNanos2), extractNanosOnly(randomDateNanos2));
 
             results.next();
-            for (String fld : fieldsNames.stream().filter(f -> !f.equals("test_keyword")).collect(Collectors.toCollection(HashSet::new))) {
+            for (String fld : fieldsNames.stream().filter(f -> f.equals("test_keyword") == false).collect(Collectors.toSet())) {
                 assertTrue("Expected: <true> but was: <false> for field " + fld, results.getBoolean(fld));
                 assertEquals("Expected: <true> but was: <false> for field " + fld, true, results.getObject(fld, Boolean.class));
             }
@@ -2264,7 +2265,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     private void assertErrorMessageForDateTimeValues(Exception ex, Class<?> expectedType, long epochMillis, Integer nanos) {
-        Pattern expectedPattern = compile(quote("Unable to convert value [") + "(?<instant>.*?)" 
+        Pattern expectedPattern = compile(quote("Unable to convert value [") + "(?<instant>.*?)"
                 + quote("] of type [DATETIME] to [" + expectedType.getSimpleName() + "]"));
         Matcher matcher = expectedPattern.matcher(ex.getMessage());
         assertTrue(matcher.matches());

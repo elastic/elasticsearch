@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.query;
 
@@ -31,7 +20,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -195,7 +184,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
     }
 
     public void testDefaults() throws ExecutionException, InterruptedException {
-        MatchQuery.Type type = MatchQuery.Type.BOOLEAN;
+        MatchQueryParser.Type type = MatchQueryParser.Type.BOOLEAN;
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category")
                         .operator(Operator.OR))).get();
@@ -237,20 +226,20 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("Man the Ultimate", "full_name_phrase", "first_name_phrase", "last_name_phrase",
                         "category_phrase")
-                        .operator(Operator.OR).type(MatchQuery.Type.PHRASE))).get();
+                        .operator(Operator.OR).type(MatchQueryParser.Type.PHRASE))).get();
         assertFirstHit(searchResponse, hasId("ultimate2"));
         assertHitCount(searchResponse, 1L);
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("Captain", "full_name_phrase", "first_name_phrase", "last_name_phrase",
                         "category_phrase")
-                        .operator(Operator.OR).type(MatchQuery.Type.PHRASE))).get();
+                        .operator(Operator.OR).type(MatchQueryParser.Type.PHRASE))).get();
         assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(1L));
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("the Ul", "full_name_phrase", "first_name_phrase", "last_name_phrase",
                         "category_phrase")
-                        .operator(Operator.OR).type(MatchQuery.Type.PHRASE_PREFIX))).get();
+                        .operator(Operator.OR).type(MatchQueryParser.Type.PHRASE_PREFIX))).get();
         assertSearchHits(searchResponse, "ultimate2", "ultimate1");
         assertHitCount(searchResponse, 2L);
     }
@@ -316,7 +305,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         int numIters = scaledRandomIntBetween(5, 10);
         for (int i = 0; i < numIters; i++) {
             {
-                MatchQuery.Type type = MatchQuery.Type.BOOLEAN;
+                MatchQueryParser.Type type = MatchQueryParser.Type.BOOLEAN;
                 MultiMatchQueryBuilder multiMatchQueryBuilder = randomBoolean() ?
                         multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category") :
                         multiMatchQuery("marvel hero captain america", "*_name", randomBoolean() ? "category" : "categ*");
@@ -337,7 +326,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
             }
 
             {
-                MatchQuery.Type type = MatchQuery.Type.BOOLEAN;
+                MatchQueryParser.Type type = MatchQueryParser.Type.BOOLEAN;
                 String minShouldMatch = randomBoolean() ? null : "" + between(0, 1);
                 Operator op = randomBoolean() ? Operator.AND : Operator.OR;
                 MultiMatchQueryBuilder multiMatchQueryBuilder = randomBoolean() ?
@@ -365,7 +354,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 SearchResponse left = client().prepareSearch("test").setSize(numDocs)
                         .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
                         .setQuery(randomizeType(multiMatchQuery("capta", "full_name", "first_name", "last_name", "category")
-                                .type(MatchQuery.Type.PHRASE_PREFIX).tieBreaker(1.0f).minimumShouldMatch(minShouldMatch))).get();
+                                .type(MatchQueryParser.Type.PHRASE_PREFIX).tieBreaker(1.0f).minimumShouldMatch(minShouldMatch))).get();
 
                 SearchResponse right = client().prepareSearch("test").setSize(numDocs)
                         .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
@@ -384,12 +373,12 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                     left = client().prepareSearch("test").setSize(numDocs)
                             .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
                             .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
-                                    .type(MatchQuery.Type.PHRASE).minimumShouldMatch(minShouldMatch))).get();
+                                    .type(MatchQueryParser.Type.PHRASE).minimumShouldMatch(minShouldMatch))).get();
                 } else {
                     left = client().prepareSearch("test").setSize(numDocs)
                             .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
                             .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
-                                    .type(MatchQuery.Type.PHRASE).tieBreaker(1.0f).minimumShouldMatch(minShouldMatch))).get();
+                                    .type(MatchQueryParser.Type.PHRASE).tieBreaker(1.0f).minimumShouldMatch(minShouldMatch))).get();
                 }
                 SearchResponse right = client().prepareSearch("test").setSize(numDocs)
                         .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
@@ -709,24 +698,24 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 switch (type) {
                     case BEST_FIELDS:
                         if (randomBoolean()) {
-                            oType = MatchQuery.Type.BOOLEAN;
+                            oType = MatchQueryParser.Type.BOOLEAN;
                         }
                         break;
                     case MOST_FIELDS:
                         if (randomBoolean()) {
-                            oType = MatchQuery.Type.BOOLEAN;
+                            oType = MatchQueryParser.Type.BOOLEAN;
                         }
                         break;
                     case CROSS_FIELDS:
                         break;
                     case PHRASE:
                         if (randomBoolean()) {
-                            oType = MatchQuery.Type.PHRASE;
+                            oType = MatchQueryParser.Type.PHRASE;
                         }
                         break;
                     case PHRASE_PREFIX:
                         if (randomBoolean()) {
-                            oType = MatchQuery.Type.PHRASE_PREFIX;
+                            oType = MatchQueryParser.Type.PHRASE_PREFIX;
                         }
                         break;
                 }

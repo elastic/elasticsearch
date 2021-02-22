@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher;
 
@@ -637,7 +638,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                     }
                 }
             }
-            if (!matched) {
+            if (matched == false) {
                 throw new IllegalArgumentException(errorMessage);
             }
         }
@@ -698,5 +699,15 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             new SystemIndexDescriptor(Watch.INDEX, "Contains Watch definitions"),
             new SystemIndexDescriptor(TriggeredWatchStoreField.INDEX_NAME, "Used to track current and queued Watch execution")
         );
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "watcher";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages Watch definitions and state";
     }
 }

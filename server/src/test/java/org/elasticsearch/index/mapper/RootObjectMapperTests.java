@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -659,6 +648,20 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     "\"field\":{\"type\":\"keyword\"}}}}",
                 mapperService.documentMapper().mappingSource().toString());
         }
+        {
+            //remove a runtime field
+            String mapping = Strings.toString(runtimeMapping(
+                builder -> builder.nullField("field3")));
+            merge(mapperService, mapping);
+            assertEquals("{\"_doc\":" +
+                    "{\"runtime\":{" +
+                    "\"field\":{\"type\":\"test\",\"prop2\":\"second version\"}," +
+                    "\"field2\":{\"type\":\"test\"}}," +
+                    "\"properties\":{" +
+                    "\"concrete\":{\"type\":\"keyword\"}," +
+                    "\"field\":{\"type\":\"keyword\"}}}}",
+                mapperService.documentMapper().mappingSource().toString());
+        }
     }
 
     public void testRuntimeSectionNonRuntimeType() throws IOException {
@@ -680,9 +683,9 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testRuntimeSectionWrongFormat() throws IOException {
-        XContentBuilder mapping = runtimeMapping(builder -> builder.field("field", "value"));
+        XContentBuilder mapping = runtimeMapping(builder -> builder.field("field", 123));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: Expected map for runtime field [field] definition but got a java.lang.String",
+        assertEquals("Failed to parse mapping: Expected map for runtime field [field] definition but got a java.lang.Integer",
             e.getMessage());
     }
 

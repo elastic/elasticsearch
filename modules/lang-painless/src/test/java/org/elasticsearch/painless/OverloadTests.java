@@ -1,22 +1,11 @@
 package org.elasticsearch.painless;
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 /** Tests method overloading */
@@ -30,7 +19,7 @@ public class OverloadTests extends ScriptTestCase {
         });
         assertTrue(expected.getMessage().contains("[java.lang.String, indexOf/3]"));
     }
-    
+
     public void testMethodDynamic() {
         assertEquals(2, exec("def x = 'abc123abc'; return x.indexOf('c');"));
         assertEquals(8, exec("def x = 'abc123abc'; return x.indexOf('c', 3);"));
@@ -39,14 +28,14 @@ public class OverloadTests extends ScriptTestCase {
         });
         assertTrue(expected.getMessage().contains("dynamic method [java.lang.String, indexOf/3] not found"));
     }
-    
+
     public void testConstructor() {
         assertEquals(true, exec("org.elasticsearch.painless.FeatureTestObject f = new org.elasticsearch.painless.FeatureTestObject();" +
                                 "return f.x == 0 && f.y == 0;"));
         assertEquals(true, exec("org.elasticsearch.painless.FeatureTestObject f = new org.elasticsearch.painless.FeatureTestObject(1, 2);" +
                                 "return f.x == 1 && f.y == 2;"));
     }
-    
+
     public void testStatic() {
         assertEquals(true, exec("return org.elasticsearch.painless.FeatureTestObject.overloadedStatic();"));
         assertEquals(false, exec("return org.elasticsearch.painless.FeatureTestObject.overloadedStatic(false);"));

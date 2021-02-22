@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
@@ -258,6 +259,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject();
                 builder.field("indices", restoredIndexName);
+                builder.field("include_global_state", "false");
                 builder.endObject();
                 snapshotRequest.setEntity(new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
             }
@@ -347,6 +349,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     protected static void mountSnapshot(String snapshotIndexName, String mountIndexName) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + REPOSITORY_NAME + "/" + SNAPSHOT_NAME + "/_mount");
         request.addParameter("wait_for_completion", Boolean.toString(true));
+        request.addParameter("storage", randomFrom("full_copy", "shared_cache"));
 
         final XContentBuilder builder = JsonXContent.contentBuilder().startObject().field("index", snapshotIndexName);
         if (snapshotIndexName.equals(mountIndexName) == false || randomBoolean()) {
@@ -427,7 +430,9 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     }
 
     protected static Map<String, Object> searchableSnapshotStats(String index) throws IOException {
-        final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, '/' + index + "/_searchable_snapshots/stats"));
+        final Request request = new Request(HttpGet.METHOD_NAME, '/' + index + "/_searchable_snapshots/stats");
+        request.addParameter("level", "shards");
+        final Response response = client().performRequest(request);
         assertThat(
             "Failed to retrieve searchable snapshots stats for on index [" + index + "]: " + response,
             response.getStatusLine().getStatusCode(),

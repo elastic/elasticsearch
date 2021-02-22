@@ -12,10 +12,10 @@ archivesBaseName = 'x-pack-rollup'
 
 dependencies {
   compileOnly project(":server")
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  compileOnly project(path: xpackModule('analytics'), configuration: 'default')
-  compileOnly project(path: xpackModule('mapper-aggregate-metric'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: xpackModule('analytics'))
+  compileOnly project(path: xpackModule('mapper-aggregate-metric'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 addQaCheckDependencies()

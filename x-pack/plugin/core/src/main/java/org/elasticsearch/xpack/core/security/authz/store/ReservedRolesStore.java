@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.store;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
@@ -78,7 +80,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("all").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices("metricbeat-*").privileges("index", "create_index", "view_index_metadata").build() },
+                                    .indices("metricbeat-*").privileges("index", "create_index", "view_index_metadata",
+                                        IndicesAliasesAction.NAME).build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("remote_monitoring_collector", new RoleDescriptor(
                         "remote_monitoring_collector",
@@ -122,7 +125,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             // The symbolic constant for this one is in SecurityActionMapper, so not accessible from X-Pack core
                             "cluster:admin/analyze",
                             // To facilitate using the file uploader functionality
-                            "monitor_text_structure"
+                            "monitor_text_structure",
+                            // To cancel tasks and delete async searches
+                            "cancel_task"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()
@@ -155,30 +160,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices(".logs-endpoint.diagnostic.collection-*")
                                     .privileges("read").build(),
-                                // Fleet Server indices. Kibana read and write from these indices to manage Elastic Agents.
-                                // Kibana write to this indice to reassign agent policy or perform force unenroll
+                                // Fleet Server indices. Kibana create this indice before Fleet Server use them.
+                                // Fleet Server indices. Kibana read and write to this indice to manage Elastic Agents
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(".fleet-agents")
-                                    .privileges("read", "write").build(),
-                                // Kibana write to this indice to add action to an agent, upgrade, unenroll, ...
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(".fleet-actions")
-                                    .privileges("read", "write").build(),
-                                // Kibana write to this indice new enrollment api key
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(".fleet-enrollment-api-keys")
-                                    .privileges("read", "write").build(),
-                                // Kibana write to this indice every policy change
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(".fleet-policies")
-                                    .privileges("read", "write").build(),
-                                // Fleet Server indices. Kibana read from these indices to manage Elastic Agents
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(".fleet-servers")
-                                    .privileges("read").build(),
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(".fleet-actions-results")
-                                    .privileges("read").build(),
+                                    .indices(".fleet*")
+                                    .privileges("all").build(),
                         },
                         null,
                         new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },

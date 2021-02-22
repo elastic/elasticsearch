@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.search;
@@ -343,7 +344,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(0));
         assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
 
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(6));
+        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(10));
         assertThat(response.getExpirationTime(), greaterThan(expirationTime));
 
         assertTrue(response.isRunning());
@@ -362,13 +363,8 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertEquals(0, statusResponse.getSkippedShards());
         assertEquals(null, statusResponse.getCompletionStatus());
 
-        expirationTime = response.getExpirationTime();
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueMinutes(between(1, 24 * 60)));
-        assertThat(response.getExpirationTime(), equalTo(expirationTime));
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(10));
-        assertThat(response.getExpirationTime(), greaterThan(expirationTime));
-
-        deleteAsyncSearch(response.getId());
+        response = getAsyncSearch(response.getId(), TimeValue.timeValueMillis(1));
+        assertThat(response.getExpirationTime(), lessThan(expirationTime));
         ensureTaskNotRunning(response.getId());
         ensureTaskRemoval(response.getId());
     }
@@ -394,9 +390,8 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(numShards));
         assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
 
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(8));
+        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(10));
         assertThat(response.getExpirationTime(), greaterThan(expirationTime));
-        expirationTime = response.getExpirationTime();
 
         assertFalse(response.isRunning());
         assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
@@ -404,11 +399,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
 
         response = getAsyncSearch(response.getId(), TimeValue.timeValueMillis(1));
-        assertThat(response.getExpirationTime(), equalTo(expirationTime));
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(10));
-        assertThat(response.getExpirationTime(), greaterThan(expirationTime));
-
-        deleteAsyncSearch(response.getId());
+        assertThat(response.getExpirationTime(), lessThan(expirationTime));
         ensureTaskNotRunning(response.getId());
         ensureTaskRemoval(response.getId());
     }

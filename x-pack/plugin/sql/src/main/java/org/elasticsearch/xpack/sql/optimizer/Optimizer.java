@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
@@ -370,7 +371,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 break;
                             }
                         }
-                        if (!shouldKeep) {
+                        if (shouldKeep == false) {
                             orders.remove(entry.getValue());
                         }
                     }
@@ -1197,8 +1198,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
          * that its filter (WHERE clause) is folded to FALSE.
          */
         private static boolean isNotQueryWithFromClauseAndFilterFoldedToFalse(UnaryPlan plan) {
-            return (!(plan.child() instanceof LocalRelation) || (plan.child() instanceof LocalRelation &&
-                !(((LocalRelation) plan.child()).executable() instanceof EmptyExecutable)));
+            return ((plan.child() instanceof LocalRelation) == false || (plan.child() instanceof LocalRelation &&
+                (((LocalRelation) plan.child()).executable() instanceof EmptyExecutable) == false));
         }
     }
 

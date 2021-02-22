@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gradle.test.rest;
 
@@ -22,10 +11,12 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
@@ -39,7 +30,6 @@ import org.gradle.internal.Factory;
 
 import javax.inject.Inject;
 import java.io.File;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -54,10 +44,10 @@ import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
  */
 public class CopyRestTestsTask extends DefaultTask {
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
-    private final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
-    private final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
+    private final ListProperty<String> includeCore;
+    private final ListProperty<String> includeXpack;
+    private final DirectoryProperty outputResourceDir;
 
-    private File outputResourceDir;
     private FileCollection coreConfig;
     private FileCollection xpackConfig;
     private FileCollection additionalConfig;
@@ -76,10 +66,14 @@ public class CopyRestTestsTask extends DefaultTask {
         ProjectLayout projectLayout,
         Factory<PatternSet> patternSetFactory,
         FileSystemOperations fileSystemOperations,
-        ArchiveOperations archiveOperations
+        ArchiveOperations archiveOperations,
+        ObjectFactory objectFactory
     ) {
-        corePatternSet = patternSetFactory.create();
-        xpackPatternSet = patternSetFactory.create();
+        this.includeCore = objectFactory.listProperty(String.class);
+        this.includeXpack = objectFactory.listProperty(String.class);
+        this.outputResourceDir = objectFactory.directoryProperty();
+        this.corePatternSet = patternSetFactory.create();
+        this.xpackPatternSet = patternSetFactory.create();
         this.projectLayout = projectLayout;
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
@@ -123,20 +117,25 @@ public class CopyRestTestsTask extends DefaultTask {
     }
 
     @OutputDirectory
-    public File getOutputDir() {
-        return new File(outputResourceDir, REST_TEST_PREFIX);
+    public DirectoryProperty getOutputResourceDir() {
+        return outputResourceDir;
     }
 
     @TaskAction
     void copy() {
+        // clean the output directory to ensure no stale files persist
+        fileSystemOperations.delete(d -> d.delete(outputResourceDir));
+
         String projectPath = getProjectPathFromTask(getPath());
+        File restTestOutputDir = new File(outputResourceDir.get().getAsFile(), REST_TEST_PREFIX);
+
         // only copy core tests if explicitly instructed
         if (includeCore.get().isEmpty() == false) {
             if (BuildParams.isInternal()) {
                 getLogger().debug("Rest tests for project [{}] will be copied to the test resources.", projectPath);
                 fileSystemOperations.copy(c -> {
                     c.from(coreConfigToFileTree.apply(coreConfig));
-                    c.into(getOutputDir());
+                    c.into(restTestOutputDir);
                     c.include(corePatternSet.getIncludes());
                 });
             } else {
@@ -147,7 +146,7 @@ public class CopyRestTestsTask extends DefaultTask {
                 );
                 fileSystemOperations.copy(c -> {
                     c.from(archiveOperations.zipTree(coreConfig.getSingleFile())); // jar file
-                    c.into(Objects.requireNonNull(outputResourceDir));
+                    c.into(outputResourceDir);
                     c.include(
                         includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
                     );
@@ -159,7 +158,7 @@ public class CopyRestTestsTask extends DefaultTask {
             getLogger().debug("X-pack rest tests for project [{}] will be copied to the test resources.", projectPath);
             fileSystemOperations.copy(c -> {
                 c.from(xpackConfigToFileTree.apply(xpackConfig));
-                c.into(getOutputDir());
+                c.into(restTestOutputDir);
                 c.include(xpackPatternSet.getIncludes());
             });
         }
@@ -167,13 +166,9 @@ public class CopyRestTestsTask extends DefaultTask {
         if (additionalConfig != null) {
             fileSystemOperations.copy(c -> {
                 c.from(additionalConfigToFileTree.apply(additionalConfig));
-                c.into(getOutputDir());
+                c.into(restTestOutputDir);
             });
         }
-    }
-
-    public void setOutputResourceDir(File outputResourceDir) {
-        this.outputResourceDir = outputResourceDir;
     }
 
     public void setCoreConfig(FileCollection coreConfig) {

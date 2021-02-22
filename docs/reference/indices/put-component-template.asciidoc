@@ -85,7 +85,29 @@ except before the opening curly bracket.
 `<component-template>`::
 (Required, string)
 Name of the component template to create.
++
+[IMPORTANT]
+====
+{es} includes the following built-in component templates:
 
+// tag::built-in-component-templates[]
+- `logs-mappings`
+- `logs-settings`
+- `metrics-mappings`
+- `metrics-settings`
+- `synthetics-mapping`
+- `synthetics-settings`
+// end::built-in-component-templates[]
+
+The {fleet-guide}/fleet-overview.html[{agent}] uses these templates to configure
+backing indices for its data streams. If you use the {agent} and want to
+overwrite one of these templates, set the `version` for your replacement
+template higher than the current version.
+
+If you don't use the {agent} and want to disable all built-in component and
+index templates, set <<stack-templates-enabled,`stack.templates.enabled`>> to
+`false` using the <<cluster-update-settings,cluster update settings API>>.
+====
 
 [[put-component-template-api-query-params]]
 ==== {api-query-parms-title}

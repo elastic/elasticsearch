@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.shrink;
@@ -138,29 +127,29 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         targetIndexSettingsBuilder.remove(IndexMetadata.SETTING_HISTORY_UUID);
         final Settings targetIndexSettings = targetIndexSettingsBuilder.build();
         final int numShards;
-        ByteSizeValue maxSinglePrimarySize = resizeRequest.getMaxSinglePrimarySize();
+        ByteSizeValue maxPrimaryShardSize = resizeRequest.getMaxPrimaryShardSize();
         if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
-            if (resizeRequest.getResizeType() == ResizeType.SHRINK && maxSinglePrimarySize != null) {
-                throw new IllegalArgumentException("Cannot set both index.number_of_shards and max_single_primary_size" +
+            if (resizeRequest.getResizeType() == ResizeType.SHRINK && maxPrimaryShardSize != null) {
+                throw new IllegalArgumentException("Cannot set both index.number_of_shards and max_primary_shard_size" +
                     " for the target index");
             }
             numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);
         } else {
             assert resizeRequest.getResizeType() != ResizeType.SPLIT : "split must specify the number of shards explicitly";
             if (resizeRequest.getResizeType() == ResizeType.SHRINK) {
-                if (maxSinglePrimarySize != null) {
+                if (maxPrimaryShardSize != null) {
                     int sourceIndexShardsNum = sourceMetadata.getNumberOfShards();
                     long sourceIndexStorageBytes = indexStoreStats.getSizeInBytes();
-                    long maxSinglePrimarySizeBytes = maxSinglePrimarySize.getBytes();
-                    long minShardsNum = sourceIndexStorageBytes / maxSinglePrimarySizeBytes;
-                    if (minShardsNum * maxSinglePrimarySizeBytes < sourceIndexStorageBytes) {
+                    long maxPrimaryShardSizeBytes = maxPrimaryShardSize.getBytes();
+                    long minShardsNum = sourceIndexStorageBytes / maxPrimaryShardSizeBytes;
+                    if (minShardsNum * maxPrimaryShardSizeBytes < sourceIndexStorageBytes) {
                         minShardsNum = minShardsNum + 1;
                     }
                     if (minShardsNum > sourceIndexShardsNum) {
-                        logger.info("By setting max_single_primary_size to [{}], the target index [{}] will contain [{}] shards," +
+                        logger.info("By setting max_primary_shard_size to [{}], the target index [{}] will contain [{}] shards," +
                                 " which will be greater than [{}] shards in the source index [{}]," +
                                 " using [{}] for the shard count of the target index [{}]",
-                            maxSinglePrimarySize.toString(), targetIndexName, minShardsNum, sourceIndexShardsNum,
+                            maxPrimaryShardSize.toString(), targetIndexName, minShardsNum, sourceIndexShardsNum,
                             sourceMetadata.getIndex().getName(), sourceIndexShardsNum, targetIndexName);
                         numShards = sourceIndexShardsNum;
                     } else {

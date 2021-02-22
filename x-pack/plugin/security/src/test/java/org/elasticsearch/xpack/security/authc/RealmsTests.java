@@ -110,6 +110,7 @@ public class RealmsTests extends ESTestCase {
             builder.put("xpack.security.authc.realms.type_" + i + ".realm_" + i + ".order", orders.get(i));
             orderToIndex.put(orders.get(i), i);
         }
+        disableFileAndNativeRealms(builder);
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
@@ -150,6 +151,7 @@ public class RealmsTests extends ESTestCase {
             // set same order for all realms
             builder.put("xpack.security.authc.realms.type_" + randomizedRealmId + ".realm_" + randomizedRealmName + ".order", 1);
         }
+        disableFileAndNativeRealms(builder);
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
@@ -244,6 +246,7 @@ public class RealmsTests extends ESTestCase {
             builder.put("xpack.security.authc.realms.type_" + i + ".realm_" + i + ".order", orders.get(i));
             orderToIndex.put(orders.get(i), i);
         }
+        disableFileAndNativeRealms(builder);
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
@@ -330,6 +333,7 @@ public class RealmsTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .put("xpack.security.authc.realms.ldap.foo.order", "0")
                 .put("xpack.security.authc.realms.type_0.custom.order", "1");
+        disableFileAndNativeRealms(builder);
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
@@ -399,6 +403,7 @@ public class RealmsTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .put("xpack.security.authc.realms.ldap.foo.order", "0")
                 .put("xpack.security.authc.realms." + type + ".native.order", "1");
+        disableFileAndNativeRealms(builder);
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
@@ -437,6 +442,7 @@ public class RealmsTests extends ESTestCase {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir())
                 .put("xpack.security.authc.realms." + selectedRealmType + ".foo.order", "0");
+        disableFileAndNativeRealms(builder);
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
@@ -490,6 +496,7 @@ public class RealmsTests extends ESTestCase {
     public void testDisabledRealmsAreNotAdded() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());
+        disableFileAndNativeRealms(builder);
         List<Integer> orders = new ArrayList<>(randomRealmTypesCount);
         for (int i = 0; i < randomRealmTypesCount; i++) {
             orders.add(i);
@@ -543,10 +550,11 @@ public class RealmsTests extends ESTestCase {
     }
 
     public void testAuthcAuthzDisabled() throws Exception {
-        Settings settings = Settings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".realm_1.order", 0)
-                .build();
+                .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".realm_1.order", 0);
+        disableFileAndNativeRealms(builder);
+        final Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
 
@@ -562,6 +570,7 @@ public class RealmsTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .put("xpack.security.authc.realms.type_0.foo.order", "0")
                 .put("xpack.security.authc.realms.type_0.bar.order", "1");
+        disableFileAndNativeRealms(builder);
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
@@ -628,10 +637,11 @@ public class RealmsTests extends ESTestCase {
     public void testWarningForMissingRealmOrder() throws Exception {
         final int realmTypeId = randomIntBetween(0, randomRealmTypesCount - 1);
         final String realmName = randomAlphaOfLengthBetween(4, 12);
-        final Settings settings = Settings.builder()
+        final Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms.type_" + realmTypeId + ".realm_" + realmName + ".enabled", true)
-                .build();
+                .put("xpack.security.authc.realms.type_" + realmTypeId + ".realm_" + realmName + ".enabled", true);
+        disableFileAndNativeRealms(builder);
+        final Settings settings = builder.build();
 
         new Realms(settings, TestEnvironment.newEnvironment(settings), factories, licenseState, threadContext, reservedRealm);
         assertWarnings("Found realms without order config: [xpack.security.authc.realms.type_"
@@ -718,6 +728,11 @@ public class RealmsTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    private void disableFileAndNativeRealms(Settings.Builder builder) {
+        builder.put("xpack.security.authc.realms.file.default_file.enabled", false)
+            .put("xpack.security.authc.realms.native.default_native.enabled", false);
     }
 
     static class DummyRealm extends Realm {

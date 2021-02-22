@@ -139,7 +139,7 @@ class NodeDeprecationChecks {
         return new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "File and/or native realms cannot be implicitly disabled in next major release.",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#implicitly-disabled-native-realms",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/deprecated-7.13.html#implicitly-disabled-native-realms",
             details
         );
     }

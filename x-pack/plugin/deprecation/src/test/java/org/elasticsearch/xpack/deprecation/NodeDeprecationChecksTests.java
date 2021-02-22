@@ -98,11 +98,13 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testCheckMissingRealmOrders() {
         final RealmConfig.RealmIdentifier invalidRealm =
-            new RealmConfig.RealmIdentifier(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(4, 12));
+            new RealmConfig.RealmIdentifier(randomRealmTypeOtherThanFileOrNative(), randomAlphaOfLengthBetween(4, 12));
         final RealmConfig.RealmIdentifier validRealm =
-            new RealmConfig.RealmIdentifier(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(4, 12));
+            new RealmConfig.RealmIdentifier(randomRealmTypeOtherThanFileOrNative(), randomAlphaOfLengthBetween(4, 12));
         final Settings settings =
             Settings.builder()
+                .put("xpack.security.authc.realms.file.default_file.enabled", false)
+                .put("xpack.security.authc.realms.native.default_native.enabled", false)
                 .put("xpack.security.authc.realms." + invalidRealm.getType() + "." + invalidRealm.getName() + ".enabled", "true")
                 .put("xpack.security.authc.realms." + validRealm.getType() + "." + validRealm.getName() + ".order", randomInt())
                 .build();
@@ -139,12 +141,14 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final int order = randomInt(9999);
 
         final RealmConfig.RealmIdentifier invalidRealm1 =
-            new RealmConfig.RealmIdentifier(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(4, 12));
+            new RealmConfig.RealmIdentifier(randomRealmTypeOtherThanFileOrNative(), randomAlphaOfLengthBetween(4, 12));
         final RealmConfig.RealmIdentifier invalidRealm2 =
-            new RealmConfig.RealmIdentifier(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(4, 12));
+            new RealmConfig.RealmIdentifier(randomRealmTypeOtherThanFileOrNative(), randomAlphaOfLengthBetween(4, 12));
         final RealmConfig.RealmIdentifier validRealm =
-            new RealmConfig.RealmIdentifier(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(4, 12));
+            new RealmConfig.RealmIdentifier(randomRealmTypeOtherThanFileOrNative(), randomAlphaOfLengthBetween(4, 12));
         final Settings settings = Settings.builder()
+            .put("xpack.security.authc.realms.file.default_file.enabled", false)
+            .put("xpack.security.authc.realms.native.default_native.enabled", false)
             .put("xpack.security.authc.realms."
                 + invalidRealm1.getType() + "." + invalidRealm1.getName() + ".order", order)
             .put("xpack.security.authc.realms."
@@ -171,10 +175,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testCorrectRealmOrders() {
         final int order = randomInt(9999);
         final Settings settings = Settings.builder()
+            .put("xpack.security.authc.realms.file.default_file.enabled", false)
+            .put("xpack.security.authc.realms.native.default_native.enabled", false)
             .put("xpack.security.authc.realms."
-                + randomAlphaOfLengthBetween(4, 12) + "." + randomAlphaOfLengthBetween(4, 12) + ".order", order)
+                + randomRealmTypeOtherThanFileOrNative() + "." + randomAlphaOfLengthBetween(4, 12) + ".order", order)
             .put("xpack.security.authc.realms."
-                + randomAlphaOfLengthBetween(4, 12) + "." + randomAlphaOfLengthBetween(4, 12) + ".order", order + 1)
+                + randomRealmTypeOtherThanFileOrNative() + "." + randomAlphaOfLengthBetween(4, 12) + ".order", order + 1)
             .build();
 
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
@@ -456,7 +462,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertEquals("File and/or native realms cannot be implicitly disabled in next major release.",
             deprecationIssues.get(0).getMessage());
         assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference" +
-                "/7.13/breaking-changes-7.13.html#implicitly-disabled-native-realms",
+                "/7.13/deprecated-7.13.html#implicitly-disabled-native-realms",
             deprecationIssues.get(0).getUrl());
+    }
+
+    private String randomRealmTypeOtherThanFileOrNative() {
+        return randomValueOtherThanMany(t -> org.elasticsearch.common.collect.Set.of("file", "native").contains(t),
+            () -> randomAlphaOfLengthBetween(4, 12));
     }
 }

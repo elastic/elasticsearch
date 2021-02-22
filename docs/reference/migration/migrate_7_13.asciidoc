@@ -17,7 +17,6 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 //tag::notable-breaking-changes[]
 
-////
 [discrete]
 [[breaking-changes-7.13]]
 === Breaking changes
@@ -34,7 +33,6 @@ the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
-////
 
 [discrete]
 [[deprecated-7.13]]

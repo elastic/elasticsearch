@@ -13,24 +13,12 @@ When you set up monitoring several stack monitoring alerts were added to Stack M
 https://www.elastic.co/guide/en/kibana/current/alerting-getting-started.html
 
 [discrete]
-=== High CPU utilization
-These are things to look for to 
-Percent (100% per core)
-Normalized percent (total % of multicore)
-CPU time (milliseconds, millicores)
-High load averages
-Decimal number starting at 0.00 (wikipedia)
-Exceeding # of CPU cores indicates an overloaded system
-Frequent or long GC cycles
-Every GC run takes CPU time
-Heap exhaustion can look like a CPU issue
-
-%iowait - How long the CPU is waiting on storage
-Device utilization %
-Throughput (MB/s, GB/s)
-I/O operations per second (IOPS)
-Operation service time (ms)
-
+=== Detecting high CPU utilization
+These are indicators of high CPU utilization:
+- monitoring reports high utilization
+- high load averages
+- frequesnt or long Java garbage collection (GC) cycles
+- every GC cycle takes CPU time
 
 [discrete]
 === Look for high CPU consuming threads

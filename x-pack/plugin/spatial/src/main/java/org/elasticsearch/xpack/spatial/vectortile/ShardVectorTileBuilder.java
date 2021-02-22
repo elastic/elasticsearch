@@ -116,7 +116,8 @@ class ShardVectorTileBuilder {
                     AbstractLatLonShapeIndexFieldData.LatLonShapeIndexFieldData shapes =
                         (AbstractLatLonShapeIndexFieldData.LatLonShapeIndexFieldData) indexFieldData;
                     org.apache.lucene.geo.Rectangle rectangle1 =
-                        new org.apache.lucene.geo.Rectangle(rectangle.getMinLat(), rectangle.getMaxLat(), rectangle.getMinLon(), rectangle.getMaxLon());
+                        new org.apache.lucene.geo.Rectangle(rectangle.getMinLat(), rectangle.getMaxLat(),
+                            rectangle.getMinLon(), rectangle.getMaxLon());
                     collector = new ShapeDocValuesVectorTileCollector(shapes, tileEnvelope, rectangle1, field);
                 }
             } else {

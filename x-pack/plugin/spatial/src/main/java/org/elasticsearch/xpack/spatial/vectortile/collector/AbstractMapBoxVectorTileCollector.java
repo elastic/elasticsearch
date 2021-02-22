@@ -34,7 +34,7 @@ abstract class AbstractMapBoxVectorTileCollector implements VectorTileCollector 
 
     private final IGeometryFilter acceptAllGeomFilter = geometry -> true;
     private final IUserDataConverter ignoreUserData = new UserDataIgnoreConverter();
-    private final MvtLayerParams layerParams = new MvtLayerParams();;
+    private final MvtLayerParams layerParams = new MvtLayerParams();
     private final GeometryFactory geomFactory = new GeometryFactory();
     private final MvtLayerProps layerProps = new MvtLayerProps();
     private final VectorTile.Tile.Layer.Builder layerBuilder;

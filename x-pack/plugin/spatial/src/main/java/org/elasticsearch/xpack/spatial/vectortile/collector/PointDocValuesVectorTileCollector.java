@@ -27,7 +27,8 @@ public class PointDocValuesVectorTileCollector extends AbstractVectorTileCollect
     final AbstractLatLonPointIndexFieldData.LatLonPointIndexFieldData points;
     private static int extent = 256;
 
-    public PointDocValuesVectorTileCollector(final AbstractLatLonPointIndexFieldData.LatLonPointIndexFieldData points, Envelope tileEnvelope, String field) {
+    public PointDocValuesVectorTileCollector(final AbstractLatLonPointIndexFieldData.LatLonPointIndexFieldData points,
+                                             Envelope tileEnvelope, String field) {
         super(tileEnvelope, field, extent);
         this.points = points;
     }

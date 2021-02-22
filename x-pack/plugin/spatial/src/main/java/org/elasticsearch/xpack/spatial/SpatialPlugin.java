@@ -104,8 +104,8 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        FixedExecutorBuilder indexing = new FixedExecutorBuilder(settings, "vector_tile_generation", 1, -1, "thread_pool.vectortile", false);
-
+        FixedExecutorBuilder indexing =
+            new FixedExecutorBuilder(settings, "vector_tile_generation", 1, -1, "thread_pool.vectortile", false);
         return Collections.singletonList(indexing);
     }
 

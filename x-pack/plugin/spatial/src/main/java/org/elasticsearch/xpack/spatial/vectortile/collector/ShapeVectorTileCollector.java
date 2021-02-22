@@ -64,10 +64,12 @@ public class ShapeVectorTileCollector extends AbstractVectorTileCollector {
                     return null;
                 }
                 featureBuilder.setType(VectorTile.Tile.GeomType.POLYGON);
-                commands.add(com.wdtinc.mapbox_vector_tile.encoding.GeomCmdHdr.cmdHdr(com.wdtinc.mapbox_vector_tile.encoding.GeomCmd.MoveTo, 1));
+                commands.add(com.wdtinc.mapbox_vector_tile.encoding.GeomCmdHdr.cmdHdr
+                    (com.wdtinc.mapbox_vector_tile.encoding.GeomCmd.MoveTo, 1));
                 commands.add(ZigZag.encode((int) p.getPolyX(0)));
                 commands.add(ZigZag.encode((int) p.getPolyY(0)));
-                commands.add(com.wdtinc.mapbox_vector_tile.encoding.GeomCmdHdr.cmdHdr(com.wdtinc.mapbox_vector_tile.encoding.GeomCmd.LineTo, p.numPoints() - 2));
+                commands.add(com.wdtinc.mapbox_vector_tile.encoding.GeomCmdHdr.cmdHdr
+                    (com.wdtinc.mapbox_vector_tile.encoding.GeomCmd.LineTo, p.numPoints() - 2));
                 for (int i = 1; i < p.numPoints() - 1; i++) {
                     if ((int)p.getPolyX(i) != (int)p.getPolyX(i - 1) || (int)p.getPolyY(i) != (int)p.getPolyY(i - 1)) {
                         commands.add(ZigZag.encode((int) p.getPolyX(i) - (int) p.getPolyX(i - 1)));
@@ -90,8 +92,10 @@ public class ShapeVectorTileCollector extends AbstractVectorTileCollector {
         float[] xs = new float[p.numPoints()];
         float[] ys = new float[p.numPoints()];
         for (int i = 0; i < p.numPoints(); i++) {
-            xs[p.numPoints() - 1 - i] = (float) (xScale * (VectorTileUtils.lonToSphericalMercator(p.getPolyLon(i)) - tile.getMinX()));
-            ys[p.numPoints() - 1 - i] = (float) (yScale * (VectorTileUtils.latToSphericalMercator(p.getPolyLat(i)) - tile.getMinY())) + extent;
+            xs[p.numPoints() - 1 - i] =
+                (float) (xScale * (VectorTileUtils.lonToSphericalMercator(p.getPolyLon(i)) - tile.getMinX()));
+            ys[p.numPoints() - 1 - i] =
+                (float) (yScale * (VectorTileUtils.latToSphericalMercator(p.getPolyLat(i)) - tile.getMinY())) + extent;
         }
         XYPolygon[] holes = new XYPolygon[p.numHoles()];
         for (int i = 0; i < p.numHoles(); i++) {

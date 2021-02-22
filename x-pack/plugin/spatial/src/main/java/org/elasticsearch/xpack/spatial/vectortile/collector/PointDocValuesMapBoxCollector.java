@@ -25,7 +25,8 @@ public class PointDocValuesMapBoxCollector extends AbstractMapBoxVectorTileColle
     final AbstractLatLonPointIndexFieldData.LatLonPointIndexFieldData points;
     GeometryFactory geomFactory = new GeometryFactory();
 
-    public PointDocValuesMapBoxCollector(AbstractLatLonPointIndexFieldData.LatLonPointIndexFieldData points, Envelope tileEnvelope, String field) {
+    public PointDocValuesMapBoxCollector(AbstractLatLonPointIndexFieldData.LatLonPointIndexFieldData points,
+                                         Envelope tileEnvelope, String field) {
         super(tileEnvelope, field);
         this.points = points;
     }

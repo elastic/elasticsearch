@@ -57,7 +57,8 @@ public class TransportVectorTileAction
     }
 
     @Override
-    protected GroupShardsIterator<ShardIterator> shards(ClusterState clusterState, VectorTileAction.Request request, String[] concreteIndices) {
+    protected GroupShardsIterator<ShardIterator> shards(ClusterState clusterState,
+                                                        VectorTileAction.Request request, String[] concreteIndices) {
         // Random routing to limit request to a single shard
         String routing = Integer.toString(Randomness.get().nextInt(1000));
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, routing, request.indices());

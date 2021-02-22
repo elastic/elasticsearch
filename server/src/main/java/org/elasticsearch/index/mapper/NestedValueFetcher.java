@@ -10,7 +10,9 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FieldFetcher;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.lookup.ValuesLookup;
 
 import java.io.IOException;
@@ -42,6 +44,21 @@ public class NestedValueFetcher implements ValueFetcher {
         List<Object> nestedEntriesToReturn = new ArrayList<>();
         Map<String, Object> filteredSource = new HashMap<>();
         Map<String, Object> stub = createSourceMapStub(filteredSource);
+        SourceLookup filteredSourceLookup = new SourceLookup();
+        filteredSourceLookup.setSource(filteredSource);
+        // DocValues will not work here because we are not positioned correctly,
+        // so we just return an empty list
+        ValuesLookup filteredLookup = new ValuesLookup() {
+            @Override
+            public SourceLookup source() {
+                return filteredSourceLookup;
+            }
+
+            @Override
+            public List<Object> docValues(String field, DocValueFormat format) {
+                return Collections.emptyList();
+            }
+        };
         List<?> nestedValues = XContentMapValues.extractNestedValue(nestedFieldPath, lookup.source());
         if (nestedValues == null) {
             return Collections.emptyList();
@@ -50,8 +67,7 @@ public class NestedValueFetcher implements ValueFetcher {
             // add this one entry only to the stub and use this as source lookup
             stub.put(nestedFieldName, entry);
 
-            Map<String, DocumentField> fetchResult
-                = nestedFieldFetcher.fetch(ValuesLookup.sourceOnly(filteredSource));
+            Map<String, DocumentField> fetchResult = nestedFieldFetcher.fetch(filteredLookup);
 
             Map<String, Object> nestedEntry = new HashMap<>();
             for (DocumentField field : fetchResult.values()) {

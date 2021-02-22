@@ -396,8 +396,17 @@ public class PointInTimeIT extends ESIntegTestCase {
         try {
             for (int size = 1; size <= numIndex; size++) {
                 SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
+
                 assertPagination(new PointInTimeBuilder(pit), expectedNumDocs, size,
                     SortBuilders.pitTiebreaker().order(order));
+
+                assertPagination(new PointInTimeBuilder(pit), expectedNumDocs, size,
+                    SortBuilders.scoreSort());
+                assertPagination(new PointInTimeBuilder(pit), expectedNumDocs, size,
+                    SortBuilders.scoreSort(), SortBuilders.pitTiebreaker().order(order));
+
+                assertPagination(new PointInTimeBuilder(pit), expectedNumDocs, size,
+                    SortBuilders.fieldSort("value"));
                 assertPagination(new PointInTimeBuilder(pit), expectedNumDocs, size,
                     SortBuilders.fieldSort("value"), SortBuilders.pitTiebreaker().order(order));
             }
@@ -406,18 +415,21 @@ public class PointInTimeIT extends ESIntegTestCase {
         }
     }
 
-    private void assertPagination(PointInTimeBuilder pit, int expectedNumDocs, int size, SortBuilder<?>... sort) throws Exception {
+    private void assertPagination(PointInTimeBuilder pit, int expectedNumDocs, int size, SortBuilder<?>... sorts) throws Exception {
         Set<String> seen = new HashSet<>();
         SearchRequestBuilder builder = client().prepareSearch()
             .setSize(size)
             .setPointInTime(pit);
-
-        final int[] reverseMuls = new int[sort.length];
-        for (int i = 0; i < sort.length; i++) {
-            builder.addSort(sort[i]);
-            reverseMuls[i] = sort[i].order() == SortOrder.ASC ? 1 : -1;
+        for (SortBuilder<?> sort : sorts) {
+            builder.addSort(sort);
         }
-        final SearchRequest searchRequest = builder.request();
+        final SearchRequest searchRequest = builder.request().rewrite(null);
+
+        final List<SortBuilder<?>> expectedSorts = searchRequest.source().sorts();
+        final int[] reverseMuls = new int[expectedSorts.size()];
+        for (int i = 0; i < expectedSorts.size(); i++) {
+            reverseMuls[i] = expectedSorts.get(i).order() == SortOrder.ASC ? 1 : -1;
+        }
         SearchResponse response = client().search(searchRequest).get();
         Object[] lastSortValues = null;
         while (response.getHits().getHits().length > 0) {
@@ -426,7 +438,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                 assertTrue(seen.add(hit.getIndex() + hit.getId()));
 
                 if (lastHitSortValues != null) {
-                    for (int i = 0; i < sort.length; i++) {
+                    for (int i = 0; i < expectedSorts.size(); i++) {
                         Comparable value = (Comparable) hit.getRawSortValues()[i];
                         int cmp = value.compareTo(lastHitSortValues[i]) * reverseMuls[i];
                         if (cmp != 0) {
@@ -440,7 +452,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             int len = response.getHits().getHits().length;
             SearchHit last = response.getHits().getHits()[len - 1];
             if (lastSortValues != null) {
-                for (int i = 0; i < sort.length; i++) {
+                for (int i = 0; i < expectedSorts.size(); i++) {
                     Comparable value = (Comparable) last.getSortValues()[i];
                     int cmp = value.compareTo(lastSortValues[i]) * reverseMuls[i];
                     if (cmp != 0) {
@@ -449,7 +461,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                     }
                 }
             }
-            assertThat(last.getSortValues().length, equalTo(sort.length));
+            assertThat(last.getSortValues().length, equalTo(expectedSorts.size()));
             lastSortValues = last.getSortValues();
             searchRequest.source().searchAfter(last.getSortValues());
             response = client().search(searchRequest).get();

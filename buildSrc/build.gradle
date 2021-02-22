@@ -88,7 +88,6 @@ dependencies {
   api 'org.apache.commons:commons-compress:1.19'
   api 'org.apache.ant:ant:1.10.8'
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:5.0.1'
-  api 'com.netflix.nebula:nebula-publishing-plugin:17.3.2'
   api 'com.netflix.nebula:gradle-info-plugin:9.2.0'
   api 'org.apache.rat:apache-rat:0.11'
   api "org.elasticsearch:jna:5.5.0"
@@ -245,7 +244,7 @@ if (project != rootProject) {
     maxParallelForks = providers.systemProperty('tests.jvms').forUseAtConfigurationTime().getOrElse(org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
   }
 
-  publishing.publications.named("nebula").configure {
+  publishing.publications.named("elastic").configure {
     suppressPomMetadataWarningsFor("testFixturesApiElements")
     suppressPomMetadataWarningsFor("testFixturesRuntimeElements")
   }

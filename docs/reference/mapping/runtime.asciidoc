@@ -709,14 +709,14 @@ The mapping contains two fields: `@timestamp` and `message`.
 [[runtime-examples-grok]]
 ==== Define a runtime field with a grok pattern
 If you want to retrieve results that include `clientip`, you can add that
-field as a runtime field in the mapping. The following runtime script uses
-the grok operator, which extracts structured fields out of a single text
+field as a runtime field in the mapping. The following runtime script defines a
+grok pattern that extracts structured fields out of a single text
 field within a document. A grok pattern is like a regular expression that
 supports aliased expressions that you can reuse. See <<grok-basics,Grok basics>> to learn more about grok syntax.
 
 The script matches on the `%{COMMONAPACHELOG}` log pattern, which understands
 the structure of Apache logs. If the pattern matches, the script emits the
-value of the `message` field. If the pattern doesn't match
+value matching IP address. If the pattern doesn't match
 (`clientip != null`), the script just returns the field value without crashing.
 
 [source,console]
@@ -735,8 +735,8 @@ PUT my-index/_mappings
 }
 ----
 // TEST[continued]
-<1> This condition ensures that the script returns the field value even if the
-pattern of the log data doesn't match.
+<1> This condition ensures that the script doesn't crash even if the pattern of
+the message doesn't match.
 
 [[runtime-examples-grok-ip]]
 ===== Search for a specific IP address
@@ -763,14 +763,14 @@ and determine which fields to index.
 
 Also, remember that `if` statement in the script?
 
-[source,txt]
+[source,painless]
 ----
 if (clientip != null) emit(clientip);
 ----
 
-If the script didn't include this condition, the result wouldn't include any
-documents. By including this condition, the script still returns documents if
-there's data that doesn't match the grok pattern.
+If the script didn't include this condition, the query would fail on any shard
+that doesn't match the pattern. By including this condition, the query skips
+data that doesn't match the grok pattern.
 
 [source,console-result]
 ----
@@ -873,12 +873,12 @@ timestamp falls within the defined range.
 
 [[runtime-examples-dissect]]
 ==== Define a runtime field with a dissect pattern
-<<dissect-processor,Dissect patterns>> are similar to grok patterns, but they
-don't accept regular expressions. This difference allows dissect’s syntax to be
-simple and for some cases faster than grok.
+If you don't need the power of regular expressions, you can use
+<<dissect-processor,dissect patterns>> instead of grok patterns. Dissect
+patterns match on fixed delimiters but are typically faster that grok.
 
-You can use dissect to achieve the same results as a grok pattern, such as the
-<<runtime-examples-grok,`clientip` grok pattern>>. Instead of matching on a log
+You can use dissect to achieve the same results as parsing the Apache logs with
+a <<runtime-examples-grok,grok pattern>>. Instead of matching on a log
 pattern, you include the parts of the string that you want to discard. Paying
 special attention to the parts of the string you want to discard will help build
 successful dissect patterns.
@@ -900,8 +900,7 @@ PUT my-index/_mappings
 ----
 // TEST[continued]
 
-Similarly, you can define a dissect pattern to discard everything in the log
-message except the HTTP response:
+Similarly, you can define a dissect pattern to extract the https://developer.mozilla.org/en-US/docs/Web/HTTP/Status[HTTP response code]:
 
 [source,console]
 ----

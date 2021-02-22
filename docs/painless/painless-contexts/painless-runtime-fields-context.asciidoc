@@ -9,11 +9,34 @@ about how to use runtime fields.
 
 *Methods*
 
+`emit`::
+        Contains the fields to return values for based on the script valuation.
+
+--
 `grok`::
         Defines a {ref}/grok-processor.html[grok pattern] to extract structured fields out of a single text field within a document. A grok pattern is like a regular expression that supports aliased expressions that can be reused. See {ref}/runtime-examples.html#runtime-examples-grok[Define a runtime field with a grok pattern].
++
+.Properties of `grok`
+[%collapsible%open]
+====
+`extract`::
+        Indicates the values to return. This method applies only to `grok` and
+        `dissect` methods.
+====
+--
 
+--
 `dissect`::
         Defines a {ref}/dissect-processor.html[dissect pattern]. Dissect operates much like grok, but does not accept regular expressions. See {ref}/runtime-examples.html#runtime-examples-dissect[Define a runtime field with a dissect pattern].
++
+.Properties of `dissect`
+[%collapsible%open]
+====
+`extract`::
+        Indicates the values to return. This method applies only to `grok` and
+        `dissect` methods.
+====
+--
 
 *Variables*
 
@@ -24,9 +47,6 @@ about how to use runtime fields.
         Contains the fields of the specified document where each field is a
         `List` of values.
 
-`emit` (`String`, read-only)::
-        Contains the fields to return values for based on the script valuation.
-
 {ref}/mapping-source-field.html[`params['_source']`] (`Map`, read-only)::
         Contains extracted JSON in a `Map` and `List` structure for the fields
         existing in a stored document.
@@ -35,10 +55,6 @@ about how to use runtime fields.
 
 `void`::
         No expected return value.
-
-`extract`::
-        Indicates the values to return. This method applies only to `grok` and
-        `dissect` operators.
 
 *API*
 

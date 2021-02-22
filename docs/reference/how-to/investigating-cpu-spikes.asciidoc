@@ -27,7 +27,7 @@ These are indicators of high CPU utilization:
 Occasional high CPU jobs are expected, but constant high CPU usage on 
 long running jobs should be investigated.  If CPU utilization on a system
 with an Elasticsearch node is high then find out which Elasticsearch
-threads are contributing to this by running this command:
+threads are contributing to this by using the <<cluster-nodes-hot-threads,hot threads>> API:
 
 [source,console]
 --------------------------------------------------

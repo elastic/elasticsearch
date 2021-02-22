@@ -135,6 +135,9 @@ them in other cases as to remove ambiguity.)
 uses a shortcut specifically for the `Map` type that allows us to use braces
 instead of the lengthier `get` method.
 
+Admittedly, this last example contains a huge amount of information all at once.
+Let's break Painless down into more palatable chunks in the next section.
+
 ==== The Basics of Painless
 
 A Painless script is structured as one or more statements and optionally

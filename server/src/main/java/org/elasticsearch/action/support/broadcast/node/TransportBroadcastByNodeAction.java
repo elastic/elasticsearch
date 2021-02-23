@@ -438,6 +438,14 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             List<BroadcastShardOperationFailedException> accumulatedExceptions = new ArrayList<>();
             List<ShardOperationResult> results = new ArrayList<>();
             for (int i = 0; i < totalShards; i++) {
+                if (shardResultOrExceptions.get(i) instanceof TaskCancelledException) {
+                    try {
+                        channel.sendResponse((TaskCancelledException) shardResultOrExceptions.get(i));
+                    } catch (IOException e) {
+                        logger.warn("failed to send response", e);
+                    }
+                    return;
+                }
                 if (shardResultOrExceptions.get(i) instanceof BroadcastShardOperationFailedException) {
                     accumulatedExceptions.add((BroadcastShardOperationFailedException) shardResultOrExceptions.get(i));
                 } else {

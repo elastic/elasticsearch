@@ -332,10 +332,11 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
         TestTransportChannel channel = new TestTransportChannel(future);
 
-        expectThrows(TaskCancelledException.class, () -> handler.messageReceived(
-                action.new NodeRequest(nodeId, new Request(), new ArrayList<>(shards)),
-                channel,
-                cancelledTask()));
+        handler.messageReceived(
+            action.new NodeRequest(nodeId, new Request(), new ArrayList<>(shards)),
+            channel,
+            cancelledTask());
+        expectThrows(TaskCancelledException.class, future::actionGet);
 
         assertThat(action.getResults(), anEmptyMap());
     }

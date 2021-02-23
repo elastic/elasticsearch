@@ -14,7 +14,9 @@ They may evolve in future releases, but are otherwise fixed in a given {es} vers
 * <<voting-config-exclusions,Voting exclusions APIs>>
 * <<delete-license,Delete license API>>
 * <<update-license,Update license API>>
-* <<autoscaling-apis,Autoscaling APIs>>
+* <<autoscaling-put-autoscaling-policy,Put autoscaling policy API>>
+* <<autoscaling-delete-autoscaling-policy,Delete autoscaling policy>>
+* <<repo-analysis-api,Repository analysis API>>
 
 [[operator-only-dynamic-cluster-settings]]
 ==== Operator-only dynamic cluster settings

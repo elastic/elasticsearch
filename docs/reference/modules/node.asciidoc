@@ -17,8 +17,9 @@ requests to the appropriate node.
 [[node-roles]]
 ==== Node roles
 
-You can define the roles of a node by setting `node.roles`. If you don't
-configure this setting, the node has the following roles by default:
+You define a node's roles by setting `node.roles` in `elasticsearch.yml`. If you
+set `node.roles`, the node is only assigned the roles you specify. If you don't
+set `node.roles`, the node is assigned the following roles:
 
 * `master`
 * `data`
@@ -32,7 +33,18 @@ configure this setting, the node has the following roles by default:
 * `remote_cluster_client`
 * `transform`
 
-NOTE: If you set `node.roles`, the node is assigned only the roles you specify.
+[IMPORTANT]
+====
+If you set `node.roles`, ensure you specify every node role your cluster needs.
+Some {stack} features require specific node roles:
+
+- {ccs-cap} and {ccr} require the `remote_cluster_client` role.
+- {stack-monitor-app} and ingest pipelines require the `ingest` role.
+- {fleet}, the {security-app}, and {transforms} require the `transform` role.
+  The `remote_cluster_client` role is also required to use {ccs} with these
+  features.
+- {ml-cap} features, such as {anomaly-detect}, require the `ml` role.
+====
 
 As the cluster grows and in particular if you have large {ml} jobs or
 {ctransforms}, consider separating dedicated master-eligible nodes from
@@ -40,17 +52,17 @@ dedicated data nodes, {ml} nodes, and {transform} nodes.
 
 <<master-node,Master-eligible node>>::
 
-A node that has the `master` role (default), which makes it eligible to be
+A node that has the `master` role, which makes it eligible to be
 <<modules-discovery,elected as the _master_ node>>, which controls the cluster.
 
 <<data-node,Data node>>::
 
-A node that has the `data` role (default). Data nodes hold data and perform data
+A node that has the `data` role. Data nodes hold data and perform data
 related operations such as CRUD, search, and aggregations. A node with the `data` role can fill any of the specialised data node roles.
 
 <<node-ingest-node,Ingest node>>::
 
-A node that has the `ingest` role (default). Ingest nodes are able to apply an
+A node that has the `ingest` role. Ingest nodes are able to apply an
 <<pipeline,ingest pipeline>> to a document in order to transform and enrich the
 document before indexing. With a heavy ingest load, it makes sense to use
 dedicated ingest nodes and to not include the `ingest` role from nodes that have
@@ -58,16 +70,15 @@ the `master` or `data` roles.
 
 <<remote-node,Remote-eligible node>>::
 
-A node that has the `remote_cluster_client` role (default), which makes it
-eligible to act as a remote client. By default, any node in the cluster can act
-as a cross-cluster client and connect to remote clusters.
+A node that has the `remote_cluster_client` role, which makes it eligible to act
+as a remote client.
 
 <<ml-node,Machine learning node>>::
 
-A node that has `xpack.ml.enabled` and the `ml` role, which is the default
-behavior in the {es} {default-dist}. If you want to use {ml-features}, there
-must be at least one {ml} node in your cluster. For more information about
-{ml-features}, see {ml-docs}/index.html[Machine learning in the {stack}].
+A node that has `xpack.ml.enabled` and the `ml` role. If you want to use
+{ml-features}, there must be at least one {ml} node in your cluster. For more
+information about {ml-features}, see {ml-docs}/index.html[Machine learning in
+the {stack}].
 
 <<transform-node,{transform-cap} node>>::
 
@@ -161,10 +172,8 @@ node:
 node.roles: [ data, master, voting_only ]
 -------------------
 
-IMPORTANT: The `voting_only` role requires the {default-dist} of {es} and is not
-supported in the {oss-dist}. If you use the {oss-dist} and add the `voting_only`
-role then the node will fail to start.  Also note that only nodes with the
-`master` role can be marked as having the `voting_only` role.
+IMPORTANT: Only nodes with the `master` role can be marked as having the
+`voting_only` role.
 
 High availability (HA) clusters require at least three master-eligible nodes, at
 least two of which are not voting-only nodes. Such a cluster will be able to
@@ -181,7 +190,7 @@ Voting-only master-eligible nodes may also fill other roles in your cluster.
 For instance, a node may be both a data node and a voting-only master-eligible
 node. A _dedicated_ voting-only master-eligible nodes is a voting-only
 master-eligible node that fills no other roles in the cluster. To create a
-dedicated voting-only master-eligible node in the {default-dist}, set:
+dedicated voting-only master-eligible node, set:
 
 [source,yaml]
 -------------------
@@ -317,8 +326,8 @@ node.roles: [ ]
 [[remote-node]]
 ==== Remote-eligible node
 
-By default, any node in a cluster can act as a cross-cluster client and connect
-to <<modules-remote-clusters,remote clusters>>. Once connected, you can search
+A remote-eligible node acts as a cross-cluster client and connects to
+<<modules-remote-clusters,remote clusters>>. Once connected, you can search
 remote clusters using <<modules-cross-cluster-search,{ccs}>>. You can also sync
 data between clusters using <<xpack-ccr,{ccr}>>.
 
@@ -358,7 +367,7 @@ Otherwise, {ccs} fails when used in {ml} jobs or {dfeeds}. See <<remote-node>>.
 {transform-cap} nodes run {transforms} and handle {transform} API requests. For
 more information, see <<transform-settings>>.
 
-To create a dedicated {transform} node in the {default-dist}, set:
+To create a dedicated {transform} node, set:
 
 [source,yaml]
 ----

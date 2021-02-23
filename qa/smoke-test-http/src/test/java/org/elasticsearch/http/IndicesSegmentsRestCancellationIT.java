@@ -169,7 +169,7 @@ public class IndicesSegmentsRestCancellationIT extends HttpSmokeTestCase {
         final Semaphore searcherBlock = new Semaphore(1);
 
         SearcherBlockingEngine(EngineConfig config) {
-            super(config, null, new TranslogStats(), true, Function.identity(), true);
+            super(config, null, new TranslogStats(), true, Function.identity(), true, false);
         }
 
         @Override

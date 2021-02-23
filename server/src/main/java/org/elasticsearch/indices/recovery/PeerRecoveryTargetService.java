@@ -422,11 +422,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 }
 
                 recoveryRef.target().cleanFiles(request.totalTranslogOps(), request.getGlobalCheckpoint(), request.sourceMetaSnapshot(),
-                        ActionListener.delegateFailure(listener, (r, l) -> {
+                    listener.delegateFailure((l, r) -> {
                             Releasable reenableMonitor = recoveryRef.target().disableRecoveryMonitor();
                             recoveryRef.target().indexShard().afterCleanFiles(() -> {
                                 reenableMonitor.close();
-                                listener.onResponse(null);
+                                l.onResponse(null);
                             });
                         }));
             }

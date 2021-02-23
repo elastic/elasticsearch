@@ -44,7 +44,7 @@ import static java.util.stream.Collectors.toSet;
 
 public final class KeywordScriptFieldType extends AbstractScriptFieldType<StringFieldScript.LeafFactory> {
 
-    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldTypeParser((name, parserContext) -> new Builder(name) {
+    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldType.Parser((name, parserContext) -> new Builder(name) {
         @Override
         protected AbstractScriptFieldType<?> buildFieldType() {
             if (script.get() == null) {
@@ -55,7 +55,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         }
     });
 
-    KeywordScriptFieldType(String name) {
+    public KeywordScriptFieldType(String name) {
         this(name, StringFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, includeDefaults) -> {});
     }
 

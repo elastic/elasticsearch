@@ -184,10 +184,8 @@ public final class TransportPutFollowAction
 
             @Override
             protected void doRun() {
-                ActionListener<RestoreService.RestoreCompletionResponse> delegatelistener = ActionListener.delegateFailure(
-                    listener,
-                    (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)
-                );
+                ActionListener<RestoreService.RestoreCompletionResponse> delegatelistener = listener.delegateFailure(
+                        (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response));
                 if (remoteDataStream == null) {
                     restoreService.restoreSnapshot(restoreRequest, delegatelistener);
                 } else {
@@ -228,8 +226,8 @@ public final class TransportPutFollowAction
             listener = originalListener;
         }
 
-        RestoreClusterStateListener.createAndRegisterListener(clusterService, response,
-            ActionListener.delegateFailure(listener, (delegatedListener, restoreSnapshotResponse) -> {
+        RestoreClusterStateListener.createAndRegisterListener(clusterService, response, listener.delegateFailure(
+            (delegatedListener, restoreSnapshotResponse) -> {
                 RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
                 if (restoreInfo == null) {
                     // If restoreInfo is null then it is possible there was a master failure during the

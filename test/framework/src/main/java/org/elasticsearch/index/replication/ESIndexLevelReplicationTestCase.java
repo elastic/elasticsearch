@@ -689,7 +689,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     getPrimaryShard().getPendingPrimaryTerm(),
                     globalCheckpoint,
                     maxSeqNoOfUpdatesOrDeletes,
-                    ActionListener.delegateFailure(listener, (delegatedListener, releasable) -> {
+                    listener.delegateFailure((delegatedListener, releasable) -> {
                         try {
                             performOnReplica(request, replica);
                             releasable.close();

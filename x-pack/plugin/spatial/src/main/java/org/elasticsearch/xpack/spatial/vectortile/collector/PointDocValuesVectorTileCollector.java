@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.spatial.vectortile.collector;
 
+import com.wdtinc.mapbox_vector_tile.VectorTile;
+import com.wdtinc.mapbox_vector_tile.encoding.GeomCmd;
+import com.wdtinc.mapbox_vector_tile.encoding.GeomCmdHdr;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
-import org.elasticsearch.xpack.spatial.proto.GeomCmd;
-import org.elasticsearch.xpack.spatial.proto.GeomCmdHdr;
-import org.elasticsearch.xpack.spatial.proto.VectorTile;
 import org.elasticsearch.xpack.spatial.vectortile.VectorTileUtils;
 import org.locationtech.jts.geom.Envelope;
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.vectortile;
 
+import com.wdtinc.mapbox_vector_tile.VectorTile;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -27,7 +28,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.spatial.action.VectorTileAction;
-import org.elasticsearch.xpack.spatial.proto.VectorTile;
 
 import java.io.IOException;
 import java.util.ArrayList;

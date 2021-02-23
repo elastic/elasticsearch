@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.vectortile.collector;
 
+import com.wdtinc.mapbox_vector_tile.VectorTile;
 import com.wdtinc.mapbox_vector_tile.encoding.ZigZag;
 import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.geo.SimpleWKTShapeParser;
@@ -17,7 +18,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.xpack.spatial.proto.VectorTile;
 import org.elasticsearch.xpack.spatial.vectortile.VectorTileUtils;
 import org.locationtech.jts.geom.Envelope;
 

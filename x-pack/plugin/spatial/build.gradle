@@ -16,9 +16,7 @@ dependencies {
   api project(path: ':modules:geo')
   restTestConfig project(path: ':modules:geo', configuration: 'restTests')
   api "com.wdtinc:mapbox-vector-tile:3.1.0"
-  //compile group: 'com.google.protobuf', name: 'protobuf-java', version: '3.14.0'
   api "com.google.protobuf:protobuf-java:3.14.0"
-
 }
 
 restResources {
@@ -36,9 +34,6 @@ testClusters.all {
   testDistribution = 'DEFAULT'
 }
 
-checkstyleMain.exclude '**/VectorTile.java'
-
-
 tasks.named("thirdPartyAudit").configure {
   ignoreViolations(
     // uses internal java api: sun.misc.Unsafe
@@ -55,6 +50,5 @@ tasks.named("thirdPartyAudit").configure {
     'org.slf4j.Logger',
     'org.slf4j.LoggerFactory'
   )
-
 }
 

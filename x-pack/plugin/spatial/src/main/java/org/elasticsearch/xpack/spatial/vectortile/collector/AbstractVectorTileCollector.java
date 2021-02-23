@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.spatial.vectortile.collector;
 
+import com.wdtinc.mapbox_vector_tile.VectorTile;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.xpack.spatial.proto.VectorTile;
 import org.locationtech.jts.geom.Envelope;
 
 import java.io.IOException;

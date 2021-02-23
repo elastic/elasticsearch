@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.spatial.vectortile.collector;
 
+import com.wdtinc.mapbox_vector_tile.VectorTile;
+import com.wdtinc.mapbox_vector_tile.encoding.GeomCmd;
+import com.wdtinc.mapbox_vector_tile.encoding.GeomCmdHdr;
 import com.wdtinc.mapbox_vector_tile.encoding.ZigZag;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.Rectangle;
@@ -16,9 +19,6 @@ import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafGeoShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeReader;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractLatLonShapeIndexFieldData;
-import org.elasticsearch.xpack.spatial.proto.GeomCmd;
-import org.elasticsearch.xpack.spatial.proto.GeomCmdHdr;
-import org.elasticsearch.xpack.spatial.proto.VectorTile;
 import org.elasticsearch.xpack.spatial.vectortile.VectorTileUtils;
 import org.locationtech.jts.geom.Envelope;
 

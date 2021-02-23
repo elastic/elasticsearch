@@ -104,12 +104,23 @@ public abstract class QueryToFilterAdapter {
      */
     abstract QueryToFilterAdapter union(Query extraQuery) throws IOException;
 
+    /**
+     * Build predicate that the "compatible" implementation of the
+     * {@link FiltersAggregator} will use to figure out if the filter matches.
+     * <p>
+     * Consumers of this method will always call it with non-negative,
+     * increasing {@code int}s. A sequence like {@code 0, 1, 7, 8, 10} is fine.
+     * It won't call with {@code 0, 1, 0} or {@code -1, 0, 1}.
+     */
     abstract IntPredicate matchingDocIds(LeafReaderContext ctx) throws IOException;
 
+    /**
+     * Count the number of documents that match this filter in a leaf.
+     */
     abstract long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException;
 
     /**
-     * Estimate the cost of calling {@code #count} on this leaf.
+     * Estimate the cost of calling {@code #count} in a leaf.
      */
     abstract long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException;
 

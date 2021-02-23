@@ -567,22 +567,14 @@ public class MetadataIndexStateService {
             if (request.ackTimeout() != null) {
                 shardRequest.timeout(request.ackTimeout());
             }
-            transportVerifyShardBeforeCloseAction.execute(shardRequest, new ActionListener<ReplicationResponse>() {
-                @Override
-                public void onResponse(ReplicationResponse replicationResponse) {
-                    final TransportVerifyShardBeforeCloseAction.ShardRequest shardRequest =
+            transportVerifyShardBeforeCloseAction.execute(shardRequest, listener.delegateFailure((delegate, replicationResponse) -> {
+                final TransportVerifyShardBeforeCloseAction.ShardRequest req =
                         new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, false, parentTaskId);
-                    if (request.ackTimeout() != null) {
-                        shardRequest.timeout(request.ackTimeout());
-                    }
-                    transportVerifyShardBeforeCloseAction.execute(shardRequest, listener);
+                if (request.ackTimeout() != null) {
+                    req.timeout(request.ackTimeout());
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+                transportVerifyShardBeforeCloseAction.execute(req, delegate);
+            }));
         }
     }
 

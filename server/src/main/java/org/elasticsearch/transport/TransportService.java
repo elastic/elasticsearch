@@ -489,28 +489,17 @@ public class TransportService extends AbstractLifecycleComponent
         final DiscoveryNode node = connection.getNode();
         sendRequest(connection, HANDSHAKE_ACTION_NAME, HandshakeRequest.INSTANCE,
             TransportRequestOptions.timeout(handshakeTimeout),
-            new ActionListenerResponseHandler<>(
-                new ActionListener<HandshakeResponse>() {
-                    @Override
-                    public void onResponse(HandshakeResponse response) {
-                        if (clusterNamePredicate.test(response.clusterName) == false) {
-                            listener.onFailure(new IllegalStateException("handshake with [" + node + "] failed: remote cluster name ["
+                new ActionListenerResponseHandler<>(listener.delegateFailure((l, response) -> {
+                    if (clusterNamePredicate.test(response.clusterName) == false) {
+                        l.onFailure(new IllegalStateException("handshake with [" + node + "] failed: remote cluster name ["
                                 + response.clusterName.value() + "] does not match " + clusterNamePredicate));
-                        } else if (response.version.isCompatible(localNode.getVersion()) == false) {
-                            listener.onFailure(new IllegalStateException("handshake with [" + node + "] failed: remote node version ["
+                    } else if (response.version.isCompatible(localNode.getVersion()) == false) {
+                        l.onFailure(new IllegalStateException("handshake with [" + node + "] failed: remote node version ["
                                 + response.version + "] is incompatible with local node version [" + localNode.getVersion() + "]"));
-                        } else {
-                            listener.onResponse(response);
-                        }
+                    } else {
+                        l.onResponse(response);
                     }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                }
-                , in -> new HandshakeResponse(in, requireCompatibleBuild), ThreadPool.Names.GENERIC
-            ));
+                }), in -> new HandshakeResponse(in, requireCompatibleBuild), ThreadPool.Names.GENERIC));
     }
 
     public ConnectionManager getConnectionManager() {

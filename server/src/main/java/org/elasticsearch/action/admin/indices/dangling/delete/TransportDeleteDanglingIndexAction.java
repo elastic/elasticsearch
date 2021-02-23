@@ -17,7 +17,6 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
-import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
 import org.elasticsearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -94,18 +93,10 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
                 String indexName = indexToDelete.getName();
                 String indexUUID = indexToDelete.getUUID();
 
-                final ActionListener<AcknowledgedResponse> clusterStateUpdatedListener = new ActionListener<AcknowledgedResponse>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse response) {
-                        deleteListener.onResponse(response);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.debug("Failed to delete dangling index [" + indexName + "] [" + indexUUID + "]", e);
-                        deleteListener.onFailure(e);
-                    }
-                };
+                final ActionListener<AcknowledgedResponse> clusterStateUpdatedListener = deleteListener.delegateResponse((l, e) -> {
+                    logger.debug("Failed to delete dangling index [" + indexName + "] [" + indexUUID + "]", e);
+                    l.onFailure(e);
+                });
 
                 final String taskSource = "delete-dangling-index [" + indexName + "] [" + indexUUID + "]";
 
@@ -165,12 +156,8 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
     }
 
     private void findDanglingIndex(String indexUUID, ActionListener<Index> listener) {
-        this.nodeClient.execute(
-            ListDanglingIndicesAction.INSTANCE,
-            new ListDanglingIndicesRequest(indexUUID),
-            new ActionListener<ListDanglingIndicesResponse>() {
-                @Override
-                public void onResponse(ListDanglingIndicesResponse response) {
+        this.nodeClient.execute(ListDanglingIndicesAction.INSTANCE, new ListDanglingIndicesRequest(indexUUID), listener.delegateFailure(
+                (l, response) -> {
                     if (response.hasFailures()) {
                         final String nodeIds = response.failures()
                             .stream()
@@ -183,7 +170,7 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
                             e.addSuppressed(failure);
                         }
 
-                        listener.onFailure(e);
+                        l.onFailure(e);
                         return;
                     }
 
@@ -192,20 +179,12 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
                     for (NodeListDanglingIndicesResponse nodeResponse : nodes) {
                         for (DanglingIndexInfo each : nodeResponse.getDanglingIndices()) {
                             if (each.getIndexUUID().equals(indexUUID)) {
-                                listener.onResponse(new Index(each.getIndexName(), each.getIndexUUID()));
+                                l.onResponse(new Index(each.getIndexName(), each.getIndexUUID()));
                                 return;
                             }
                         }
                     }
-
-                    listener.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
-                }
-
-                @Override
-                public void onFailure(Exception exp) {
-                    listener.onFailure(exp);
-                }
-            }
-        );
+                    l.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
+                }));
     }
 }

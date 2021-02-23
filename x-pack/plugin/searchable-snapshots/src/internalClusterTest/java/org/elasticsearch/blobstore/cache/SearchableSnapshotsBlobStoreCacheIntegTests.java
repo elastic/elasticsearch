@@ -272,8 +272,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         ).actionGet().getStats()) {
             for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
                 // we read the header of each file contained within the .cfs file, which could be anywhere
-                final boolean mayReadMoreThanHeader = indexInputStats.getFileExt().equals("cfs")
-                    || indexInputStats.getFileExt().equals("cfe");
+                final boolean mayReadMoreThanHeader = indexInputStats.getFileExt().equals("cfs");
                 if (mayReadMoreThanHeader == false) {
                     assertThat(Strings.toString(indexInputStats), indexInputStats.getBlobStoreBytesRequested().getCount(), equalTo(0L));
                 }
@@ -326,8 +325,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         ).actionGet().getStats()) {
             for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
                 // we read the header of each file contained within the .cfs file, which could be anywhere
-                final boolean mayReadMoreThanHeader = indexInputStats.getFileExt().equals("cfs")
-                    || indexInputStats.getFileExt().equals("cfe");
+                final boolean mayReadMoreThanHeader = indexInputStats.getFileExt().equals("cfs");
                 if (mayReadMoreThanHeader == false) {
                     assertThat(Strings.toString(indexInputStats), indexInputStats.getBlobStoreBytesRequested().getCount(), equalTo(0L));
                 }

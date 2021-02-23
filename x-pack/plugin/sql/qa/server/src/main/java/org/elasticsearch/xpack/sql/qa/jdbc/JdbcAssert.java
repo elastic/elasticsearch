@@ -1,8 +1,9 @@
 /*
  /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
@@ -148,7 +149,7 @@ public class JdbcAssert {
             String expectedName = expectedMeta.getColumnName(column);
             String actualName = actualMeta.getColumnName(column);
 
-            if (!expectedName.equals(actualName)) {
+            if (expectedName.equals(actualName) == false) {
                 // to help debugging, indicate the previous column (which also happened to match and thus was correct)
                 String expectedSet = expectedName;
                 String actualSet = actualName;
@@ -249,7 +250,7 @@ public class JdbcAssert {
                         String columnClassName = metaData.getColumnClassName(column);
 
                         // fix for CSV which returns the shortName not fully-qualified name
-                        if (columnClassName != null && !columnClassName.contains(".")) {
+                        if (columnClassName != null && columnClassName.contains(".") == false) {
                             switch (columnClassName) {
                                 case "Date":
                                     columnClassName = "java.sql.Date";

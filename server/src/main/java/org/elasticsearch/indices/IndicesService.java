@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
@@ -877,19 +866,20 @@ public class IndicesService extends AbstractLifecycleComponent
      * but does not deal with in-memory structures. For those call {@link #removeIndex(Index, IndexRemovalReason, String)}
      */
     @Override
-    public void deleteUnassignedIndex(String reason, IndexMetadata metadata, ClusterState clusterState) {
+    public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, ClusterState clusterState) {
         if (nodeEnv.hasNodeFile()) {
-            String indexName = metadata.getIndex().getName();
+            Index index = oldIndexMetadata.getIndex();
             try {
-                if (clusterState.metadata().hasIndex(indexName)) {
-                    final IndexMetadata index = clusterState.metadata().index(indexName);
-                    throw new IllegalStateException("Can't delete unassigned index store for [" + indexName + "] - it's still part of " +
-                                                    "the cluster state [" + index.getIndexUUID() + "] [" + metadata.getIndexUUID() + "]");
+                if (clusterState.metadata().hasIndex(index)) {
+                    final IndexMetadata currentMetadata = clusterState.metadata().index(index);
+                    throw new IllegalStateException("Can't delete unassigned index store for [" + index.getName() + "] - it's still part " +
+                        "of the cluster state [" + currentMetadata.getIndexUUID() + "] [" +
+                        oldIndexMetadata.getIndexUUID() + "]");
                 }
-                deleteIndexStore(reason, metadata);
+                deleteIndexStore(reason, oldIndexMetadata);
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] failed to delete unassigned index (reason [{}])",
-                    metadata.getIndex(), reason), e);
+                    oldIndexMetadata.getIndex(), reason), e);
             }
         }
     }

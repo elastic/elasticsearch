@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.operator;
@@ -80,6 +81,7 @@ public class Constants {
         "cluster:admin/snapshot/restore",
         "cluster:admin/snapshot/status",
         "cluster:admin/snapshot/status[nodes]",
+        "cluster:admin/snapshot/features/get",
         "cluster:admin/tasks/cancel",
         "cluster:admin/transform/delete",
         "cluster:admin/transform/preview",
@@ -101,6 +103,7 @@ public class Constants {
         "cluster:admin/xpack/enrich/execute",
         "cluster:admin/xpack/enrich/get",
         "cluster:admin/xpack/enrich/put",
+        "cluster:admin/xpack/enrich/reindex",
         "cluster:admin/xpack/license/basic_status",
         // "cluster:admin/xpack/license/delete",
         "cluster:admin/xpack/license/feature_usage",
@@ -132,6 +135,8 @@ public class Constants {
         "cluster:admin/xpack/ml/filters/update",
         "cluster:admin/xpack/ml/inference/delete",
         "cluster:admin/xpack/ml/inference/put",
+        "cluster:admin/xpack/ml/inference/model_aliases/put",
+        "cluster:admin/xpack/ml/inference/model_aliases/delete",
         "cluster:admin/xpack/ml/job/close",
         "cluster:admin/xpack/ml/job/data/post",
         "cluster:admin/xpack/ml/job/delete",
@@ -213,6 +218,7 @@ public class Constants {
         "cluster:monitor/ccr/stats",
         "cluster:monitor/data_frame/get",
         "cluster:monitor/data_frame/stats/get",
+        "cluster:monitor/eql/async/status",
         "cluster:monitor/health",
         "cluster:monitor/main",
         "cluster:monitor/nodes/hot_threads",
@@ -367,6 +373,8 @@ public class Constants {
         "indices:admin/xpack/ccr/forget_follower",
         "indices:admin/xpack/ccr/put_follow",
         "indices:admin/xpack/ccr/unfollow",
+        "indices:admin/xpack/rollup",
+        "indices:admin/xpack/rollup_indexer",
         "indices:data/read/async_search/delete",
         "indices:data/read/async_search/get",
         "indices:data/read/async_search/submit",

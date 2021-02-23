@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch;
@@ -79,7 +68,7 @@ public class BuildTests extends ESTestCase {
         assertEquals(build.hashCode(), another.hashCode());
 
         final Set<Build.Flavor> otherFlavors =
-                Arrays.stream(Build.Flavor.values()).filter(f -> !f.equals(build.flavor())).collect(Collectors.toSet());
+                Arrays.stream(Build.Flavor.values()).filter(f -> f.equals(build.flavor()) == false).collect(Collectors.toSet());
         final Build.Flavor otherFlavor = randomFrom(otherFlavors);
         Build differentFlavor = new Build(
             otherFlavor, build.type(), build.hash(), build.date(), build.isSnapshot(), build.getQualifiedVersion()
@@ -87,7 +76,7 @@ public class BuildTests extends ESTestCase {
         assertNotEquals(build, differentFlavor);
 
         final Set<Build.Type> otherTypes =
-                Arrays.stream(Build.Type.values()).filter(f -> !f.equals(build.type())).collect(Collectors.toSet());
+                Arrays.stream(Build.Type.values()).filter(f -> f.equals(build.type()) == false).collect(Collectors.toSet());
         final Build.Type otherType = randomFrom(otherTypes);
         Build differentType = new Build(
             build.flavor(), otherType, build.hash(), build.date(), build.isSnapshot(), build.getQualifiedVersion()
@@ -106,7 +95,7 @@ public class BuildTests extends ESTestCase {
         assertNotEquals(build, differentDate);
 
         Build differentSnapshot = new Build(
-            build.flavor(), build.type(), build.hash(), build.date(), !build.isSnapshot(), build.getQualifiedVersion()
+            build.flavor(), build.type(), build.hash(), build.date(), build.isSnapshot() == false, build.getQualifiedVersion()
         );
         assertNotEquals(build, differentSnapshot);
 

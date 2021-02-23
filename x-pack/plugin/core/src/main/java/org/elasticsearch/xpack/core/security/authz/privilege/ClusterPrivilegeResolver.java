@@ -1,9 +1,8 @@
 /*
- *
- *  Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- *  or more contributor license agreements. Licensed under the Elastic License;
- *  you may not use this file except in compliance with the Elastic License.
- *
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
@@ -149,6 +148,9 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_LOGSTASH_PIPELINES = new ActionClusterPrivilege("manage_logstash_pipelines",
         Set.of("cluster:admin/logstash/pipeline/*"));
 
+    public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task",
+        Set.of("cluster:admin/tasks/cancel"));
+
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(List.of(
         NONE,
         ALL,
@@ -188,7 +190,8 @@ public class ClusterPrivilegeResolver {
         DELEGATE_PKI,
         MANAGE_OWN_API_KEY,
         MANAGE_ENRICH,
-        MANAGE_LOGSTASH_PIPELINES));
+        MANAGE_LOGSTASH_PIPELINES,
+        CANCEL_TASK));
 
     /**
      * Resolves a {@link NamedClusterPrivilege} from a given name if it exists.

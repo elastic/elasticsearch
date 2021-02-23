@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -42,16 +43,7 @@ public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNod
     @Override
     protected void masterOperation(Task task, final DeleteLicenseRequest request, ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) throws ElasticsearchException {
-        licenseService.removeLicense(request, new ActionListener<PostStartBasicResponse>() {
-            @Override
-            public void onResponse(PostStartBasicResponse postStartBasicResponse) {
-                listener.onResponse(AcknowledgedResponse.of(postStartBasicResponse.isAcknowledged()));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        licenseService.removeLicense(request, listener.delegateFailure((l, postStartBasicResponse) ->
+                l.onResponse(AcknowledgedResponse.of(postStartBasicResponse.isAcknowledged()))));
     }
 }

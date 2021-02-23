@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm;
@@ -73,9 +74,9 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         startWarmOnlyNode();
         ensureGreen();
 
-        RolloverAction rolloverAction = new RolloverAction(null, null, 1L);
+        RolloverAction rolloverAction = new RolloverAction(null, null, null, 1L);
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Collections.singletonMap(rolloverAction.getWriteableName(), rolloverAction));
-        ShrinkAction shrinkAction = new ShrinkAction(1);
+        ShrinkAction shrinkAction = new ShrinkAction(1, null);
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.singletonMap(shrinkAction.getWriteableName(), shrinkAction));
         Map<String, Phase> phases = new HashMap<>();
         phases.put(hotPhase.getName(), hotPhase);

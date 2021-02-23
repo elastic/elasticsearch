@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
@@ -429,7 +418,7 @@ public final class Settings implements ToXContentFragment {
      * Returns group settings for the given setting prefix.
      */
     public Map<String, Settings> getGroups(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
-        if (!Strings.hasLength(settingPrefix)) {
+        if (Strings.hasLength(settingPrefix) == false) {
             throw new IllegalArgumentException("illegal setting prefix " + settingPrefix);
         }
         if (settingPrefix.charAt(settingPrefix.length() - 1) != '.') {
@@ -558,7 +547,7 @@ public final class Settings implements ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         Settings settings = SettingsFilter.filterSettings(params, this);
-        if (!params.paramAsBoolean("flat_settings", false)) {
+        if (params.paramAsBoolean("flat_settings", false) == false) {
             for (Map.Entry<String, Object> entry : settings.getAsStructuredMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
@@ -591,7 +580,7 @@ public final class Settings implements ToXContentFragment {
             // ensure we reached the end of the stream
             XContentParser.Token lastToken = null;
             try {
-                while (!parser.isClosed() && (lastToken = parser.nextToken()) == null) ;
+                while (parser.isClosed() == false && (lastToken = parser.nextToken()) == null) ;
             } catch (Exception e) {
                 throw new ElasticsearchParseException(
                     "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
@@ -1123,7 +1112,7 @@ public final class Settings implements ToXContentFragment {
 
                 @Override
                 public boolean shouldRemoveMissingPlaceholder(String placeholderName) {
-                    return !placeholderName.startsWith("prompt.");
+                    return placeholderName.startsWith("prompt.") == false;
                 }
             };
 

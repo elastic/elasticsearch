@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
@@ -11,6 +12,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 
 import java.io.IOException;
 
@@ -25,7 +27,8 @@ public class TransformProgressTests extends AbstractSerializingTransformTestCase
         return new TransformProgress(
             randomBoolean() ? null : randomLongBetween(0, 10000),
             randomBoolean() ? null : randomLongBetween(0, 10000),
-            randomBoolean() ? null : randomLongBetween(1, 10000));
+            randomBoolean() ? null : randomLongBetween(1, 10000)
+        );
     }
 
     @Override
@@ -64,8 +67,7 @@ public class TransformProgressTests extends AbstractSerializingTransformTestCase
     }
 
     public void testConstructor() {
-        IllegalArgumentException ex =
-            expectThrows(IllegalArgumentException.class, () -> new TransformProgress(-1L, null, null));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new TransformProgress(-1L, null, null));
         assertThat(ex.getMessage(), equalTo("[total_docs] must be >0."));
 
         ex = expectThrows(IllegalArgumentException.class, () -> new TransformProgress(1L, -1L, null));

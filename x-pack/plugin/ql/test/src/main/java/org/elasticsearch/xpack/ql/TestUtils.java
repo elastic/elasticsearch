@@ -1,11 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ql;
 
+import org.apache.http.HttpHost;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -15,6 +18,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -263,5 +267,37 @@ public final class TestUtils {
             }
         }
         return new Tuple<>(folder, file);
+    }
+
+    public static TestNodes buildNodeAndVersions(RestClient client) throws IOException {
+        Response response = client.performRequest(new Request("GET", "_nodes"));
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
+        TestNodes nodes = new TestNodes();
+        for (String id : nodesAsMap.keySet()) {
+            nodes.add(
+                new TestNode(
+                    id,
+                    Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
+                    HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))
+                )
+            );
+        }
+        return nodes;
+    }
+
+    public static String readResource(InputStream input) throws IOException {
+        StringBuilder builder = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
+            String line = reader.readLine();
+            while (line != null) {
+                if (line.trim().startsWith("//") == false) {
+                    builder.append(line);
+                    builder.append('\n');
+                }
+                line = reader.readLine();
+            }
+            return builder.toString();
+        }
     }
 }

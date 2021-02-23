@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.search;
@@ -56,7 +57,7 @@ public class BasicQueryClient implements QueryClient {
         // set query timeout
         searchSource.timeout(cfg.requestTimeout());
 
-        SearchRequest search = prepareRequest(client, searchSource, false, indices);
+        SearchRequest search = prepareRequest(searchSource, false, indices);
         search(search, searchLogListener(listener, log));
     }
 
@@ -137,7 +138,7 @@ public class BasicQueryClient implements QueryClient {
                 // NB:this is different from mget
                 .size(idQuery.ids().size());
 
-            SearchRequest search = prepareRequest(client, builder, false, entry.getKey());
+            SearchRequest search = prepareRequest(builder, false, entry.getKey());
             multiSearchBuilder.add(search);
         }
 

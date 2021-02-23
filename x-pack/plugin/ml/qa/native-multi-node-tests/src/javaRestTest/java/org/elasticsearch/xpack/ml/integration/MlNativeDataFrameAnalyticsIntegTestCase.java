@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -199,7 +200,8 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
                                                              QueryBuilder queryBuilder) throws Exception {
         return new DataFrameAnalyticsConfig.Builder()
             .setId(id)
-            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, QueryProvider.fromParsedQuery(queryBuilder), null))
+            .setSource(new DataFrameAnalyticsSource(
+                new String[] { sourceIndex }, QueryProvider.fromParsedQuery(queryBuilder), null, Collections.emptyMap()))
             .setDest(new DataFrameAnalyticsDest(destIndex, resultsField))
             .setAnalysis(analysis)
             .build();
@@ -255,11 +257,22 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
             .get();
     }
 
-    protected void assertInferenceModelPersisted(String jobId) {
+    protected void assertExactlyOneInferenceModelPersisted(String jobId) {
+        assertInferenceModelPersisted(jobId, equalTo(1));
+    }
+
+    protected void assertAtLeastOneInferenceModelPersisted(String jobId) {
+        assertInferenceModelPersisted(jobId, greaterThanOrEqualTo(1));
+    }
+
+    private void assertInferenceModelPersisted(String jobId, Matcher<? super Integer> modelHitsArraySizeMatcher) {
         SearchResponse searchResponse = client().prepareSearch(InferenceIndexConstants.LATEST_INDEX_NAME)
             .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), jobId)))
             .get();
-        assertThat("Hits were: " + Strings.toString(searchResponse.getHits()), searchResponse.getHits().getHits(), arrayWithSize(1));
+        // If the job is stopped during writing_results phase and it is then restarted, there is a chance two trained models
+        // were persisted as there is no way currently for the process to be certain the model was persisted.
+        assertThat("Hits were: " + Strings.toString(searchResponse.getHits()), searchResponse.getHits().getHits(),
+            is(arrayWithSize(modelHitsArraySizeMatcher)));
     }
 
     protected Collection<PersistentTasksCustomMetadata.PersistentTask<?>> analyticsTaskList() {

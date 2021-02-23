@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform;
@@ -38,9 +39,11 @@ public final class TransformField {
     public static final ParseField DATES_AS_EPOCH_MILLIS = new ParseField("dates_as_epoch_millis");
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField SYNC = new ParseField("sync");
-    public static final ParseField TIME_BASED_SYNC = new ParseField("time");
+    public static final ParseField TIME = new ParseField("time");
     public static final ParseField DELAY = new ParseField("delay");
     public static final ParseField DEFER_VALIDATION = new ParseField("defer_validation");
+    public static final ParseField RETENTION_POLICY = new ParseField("retention_policy");
+    public static final ParseField MAX_AGE = new ParseField("max_age");
 
     public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
     /**

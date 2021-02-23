@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.query;
@@ -67,6 +56,7 @@ import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescorePhase;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -443,10 +433,14 @@ public class QueryPhase {
             SortField sField = sort.getSort()[i];
             String sFieldName = sField.getField();
             if (sFieldName == null) {
-                if (SortField.FIELD_DOC.equals(sField) == false) return null;
-            } else {
+                if (SortField.FIELD_DOC.equals(sField) == false) {
+                    return null;
+                }
+            } else if (FieldSortBuilder.SHARD_DOC_FIELD_NAME.equals(sFieldName) == false) {
                 //TODO: find out how to cover _script sort that don't use _score
-                if (searchExecutionContext.getFieldType(sFieldName) == null) return null; // could be _script sort that uses _score
+                if (searchExecutionContext.getFieldType(sFieldName) == null) {
+                    return null; // could be _script sort that uses _score
+                }
             }
         }
 

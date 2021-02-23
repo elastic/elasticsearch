@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.action;
@@ -38,12 +39,11 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
         assertThat(metadata.policies().get(policy.name()).policy(), equalTo(policy));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67620")
     public void testUpdatePolicy() {
         final AutoscalingPolicy policy = putRandomAutoscalingPolicy();
         final AutoscalingPolicy updatedPolicy = new AutoscalingPolicy(
             policy.name(),
-            new TreeSet<>(randomSubsetOf(List.of("data", "data_content", "data_hot", "data_warm", "data_cold"))),
+            new TreeSet<>(randomSubsetOf(randomIntBetween(1, 5), List.of("data", "data_content", "data_hot", "data_warm", "data_cold"))),
             mutateAutoscalingDeciders(policy.deciders())
         );
         putAutoscalingPolicy(updatedPolicy);

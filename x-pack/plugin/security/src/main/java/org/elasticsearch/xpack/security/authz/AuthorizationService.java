@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authz;
@@ -213,6 +214,7 @@ public class AuthorizationService {
                 listener.onFailure(denialException(authentication, action, originalRequest, operatorException));
                 return;
             }
+            operatorPrivilegesService.maybeInterceptRequest(threadContext, originalRequest);
 
             if (SystemUser.is(authentication.getUser())) {
                 // this never goes async so no need to wrap the listener
@@ -378,7 +380,7 @@ public class AuthorizationService {
                 prevListener = current;
             }
 
-            prevListener.whenComplete(v -> listener.onResponse(null), listener::onFailure);
+            prevListener.addListener(listener);
             first.intercept(requestInfo, authorizationEngine, authorizationInfo, firstStepListener);
         }
     }
@@ -635,15 +637,17 @@ public class AuthorizationService {
             message = message + " " + context;
         }
 
-        if (isIndexAction(action)) {
-            final Collection<String> privileges = IndexPrivilege.findPrivilegesThatGrant(action);
-            if (privileges != null && privileges.size() > 0) {
-                message = message + ", this action is granted by the privileges [" + collectionToCommaDelimitedString(privileges) + "]";
-            }
-        } else if (ClusterPrivilegeResolver.isClusterAction(action)) {
+        if (ClusterPrivilegeResolver.isClusterAction(action)) {
             final Collection<String> privileges = ClusterPrivilegeResolver.findPrivilegesThatGrant(action, request, authentication);
             if (privileges != null && privileges.size() > 0) {
-                message = message + ", this action is granted by the privileges [" + collectionToCommaDelimitedString(privileges) + "]";
+                message = message + ", this action is granted by the cluster privileges ["
+                    + collectionToCommaDelimitedString(privileges) + "]";
+            }
+        } else if (isIndexAction(action)) {
+            final Collection<String> privileges = IndexPrivilege.findPrivilegesThatGrant(action);
+            if (privileges != null && privileges.size() > 0) {
+                message = message + ", this action is granted by the index privileges ["
+                    + collectionToCommaDelimitedString(privileges) + "]";
             }
         }
 

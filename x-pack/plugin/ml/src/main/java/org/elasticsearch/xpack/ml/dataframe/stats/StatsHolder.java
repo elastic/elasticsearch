@@ -1,11 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.stats;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
@@ -23,15 +26,12 @@ public class StatsHolder {
     private final AtomicReference<AnalysisStats> analysisStatsHolder;
     private final DataCountsTracker dataCountsTracker;
 
-    public StatsHolder(List<PhaseProgress> progressOnStart) {
-        progressTracker = new ProgressTracker(progressOnStart);
-        memoryUsageHolder = new AtomicReference<>();
-        analysisStatsHolder = new AtomicReference<>();
-        dataCountsTracker = new DataCountsTracker();
-    }
-
-    public void setProgressTracker(List<PhaseProgress> progress) {
+    public StatsHolder(List<PhaseProgress> progress, @Nullable MemoryUsage memoryUsage, @Nullable AnalysisStats analysisStats,
+                       DataCounts dataCounts) {
         progressTracker = new ProgressTracker(progress);
+        memoryUsageHolder = new AtomicReference<>(memoryUsage);
+        analysisStatsHolder = new AtomicReference<>(analysisStats);
+        dataCountsTracker = new DataCountsTracker(dataCounts);
     }
 
     /**

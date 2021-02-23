@@ -1,10 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.store.direct;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.CheckedRunnable;
@@ -53,6 +56,8 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUti
  */
 public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexInput {
 
+    private static final Logger logger = LogManager.getLogger(DirectBlobContainerIndexInput.class);
+
     private long position;
 
     @Nullable // if not currently reading sequentially
@@ -96,14 +101,15 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long sequentialReadSize,
         int bufferSize
     ) {
-        super(resourceDesc, blobContainer, fileInfo, context, stats, offset, length, bufferSize);
+        super(logger, resourceDesc, blobContainer, fileInfo, context, stats, offset, length);
         this.position = position;
         assert sequentialReadSize >= 0;
         this.sequentialReadSize = sequentialReadSize;
+        setBufferSize(bufferSize);
     }
 
     @Override
-    protected void readInternal(ByteBuffer b) throws IOException {
+    protected void doReadInternal(ByteBuffer b) throws IOException {
         ensureOpen();
         if (fileInfo.numberOfParts() == 1) {
             readInternalBytes(0, position, b, b.remaining());
@@ -285,7 +291,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
             final DirectBlobContainerIndexInput slice = new DirectBlobContainerIndexInput(
-                sliceDescription,
+                getFullSliceDescription(sliceDescription),
                 blobContainer,
                 fileInfo,
                 context,
@@ -318,24 +324,13 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     @Override
-    public void innerClose() throws IOException {
+    public void doClose() throws IOException {
         closeStreamForSequentialReads();
     }
 
     @Override
     public String toString() {
-        return "DirectBlobContainerIndexInput{"
-            + "resourceDesc="
-            + super.toString()
-            + ", fileInfo="
-            + fileInfo
-            + ", offset="
-            + offset
-            + ", length="
-            + length()
-            + ", position="
-            + position
-            + '}';
+        return super.toString() + "[read seq=" + (streamForSequentialReads != null ? "yes" : "no") + ']';
     }
 
     private InputStream openBlobStream(int part, long pos, long length) throws IOException {

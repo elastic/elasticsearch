@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
@@ -114,7 +103,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         for (final RepositoryMetadata repo : repos) {
             final String repoName = repo.name();
             getSingleRepoSnapshotInfo(snapshotsInProgress, repoName, snapshots, ignoreUnavailable, verbose,
-                    ActionListener.delegateResponse(groupedActionListener, (groupedListener, e) -> {
+                    groupedActionListener.delegateResponse((groupedListener, e) -> {
                         if (e instanceof ElasticsearchException) {
                             groupedListener.onResponse(GetSnapshotsResponse.Response.error(repoName, (ElasticsearchException) e));
                         } else {
@@ -236,8 +225,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final List<SnapshotsInProgress.Entry> entries = SnapshotsService.currentSnapshots(
             snapshotsInProgress, repositoryName, snapshotIdsToIterate.stream().map(SnapshotId::getName).collect(Collectors.toList()));
         for (SnapshotsInProgress.Entry entry : entries) {
-            snapshotSet.add(new SnapshotInfo(entry));
-            snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId());
+            if (snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId())) {
+                snapshotSet.add(new SnapshotInfo(entry));
+            }
         }
         // then, look in the repository
         final Repository repository = repositoriesService.repository(repositoryName);
@@ -289,7 +279,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         for (SnapshotId snapshotId : toResolve) {
             final List<String> indices = snapshotsToIndices.getOrDefault(snapshotId, Collections.emptyList());
             CollectionUtil.timSort(indices);
-            snapshotInfos.add(new SnapshotInfo(snapshotId, indices, Collections.emptyList(), repositoryData.getSnapshotState(snapshotId)));
+            snapshotInfos.add(new SnapshotInfo(snapshotId, indices, Collections.emptyList(), Collections.emptyList(),
+                repositoryData.getSnapshotState(snapshotId)));
         }
         CollectionUtil.timSort(snapshotInfos);
         return Collections.unmodifiableList(snapshotInfos);

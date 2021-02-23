@@ -1,32 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
-import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -35,6 +23,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.function.Supplier;
 
@@ -152,9 +141,10 @@ public class IndexSortSettingsTests extends ESTestCase {
         IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
         NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
-        MappedFieldType fieldType = new RuntimeFieldType("field", Collections.emptyMap()) {
+        MappedFieldType fieldType = new RuntimeFieldType("field", Collections.emptyMap(), null) {
             @Override
-            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            protected Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, ZoneId timeZone,
+                                       DateMathParser parser, SearchExecutionContext context) {
                 throw new UnsupportedOperationException();
             }
 
@@ -171,11 +161,6 @@ public class IndexSortSettingsTests extends ESTestCase {
 
             @Override
             public Query termQuery(Object value, SearchExecutionContext context) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            protected void doXContentBody(XContentBuilder builder, boolean includeDefaults) {
                 throw new UnsupportedOperationException();
             }
         };

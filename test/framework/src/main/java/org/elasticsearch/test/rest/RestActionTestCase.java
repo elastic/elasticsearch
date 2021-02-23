@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.rest;
@@ -26,7 +15,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
@@ -40,6 +28,7 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
 /**
@@ -56,7 +45,7 @@ public abstract class RestActionTestCase extends ESTestCase {
         controller = new RestController(Collections.emptySet(), null,
             verifyingClient,
             new NoneCircuitBreakerService(),
-            new UsageService(), CompatibleVersion.CURRENT_VERSION);
+            new UsageService());
     }
 
     @After
@@ -86,11 +75,11 @@ public abstract class RestActionTestCase extends ESTestCase {
      * functions, and can be reset to allow reconfiguration partway through a test without having to construct a new object.
      *
      * By default, will throw {@link AssertionError} when any execution method is called, unless configured otherwise using
-     * {@link #setExecuteVerifier(BiFunction)} or {@link #setExecuteLocallyVerifier(BiFunction)}.
+     * {@link #setExecuteVerifier} or {@link #setExecuteLocallyVerifier}.
      */
     public static class VerifyingClient extends NoOpNodeClient {
-        AtomicReference<BiFunction> executeVerifier = new AtomicReference<>();
-        AtomicReference<BiFunction> executeLocallyVerifier = new AtomicReference<>();
+        AtomicReference<BiConsumer<ActionType<?>, ActionRequest>> executeVerifier = new AtomicReference<>();
+        AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeLocallyVerifier = new AtomicReference<>();
 
         public VerifyingClient(String testName) {
             super(testName);
@@ -103,8 +92,8 @@ public abstract class RestActionTestCase extends ESTestCase {
         }
 
         /**
-         * Clears any previously set verifier functions set by {@link #setExecuteVerifier(BiFunction)} and/or
-         * {@link #setExecuteLocallyVerifier(BiFunction)}. These functions are replaced with functions which will throw an
+         * Clears any previously set verifier functions set by {@link #setExecuteVerifier} and/or
+         * {@link #setExecuteLocallyVerifier}. These functions are replaced with functions which will throw an
          * {@link AssertionError} if called.
          */
         public void reset() {
@@ -121,15 +110,15 @@ public abstract class RestActionTestCase extends ESTestCase {
          * function should return either a subclass of {@link ActionResponse} or {@code null}.
          * @param verifier A function which is called in place of {@link #doExecute(ActionType, ActionRequest, ActionListener)}
          */
-        public <Request extends ActionRequest, Response extends ActionResponse>
-        void setExecuteVerifier(BiFunction<ActionType<Response>, Request, Void> verifier) {
+        public void setExecuteVerifier(BiConsumer<ActionType<?>, ActionRequest> verifier) {
             executeVerifier.set(verifier);
         }
 
         @Override
         public <Request extends ActionRequest, Response extends ActionResponse>
         void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-            listener.onResponse((Response) executeVerifier.get().apply(action, request));
+            executeVerifier.get().accept(action, request);
+            listener.onResponse(null);
         }
 
         /**
@@ -137,8 +126,7 @@ public abstract class RestActionTestCase extends ESTestCase {
          * function should return either a subclass of {@link ActionResponse} or {@code null}.
          * @param verifier A function which is called in place of {@link #executeLocally(ActionType, ActionRequest, TaskListener)}
          */
-        public <Request extends ActionRequest, Response extends ActionResponse>
-        void setExecuteLocallyVerifier(BiFunction<ActionType<Response>, Request, Response> verifier) {
+        public void setExecuteLocallyVerifier(BiFunction<ActionType<?>, ActionRequest, ActionResponse> verifier) {
             executeLocallyVerifier.set(verifier);
         }
 
@@ -147,15 +135,23 @@ public abstract class RestActionTestCase extends ESTestCase {
         @Override
         public <Request extends ActionRequest, Response extends ActionResponse>
         Task executeLocally(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-            listener.onResponse((Response) executeLocallyVerifier.get().apply(action, request));
-            return new Task(taskIdGenerator.incrementAndGet(), "transport", action.name(), "", request.getParentTask(),
+            @SuppressWarnings("unchecked") // Callers are responsible for lining this up
+            Response response = (Response) executeLocallyVerifier.get().apply(action, request);
+            listener.onResponse(response);
+            return request.createTask(
+                    taskIdGenerator.incrementAndGet(),
+                    "transport",
+                    action.name(),
+                    request.getParentTask(),
                     Collections.emptyMap());
         }
 
         @Override
         public <Request extends ActionRequest, Response extends ActionResponse>
         Task executeLocally(ActionType<Response> action, Request request, TaskListener<Response> listener) {
-            listener.onResponse(null, (Response) executeLocallyVerifier.get().apply(action, request));
+            @SuppressWarnings("unchecked") // Callers are responsible for lining this up
+            Response response = (Response) executeLocallyVerifier.get().apply(action, request);
+            listener.onResponse(null, response);
             return null;
         }
 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -52,6 +41,16 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 public class RootObjectMapper extends ObjectMapper {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
 
+    /**
+     * Parameter used when serializing {@link RootObjectMapper} and request that the runtime section is skipped.
+     * This is only needed internally when we compare different versions of mappings and assert that they are the same.
+     * Runtime fields break these assertions as they can be removed: the master node sends the merged mappings without the runtime fields
+     * that needed to be removed. Then each local node as part of its assertions merges the incoming mapping with the current mapping,
+     *  and the previously removed runtime fields appear again, which is not desirable. The expectation is that those two versions of the
+     *  mappings are the same, besides runtime fields.
+     */
+    static final String TOXCONTENT_SKIP_RUNTIME = "skip_runtime";
+
     public static class Defaults {
         public static final DateFormatter[] DYNAMIC_DATE_TIME_FORMATTERS =
                 new DateFormatter[]{
@@ -68,7 +67,7 @@ public class RootObjectMapper extends ObjectMapper {
         protected Explicit<DateFormatter[]> dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
         protected Explicit<Boolean> dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
         protected Explicit<Boolean> numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
-        protected final Map<String, RuntimeFieldType> runtimeFieldTypes = new HashMap<>();
+        protected Map<String, RuntimeFieldType> runtimeFieldTypes;
 
         public Builder(String name, Version indexCreatedVersion) {
             super(name, indexCreatedVersion);
@@ -90,8 +89,8 @@ public class RootObjectMapper extends ObjectMapper {
             return this;
         }
 
-        public RootObjectMapper.Builder addRuntime(RuntimeFieldType runtimeFieldType) {
-            this.runtimeFieldTypes.put(runtimeFieldType.name(), runtimeFieldType);
+        public RootObjectMapper.Builder setRuntime(Map<String, RuntimeFieldType> runtimeFields) {
+            this.runtimeFieldTypes = runtimeFields;
             return this;
         }
 
@@ -103,8 +102,9 @@ public class RootObjectMapper extends ObjectMapper {
         @Override
         protected ObjectMapper createMapper(String name, String fullPath, Explicit<Boolean> enabled, Nested nested, Dynamic dynamic,
                 Map<String, Mapper> mappers, Version indexCreatedVersion) {
-            assert !nested.isNested();
-            return new RootObjectMapper(name, enabled, dynamic, mappers, runtimeFieldTypes,
+            assert nested.isNested() == false;
+            return new RootObjectMapper(name, enabled, dynamic, mappers,
+                    runtimeFieldTypes == null ? Collections.emptyMap() : runtimeFieldTypes,
                     dynamicDateTimeFormatters,
                     dynamicTemplates,
                     dateDetection, numericDetection, indexCreatedVersion);
@@ -142,7 +142,8 @@ public class RootObjectMapper extends ObjectMapper {
     static final class TypeParser extends ObjectMapper.TypeParser {
 
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public RootObjectMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
+            throws MapperParsingException {
             RootObjectMapper.Builder builder = new Builder(name, parserContext.indexVersionCreated());
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
             while (iterator.hasNext()) {
@@ -214,7 +215,7 @@ public class RootObjectMapper extends ObjectMapper {
                 return true;
             } else if (fieldName.equals("runtime")) {
                 if (fieldNode instanceof Map) {
-                    RuntimeFieldType.parseRuntimeFields((Map<String, Object>) fieldNode, parserContext, builder::addRuntime);
+                    builder.setRuntime(RuntimeFieldType.parseRuntimeFields((Map<String, Object>) fieldNode, parserContext, true));
                     return true;
                 } else {
                     throw new ElasticsearchParseException("runtime must be a map type");
@@ -336,7 +337,13 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
         assert this.runtimeFieldTypes != mergeWithObject.runtimeFieldTypes;
-        this.runtimeFieldTypes.putAll(mergeWithObject.runtimeFieldTypes);
+        for (Map.Entry<String, RuntimeFieldType> runtimeField : mergeWithObject.runtimeFieldTypes.entrySet()) {
+            if (runtimeField.getValue() == null) {
+                this.runtimeFieldTypes.remove(runtimeField.getKey());
+            } else {
+                this.runtimeFieldTypes.put(runtimeField.getKey(), runtimeField.getValue());
+            }
+        }
     }
 
     void addRuntimeFields(Collection<RuntimeFieldType> runtimeFields) {
@@ -374,7 +381,7 @@ public class RootObjectMapper extends ObjectMapper {
             builder.field("numeric_detection", numericDetection.value());
         }
 
-        if (runtimeFieldTypes.size() > 0) {
+        if (runtimeFieldTypes.size() > 0 && params.paramAsBoolean(TOXCONTENT_SKIP_RUNTIME, false) == false) {
             builder.startObject("runtime");
             List<RuntimeFieldType> sortedRuntimeFieldTypes = runtimeFieldTypes.values().stream().sorted(
                 Comparator.comparing(RuntimeFieldType::name)).collect(Collectors.toList());

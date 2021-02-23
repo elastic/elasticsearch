@@ -237,6 +237,7 @@ Snapshot/Restore::
 * Introduce repository UUIDs {es-pull}67829[#67829] (issue: {es-issue}66431[#66431])
 * Introduce repository test kit/analyser {es-pull}67247[#67247]
 * Permit rename of repository of searchable snapshot {es-pull}67968[#67968] (issue: {es-issue}66431[#66431])
+* Reject remounting snapshot of a searchable snapshot {es-pull}68816[#68816] (issue: {es-issue}68792[#68792])
 
 Task Management::
 * Remove parent-task bans on channels disconnect {es-pull}66066[#66066] (issues: {es-issue}56620[#56620], {es-issue}65443[#65443])

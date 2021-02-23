@@ -971,7 +971,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String notificationsResponseAsString = EntityUtils.toString(notificationsResponse.getEntity());
         assertThat(notificationsResponseAsString, containsString("\"message\":\"Datafeed is encountering errors extracting data: " +
             "action [indices:data/read/xpack/rollup/search] is unauthorized" +
-            " for user [ml_admin_plus_data] " +
+            " for user [ml_admin_plus_data]" +
             " with roles [machine_learning_admin,test_data_access]" +
             " on indices [airline-data-aggs-rollup]"));
     }

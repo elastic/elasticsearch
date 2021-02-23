@@ -16,6 +16,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -33,7 +34,15 @@ import static java.net.HttpURLConnection.HTTP_SEE_OTHER;
 class HttpClient {
 
     byte[] getBytes(String url) throws IOException {
-        return get(url).readAllBytes();
+        byte[] bytes = new byte[1024];
+        int read;
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        try (InputStream is = get(url)) {
+            while ((read = is.read(bytes)) != -1) {
+                byteArrayOutputStream.write(bytes, 0, read);
+            }
+        }
+        return byteArrayOutputStream.toByteArray();
     }
 
     InputStream get(String urlToGet) throws IOException {

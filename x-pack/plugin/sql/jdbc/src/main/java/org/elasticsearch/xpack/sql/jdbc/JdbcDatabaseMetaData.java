@@ -17,6 +17,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
+import java.sql.SQLType;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -1248,7 +1249,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     }
 
 
-    private static List<JdbcColumnInfo> columnInfo(String tableName, Object... cols) throws JdbcSQLException {
+    static List<JdbcColumnInfo> columnInfo(String tableName, Object... cols) throws JdbcSQLException {
         List<JdbcColumnInfo> columns = new ArrayList<>();
 
         for (int i = 0; i < cols.length; i++) {
@@ -1258,10 +1259,10 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                 EsType type = EsType.KEYWORD;
                 if (i + 1 < cols.length) {
                     Object next = cols[i + 1];
-                    // check if the next item it's a type
+                    // check if the next item is a type
                     if (next instanceof EsType || next instanceof JDBCType) {
                         try {
-                            type = TypeUtils.of((JDBCType) next);
+                            type = TypeUtils.of((SQLType) next);
                             i++;
                         } catch (SQLException ex) {
                             throw new JdbcSQLException(ex, "Invalid metadata schema definition");
@@ -1282,11 +1283,12 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         return new JdbcResultSet(cfg, null, new InMemoryCursor(columnInfo(tableName, cols), null));
     }
 
+    // TODO: dead code, remove?
     private static ResultSet emptySet(JdbcConfiguration cfg, List<JdbcColumnInfo> columns) {
         return memorySet(cfg, columns, null);
     }
 
-    private static ResultSet memorySet(JdbcConfiguration cfg, List<JdbcColumnInfo> columns, Object[][] data) {
+    static ResultSet memorySet(JdbcConfiguration cfg, List<JdbcColumnInfo> columns, Object[][] data) {
         return new JdbcResultSet(cfg, null, new InMemoryCursor(columns, data));
     }
 

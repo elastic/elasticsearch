@@ -588,7 +588,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
     public void testThrownExceptionWhenSettingArrayValue() throws SQLException {
         JdbcPreparedStatement jps = createJdbcPreparedStatement();
-        JdbcArray array = new JdbcArray(LONG, Collections.emptyList());
+        JdbcArray array = new JdbcArray(null, LONG, Collections.emptyList());
         SQLException sqle = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setArray(1, array));
         assertEquals("Objects of type [java.sql.Array] are not supported", sqle.getMessage());
     }

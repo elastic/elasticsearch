@@ -62,7 +62,7 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
                 e -> fail(e.getMessage())));
     }
 
-    public void testValidate_RemoteClusterVersionTooLow() {
+    public void testValidate_OneRemoteClusterVersionTooLow() {
         doReturn(new HashSet<>(Arrays.asList("cluster-A", "cluster-B", "cluster-C"))).when(context).getRegisteredRemoteClusterNames();
         SourceDestValidation validation = new RemoteClusterMinimumVersionValidation(MIN_EXPECTED_VERSION, REASON);
         validation.validate(
@@ -70,8 +70,21 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
             ActionListener.wrap(
                 ctx -> assertThat(
                     ctx.getValidationException().validationErrors(),
-                    contains("remote clusters are expected to run at least version [7.11.0], but cluster [cluster-A] had version [7.10.2]; "
-                        + "reason: [some reason]")),
+                    contains("remote clusters are expected to run at least version [7.11.0] (reason: [some reason]), "
+                        + "but the following clusters were too old: [cluster-A (7.10.2)]")),
+                e -> fail(e.getMessage())));
+    }
+
+    public void testValidate_TwoRemoteClusterVersionsTooLow() {
+        doReturn(new HashSet<>(Arrays.asList("cluster-A", "cluster-B", "cluster-C"))).when(context).getRegisteredRemoteClusterNames();
+        SourceDestValidation validation = new RemoteClusterMinimumVersionValidation(Version.V_7_11_2, REASON);
+        validation.validate(
+            context,
+            ActionListener.wrap(
+                ctx -> assertThat(
+                    ctx.getValidationException().validationErrors(),
+                    contains("remote clusters are expected to run at least version [7.11.2] (reason: [some reason]), "
+                        + "but the following clusters were too old: [cluster-A (7.10.2), cluster-B (7.11.0)]")),
                 e -> fail(e.getMessage())));
     }
 

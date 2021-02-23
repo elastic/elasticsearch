@@ -33,12 +33,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import static java.util.Map.Entry.comparingByValue;
+import static java.util.Map.Entry.comparingByKey;
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.validateIndexOrAliasName;
@@ -67,7 +67,7 @@ public final class SourceDestValidator {
         + "alias [{0}], license is not active";
     public static final String REMOTE_SOURCE_INDICES_NOT_SUPPORTED = "remote source indices are not supported";
     public static final String REMOTE_CLUSTERS_TOO_OLD =
-        "remote clusters are expected to run at least version [{0}], but cluster [{1}] had version [{2}]; reason: [{3}]";
+        "remote clusters are expected to run at least version [{0}] (reason: [{1}]), but the following clusters were too old: [{2}]";
     public static final String PIPELINE_MISSING = "Pipeline with id [{0}] could not be found";
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -458,14 +458,19 @@ public final class SourceDestValidator {
                 listener.onResponse(context);
                 return;
             }
-            Optional<Map.Entry<String, Version>> minRemoteClusterVersion =
-                remoteClusterVersions.entrySet().stream().min(comparingByValue(Version::compareTo));
-            if (minRemoteClusterVersion.isPresent()) {
-                if (minRemoteClusterVersion.get().getValue().before(minExpectedVersion)) {
-                    context.addValidationError(
-                        REMOTE_CLUSTERS_TOO_OLD,
-                        minExpectedVersion, minRemoteClusterVersion.get().getKey(), minRemoteClusterVersion.get().getValue(), reason);
-                }
+            Map<String, Version> oldRemoteClusterVersions =
+                remoteClusterVersions.entrySet().stream()
+                    .filter(entry -> entry.getValue().before(minExpectedVersion))
+                    .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
+            if (oldRemoteClusterVersions.isEmpty() == false) {
+                context.addValidationError(
+                    REMOTE_CLUSTERS_TOO_OLD,
+                    minExpectedVersion,
+                    reason,
+                    oldRemoteClusterVersions.entrySet().stream()
+                        .sorted(comparingByKey())  // sort to have a deterministic order among clusters in the resulting string
+                        .map(e -> e.getKey() + " (" + e.getValue() + ")")
+                        .collect(joining(", ")));
             }
             listener.onResponse(context);
         }

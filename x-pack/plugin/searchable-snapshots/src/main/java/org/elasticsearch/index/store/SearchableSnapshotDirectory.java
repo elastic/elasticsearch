@@ -60,6 +60,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.FrozenCacheFile;
@@ -680,10 +681,18 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return null;
     }
 
-    public CachedBlob getCachedBlob(String name, long offset, int length) {
-        final CachedBlob cachedBlob = blobStoreCacheService.get(repository, name, blobStoreCachePath, offset);
-        assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || cachedBlob.from() <= offset;
-        assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || offset + length <= cachedBlob.to();
+    public CachedBlob getCachedBlob(String name, ByteRange range) {
+        final CachedBlob cachedBlob = blobStoreCacheService.get(repository, name, blobStoreCachePath, range.start());
+        if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
+            return cachedBlob;
+        }
+        assert cachedBlob.from() <= range.start() : cachedBlob.from() + " vs " + range.start();
+        assert range.end() <= cachedBlob.to() : range.end() + " vs " + cachedBlob.to();
+        if (cachedBlob.from() != range.start() || cachedBlob.to() != range.end()) {
+            // expected range in cache might differ with the returned cached blob; this can happen if the range to put in cache is changed
+            // between versions or through the index setting. In this case we assume it is a cache miss to force the blob to be cache again
+            return CachedBlob.CACHE_MISS;
+        }
         return cachedBlob;
     }
 

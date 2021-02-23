@@ -161,12 +161,11 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             final ByteRange indexCacheMiss; // null if not a miss
 
             if (blobCacheByteRange.contains(position, position + length)) {
-                final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), blobCacheByteRange.start(), length);
+                final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), blobCacheByteRange);
+                assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || cachedBlob.from() <= position;
+                assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || length <= cachedBlob.length();
 
-                if (cachedBlob == CachedBlob.CACHE_MISS
-                    || cachedBlob == CachedBlob.CACHE_NOT_READY
-                    || cachedBlob.from() != blobCacheByteRange.start()
-                    || cachedBlob.to() != blobCacheByteRange.end()) {
+                if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
                     // We would have liked to find a cached entry but we did not find anything: the cache on the disk will be requested
                     // so we compute the region of the file we would like to have the next time. The region is expressed as a tuple of
                     // {start, end} where positions are relative to the whole file.
@@ -183,7 +182,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     );
                     stats.addIndexCacheBytesRead(cachedBlob.length());
 
-                    final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(toIntBytes(position), length).iterator();
+                    final BytesRefIterator cachedBytesIterator = cachedBlob.bytes()
+                        .slice(toIntBytes(position - cachedBlob.from()), length)
+                        .iterator();
                     BytesRef bytesRef;
                     while ((bytesRef = cachedBytesIterator.next()) != null) {
                         b.put(bytesRef.bytes, bytesRef.offset, bytesRef.length);

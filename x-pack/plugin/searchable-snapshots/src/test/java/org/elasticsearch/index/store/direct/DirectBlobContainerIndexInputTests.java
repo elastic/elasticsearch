@@ -18,6 +18,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -37,6 +38,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
@@ -123,7 +125,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
         });
 
         final SearchableSnapshotDirectory directory = mock(SearchableSnapshotDirectory.class);
-        when(directory.getCachedBlob(anyString(), anyLong(), anyInt())).thenReturn(CachedBlob.CACHE_NOT_READY);
+        when(directory.getCachedBlob(anyString(), any(ByteRange.class))).thenReturn(CachedBlob.CACHE_NOT_READY);
         when(directory.blobContainer()).thenReturn(blobContainer);
 
         final DirectBlobContainerIndexInput indexInput = new DirectBlobContainerIndexInput(

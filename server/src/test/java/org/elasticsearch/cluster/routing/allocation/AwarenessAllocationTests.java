@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -904,4 +905,36 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED), empty());
     }
+
+    public void testNodesWithoutAttributeAreIgnored() {
+        final Settings settings = Settings.builder()
+                .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+                .build();
+
+        final AllocationService strategy = createAllocationService(settings);
+
+        final Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)))
+                .build();
+
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+                ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(Settings.EMPTY))
+                        .metadata(metadata)
+                        .routingTable(RoutingTable.builder()
+                                .addAsNew(metadata.index("test"))
+                                .build())
+                        .nodes(DiscoveryNodes.builder()
+                                .add(newNode("A-0", singletonMap("zone", "a")))
+                                .add(newNode("A-1", singletonMap("zone", "a")))
+                                .add(newNode("B-0", singletonMap("zone", "b")))
+                                .add(newNode("B-1", singletonMap("zone", "b")))
+                                .add(newNode("X-0", emptyMap()))
+                        ).build(), strategy);
+
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED), empty());
+        assertTrue(clusterState.getRoutingNodes().node("X-0").isEmpty());
+    }
+
 }

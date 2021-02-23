@@ -17,16 +17,22 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -51,6 +57,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private int fetchSize = RequestDefaults.FETCH_SIZE;
     private String query;
     private String resultPosition = "tail";
+    private List<FieldAndFormat> fetchFields;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -68,6 +75,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final String KEY_KEEP_ALIVE = "keep_alive";
     static final String KEY_KEEP_ON_COMPLETION = "keep_on_completion";
     static final String KEY_RESULT_POSITION = "result_position";
+    static final String KEY_FETCH_FIELDS = "fields";
 
     static final ParseField FILTER = new ParseField(KEY_FILTER);
     static final ParseField TIMESTAMP_FIELD = new ParseField(KEY_TIMESTAMP_FIELD);
@@ -80,6 +88,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final ParseField KEEP_ALIVE = new ParseField(KEY_KEEP_ALIVE);
     static final ParseField KEEP_ON_COMPLETION = new ParseField(KEY_KEEP_ON_COMPLETION);
     static final ParseField RESULT_POSITION = new ParseField(KEY_RESULT_POSITION);
+    static final ParseField FETCH_FIELDS_FIELD = SearchSourceBuilder.FETCH_FIELDS_FIELD;
 
     private static final ObjectParser<EqlSearchRequest, Void> PARSER = objectParser(EqlSearchRequest::new);
 
@@ -105,6 +114,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         }
         if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             resultPosition = in.readString();
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
+            if (in.readBoolean()) {
+                fetchFields = in.readList(FieldAndFormat::new);
+            }
         }
     }
 
@@ -176,6 +190,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         }
         builder.field(KEY_KEEP_ON_COMPLETION, keepOnCompletion);
         builder.field(KEY_RESULT_POSITION, resultPosition);
+        if (fetchFields != null && fetchFields.isEmpty() == false) {
+            builder.field(KEY_FETCH_FIELDS, fetchFields);
+        }
 
         return builder;
     }
@@ -201,6 +218,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_KEEP_ALIVE), KEEP_ALIVE, ObjectParser.ValueType.VALUE);
         parser.declareBoolean(EqlSearchRequest::keepOnCompletion, KEEP_ON_COMPLETION);
         parser.declareString(EqlSearchRequest::resultPosition, RESULT_POSITION);
+        parser.declareField(EqlSearchRequest::fetchFields, EqlSearchRequest::parseFetchFields, FETCH_FIELDS_FIELD, ValueType.VALUE_ARRAY);
         return parser;
     }
 
@@ -303,6 +321,27 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
+    public List<FieldAndFormat> fetchFields() {
+        return fetchFields;
+    }
+
+    public EqlSearchRequest fetchFields(List<FieldAndFormat> fetchFields) {
+        this.fetchFields = fetchFields;
+        return this;
+    }
+
+    private static List<FieldAndFormat> parseFetchFields(XContentParser parser) throws IOException {
+        List<FieldAndFormat> result = new ArrayList<>();
+        Token token = parser.currentToken();
+
+        if (token == Token.START_ARRAY) {
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                result.add(FieldAndFormat.fromXContent(parser));
+            }
+        }
+        return result.isEmpty() ? null : result;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -323,6 +362,12 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) { // TODO: Remove after backport
             out.writeString(resultPosition);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+            out.writeBoolean(fetchFields != null);
+            if (fetchFields != null) {
+                out.writeList(fetchFields);
+            }
         }
     }
 
@@ -346,7 +391,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Objects.equals(query, that.query) &&
                 Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
                 Objects.equals(keepAlive, that.keepAlive) &&
-                Objects.equals(resultPosition, that.resultPosition);
+                Objects.equals(resultPosition, that.resultPosition) &&
+                Objects.equals(fetchFields, that.fetchFields);
     }
 
 
@@ -364,7 +410,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             query,
             waitForCompletionTimeout,
             keepAlive,
-            resultPosition);
+            resultPosition,
+            fetchFields);
     }
 
     @Override

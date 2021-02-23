@@ -34,7 +34,7 @@ import static java.net.HttpURLConnection.HTTP_SEE_OTHER;
 class HttpClient {
 
     byte[] getBytes(String url) throws IOException {
-        byte[] bytes = new byte[1024];
+        byte[] bytes = new byte[4096];
         int read;
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         try (InputStream is = get(url)) {

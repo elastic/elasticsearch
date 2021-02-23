@@ -11,11 +11,12 @@ package fixture.geoip;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
 public class GeoIpHttpFixture {
@@ -23,7 +24,15 @@ public class GeoIpHttpFixture {
     private final HttpServer server;
 
     GeoIpHttpFixture(final String[] args) throws Exception {
-        String rawData = new String(GeoIpHttpFixture.class.getResourceAsStream("/data.json").readAllBytes(), StandardCharsets.UTF_8);
+        byte[] bytes = new byte[4096];
+        int read;
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        try (InputStream is = GeoIpHttpFixture.class.getResourceAsStream("/data.json")) {
+            while ((read = is.read(bytes)) != -1) {
+                byteArrayOutputStream.write(bytes, 0, read);
+            }
+        }
+        String rawData = new String(byteArrayOutputStream.toByteArray(), StandardCharsets.UTF_8);
         this.server = HttpServer.create(new InetSocketAddress(InetAddress.getByName(args[0]), Integer.parseInt(args[1])), 0);
         this.server.createContext("/", exchange -> {
             String data = rawData.replace("endpoint", "http://" + exchange.getRequestHeaders().getFirst("Host"));
@@ -34,8 +43,12 @@ public class GeoIpHttpFixture {
         });
         this.server.createContext("/db.mmdb.gz", exchange -> {
             exchange.sendResponseHeaders(200, 0);
-            try (OutputStream outputStream = exchange.getResponseBody()) {
-                GeoIpHttpFixture.class.getResourceAsStream("/GeoIP2-City-Test.mmdb.gz").transferTo(outputStream);
+            try (InputStream inputStream = GeoIpHttpFixture.class.getResourceAsStream("/GeoIP2-City-Test.mmdb.gz");
+                 OutputStream outputStream = exchange.getResponseBody()) {
+                int read2;
+                while ((read2 = inputStream.read(bytes)) != -1) {
+                    outputStream.write(bytes, 0, read2);
+                }
             }
         });
     }

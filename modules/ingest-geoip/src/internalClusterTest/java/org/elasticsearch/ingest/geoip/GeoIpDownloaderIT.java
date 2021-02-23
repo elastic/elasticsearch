@@ -13,6 +13,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.collect.Set;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -36,9 +37,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
 
@@ -52,6 +53,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(ReindexPlugin.class, IngestGeoIpPlugin.class, GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Collections.singleton(IngestGeoIpPlugin.class);
     }
 
     @Override
@@ -81,7 +87,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }, 2, TimeUnit.MINUTES);
 
         GeoIpTaskState state = (GeoIpTaskState) getTask().getState();
-        for (String id : List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb")) {
+        for (String id : org.elasticsearch.common.collect.List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb")) {
             assertBusy(() -> {
                 GeoIpTaskState.Metadata metadata = state.get(id);
                 BoolQueryBuilder queryBuilder = new BoolQueryBuilder()
@@ -109,7 +115,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 GZIPInputStream stream = new GZIPInputStream(new MultiByteArrayInputStream(data));
                 Path tempFile = createTempFile();
                 try (OutputStream os = new BufferedOutputStream(Files.newOutputStream(tempFile, TRUNCATE_EXISTING, WRITE, CREATE))) {
-                    stream.transferTo(os);
+                    byte[] bytes = new byte[4096];
+                    int read;
+                    while ((read = stream.read(bytes)) != -1) {
+                        os.write(bytes,0, read);
+                    }
                 }
 
                 parseDatabase(tempFile);

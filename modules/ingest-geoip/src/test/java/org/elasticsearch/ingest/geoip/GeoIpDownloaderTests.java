@@ -41,10 +41,10 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.ENDPOINT_SETTING;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.MAX_CHUNK_SIZE;
 import static org.elasticsearch.tasks.TaskId.EMPTY_TASK_ID;
@@ -65,7 +65,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build());
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY,
-            Set.of(GeoIpDownloader.ENDPOINT_SETTING, GeoIpDownloader.POLL_INTERVAL_SETTING, GeoIpDownloaderTaskExecutor.ENABLED_SETTING)));
+            org.elasticsearch.common.collect.Set.of(GeoIpDownloader.ENDPOINT_SETTING, GeoIpDownloader.POLL_INTERVAL_SETTING,
+                GeoIpDownloaderTaskExecutor.ENABLED_SETTING)));
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         when(clusterService.state()).thenReturn(state);
         client = new MockClient(threadPool);
@@ -209,7 +210,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
         };
 
         geoIpDownloader.setState(GeoIpTaskState.EMPTY);
-        geoIpDownloader.processDatabase(Map.of("name", "test.gz", "url", "a.b/t1", "md5_hash", "1"));
+        geoIpDownloader.processDatabase(org.elasticsearch.common.collect.Map.of("name", "test.gz", "url", "a.b/t1", "md5_hash", "1"));
     }
 
     public void testProcessDatabaseUpdate() throws IOException {
@@ -244,7 +245,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
         };
 
         geoIpDownloader.setState(GeoIpTaskState.EMPTY.put("test", new GeoIpTaskState.Metadata(0, 5, 8, "0")));
-        geoIpDownloader.processDatabase(Map.of("name", "test.gz", "url", "a.b/t1", "md5_hash", "1"));
+        geoIpDownloader.processDatabase(org.elasticsearch.common.collect.Map.of("name", "test.gz", "url", "a.b/t1", "md5_hash", "1"));
     }
 
 
@@ -279,7 +280,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
         };
         geoIpDownloader.setState(taskState);
-        geoIpDownloader.processDatabase(Map.of("name", "test.gz", "url", "a.b/t1", "md5_hash", "1"));
+        geoIpDownloader.processDatabase(org.elasticsearch.common.collect.Map.of("name", "test.gz", "url", "a.b/t1", "md5_hash", "1"));
     }
 
     @SuppressWarnings("unchecked")
@@ -316,12 +317,12 @@ public class GeoIpDownloaderTests extends ESTestCase {
     }
 
     public void testUpdateDatabases() throws IOException {
-        List<Map<String, Object>> maps = Arrays.asList(Map.of("a", 1), Map.of("a", 2));
+        List<Map<String, Object>> maps = Arrays.asList(singletonMap("a", 1), singletonMap("a", 2));
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         builder.startArray();
-        builder.map(Map.of("a", 1));
-        builder.map(Map.of("a", 2));
+        builder.map(singletonMap("a", 1));
+        builder.map(singletonMap("a", 2));
         builder.endArray();
         builder.close();
         when(httpClient.getBytes("a.b?key=11111111-1111-1111-1111-111111111111")).thenReturn(baos.toByteArray());

@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
 
 public class TransformNodesTests extends ESTestCase {
 
@@ -91,21 +89,24 @@ public class TransformNodesTests extends ESTestCase {
             .build();
 
         // don't ask for transformIdOther
-        String[] nodes = TransformNodes.transformTaskNodes(
+        TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(
             Arrays.asList(transformIdFoo, transformIdBar, transformIdFailed, transformIdBaz),
             cs
         );
-        assertEquals(2, nodes.length);
-        Set<String> nodesSet = new HashSet<>(Arrays.asList(nodes));
-        assertTrue(nodesSet.contains("node-1"));
-        assertTrue(nodesSet.contains("node-2"));
-        assertFalse(nodesSet.contains(null));
-        assertFalse(nodesSet.contains("node-3"));
+        assertEquals(2, transformNodeAssignments.getExecutorNodes().size());
+        assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
+        assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-2"));
+        assertFalse(transformNodeAssignments.getExecutorNodes().contains(null));
+        assertFalse(transformNodeAssignments.getExecutorNodes().contains("node-3"));
     }
 
     public void testTransformNodes_NoTasks() {
         ClusterState emptyState = ClusterState.builder(new ClusterName("_name")).build();
-        String[] nodes = TransformNodes.transformTaskNodes(Collections.singletonList("df-id"), emptyState);
-        assertEquals(0, nodes.length);
+        TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(
+            Collections.singletonList("df-id"),
+            emptyState
+        );
+
+        assertEquals(0, transformNodeAssignments.getExecutorNodes().size());
     }
 }

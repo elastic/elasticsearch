@@ -138,7 +138,9 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             ActionListener.wrap(hitsAndIds -> {
                 request.setExpandedIds(hitsAndIds.v2());
                 final ClusterState state = clusterService.state();
-                request.setNodes(TransformNodes.transformTaskNodes(hitsAndIds.v2(), state));
+                TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(hitsAndIds.v2(), state);
+                // TODO: if empty the request is send to all nodes(benign but superfluous)
+                request.setNodes(transformNodeAssignments.getExecutorNodes().toArray(new String[0]));
                 super.doExecute(task, request, ActionListener.wrap(response -> {
                     PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                     if (tasksInProgress != null) {

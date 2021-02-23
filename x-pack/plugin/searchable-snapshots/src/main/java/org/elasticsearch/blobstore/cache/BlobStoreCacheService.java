@@ -10,6 +10,7 @@ package org.elasticsearch.blobstore.cache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -25,13 +26,16 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.time.Instant;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -41,7 +45,7 @@ public class BlobStoreCacheService {
 
     private static final Logger logger = LogManager.getLogger(BlobStoreCacheService.class);
 
-    public static final int DEFAULT_CACHED_BLOB_SIZE = ByteSizeUnit.KB.toIntBytes(4);
+    public static final int DEFAULT_CACHED_BLOB_SIZE = ByteSizeUnit.KB.toIntBytes(1);
 
     private final ThreadPool threadPool;
     private final Client client;
@@ -154,5 +158,47 @@ public class BlobStoreCacheService {
             logger.warn(new ParameterizedMessage("cache fill failure: [{}]", CachedBlob.generateId(repository, name, path, offset)), e);
             listener.onFailure(e);
         }
+    }
+
+    private static final Set<String> METADATA_FILES_EXTENSIONS = Set.of(
+        "cfe", // compound file's entry table
+        "dvm", // doc values metadata file
+        "fdm", // stored fields metadata file
+        "fnm", // field names metadata file
+        "kdm", // Lucene 8.6 point format metadata file
+        "nvm", // norms metadata file
+        "tmd", // Lucene 8.6 terms metadata file
+        "tvm", // terms vectors metadata file
+        "vem"  // Lucene 9.0 indexed vectors metadata
+    );
+
+    /**
+     * Computes the {@link ByteRange} corresponding to the header of a Lucene file. This range can vary depending of the type of the file
+     * which is indicated by the file's extension. The returned byte range can never be larger than the file's length but it can be smaller.
+     *
+     * For files that are declared as metadata files in {@link #METADATA_FILES_EXTENSIONS}, the header can be as large as the specified
+     * maximum metadata length parameter {@code maxMetadataLength}. Non-metadata files have a fixed length header of maximum 1KB.
+     *
+     * @param fileName the name of the file
+     * @param fileLength the length of the file
+     * @param maxMetadataLength the maximum accepted length for metadata files
+     *
+     * @return the header {@link ByteRange}
+     */
+    public static ByteRange computeBlobCacheByteRange(String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
+        final String fileExtension = IndexFileNames.getExtension(fileName);
+        if (METADATA_FILES_EXTENSIONS.contains(fileExtension)) {
+            final long maxAllowedLengthInBytes = maxMetadataLength.getBytes();
+            if (fileLength > maxAllowedLengthInBytes) {
+                logger.warn(
+                    "file of type [{}] and length [{}] is larger than the max. length allowed [{}] to cache metadata files in blob cache",
+                    fileExtension,
+                    fileLength,
+                    maxMetadataLength
+                );
+            }
+            return ByteRange.of(0L, Math.min(fileLength, maxAllowedLengthInBytes));
+        }
+        return ByteRange.of(0L, Math.min(fileLength, DEFAULT_CACHED_BLOB_SIZE));
     }
 }

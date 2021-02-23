@@ -63,7 +63,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             ShardId shardId = new ShardId("_name", "_uuid", 0);
 
             for (int i = 0; i < 5; i++) {
-                final String fileName = randomAlphaOfLength(10);
+                final String fileName = randomAlphaOfLength(5) + randomFileExtension();
                 final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 100_000));
 
                 final byte[] input = bytes.v2();
@@ -129,7 +129,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                     assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
                     assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());
 
-                    try (IndexInput indexInput = directory.openInput(fileName, newIOContext(random()))) {
+                    try (IndexInput indexInput = directory.openInput(fileName, randomIOContext())) {
                         assertThat(indexInput, instanceOf(CachedBlobContainerIndexInput.class));
                         assertEquals(input.length, indexInput.length());
                         assertEquals(0, indexInput.getFilePointer());
@@ -178,7 +178,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             IndexId indexId = new IndexId("_name", "_uuid");
             ShardId shardId = new ShardId("_name", "_uuid", 0);
 
-            final String fileName = randomAlphaOfLength(10);
+            final String fileName = randomAlphaOfLength(5) + randomFileExtension();
             final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 1000));
 
             final byte[] input = bytes.v2();
@@ -231,7 +231,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 assertThat("Snapshot should be loaded", searchableSnapshotDirectory.snapshot(), notNullValue());
                 assertThat("BlobContainer should be loaded", searchableSnapshotDirectory.blobContainer(), notNullValue());
 
-                try (IndexInput indexInput = searchableSnapshotDirectory.openInput(fileName, newIOContext(random()))) {
+                try (IndexInput indexInput = searchableSnapshotDirectory.openInput(fileName, randomIOContext())) {
                     assertThat(indexInput, instanceOf(CachedBlobContainerIndexInput.class));
                     final byte[] buffer = new byte[input.length + 1];
                     final IOException exception = expectThrows(IOException.class, () -> indexInput.readBytes(buffer, 0, buffer.length));

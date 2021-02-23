@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.blobstore.cache.BlobStoreCacheService.computeBlobCacheByteRange;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexInput {
@@ -56,7 +57,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private static final Logger logger = LogManager.getLogger(CachedBlobContainerIndexInput.class);
     private static final int COPY_BUFFER_SIZE = ByteSizeUnit.KB.toIntBytes(8);
 
-    private final SearchableSnapshotDirectory directory;
     private final CacheFileReference cacheFileReference;
     private final int defaultRangeSize;
     private final int recoveryRangeSize;
@@ -84,7 +84,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             fileInfo.length(),
             new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()),
             rangeSize,
-            recoveryRangeSize
+            recoveryRangeSize,
+            computeBlobCacheByteRange(fileInfo.physicalName(), fileInfo.length(), directory.getBlobStoreCacheMaxLength())
         );
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
         stats.incrementOpenCount();
@@ -100,10 +101,10 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long length,
         CacheFileReference cacheFileReference,
         int rangeSize,
-        int recoveryRangeSize
+        int recoveryRangeSize,
+        ByteRange blobCacheByteRange
     ) {
-        super(logger, resourceDesc, directory.blobContainer(), fileInfo, context, stats, offset, length);
-        this.directory = directory;
+        super(logger, resourceDesc, directory, fileInfo, context, stats, offset, length, blobCacheByteRange);
         this.cacheFileReference = cacheFileReference;
         this.lastReadPosition = this.offset;
         this.lastSeekPosition = this.offset;
@@ -162,25 +163,18 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
             // We try to use the cache index if:
             // - the file is small enough to be fully cached
-            final boolean canBeFullyCached = fileInfo.length() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE * 2;
             // - we're reading the first N bytes of the file
-            final boolean isStartOfFile = (position + length <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
+            if (blobCacheByteRange.contains(position, position + length)) {
+                final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), blobCacheByteRange.start(), length);
 
-            if (canBeFullyCached || isStartOfFile) {
-                final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), 0L, length);
-
-                if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
+                if (cachedBlob == CachedBlob.CACHE_MISS
+                    || cachedBlob == CachedBlob.CACHE_NOT_READY
+                    || cachedBlob.from() != blobCacheByteRange.start()
+                    || cachedBlob.to() != blobCacheByteRange.end()) {
                     // We would have liked to find a cached entry but we did not find anything: the cache on the disk will be requested
                     // so we compute the region of the file we would like to have the next time. The region is expressed as a tuple of
                     // {start, end} where positions are relative to the whole file.
-
-                    if (canBeFullyCached) {
-                        // if the index input is smaller than twice the size of the blob cache, it will be fully indexed
-                        indexCacheMiss = ByteRange.of(0L, fileInfo.length());
-                    } else {
-                        // the index input is too large to fully cache, so just cache the initial range
-                        indexCacheMiss = ByteRange.of(0L, BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
-                    }
+                    indexCacheMiss = blobCacheByteRange;
 
                     // We must fill in a cache miss even if CACHE_NOT_READY since the cache index is only created on the first put.
                     // TODO TBD use a different trigger for creating the cache index and avoid a put in the CACHE_NOT_READY case.
@@ -274,11 +268,12 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 final Future<Integer> readFuture = cacheFile.readIfAvailableOrPending(indexCacheMiss, channel -> {
                     final int indexCacheMissLength = toIntBytes(indexCacheMiss.length());
 
+                    // TODO: should we use BigArrays?
                     // We assume that we only cache small portions of blobs so that we do not need to:
                     // - use a BigArrays for allocation
                     // - use an intermediate copy buffer to read the file in sensibly-sized chunks
                     // - release the buffer once the indexing operation is complete
-                    assert indexCacheMissLength <= COPY_BUFFER_SIZE : indexCacheMiss;
+                    // assert indexCacheMissLength <= COPY_BUFFER_SIZE : indexCacheMiss;
 
                     final ByteBuffer byteBuffer = ByteBuffer.allocate(indexCacheMissLength);
                     Channels.readFromFileChannelWithEofException(channel, indexCacheMiss.start(), byteBuffer);
@@ -600,7 +595,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             length,
             cacheFileReference,
             defaultRangeSize,
-            recoveryRangeSize
+            recoveryRangeSize,
+            ByteRange.EMPTY // TODO implement blob cache for CFS
         );
         slice.isClone = true;
         return slice;

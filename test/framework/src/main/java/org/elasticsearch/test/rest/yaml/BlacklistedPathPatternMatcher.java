@@ -36,8 +36,12 @@ final class BlacklistedPathPatternMatcher {
         if (p == null || p.trim().isEmpty()) {
             throw new IllegalArgumentException("Empty blacklist patterns are not supported");
         }
+
+        // we don't support [], {}, (), ? and . in their special meaning within a path regex, so escape them here
+        String sanitizedPattern = p.replaceAll("([\\[\\]\\{\\}\\(\\)\\?\\.])", "\\\\$1");
+
         // very simple transformation from wildcard to a proper regex
-        String finalPattern = p
+        String finalPattern = sanitizedPattern
                 .replaceAll("\\*", "[^/]*") // support wildcard matches (within a single path segment)
                 .replaceAll("\\\\,", ",");  // restore previously escaped ',' in paths.
 

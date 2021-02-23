@@ -85,7 +85,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                 responses.add(failure);
                 latch.countDown();
             }
-        }).setBulkActions(1)
+        }, "BulkProcssorRetryIT").setBulkActions(1)
                  // zero means that we're in the sync case, more means that we're in the async case
                 .setConcurrentRequests(randomIntBetween(0, 100))
                 .setBackoffPolicy(internalPolicy)

@@ -436,7 +436,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             LinearizabilityChecker.SequentialSpec spec = new CASSequentialSpec(initialVersion);
             boolean linearizable = false;
             try {
-                final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY);
+                final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
                 final AtomicBoolean abort = new AtomicBoolean();
                 // Large histories can be problematic and have the linearizability checker run OOM
                 // Bound the time how long the checker can run on such histories (Values empirically determined)

@@ -810,7 +810,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
         try (BulkProcessor processor = BulkProcessor.builder(
                 (request, bulkListener) -> highLevelClient().bulkAsync(request,
-                        RequestOptions.DEFAULT, bulkListener), listener)
+                        RequestOptions.DEFAULT, bulkListener), listener, "CrudIT")
                 .setConcurrentRequests(0)
                 .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.GB))
                 .setBulkActions(nbItems + 1)

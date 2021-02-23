@@ -72,7 +72,8 @@ public class HistoryStoreTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(settings));
         BulkProcessor.Listener listener = mock(BulkProcessor.Listener.class);
-        BulkProcessor bulkProcessor = BulkProcessor.builder(client::bulk, listener).setConcurrentRequests(0).setBulkActions(1).build();
+        BulkProcessor bulkProcessor
+                = BulkProcessor.builder(client::bulk, listener, "HistoryStoreTests").setConcurrentRequests(0).setBulkActions(1).build();
         historyStore = new HistoryStore(bulkProcessor);
     }
 

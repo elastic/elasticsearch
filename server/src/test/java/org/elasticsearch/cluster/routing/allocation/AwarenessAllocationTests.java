@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -34,6 +35,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.sameInstance;
@@ -770,8 +772,13 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table for 'testUnassignedShardsWithUnbalancedZones'");
 
+        final Settings.Builder indexSettings = settings(Version.CURRENT);
+        if (randomBoolean()) {
+            indexSettings.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-4");
+        }
+
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(4))
+                .put(IndexMetadata.builder("test").settings(indexSettings).numberOfShards(1).numberOfReplicas(4))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
@@ -864,5 +871,37 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         logger.info("--> all replicas are allocated and started since we have one node in each zone and rack");
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+    }
+
+    public void testDisabledByAutoExpandReplicas() {
+        final Settings settings = Settings.builder()
+                .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+                .build();
+
+        final AllocationService strategy = createAllocationService(settings);
+
+        final Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 99)
+                        .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")))
+                .build();
+
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+                ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(Settings.EMPTY))
+                        .metadata(metadata)
+                        .routingTable(RoutingTable.builder()
+                                .addAsNew(metadata.index("test"))
+                                .build())
+                        .nodes(DiscoveryNodes.builder()
+                                .add(newNode("A-0", singletonMap("zone", "a")))
+                                .add(newNode("A-1", singletonMap("zone", "a")))
+                                .add(newNode("A-2", singletonMap("zone", "a")))
+                                .add(newNode("A-3", singletonMap("zone", "a")))
+                                .add(newNode("A-4", singletonMap("zone", "a")))
+                                .add(newNode("B-0", singletonMap("zone", "b")))
+                        ).build(), strategy);
+
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED), empty());
     }
 }

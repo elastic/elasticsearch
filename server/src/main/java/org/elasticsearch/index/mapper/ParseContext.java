@@ -290,11 +290,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
-            return in.getDynamicRuntimeFieldsBuilder();
-        }
-
-        @Override
         public void addIgnoredField(String field) {
             in.addIgnoredField(field);
         }
@@ -317,7 +312,6 @@ public abstract class ParseContext {
         private final List<Mapper> dynamicMappers = new ArrayList<>();
         private final Map<String, ObjectMapper> dynamicObjectMappers = new HashMap<>();
         private final List<RuntimeFieldType> dynamicRuntimeFields = new ArrayList<>();
-        private final DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder;
         private final Set<String> ignoredFields = new HashSet<>();
         private Field version;
         private SeqNoFieldMapper.SequenceIDFields seqID;
@@ -326,12 +320,10 @@ public abstract class ParseContext {
 
         public InternalParseContext(MappingLookup mappingLookup,
                                     Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction,
-                                    DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder,
                                     SourceToParse source,
                                     XContentParser parser) {
             this.mappingLookup = mappingLookup;
             this.parserContextFunction = parserContextFunction;
-            this.dynamicRuntimeFieldsBuilder = dynamicRuntimeFieldsBuilder;
             this.parser = parser;
             this.document = new Document();
             this.documents.add(document);
@@ -459,11 +451,6 @@ public abstract class ParseContext {
         @Override
         public List<RuntimeFieldType> getDynamicRuntimeFields() {
             return Collections.unmodifiableList(dynamicRuntimeFields);
-        }
-
-        @Override
-        public DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
-            return dynamicRuntimeFieldsBuilder;
         }
 
         @Override
@@ -698,9 +685,4 @@ public abstract class ParseContext {
      * Get dynamic runtime fields created while parsing.
      */
     public abstract List<RuntimeFieldType> getDynamicRuntimeFields();
-
-    /**
-     * Retrieve the builder for dynamically created runtime fields
-     */
-    public abstract DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder();
 }

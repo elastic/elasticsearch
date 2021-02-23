@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AucRoc;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
@@ -66,6 +65,7 @@ import java.util.Set;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
@@ -902,13 +902,15 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         List<Map<String, Object>> preview = previewDataFrame(jobId).getFeatureValues();
         for (Map<String, Object> feature : preview) {
-            assertThat(feature.keySet(), hasItems(
+            assertThat(feature.keySet(), containsInAnyOrder(
                 BOOLEAN_FIELD,
                 KEYWORD_FIELD,
                 NUMERICAL_FIELD,
                 DISCRETE_NUMERICAL_FIELD,
-                TEXT_FIELD,
-                NESTED_FIELD
+                TEXT_FIELD+".keyword",
+                NESTED_FIELD,
+                ALIAS_TO_KEYWORD_FIELD,
+                ALIAS_TO_NESTED_FIELD
             ));
         }
     }

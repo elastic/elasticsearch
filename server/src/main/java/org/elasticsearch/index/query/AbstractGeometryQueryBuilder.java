@@ -395,10 +395,12 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         client.get(getRequest, listener.delegateFailure((l, response) -> {
             try {
                 if (response.isExists() == false) {
-                    throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] not found");
+                    throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type()
+                            + "] not found");
                 }
                 if (response.isSourceEmpty()) {
-                    throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] source disabled");
+                    throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() +
+                            "] source disabled");
                 }
                 String[] pathElements = path.split("\\.");
                 int currentPathSlot = 0;

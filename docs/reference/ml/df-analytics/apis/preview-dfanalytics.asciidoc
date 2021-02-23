@@ -66,7 +66,7 @@ The API returns a response that contains the following:
 
 `feature_values`::
 (array)
-An array of objects that contain feature name/value pairs. The features have
+An array of objects that contain feature name and value pairs. The features have
 been processed and indicate what will be sent to the model for training.
 
 [[ml-preview-dfanalytics-example]]

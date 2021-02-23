@@ -264,12 +264,10 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 final Future<Integer> readFuture = cacheFile.readIfAvailableOrPending(indexCacheMiss, channel -> {
                     final int indexCacheMissLength = toIntBytes(indexCacheMiss.length());
 
-                    // TODO: should we use BigArrays?
                     // We assume that we only cache small portions of blobs so that we do not need to:
                     // - use a BigArrays for allocation
                     // - use an intermediate copy buffer to read the file in sensibly-sized chunks
                     // - release the buffer once the indexing operation is complete
-                    // assert indexCacheMissLength <= COPY_BUFFER_SIZE : indexCacheMiss;
 
                     final ByteBuffer byteBuffer = ByteBuffer.allocate(indexCacheMissLength);
                     Channels.readFromFileChannelWithEofException(channel, indexCacheMiss.start(), byteBuffer);

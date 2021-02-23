@@ -306,7 +306,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             if (indexCacheMiss != null) {
                 final Releasable onCacheFillComplete = stats.addIndexCacheFill();
                 final int indexCacheMissLength = toIntBytes(indexCacheMiss.length());
-                // TODO: should we use BigArrays?
+
                 // We assume that we only cache small portions of blobs so that we do not need to:
                 // - use a BigArrays for allocation
                 // - use an intermediate copy buffer to read the file in sensibly-sized chunks

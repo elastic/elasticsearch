@@ -466,7 +466,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69396")
     public void testConvertingPartialSearchableSnapshotIntoFull() throws Exception {
         String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT) +"-000001";
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());

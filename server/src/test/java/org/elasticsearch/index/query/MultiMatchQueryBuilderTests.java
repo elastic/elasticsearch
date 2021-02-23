@@ -295,9 +295,11 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     /**
      * `fuzziness` is not allowed for `cross_fields`, `phrase` and `phrase_prefix` and should throw an error
      */
-    public void testFuzzinessNotAllowedTypes() throws IOException {
+    public void testFuzzinessNotAllowedTypes() {
         String[] notAllowedTypes = new String[]{ Type.CROSS_FIELDS.parseField().getPreferredName(),
-            Type.PHRASE.parseField().getPreferredName(), Type.PHRASE_PREFIX.parseField().getPreferredName()};
+            Type.COMBINED_FIELDS.parseField().getPreferredName(),
+            Type.PHRASE.parseField().getPreferredName(),
+            Type.PHRASE_PREFIX.parseField().getPreferredName()};
         for (String type : notAllowedTypes) {
             String json =
                     "{\n" +

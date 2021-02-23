@@ -378,7 +378,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                 .setSource(jsonBuilder().startObject()
                     .field("id", "1")
                     .field("query", multiMatchQuery("quick brown fox", "field1", "field2")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)).endObject())
+                        .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)).endObject())
                 .get();
         client().prepareIndex("test").setId("2")
                 .setSource(jsonBuilder().startObject()

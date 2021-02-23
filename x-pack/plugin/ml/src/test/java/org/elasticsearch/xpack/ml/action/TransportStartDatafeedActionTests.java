@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -16,17 +18,22 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -99,6 +106,53 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         TransportStartDatafeedAction.auditDeprecations(config, job1, auditor, xContentRegistry());
 
         verify(auditor, never()).warning(any(), any());
+    }
+
+    public void testRemoteClusterVersionCheck() {
+        Map<String, Version> clusterVersions = MapBuilder.<String, Version>newMapBuilder()
+            .put("modern_cluster_1", Version.CURRENT)
+            .put("modern_cluster_2", Version.CURRENT)
+            .put("old_cluster_1", Version.V_7_0_0)
+            .map();
+
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("type", "keyword");
+        settings.put("script", "");
+        Map<String, Object> field = new HashMap<>();
+        field.put("runtime_field_foo", settings);
+
+        DatafeedConfig config = new DatafeedConfig.Builder(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"))
+            .setRuntimeMappings(field)
+            .build();
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> TransportStartDatafeedAction.checkRemoteClusterVersions(
+                config,
+                Arrays.asList("old_cluster_1", "modern_cluster_2"),
+                clusterVersions::get
+            )
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString("remote clusters [old_cluster_1] are not at least version [7.11.0] which is required for [runtime mappings]"
+            )
+        );
+
+        // The rest should not throw
+        TransportStartDatafeedAction.checkRemoteClusterVersions(
+            config,
+            Arrays.asList("modern_cluster_1", "modern_cluster_2"),
+            clusterVersions::get
+        );
+
+        DatafeedConfig configWithoutRuntimeMappings = new DatafeedConfig.Builder()
+            .setId("foo-datafeed")
+            .setIndices(Collections.singletonList("bar"))
+            .setJobId("foo").build();
+        TransportStartDatafeedAction.checkRemoteClusterVersions(
+            configWithoutRuntimeMappings,
+            Arrays.asList("old_cluster_1", "modern_cluster_2"),
+            clusterVersions::get
+        );
     }
 
     public static TransportStartDatafeedAction.DatafeedTask createDatafeedTask(long id, String type, String action,

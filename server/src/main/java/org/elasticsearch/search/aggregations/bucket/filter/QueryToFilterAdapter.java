@@ -26,7 +26,10 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -39,7 +42,7 @@ import java.util.function.IntPredicate;
  */
 public class QueryToFilterAdapter<Q extends Query> {
     /**
-     * Build a filter against the provided searcher.
+     * Build a filter for the query against the provided searcher.
      * <p>
      * Note: This method rewrites the query against the {@link IndexSearcher}
      */
@@ -60,8 +63,22 @@ public class QueryToFilterAdapter<Q extends Query> {
     private final IndexSearcher searcher;
     private final String key;
     private final Q query;
+    /**
+     * The weight for the query or {@code null} if we haven't built it. Use
+     * {@link #weight()} to build it when needed.
+     */
     private Weight weight;
+    /**
+     * Scorer for each segment or {@code null} if we haven't built the scorer.
+     * Use {@link #bulkScorer(LeafReaderContext, Runnable)} to build the scorer
+     * when needed.
+     */
     private BulkScorer[] bulkScorers;
+    /**
+     * The number of scorers we prepared just to estimate the cost of counting
+     * documents. For some queries preparing the scorers is very slow so its
+     * nice to know how many we built. Exposed by profiling.
+     */
     private int scorersPreparedWhileEstimatingCost;
 
     private QueryToFilterAdapter(IndexSearcher searcher, String key, Q query) {
@@ -76,7 +93,7 @@ public class QueryToFilterAdapter<Q extends Query> {
      * Subclasses should use this to fetch the query when making query
      * specific optimizations.
      */
-    protected Q query() {
+    Q query() {
         return query;
     }
 
@@ -87,6 +104,9 @@ public class QueryToFilterAdapter<Q extends Query> {
         return key;
     }
 
+    /**
+     * Searcher that this filter is targeting.
+     */
     protected final IndexSearcher searcher() {
         return searcher;
     }
@@ -95,7 +115,7 @@ public class QueryToFilterAdapter<Q extends Query> {
      * Would using index metadata like {@link IndexReader#docFreq}
      * or {@link IndexReader#maxDoc} to count the number of matching documents
      * produce the same answer as collecting the results with a sequence like
-     * {@code searcher.collect(counter); return counter.readAndReset();}.
+     * {@code searcher.collect(counter); return counter.readAndReset();}?
      */
     protected final boolean countCanUseMetadata(FiltersAggregator.Counter counter, Bits live) {
         if (live != null) {
@@ -160,7 +180,7 @@ public class QueryToFilterAdapter<Q extends Query> {
     }
 
     /**
-     * Build predicate that the "compatible" implementation of the
+     * Build a predicate that the "compatible" implementation of the
      * {@link FiltersAggregator} will use to figure out if the filter matches.
      * <p>
      * Consumers of this method will always call it with non-negative,
@@ -198,7 +218,15 @@ public class QueryToFilterAdapter<Q extends Query> {
     }
 
     /**
-     * Collect profiling information for this filter.
+     * Collect profiling information for this filter. Rhymes with
+     * {@link Aggregator#collectDebugInfo(BiConsumer)}.
+     * <p>
+     * Well behaved implementations will always call the superclass
+     * implementation just in case it has something interesting. They will
+     * also only add objects which can be serialized with
+     * {@link StreamOutput#writeGenericValue(Object)} and
+     * {@link XContentBuilder#value(Object)}. And they'll have an integration
+     * test.
      */
     void collectDebugInfo(BiConsumer<String, Object> add) {
         add.accept("query", query.toString());

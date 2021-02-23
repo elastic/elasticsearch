@@ -253,6 +253,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
              * field mapper adds
              */
             QueryToFilterAdapter<?> filter = ((FiltersAggregator) aggregator).filters().get(0);
+            assertThat(filter.query(), equalTo(((IndexOrDocValuesQuery) topLevelQuery).getIndexQuery()));
             Map<String, Object> debug = new HashMap<>();
             filter.collectDebugInfo(debug::put);
             assertThat(debug, hasEntry("query", ((IndexOrDocValuesQuery) topLevelQuery).getIndexQuery().toString()));

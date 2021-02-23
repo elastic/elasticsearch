@@ -21,6 +21,11 @@ To search `text` field values, use the <<query-dsl-match-query,`match`>> query
 instead.
 ====
 
+[IMPORTANT]
+====
+7.10 introduced the `case_insensitive` field parameter for term query that allows case insensitive matching of the value.
+====
+
 [[term-query-ex-request]]
 ==== Example request
 

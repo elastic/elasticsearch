@@ -395,7 +395,7 @@ nested:
 
 ---
 "cache hits":
-- do:
+  - do:
       indices.create:
           index: test
           body:
@@ -424,6 +424,7 @@ nested:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        index: test
         body:
           aggs:
             itemsNotify:
@@ -461,6 +462,7 @@ nested:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        index: test
         body:
           aggs:
             itemsNotify:

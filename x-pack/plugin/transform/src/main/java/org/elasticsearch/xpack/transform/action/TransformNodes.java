@@ -55,7 +55,7 @@ public final class TransformNodes {
         }
 
         Set<String> stopped = transformIds.stream()
-            .filter(id -> (assigned.contains(id) || waitingForAssignment.contains(id) == false))
+            .filter(id -> (assigned.contains(id) || waitingForAssignment.contains(id)) == false)
             .collect(Collectors.toSet());
 
         return new TransformNodeAssignments(executorNodes, assigned, waitingForAssignment, stopped);

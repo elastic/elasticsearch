@@ -30,6 +30,7 @@ public class TransformNodesTests extends ESTestCase {
         String transformIdFailed = "df-id-failed";
         String transformIdBaz = "df-id-baz";
         String transformIdOther = "df-id-other";
+        String transformIdStopped = "df-id-stopped";
 
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         tasksBuilder.addTask(
@@ -90,7 +91,7 @@ public class TransformNodesTests extends ESTestCase {
 
         // don't ask for transformIdOther
         TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(
-            Arrays.asList(transformIdFoo, transformIdBar, transformIdFailed, transformIdBaz),
+            Arrays.asList(transformIdFoo, transformIdBar, transformIdFailed, transformIdBaz, transformIdStopped),
             cs
         );
         assertEquals(2, transformNodeAssignments.getExecutorNodes().size());
@@ -105,6 +106,22 @@ public class TransformNodesTests extends ESTestCase {
         assertTrue(transformNodeAssignments.getAssigned().contains(transformIdBar));
         assertTrue(transformNodeAssignments.getAssigned().contains(transformIdBaz));
         assertFalse(transformNodeAssignments.getAssigned().contains(transformIdFailed));
+        assertEquals(1, transformNodeAssignments.getStopped().size());
+        assertTrue(transformNodeAssignments.getStopped().contains(transformIdStopped));
+
+        transformNodeAssignments = TransformNodes.transformTaskNodes(
+            Arrays.asList(transformIdFoo, transformIdFailed),
+            cs
+        );
+
+        assertEquals(1, transformNodeAssignments.getExecutorNodes().size());
+        assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
+        assertEquals(1, transformNodeAssignments.getWaitingForAssignment().size());
+        assertTrue(transformNodeAssignments.getWaitingForAssignment().contains(transformIdFailed));
+        assertEquals(1, transformNodeAssignments.getAssigned().size());
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdFoo));
+        assertFalse(transformNodeAssignments.getAssigned().contains(transformIdFailed));
+        assertEquals(0, transformNodeAssignments.getStopped().size());
     }
 
     public void testTransformNodes_NoTasks() {

@@ -15,10 +15,8 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -33,7 +31,7 @@ public final class LeakTracker {
 
     private static final int TARGET_RECORDS = 25;
 
-    private final Set<Leak<?>> allLeaks = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<Leak<?>> allLeaks = ConcurrentCollections.newConcurrentSet();
 
     private final ReferenceQueue<Object> refQueue = new ReferenceQueue<>();
     private final ConcurrentMap<String, Boolean> reportedLeaks = ConcurrentCollections.newConcurrentMap();
@@ -54,28 +52,14 @@ public final class LeakTracker {
         return new Leak<>(obj, refQueue, allLeaks);
     }
 
-    private void clearRefQueue() {
-        while (true) {
-            Leak<?> ref = (Leak<?>) refQueue.poll();
-            if (ref == null) {
-                break;
-            }
-            ref.dispose();
-        }
-    }
-
-    private void reportLeak() {
-        if (logger.isErrorEnabled() == false) {
-            clearRefQueue();
-            return;
-        }
+    public void reportLeak() {
         while (true) {
             Leak<?> ref = (Leak<?>) refQueue.poll();
             if (ref == null) {
                 break;
             }
 
-            if (ref.dispose() == false) {
+            if (ref.dispose() == false || logger.isErrorEnabled() == false) {
                 continue;
             }
 

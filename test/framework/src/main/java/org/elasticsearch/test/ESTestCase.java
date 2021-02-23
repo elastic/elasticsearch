@@ -498,6 +498,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
     protected static void checkStaticState(boolean afterClass) throws Exception {
+        LeakTracker.INSTANCE.reportLeak();
         if (afterClass) {
             MockPageCacheRecycler.ensureAllPagesAreReleased();
         }

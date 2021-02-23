@@ -105,7 +105,7 @@ PUT my-index/
       }
     },
     "properties": {
-      "timestamp": {"type": "date"}
+      "@timestamp": {"type": "date"}
     }
   }
 }
@@ -137,7 +137,7 @@ PUT my-index
   "mappings": {
     "dynamic": "runtime",
     "properties": {
-      "timestamp": {
+      "@timestamp": {
         "type": "date"
       }
     }
@@ -260,17 +260,17 @@ For example, let's say you indexed the following documents into `my-index`:
 ----
 POST my-index/_bulk?refresh=true
 {"index":{}}
-{"timestamp":1516729294000,"model_number":"QVKC92Q","measures":{"voltage":5.2}}
+{"@timestamp":1516729294000,"model_number":"QVKC92Q","measures":{"voltage":5.2}}
 {"index":{}}
-{"timestamp":1516642894000,"model_number":"QVKC92Q","measures":{"voltage":5.8}}
+{"@timestamp":1516642894000,"model_number":"QVKC92Q","measures":{"voltage":5.8}}
 {"index":{}}
-{"timestamp":1516556494000,"model_number":"QVKC92Q","measures":{"voltage":5.1}}
+{"@timestamp":1516556494000,"model_number":"QVKC92Q","measures":{"voltage":5.1}}
 {"index":{}}
-{"timestamp":1516470094000,"model_number":"QVKC92Q","measures":{"voltage":5.6}}
+{"@timestamp":1516470094000,"model_number":"QVKC92Q","measures":{"voltage":5.6}}
 {"index":{}}
-{"timestamp":1516383694000,"model_number":"HG537PU","measures":{"voltage":4.2}}
+{"@timestamp":1516383694000,"model_number":"HG537PU","measures":{"voltage":4.2}}
 {"index":{}}
-{"timestamp":1516297294000,"model_number":"HG537PU","measures":{"voltage":4.0}}
+{"@timestamp":1516297294000,"model_number":"HG537PU","measures":{"voltage":4.0}}
 ----
 
 You later realize that the `HG537PU` sensors aren't reporting their true
@@ -313,7 +313,7 @@ The response includes indexed values for documents matching model number
         "_id" : "F1BeSXYBg_szTodcYCmk",
         "_score" : 1.0296195,
         "_source" : {
-          "timestamp" : 1516383694000,
+          "@timestamp" : 1516383694000,
           "model_number" : "HG537PU",
           "measures" : {
             "voltage" : 4.2
@@ -325,7 +325,7 @@ The response includes indexed values for documents matching model number
         "_id" : "l02aSXYBkpNf6QRDO62Q",
         "_score" : 1.0296195,
         "_source" : {
-          "timestamp" : 1516297294000,
+          "@timestamp" : 1516297294000,
           "model_number" : "HG537PU",
           "measures" : {
             "voltage" : 4.0
@@ -394,7 +394,7 @@ which still returns in the response:
         "_id" : "F1BeSXYBg_szTodcYCmk",
         "_score" : 1.0296195,
         "_source" : {
-          "timestamp" : 1516383694000,
+          "@timestamp" : 1516383694000,
           "model_number" : "HG537PU",
           "measures" : {
             "voltage" : 4.2
@@ -411,7 +411,7 @@ which still returns in the response:
         "_id" : "l02aSXYBkpNf6QRDO62Q",
         "_score" : 1.0296195,
         "_source" : {
-          "timestamp" : 1516297294000,
+          "@timestamp" : 1516297294000,
           "model_number" : "HG537PU",
           "measures" : {
             "voltage" : 4.0
@@ -462,7 +462,7 @@ PUT my-index/
       }
     },
     "properties": {
-      "timestamp": {"type": "date"}
+      "@timestamp": {"type": "date"}
     }
   }
 }

@@ -45,7 +45,7 @@ one of the active allocation ids in the cluster state.
     These should be fast so more initial primary recoveries can happen in
     parallel on the same node.  Defaults to `4`.
 
-
+[[cluster-routing-allocation-same-shard-host]]
 `cluster.routing.allocation.same_shard.host`::
       (<<dynamic-cluster-setting,Dynamic>>)
       Allows to perform a check to prevent allocation of multiple instances of

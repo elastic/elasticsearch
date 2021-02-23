@@ -137,7 +137,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             });
                         }
                     } else {
-                        ActionListener<Response> delegate = ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
+                        ActionListener<Response> delegate = listener.delegateResponse((delegatedListener, t) -> {
                             if (t instanceof FailedToCommitClusterStateException || t instanceof NotMasterException) {
                                 logger.debug(() -> new ParameterizedMessage("master could not publish cluster state or " +
                                     "stepped down before publishing action [{}], scheduling a retry", actionName), t);

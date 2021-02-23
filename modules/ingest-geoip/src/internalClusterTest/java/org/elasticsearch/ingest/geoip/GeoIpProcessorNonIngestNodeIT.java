@@ -156,7 +156,7 @@ public class GeoIpProcessorNonIngestNodeIT extends ESIntegTestCase {
     private void assertDatabaseLoadStatus(final String node, final boolean loaded) {
         final IngestService ingestService = internalCluster().getInstance(IngestService.class, node);
         final GeoIpProcessor.Factory factory = (GeoIpProcessor.Factory)ingestService.getProcessorFactories().get("geoip");
-        for (final DatabaseReaderLazyLoader loader : factory.databaseReaders().values()) {
+        for (final DatabaseReaderLazyLoader loader : factory.getAllDatabases()) {
             if (loaded) {
                 assertNotNull(loader.databaseReader.get());
             } else {

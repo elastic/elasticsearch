@@ -242,7 +242,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             index = in.readString();
             id = in.readString();
             source = in.readBytesReference();
-            if (in.getVersion().onOrAfter(Version.V_7_12_0) && in.readBoolean()) {
+            if (in.getVersion().onOrAfter(Version.V_7_13_0) && in.readBoolean()) {
                 fetchFields = in.readMap(StreamInput::readString, DocumentField::new);
             } else {
                 fetchFields = null;
@@ -254,7 +254,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             out.writeString(index);
             out.writeString(id);
             out.writeBytesReference(source);
-            if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
                 out.writeBoolean(fetchFields != null);
                 if (fetchFields != null) {
                     out.writeMap(fetchFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));

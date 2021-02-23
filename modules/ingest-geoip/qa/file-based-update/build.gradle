@@ -11,6 +11,7 @@ apply plugin: 'elasticsearch.rest-test'
 
 testClusters.all {
   testDistribution = 'DEFAULT'
+  setting 'resource.reload.interval.high', '100ms'
 }
 
 tasks.named("integTest").configure {

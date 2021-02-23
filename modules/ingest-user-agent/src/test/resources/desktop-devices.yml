@@ -172,3 +172,6 @@ desktop_devices:
   - type: Desktop
     browser: Iceweasel
     os: Linux
+  - type: Desktop
+    browser: Chrome Mobile WebView
+    os: Linux

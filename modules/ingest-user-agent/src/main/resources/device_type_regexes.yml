@@ -41,7 +41,7 @@ browser_parsers:
   - regex: '^(Chrome$|Chromium$|Edge$|Firefox$|IE$|Maxthon$|Opera$|Safari$|SeaMonkey$|Vivaldi$|Yandex Browser$)'
     replacement: 'Desktop'
   #  Mobile Browsers, Most Common
-  - regex: '^(Chrome Mobile|Chrome Mobile iOS|Firefox Mobile|Firefox iOS|Edge Mobile|Android|Facebook|Instagram|IE Mobile)'
+  - regex: '^(Chrome Mobile$|Chrome Mobile iOS|Firefox Mobile|Firefox iOS|Edge Mobile|Android|Facebook|Instagram|IE Mobile)'
     replacement: 'Mobile'
   #  Mobile Browsers, Not Common
   - regex: '^(BlackBerry WebKit|OktaMobile|Sailfish Browser|Amazon Silk|Pinterest|Flipboard)'

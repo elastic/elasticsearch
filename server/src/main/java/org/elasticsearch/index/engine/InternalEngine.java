@@ -557,7 +557,7 @@ public class InternalEngine extends Engine {
                                                    MapperService mapperService, long startingSeqNo) throws IOException {
         if (historySource == HistorySource.INDEX) {
             ensureSoftDeletesEnabled();
-            return newChangesSnapshot(reason, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false);
+            return newChangesSnapshot(reason, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false, false);
         } else {
             return getTranslog().newSnapshot(startingSeqNo, Long.MAX_VALUE);
         }
@@ -571,8 +571,8 @@ public class InternalEngine extends Engine {
                                                  MapperService mapperService, long startingSeqNo) throws IOException {
         if (historySource == HistorySource.INDEX) {
             ensureSoftDeletesEnabled();
-            try (Translog.Snapshot snapshot = newChangesSnapshot(reason, mapperService, Math.max(0, startingSeqNo),
-                Long.MAX_VALUE, false)) {
+            try (Translog.Snapshot snapshot =
+                     newChangesSnapshot(reason, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false, false)) {
                 return snapshot.totalOperations();
             }
         } else {
@@ -2685,16 +2685,15 @@ public class InternalEngine extends Engine {
         }
     }
 
-    @Override
-    public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
-                                                long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+    Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService, long fromSeqNo, long toSeqNo,
+                                         boolean requiredFullRange, boolean singleConsumer) throws IOException {
         ensureSoftDeletesEnabled();
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
             LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, fromSeqNo, toSeqNo, requiredFullRange);
+                searcher, mapperService, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer);
             searcher = null;
             return snapshot;
         } catch (Exception e) {
@@ -2707,6 +2706,12 @@ public class InternalEngine extends Engine {
         } finally {
             IOUtils.close(searcher);
         }
+    }
+
+    @Override
+    public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
+                                                long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+        return newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange, true);
     }
 
     @Override

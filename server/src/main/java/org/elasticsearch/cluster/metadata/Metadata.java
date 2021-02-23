@@ -70,6 +70,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static java.util.function.Function.identity;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
@@ -971,6 +972,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
+        private Map<MappingMetadata, MappingMetadata> mappingsCache;
 
         public Builder() {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
@@ -996,7 +998,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
             // we know its a new one, increment the version and store
             indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
-            IndexMetadata indexMetadata = indexMetadataBuilder.build();
+            IndexMetadata indexMetadata = deduplicateMappings(indexMetadataBuilder.build());
             indices.put(indexMetadata.getIndex().getName(), indexMetadata);
             return this;
         }
@@ -1005,12 +1007,33 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (indices.get(indexMetadata.getIndex().getName()) == indexMetadata) {
                 return this;
             }
+            indexMetadata = deduplicateMappings(indexMetadata);
             // if we put a new index metadata, increment its version
             if (incrementVersion) {
                 indexMetadata = IndexMetadata.builder(indexMetadata).version(indexMetadata.getVersion() + 1).build();
             }
             indices.put(indexMetadata.getIndex().getName(), indexMetadata);
             return this;
+        }
+
+        private IndexMetadata deduplicateMappings(IndexMetadata indexMetadata) {
+            MappingMetadata mapping = indexMetadata.mapping();
+            if(mapping == null){
+                return indexMetadata;
+            }
+            if(mappingsCache == null) {
+                mappingsCache = StreamSupport.stream(indices.values().spliterator(), false)
+                    .map(c -> c.value.mapping())
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .collect(Collectors.toMap(identity(), identity()));
+            }
+            if (mappingsCache.containsKey(mapping) && mappingsCache.get(mapping) != mapping) {
+                indexMetadata = IndexMetadata.builder(indexMetadata).putMapping(mappingsCache.get(mapping)).build();
+            } else {
+                mappingsCache.put(mapping, mapping);
+            }
+            return indexMetadata;
         }
 
         public IndexMetadata get(String index) {
@@ -1041,7 +1064,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public Builder indices(ImmutableOpenMap<String, IndexMetadata> indices) {
-            this.indices.putAll(indices);
+            for (ObjectObjectCursor<String, IndexMetadata> index : indices) {
+                put(index.value, false);
+            }
             return this;
         }
 

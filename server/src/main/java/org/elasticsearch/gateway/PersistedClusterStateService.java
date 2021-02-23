@@ -8,6 +8,7 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -40,6 +41,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
@@ -118,7 +120,9 @@ public class PersistedClusterStateService {
     private static final String DATA_FIELD_NAME = "data";
     private static final String GLOBAL_TYPE_NAME = "global";
     private static final String INDEX_TYPE_NAME = "index";
+    private static final String MAPPING_TYPE_NAME = "mapping";
     private static final String INDEX_UUID_FIELD_NAME = "index_uuid";
+    private static final String MAPPING_ID_FIELD_NAME = "mapping_id";
     private static final int COMMIT_DATA_SIZE = 4;
 
     public static final String METADATA_DIRECTORY_NAME = MetadataStateFormat.STATE_DIR_NAME;
@@ -387,17 +391,27 @@ public class PersistedClusterStateService {
             throw new IllegalStateException("no global metadata found in [" + dataPath + "]");
         }
 
-        logger.trace("got global metadata, now reading index metadata");
+        logger.trace("got global metadata, now reading mappings metadata");
+
+        Map<MappingMetadata.Id, MappingMetadata> mappings = new HashMap<>();
+        consumeFromType(searcher, MAPPING_TYPE_NAME, bytes -> {
+            MappingMetadata mappingMetadata = MappingMetadata.fromXContent(XContentFactory.xContent(XContentType.SMILE)
+                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
+            mappings.put(mappingMetadata.id(),mappingMetadata);
+        });
+
+        logger.trace("got mappings metadata, now reading index metadata");
 
         final Set<String> indexUUIDs = new HashSet<>();
         consumeFromType(searcher, INDEX_TYPE_NAME, bytes ->
         {
-            final IndexMetadata indexMetadata = IndexMetadata.fromXContent(XContentFactory.xContent(XContentType.SMILE)
+            IndexMetadata indexMetadata = IndexMetadata.fromXContent(XContentFactory.xContent(XContentType.SMILE)
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
             logger.trace("found index metadata for {}", indexMetadata.getIndex());
             if (indexUUIDs.add(indexMetadata.getIndexUUID()) == false) {
                 throw new IllegalStateException("duplicate metadata found for " + indexMetadata.getIndex() + " in [" + dataPath + "]");
             }
+            indexMetadata = IndexMetadata.builder(indexMetadata).putMapping(mappings.get(indexMetadata.mapping().id())).build();
             builder.put(indexMetadata, false);
         });
 
@@ -467,6 +481,11 @@ public class PersistedClusterStateService {
             this.indexWriter.deleteAll();
         }
 
+        void updateMappingDocument(Document mappingMetadataDocument, MappingMetadata.Id id) throws IOException {
+            this.logger.trace("updating metadata for mapping [{}]", id);
+            indexWriter.updateDocument(new Term(MAPPING_ID_FIELD_NAME, id.toString()), mappingMetadataDocument);
+        }
+
         void updateIndexMetadataDocument(Document indexMetadataDocument, Index index) throws IOException {
             this.logger.trace("updating metadata for [{}]", index);
             indexWriter.updateDocument(new Term(INDEX_UUID_FIELD_NAME, index.getUUID()), indexMetadataDocument);
@@ -475,6 +494,11 @@ public class PersistedClusterStateService {
         void updateGlobalMetadata(Document globalMetadataDocument) throws IOException {
             this.logger.trace("updating global metadata doc");
             indexWriter.updateDocument(new Term(TYPE_FIELD_NAME, GLOBAL_TYPE_NAME), globalMetadataDocument);
+        }
+
+        void deleteMappingMetadata(MappingMetadata.Id id) throws IOException {
+            this.logger.trace("removing mapping metadata for [{}]", id);
+            indexWriter.deleteDocuments(new Term(INDEX_UUID_FIELD_NAME, id.toString()));
         }
 
         void deleteIndexMetadata(String indexUUID) throws IOException {
@@ -635,6 +659,39 @@ public class PersistedClusterStateService {
                     }
                 }
 
+                HashSet<MappingMetadata.Id> previouslyWrittenMappings = new HashSet<>();
+                for (ObjectCursor<IndexMetadata> index : previouslyWrittenMetadata.indices().values()) {
+                    MappingMetadata mapping = index.value.mapping();
+                    if(mapping !=null) {
+                        previouslyWrittenMappings.add(mapping.id());
+                    }
+                }
+
+                Map<MappingMetadata.Id, MappingMetadata> currentMappings = new HashMap<>();
+                for (ObjectObjectCursor<String, IndexMetadata> index : metadata.indices()) {
+                    MappingMetadata mapping = index.value.mapping();
+                    if(mapping!=null) {
+                        currentMappings.put(mapping.id(), mapping);
+                    }
+                }
+
+                currentMappings.keySet().removeAll(previouslyWrittenMappings);
+                for (MappingMetadata mappingMetadata : currentMappings.values()) {
+                    for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
+                        Document document = makeMappingMetadataDocument(mappingMetadata, documentBuffer);
+                        metadataIndexWriter.updateMappingDocument(document, mappingMetadata.id());
+                    }
+                }
+
+                HashSet<MappingMetadata.Id> toRemove = new HashSet<>(previouslyWrittenMappings);
+                toRemove.removeAll(currentMappings.keySet());
+
+                for (MappingMetadata.Id id : toRemove) {
+                    for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
+                        metadataIndexWriter.deleteMappingMetadata(id);
+                    }
+                }
+
                 final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(previouslyWrittenMetadata.indices().size());
                 for (ObjectCursor<IndexMetadata> cursor : previouslyWrittenMetadata.indices().values()) {
                     final IndexMetadata indexMetadata = cursor.value;
@@ -700,6 +757,21 @@ public class PersistedClusterStateService {
                 final Document globalMetadataDocument = makeGlobalMetadataDocument(metadata, documentBuffer);
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
                     metadataIndexWriter.updateGlobalMetadata(globalMetadataDocument);
+                }
+
+                Map<MappingMetadata.Id, MappingMetadata> currentMappings = new HashMap<>();
+                for (ObjectObjectCursor<String, IndexMetadata> index : metadata.indices()) {
+                    MappingMetadata mapping = index.value.mapping();
+                    if (mapping != null) {
+                        currentMappings.put(mapping.id(), mapping);
+                    }
+                }
+
+                for (MappingMetadata mappingMetadata : currentMappings.values()) {
+                    for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
+                        Document document = makeMappingMetadataDocument(mappingMetadata, documentBuffer);
+                        metadataIndexWriter.updateMappingDocument(document, mappingMetadata.id());
+                    }
                 }
 
                 for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
@@ -798,6 +870,14 @@ public class PersistedClusterStateService {
             assert indexUUID.equals(IndexMetadata.INDEX_UUID_NA_VALUE) == false;
             indexMetadataDocument.add(new StringField(INDEX_UUID_FIELD_NAME, indexUUID, Field.Store.NO));
             return indexMetadataDocument;
+        }
+
+        private Document makeMappingMetadataDocument(MappingMetadata mappingMetadata, DocumentBuffer documentBuffer) throws IOException {
+            final Document mappingsDoc = makeDocument(MAPPING_TYPE_NAME, mappingMetadata, documentBuffer);
+            MappingMetadata.Id id = mappingMetadata.id();
+            final String indexUUID = Long.toString(id.msb(), Character.MAX_RADIX) + "_" + Long.toString(id.lsb(), Character.MAX_RADIX);
+            mappingsDoc.add(new StringField(MAPPING_ID_FIELD_NAME, indexUUID, Field.Store.NO));
+            return mappingsDoc;
         }
 
         private Document makeGlobalMetadataDocument(Metadata metadata, DocumentBuffer documentBuffer) throws IOException {

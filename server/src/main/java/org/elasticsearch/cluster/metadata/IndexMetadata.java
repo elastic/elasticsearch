@@ -1330,7 +1330,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.startArray(KEY_MAPPINGS);
                 MappingMetadata mmd = indexMetadata.mapping();
                 if (mmd != null) {
-                    if (binary) {
+                    if (context == Metadata.XContentContext.GATEWAY){
+                        builder.value(mmd.id().msb());
+                        builder.value(mmd.id().lsb());
+                    } else if (binary) {
                         builder.value(mmd.source().compressed());
                     } else {
                         builder.map(XContentHelper.convertToMap(mmd.source().uncompressed(), true).v2());
@@ -1494,7 +1497,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if (KEY_MAPPINGS.equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                            if (token == XContentParser.Token.VALUE_NUMBER) {
+                                long msb = parser.longValue();
+                                parser.nextToken();
+                                long lsb = parser.longValue();
+                                builder.putMapping( new MappingMetadata(new MappingMetadata.Id(msb, lsb)));
+                            } if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
                                 builder.putMapping(new MappingMetadata(new CompressedXContent(parser.binaryValue())));
                             } else {
                                 Map<String, Object> mapping = parser.mapOrdered();

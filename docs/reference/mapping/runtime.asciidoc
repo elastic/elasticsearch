@@ -79,11 +79,17 @@ entire context of a document, including the original `_source` and any mapped
 fields plus their values. At query time, the script runs and generates values
 for each scripted field that is required for the query.
 
+.Emitting runtime field values
+****
 When defining a Painless script to use with runtime fields, you must include
-`emit` to emit calculated values. For example, the script in the following
-request extracts the day of the week from the `@timestamp` field, which is
-defined as a `date` type. The script calculates the day of the week based on
-the value of `timestamp`, and uses `emit` to return the calculated value.
+the {painless}/painless-runtime-fields-context.html[`emit` method] to emit
+calculated values.
+****
+
+For example, the script in the following request calculates the day of the week
+from the `@timestamp` field, which is defined as a `date` type. The script
+calculates the day of the week based on the value of `timestamp`, and uses
+`emit` to return the calculated value.
 
 [source,console]
 ----

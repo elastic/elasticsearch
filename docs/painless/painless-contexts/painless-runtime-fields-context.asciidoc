@@ -9,8 +9,14 @@ about how to use runtime fields.
 
 *Methods*
 
-`emit`::
-        Contains the fields to return values for based on the script valuation.
+`emit` (Required)::
+        Accepts the values from the script valuation. Scripts can call the
+        `emit` method multiple times to emit multiple values.
++
+--
+IMPORTANT: This method cannot accept `null` values. Do not call this method if
+the referenced fields do not have any values.
+--
 
 --
 `grok`::

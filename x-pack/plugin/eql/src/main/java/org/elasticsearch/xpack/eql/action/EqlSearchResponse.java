@@ -7,11 +7,13 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,7 +33,9 @@ import org.elasticsearch.search.SearchHits;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -190,15 +194,18 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             static final String INDEX = GetResult._INDEX;
             static final String ID = GetResult._ID;
             static final String SOURCE = SourceFieldMapper.NAME;
+            static final String FIELDS = "fields";
         }
 
         private static final ParseField INDEX = new ParseField(Fields.INDEX);
         private static final ParseField ID = new ParseField(Fields.ID);
         private static final ParseField SOURCE = new ParseField(Fields.SOURCE);
+        private static final ParseField FIELDS = new ParseField(Fields.FIELDS);
 
+        @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Event, Void> PARSER =
-                new ConstructingObjectParser<>("eql/search_response_event", true,
-                        args -> new Event((String) args[0], (String) args[1], (BytesReference) args[2]));
+                new ConstructingObjectParser<>("eql/search_response_event", true, 
+                    args -> new Event((String) args[0], (String) args[1], (BytesReference) args[2], (Map<String, DocumentField>) args[3]));
 
         static {
             PARSER.declareString(constructorArg(), INDEX);
@@ -209,22 +216,37 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                     return BytesReference.bytes(builder);
                 }
             }, SOURCE);
+            PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
+                Map<String, DocumentField> fields = new HashMap<>();
+                while (p.nextToken() != XContentParser.Token.END_OBJECT) {
+                    DocumentField field = DocumentField.fromXContent(p);
+                    fields.put(field.getName(), field);
+                }
+                return fields;
+            }, FIELDS);
         }
 
         private final String index;
         private final String id;
         private final BytesReference source;
+        private final Map<String, DocumentField> fetchFields;
 
-        public Event(String index, String id, BytesReference source) {
+        public Event(String index, String id, BytesReference source, Map<String, DocumentField> fetchFields) {
             this.index = index;
             this.id = id;
             this.source = source;
+            this.fetchFields = fetchFields;
         }
 
         public Event(StreamInput in) throws IOException {
             index = in.readString();
             id = in.readString();
             source = in.readBytesReference();
+            if (in.getVersion().onOrAfter(Version.V_7_12_0) && in.readBoolean()) {
+                fetchFields = in.readMap(StreamInput::readString, DocumentField::new);
+            } else {
+                fetchFields = null;
+            }
         }
 
         @Override
@@ -232,6 +254,12 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             out.writeString(index);
             out.writeString(id);
             out.writeBytesReference(source);
+            if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+                out.writeBoolean(fetchFields != null);
+                if (fetchFields != null) {
+                    out.writeMap(fetchFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
+                }
+            }
         }
 
         @Override
@@ -241,6 +269,17 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             builder.field(Fields.ID, id);
             // We have to use the deprecated version since we don't know the content type of the original source
             XContentHelper.writeRawField(Fields.SOURCE, source, builder, params);
+            // ignore fields all together if they are all empty
+            if (fetchFields != null && fetchFields.isEmpty() == false
+                && fetchFields.values().stream().anyMatch(df -> df.getValues().size() > 0)) {
+                builder.startObject(Fields.FIELDS);
+                for (DocumentField field : fetchFields.values()) {
+                    if (field.getValues().size() > 0) {
+                        field.toXContent(builder, params);
+                    }
+                }
+                builder.endObject();
+            }
             builder.endObject();
             return builder;
         }
@@ -261,9 +300,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             return source;
         }
 
+        public Map<String, DocumentField> fetchFields() {
+            return fetchFields;
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hash(index, id, source);
+            return Objects.hash(index, id, source, fetchFields);
         }
 
         @Override
@@ -279,7 +322,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             EqlSearchResponse.Event other = (EqlSearchResponse.Event) obj;
             return Objects.equals(index, other.index)
                     && Objects.equals(id, other.id)
-                    && Objects.equals(source, other.source);
+                    && Objects.equals(source, other.source)
+                    && Objects.equals(fetchFields, other.fetchFields);
         }
 
         @Override

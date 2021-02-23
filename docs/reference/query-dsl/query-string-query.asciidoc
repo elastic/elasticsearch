@@ -27,7 +27,7 @@ If you don't need to support a query syntax, consider using the
 syntax, use the <<query-dsl-simple-query-string-query,`simple_query_string`>>
 query, which is less strict.
 ====
- 
+
 
 [[query-string-query-ex-request]]
 ==== Example request
@@ -382,9 +382,12 @@ Finds documents which match any field and uses the highest
 Creates a `match_bool_prefix` query on each field and combines the `_score` from
 each field. See <<type-bool-prefix>>.
 
+`combined_fields`::
+Treats fields with the same `analyzer` as though they were one big field.
+Looks for each word in *any* field. See <<type-combined-fields>>.
+
 `cross_fields`::
-Treats fields with the same `analyzer` as though they were one big field. Looks
-for each word in **any** field. See <<type-cross-fields>>.
+A legacy approach to combined-field scoring. See <<type-cross-fields>>.
 
 `most_fields`::
 Finds documents which match any field and combines the `_score` from each field.

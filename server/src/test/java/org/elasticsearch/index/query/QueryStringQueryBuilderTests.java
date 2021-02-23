@@ -34,6 +34,7 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.search.XCombinedFieldQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
@@ -106,6 +107,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             query += (randomBoolean() ? TEXT_FIELD_NAME + ":" : "") + term + " ";
         }
         QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder(query);
+
+        MultiMatchQueryBuilder.Type type = randomFrom(MultiMatchQueryBuilder.Type.values());
+        queryStringQueryBuilder.type(type);
+
         if (randomBoolean()) {
             String defaultFieldName = randomFrom(TEXT_FIELD_NAME,
                 TEXT_ALIAS_FIELD_NAME,
@@ -120,7 +125,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 if (randomBoolean()) {
                     queryStringQueryBuilder.field(fieldName);
                 } else {
-                    queryStringQueryBuilder.field(fieldName, randomFloat());
+                    float fieldBoost = randomFloat();
+                    // In combined_fields mode, field boosts must be >= 1.0.
+                    if (type == MultiMatchQueryBuilder.Type.COMBINED_FIELDS) {
+                        fieldBoost += 1.0f;
+                    }
+                    queryStringQueryBuilder.field(fieldName, fieldBoost);
                 }
             }
         }
@@ -185,7 +195,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         if (randomBoolean()) {
             queryStringQueryBuilder.fuzzyTranspositions(randomBoolean());
         }
-        queryStringQueryBuilder.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
         return queryStringQueryBuilder;
     }
 
@@ -1452,6 +1461,52 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .build();
         assertEquals(expected, query);
     }
+
+    public void testCombinedFields() throws Exception {
+        final SearchExecutionContext context = createSearchExecutionContext();
+        context.getIndexSettings().updateIndexMetadata(
+            newIndexMeta("index", context.getIndexSettings().getSettings(),
+                Settings.builder().putList("index.query.default_field",
+                    TEXT_FIELD_NAME, KEYWORD_FIELD_NAME).build())
+        );
+        try {
+            Query query = new QueryStringQueryBuilder("foo")
+                .analyzer("whitespace")
+                .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
+                .toQuery(createSearchExecutionContext());
+            Query expected = new XCombinedFieldQuery.Builder()
+                .addField(TEXT_FIELD_NAME)
+                .addField(KEYWORD_FIELD_NAME)
+                .addTerm(new BytesRef("foo"))
+                .build();
+            assertEquals(expected, query);
+
+            query = new QueryStringQueryBuilder("foo mapped_string:10")
+                .analyzer("whitespace")
+                .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
+                .toQuery(createSearchExecutionContext());
+            expected = new BooleanQuery.Builder()
+                .add(new XCombinedFieldQuery.Builder()
+                    .addField(TEXT_FIELD_NAME)
+                    .addField(KEYWORD_FIELD_NAME)
+                    .addTerm(new BytesRef("foo"))
+                    .build(), Occur.SHOULD)
+                .add(new XCombinedFieldQuery.Builder()
+                    .addField(TEXT_FIELD_NAME)
+                    .addTerm(new BytesRef("10"))
+                    .build(), Occur.SHOULD)
+                .build();
+            assertEquals(expected, query);
+        } finally {
+            // Reset the default value
+            context.getIndexSettings().updateIndexMetadata(
+                newIndexMeta("index",
+                    context.getIndexSettings().getSettings(),
+                    Settings.builder().putList("index.query.default_field", "*").build())
+            );
+        }
+    }
+
 
     public void testCrossFields() throws Exception {
         final SearchExecutionContext context = createSearchExecutionContext();

@@ -470,7 +470,6 @@ public class BulkProcessor implements Closeable {
     class Flush implements Runnable {
         @Override
         public void run() {
-            assert Thread.currentThread().getName().contains(FLUSH_SCHEDULER_NAME_SUFFIX + "]");
             lock.lock();
             try {
                 if (closed) {

@@ -99,7 +99,7 @@ PUT my-index/
       }
     },
     "properties": {
-      "timestamp": {"type": "date"}
+      "@timestamp": {"type": "date"}
     }
   }
 }
@@ -131,7 +131,7 @@ PUT my-index
   "mappings": {
     "dynamic": "runtime",
     "properties": {
-      "timestamp": {
+      "@timestamp": {
         "type": "date"
       }
     }
@@ -446,7 +446,7 @@ PUT my-index/
       }
     },
     "properties": {
-      "timestamp": {"type": "date"}
+      "@timestamp": {"type": "date"}
     }
   }
 }

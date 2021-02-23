@@ -632,7 +632,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             frozenCacheFile,
             defaultRangeSize,
             recoveryRangeSize,
-            ByteRange.EMPTY // TODO implement blob cache for CFS
+            ByteRange.EMPTY  // TODO implement blob cache for slices when it makes sense (like CFs)
         );
         slice.isClone = true;
         return slice;

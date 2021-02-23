@@ -7,11 +7,14 @@
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.support.CacheKey;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -64,7 +67,7 @@ public class IndicesAccessControl {
     /**
      * Encapsulates the field and document permissions for an index.
      */
-    public static class IndexAccessControl {
+    public static class IndexAccessControl implements CacheKey {
 
         private final boolean granted;
         private final FieldPermissions fieldPermissions;
@@ -131,6 +134,12 @@ public class IndicesAccessControl {
                     ", fieldPermissions=" + fieldPermissions +
                     ", documentPermissions=" + documentPermissions +
                     '}';
+        }
+
+        @Override
+        public void writeCacheKey(StreamOutput out) throws IOException {
+            this.documentPermissions.writeCacheKey(out);
+            this.fieldPermissions.writeCacheKey(out);
         }
     }
 

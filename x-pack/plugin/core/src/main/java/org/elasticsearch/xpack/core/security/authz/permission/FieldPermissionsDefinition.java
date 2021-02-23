@@ -7,7 +7,10 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
@@ -17,7 +20,7 @@ import java.util.Set;
  * collections of grant and exclude definitions where the exclude definition must be a subset of
  * the grant definition.
  */
-public final class FieldPermissionsDefinition {
+public final class FieldPermissionsDefinition implements Writeable {
 
     private final Set<FieldGrantExcludeGroup> fieldGrantExcludeGroups;
 
@@ -50,7 +53,12 @@ public final class FieldPermissionsDefinition {
         return fieldGrantExcludeGroups != null ? fieldGrantExcludeGroups.hashCode() : 0;
     }
 
-    public static final class FieldGrantExcludeGroup {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeCollection(this.fieldGrantExcludeGroups);
+    }
+
+    public static final class FieldGrantExcludeGroup implements Writeable {
         private final String[] grantedFields;
         private final String[] excludedFields;
 
@@ -91,6 +99,12 @@ public final class FieldPermissionsDefinition {
                 + "[grant=" + Strings.arrayToCommaDelimitedString(grantedFields)
                 + "; exclude=" + Strings.arrayToCommaDelimitedString(excludedFields)
                 + "]";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalStringArray(grantedFields);
+            out.writeOptionalStringArray(excludedFields);
         }
     }
 }

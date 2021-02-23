@@ -73,6 +73,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     private boolean canReturnNullResponseIfMatchNoDocs;
     private SearchSortValuesAndFormats bottomSortValues;
+    private BytesReference cacheModifier;
 
     //these are the only mutable fields, as they are subject to rewriting
     private AliasFilter aliasFilter;
@@ -161,6 +162,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = originalIndices;
         this.readerId = readerId;
         this.keepAlive = keepAlive;
+        this.cacheModifier = null;
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
     }
 
@@ -201,6 +203,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             readerId = null;
             keepAlive = null;
         }
+
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            cacheModifier = in.readOptionalBytesReference();
+        }
+
         originalIndices = OriginalIndices.readOriginalIndices(in);
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
     }
@@ -223,6 +230,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = clone.originalIndices;
         this.readerId = clone.readerId;
         this.keepAlive = clone.keepAlive;
+        this.cacheModifier = clone.cacheModifier;
     }
 
     @Override
@@ -264,6 +272,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeOptionalWriteable(bottomSortValues);
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalBytesReference(cacheModifier);
         }
     }
 
@@ -329,6 +341,18 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public Boolean requestCache() {
         return requestCache;
+    }
+
+    public BytesReference cacheModifier() {
+        return cacheModifier;
+    }
+
+    /**
+     * The cache modifier distinguishes between requests that are otherwise identical, but should be treated as independent for caching
+     * purposes - typically because there is some reason that the results will be different, even though they execute the same query
+     */
+    public void cacheModifier(BytesReference cacheModifier) {
+        this.cacheModifier = cacheModifier;
     }
 
     public boolean allowPartialSearchResults() {

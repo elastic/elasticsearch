@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -73,9 +74,17 @@ public final class FieldPermissionsCache {
                 .filter(((Predicate<FieldPermissions>) (FieldPermissions::hasFieldLevelSecurity)).negate())
                 .findFirst();
         return allowAllFieldPermissions.orElseGet(() -> {
-            final Set<FieldGrantExcludeGroup> fieldGrantExcludeGroups = fieldPermissionsCollection.stream()
-                    .flatMap(fieldPermission -> fieldPermission.getFieldPermissionsDefinition().getFieldGrantExcludeGroups().stream())
-                    .collect(Collectors.toSet());
+            final Set<FieldGrantExcludeGroup> fieldGrantExcludeGroups = new HashSet<>();
+            for (FieldPermissions fieldPermission : fieldPermissionsCollection) {
+                final FieldPermissionsDefinition[] definitions = fieldPermission.getFieldPermissionsDefinitions();
+                if (definitions == null) {
+                    throw new IllegalArgumentException("Expected field permission with single definition, but found null");
+                } else if (definitions.length != 1) {
+                    throw new IllegalArgumentException("Expected field permission with single definition, but found ["
+                        + definitions.length + "]");
+                }
+                fieldGrantExcludeGroups.addAll(definitions[0].getFieldGrantExcludeGroups());
+            }
             final FieldPermissionsDefinition combined = new FieldPermissionsDefinition(fieldGrantExcludeGroups);
             try {
                 return cache.computeIfAbsent(combined, (key) -> {

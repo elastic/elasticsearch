@@ -12,6 +12,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -21,10 +22,12 @@ import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
+import org.elasticsearch.xpack.core.security.support.CacheKey;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -36,7 +39,7 @@ import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
  * The document level permissions may be limited by another set of queries in that case the limited
  * queries are used as an additional filter.
  */
-public final class DocumentPermissions {
+public final class DocumentPermissions implements CacheKey {
     private final Set<BytesReference> queries;
     private final Set<BytesReference> limitedByQueries;
 
@@ -204,4 +207,8 @@ public final class DocumentPermissions {
         return "DocumentPermissions [queries=" + queries + ", scopedByQueries=" + limitedByQueries + "]";
     }
 
+    public void writeCacheKey(StreamOutput out) throws IOException {
+        out.writeCollection(queries == null ? List.of() : queries, (o, q) -> q.writeTo(o));
+        out.writeCollection(limitedByQueries == null ? List.of() : limitedByQueries, (o, q) -> q.writeTo(o));
+    }
 }

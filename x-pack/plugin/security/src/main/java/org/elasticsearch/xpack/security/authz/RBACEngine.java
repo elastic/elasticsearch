@@ -483,8 +483,15 @@ public class RBACEngine implements AuthorizationEngine {
         final Set<GetUserPrivilegesResponse.Indices> indices = new LinkedHashSet<>();
         for (IndicesPermission.Group group : userRole.indices().groups()) {
             final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
-            final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity = group.getFieldPermissions().hasFieldLevelSecurity()
-                ? group.getFieldPermissions().getFieldPermissionsDefinition().getFieldGrantExcludeGroups() : Collections.emptySet();
+            final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
+            if (group.getFieldPermissions().hasFieldLevelSecurity()) {
+                final FieldPermissionsDefinition[] definitions = group.getFieldPermissions().getFieldPermissionsDefinitions();
+                // TODO: This only prints out the first definition, which is all we can do in this response, but it's inaccurate
+                // when field security has a series of limited-by groups
+                fieldSecurity = definitions[0].getFieldGrantExcludeGroups();
+            } else {
+                fieldSecurity = Collections.emptySet();
+            }
             indices.add(new GetUserPrivilegesResponse.Indices(
                 Arrays.asList(group.indices()),
                 group.privilege().name(),

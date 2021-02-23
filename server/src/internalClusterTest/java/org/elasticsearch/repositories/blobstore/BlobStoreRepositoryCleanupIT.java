@@ -61,7 +61,11 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         awaitClusterState(state ->
                 state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress() == false);
 
-        cleanupFuture.get();
+        try {
+            cleanupFuture.get();
+        } catch (ExecutionException e) {
+            // ignored and expected
+        }
     }
 
     private ActionFuture<CleanupRepositoryResponse> startBlockedCleanup(String repoName) throws Exception {

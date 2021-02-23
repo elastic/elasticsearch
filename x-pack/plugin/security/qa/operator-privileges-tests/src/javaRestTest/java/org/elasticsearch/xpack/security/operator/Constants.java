@@ -82,6 +82,7 @@ public class Constants {
         "cluster:admin/snapshot/status",
         "cluster:admin/snapshot/status[nodes]",
         "cluster:admin/snapshot/features/get",
+        "cluster:admin/snapshot/features/reset",
         "cluster:admin/tasks/cancel",
         "cluster:admin/transform/delete",
         "cluster:admin/transform/preview",

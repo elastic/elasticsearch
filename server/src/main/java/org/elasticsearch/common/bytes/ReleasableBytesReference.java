@@ -70,9 +70,9 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         if (from == 0 && length() == length) {
             return retain();
         }
-        ReleasableBytesReference slice = new ReleasableBytesReference(delegate.slice(from, length), refCounted);
+        final BytesReference slice = delegate.slice(from, length);
         refCounted.incRef();
-        return slice;
+        return new ReleasableBytesReference(slice, refCounted);
     }
 
     @Override

@@ -164,7 +164,7 @@ public final class LeakTracker {
 
         @Override
         public String toString() {
-            Record oldHead = headUpdater.getAndSet(this, null);
+            Record oldHead = headUpdater.get(this);
             if (oldHead == null) {
                 // Already closed
                 return "";

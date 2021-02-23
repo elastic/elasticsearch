@@ -57,7 +57,6 @@ class DatabaseReaderLazyLoader implements Closeable {
     // cache the database type so that we do not re-read it on every pipeline execution
     final SetOnce<String> databaseType;
 
-    private volatile boolean closed = false;
     private final AtomicInteger currentUsages = new AtomicInteger(0);
 
     DatabaseReaderLazyLoader(final GeoIpCache cache, final Path databasePath) {
@@ -162,18 +161,14 @@ class DatabaseReaderLazyLoader implements Closeable {
         return getResponse(ipAddress, DatabaseReader::asn);
     }
 
-    void preLookup() {
-        currentUsages.incrementAndGet();
+    boolean preLookup() {
+        return currentUsages.updateAndGet(current -> current < 0 ? current : current + 1) > 0;
     }
 
     void postLookup() throws IOException {
-        if (currentUsages.decrementAndGet() == 0 && closed) {
+        if (currentUsages.updateAndGet(current -> current > 0 ? current - 1 : current + 1) == -1) {
             doClose();
         }
-    }
-
-    boolean isClosed() {
-        return closed;
     }
 
     int current() {
@@ -209,8 +204,7 @@ class DatabaseReaderLazyLoader implements Closeable {
 
     @Override
     public void close() throws IOException {
-        closed = true;
-        if (currentUsages.get() == 0) {
+        if (currentUsages.updateAndGet(u -> -1 - u) == -1) {
             doClose();
         }
     }

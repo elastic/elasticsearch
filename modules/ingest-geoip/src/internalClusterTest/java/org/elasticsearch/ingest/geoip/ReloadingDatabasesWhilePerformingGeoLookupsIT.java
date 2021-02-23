@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.ingest.geoip.GeoIpProcessorFactoryTests.copyDatabaseFiles;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -145,7 +144,6 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
             assertThat(numberOfIngestRuns.get(), greaterThan(0));
 
             for (DatabaseReaderLazyLoader lazyLoader : localDatabases.getAllDatabases()) {
-                assertThat(lazyLoader.isClosed(), is(false));
                 assertThat(lazyLoader.current(), equalTo(0));
             }
         } finally {

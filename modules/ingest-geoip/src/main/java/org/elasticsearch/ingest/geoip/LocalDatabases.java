@@ -89,10 +89,9 @@ final class LocalDatabases implements Closeable {
         while (true) {
             DatabaseReaderLazyLoader instance = configDatabases.getOrDefault(name, defaultDatabases.get(name));
             if (instance == null) {
-                return instance;
+                return null;
             }
-            instance.preLookup();
-            if (instance.isClosed() == false) {
+            if (instance.preLookup()) {
                 return instance;
             }
             // instance is closed after incrementing its usage,

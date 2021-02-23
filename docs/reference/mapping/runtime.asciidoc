@@ -801,6 +801,7 @@ data that doesn't match the grok pattern.
     "hits" : [
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "FdLqu3cBhqheMnFKd0gK",
         "_score" : 1.0,
         "_source" : {
@@ -863,6 +864,7 @@ timestamp falls within the defined range.
     "hits" : [
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "hdEhyncBRSB6iD-PoBqe",
         "_score" : 1.0,
         "_source" : {
@@ -872,6 +874,7 @@ timestamp falls within the defined range.
       },
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "htEhyncBRSB6iD-PoBqe",
         "_score" : 1.0,
         "_source" : {
@@ -967,6 +970,7 @@ The response includes a single document where the HTTP response is `304`:
     "hits" : [
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "A2qDy3cBWRMvVAuI7F8M",
         "_score" : 1.0,
         "_source" : {

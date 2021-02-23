@@ -37,6 +37,7 @@ public abstract class AbstractRefCounted implements RefCounted {
             int i = refCount.get();
             if (i > 0) {
                 if (refCount.compareAndSet(i, i + 1)) {
+                    touch();
                     return true;
                 }
             } else {

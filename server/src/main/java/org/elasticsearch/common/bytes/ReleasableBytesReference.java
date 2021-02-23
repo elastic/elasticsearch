@@ -27,7 +27,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     public static final Releasable NO_OP = () -> {};
     private final BytesReference delegate;
-    protected final AbstractRefCounted refCounted;
+    private final AbstractRefCounted refCounted;
 
     public ReleasableBytesReference(BytesReference delegate, Releasable releasable) {
         this(delegate, new RefCountedReleasable(releasable));

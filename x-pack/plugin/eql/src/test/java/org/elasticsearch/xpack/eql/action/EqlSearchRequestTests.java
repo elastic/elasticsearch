@@ -9,20 +9,19 @@ package org.elasticsearch.xpack.eql.action;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.xpack.eql.AbstractBWCSerializationTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.function.Supplier;
+import java.util.List;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
@@ -56,6 +55,14 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
     @Override
     protected EqlSearchRequest createTestInstance() {
         try {
+            List<FieldAndFormat> randomFetchFields = new ArrayList<>();
+            int fetchFieldsCount = randomIntBetween(0, 5);
+            for (int j = 0; j < fetchFieldsCount; j++) {
+                randomFetchFields.add(new FieldAndFormat(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+            }
+            if (randomFetchFields.isEmpty()) {
+                randomFetchFields = null;
+            }
             QueryBuilder filter = parseFilter(defaultTestFilter);
             EqlSearchRequest request = new EqlSearchRequest()
                 .indices(new String[]{defaultTestIndex})
@@ -64,7 +71,8 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 .eventCategoryField(randomAlphaOfLength(10))
                 .fetchSize(randomIntBetween(1, 50))
                 .size(randomInt(50))
-                .query(randomAlphaOfLength(10));
+                .query(randomAlphaOfLength(10))
+                .fetchFields(randomFetchFields);
 
             return request;
         } catch (IOException ex) {
@@ -82,21 +90,6 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
         assertNull(parser.nextToken());
         return parseInnerQueryBuilder;
-    }
-
-    private Object randomValue() {
-        Supplier<Object> value = randomFrom(Arrays.asList(
-            ESTestCase::randomInt,
-            ESTestCase::randomFloat,
-            ESTestCase::randomLong,
-            ESTestCase::randomDouble,
-            () -> randomAlphaOfLengthBetween(5, 20),
-            ESTestCase::randomBoolean,
-            ESTestCase::randomByte,
-            ESTestCase::randomShort,
-            () -> new Text(randomAlphaOfLengthBetween(5, 20)),
-            () -> null));
-        return value.get();
     }
 
     @Override

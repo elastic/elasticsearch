@@ -75,7 +75,7 @@ public final class LeakTracker {
     }
 
     private void reportLeak() {
-        if (!logger.isErrorEnabled()) {
+        if (logger.isErrorEnabled() == false) {
             clearRefQueue();
             return;
         }
@@ -85,7 +85,7 @@ public final class LeakTracker {
                 break;
             }
 
-            if (!ref.dispose()) {
+            if (ref.dispose() == false) {
                 continue;
             }
 
@@ -148,7 +148,7 @@ public final class LeakTracker {
                     dropped = false;
                 }
                 newHead = new Record(prevHead);
-            } while (!headUpdater.compareAndSet(this, oldHead, newHead));
+            } while (headUpdater.compareAndSet(this, oldHead, newHead) == false);
             if (dropped) {
                 droppedRecordsUpdater.incrementAndGet(this);
             }

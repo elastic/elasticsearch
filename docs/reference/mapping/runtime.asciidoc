@@ -874,6 +874,7 @@ timestamp falls within the defined range.
       },
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "htEhyncBRSB6iD-PoBqe",
         "_score" : 1.0,
         "_source" : {

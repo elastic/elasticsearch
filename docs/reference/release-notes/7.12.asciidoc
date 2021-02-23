@@ -287,7 +287,7 @@ Machine Learning::
 * Return 400 status for invalid charset in `find_structure` {es-pull}68201[#68201] (issue: {es-issue}68130[#68130])
 * Return status 400 for `grok_pattern` errors in `find_structure` {es-pull}68205[#68205] (issue: {es-issue}68132[#68132])
 * Fix a source of instability in time series modeling for anomaly detection. This has been observed to cause spurious anomalies for a partition which no longer receives any data {ml-pull}1675[#1675]
-* Ensure that we stop modeling seasonality for data which flatlines. This is important for count and sum detectors which treat empty buckets as zero. We could see spurious anomalies in realtime detection after a partition no longer received any data as a result {ml-pull}1654[#1654]
+* Ensure that we stop modeling seasonality for data which flatlines. This is important for count and sum detectors which treat empty buckets as zero. Before this change, we could sometimes detect spurious anomalies in realtime detection after a partition no longer received any data {ml-pull}1654[#1654]
 
 SQL::
 * Fix `ZonedDateTime` with nanos serialisation {es-pull}68253[#68253] (issue: {es-issue}67666[#67666])

@@ -186,6 +186,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 request.isAllowNoMatch(),
                 ActionListener.wrap(hitsAndIds -> {
                     validateTaskState(state, hitsAndIds.v2(), request.isForce());
+                    request.setExpandedIds(new HashSet<>(hitsAndIds.v2()));
                     final TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(hitsAndIds.v2(), state);
 
                     final ActionListener<Response> doExecuteListener;
@@ -196,7 +197,6 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     }
 
                     if (transformNodeAssignments.getExecutorNodes().size() > 0) {
-                        request.setExpandedIds(new HashSet<>(hitsAndIds.v2()));
                         request.setNodes(transformNodeAssignments.getExecutorNodes().toArray(new String[0]));
                         super.doExecute(task, request, doExecuteListener);
                     } else {

@@ -9,6 +9,15 @@ package org.elasticsearch.xpack.core.spatial.search.aggregations;
 
 import java.util.Map;
 
+/**
+ * This interface provides a way for spatial aggs to easily provide appropriately formatted geoJSON geometry to describe their
+ * aggregated results.
+ */
 public interface GeoShapeMetricAggregation {
-    Map<String, Object> geoJSON();
+    /**
+     * Provides the geometry calculated by the aggregation in an indexible format.
+     *
+     * @return geometry as a geoJSON object
+     */
+    Map<String, Object> geoJSONGeometry();
 }

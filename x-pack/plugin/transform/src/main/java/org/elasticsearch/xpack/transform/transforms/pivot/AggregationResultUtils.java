@@ -408,7 +408,7 @@ public final class AggregationResultUtils {
                         + "] for aggregation ["
                         + aggregation.getName()
                         + "]";
-            return ((GeoShapeMetricAggregation) aggregation).geoJSON();
+            return ((GeoShapeMetricAggregation) aggregation).geoJSONGeometry();
         }
     }
 

@@ -151,7 +151,7 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder
             .field("type", "Feature")
-            .field("geometry", geoJSON())
+            .field("geometry", geoJSONGeometry())
             .startObject("properties")
                 .field("complete", isComplete());
         if (includeSorts) {
@@ -204,7 +204,7 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
     }
 
     @Override
-    public Map<String, Object> geoJSON() {
+    public Map<String, Object> geoJSONGeometry() {
         final List<double[]> coordinates = new ArrayList<>();
         for (int i = 0; i < line.length; i++) {
             int x = (int) (line[i] >> 32);

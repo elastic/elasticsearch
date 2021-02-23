@@ -123,7 +123,8 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
 
     @After
     public void validateAllConsumed() {
-        assertTrue(responseQueue.isEmpty());
+        assertThat(failureQueue, empty());
+        assertThat(responseQueue, empty());
     }
 
     public void testLookupRemoteVersion() throws Exception {

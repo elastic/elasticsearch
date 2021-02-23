@@ -68,7 +68,7 @@ public interface ActionListener<Response> {
                 if (ex != e) {
                     ex.addSuppressed(e);
                 }
-                assert false : new AssertionError("map: listener.onFailure failed", ex);
+                assert false : new AssertionError("listener.onFailure failed", ex);
                 throw ex;
             }
         }
@@ -192,7 +192,7 @@ public interface ActionListener<Response> {
                 if (ex != e) {
                     ex.addSuppressed(e);
                 }
-                assert false : new AssertionError("map: listener.onResponse failed", ex);
+                assert false : new AssertionError("listener.onFailure failed", ex);
                 throw ex;
             }
         }

@@ -76,4 +76,9 @@ public abstract class ActionRunnable<Response> extends AbstractRunnable {
     public void onFailure(Exception e) {
         listener.onFailure(e);
     }
+
+    @Override
+    public String toString() {
+        return getClass().getName() + "/" + listener;
+    }
 }

@@ -48,7 +48,7 @@ public final class GroupedActionListener<T> extends ActionListener.Delegating<T,
         results.setOnce(pos.incrementAndGet() - 1, element);
         if (countDown.countDown()) {
             if (failure.get() != null) {
-                delegate.onFailure(failure.get());
+                super.onFailure(failure.get());
             } else {
                 List<T> collect = this.results.asList();
                 delegate.onResponse(Collections.unmodifiableList(collect));
@@ -68,7 +68,7 @@ public final class GroupedActionListener<T> extends ActionListener.Delegating<T,
             });
         }
         if (countDown.countDown()) {
-            delegate.onFailure(failure.get());
+            super.onFailure(failure.get());
         }
     }
 }

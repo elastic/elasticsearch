@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.StreamSupport;
 
@@ -194,8 +193,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                         awarenessAttribute,
                         node.node().getAttributes().get(awarenessAttribute),
                         numberOfAttributes,
-                        StreamSupport.stream(nodesPerAttribute.keys().spliterator(), false)
-                                .map(c -> Objects.requireNonNullElse(c.value, "<missing>")).sorted().collect(toList()),
+                        StreamSupport.stream(nodesPerAttribute.keys().spliterator(), false).map(c -> c.value).sorted().collect(toList()),
                         fullValues == null ? null : fullValues.stream().sorted().collect(toList()),
                         currentNodeCount,
                         maximumNodeCount)

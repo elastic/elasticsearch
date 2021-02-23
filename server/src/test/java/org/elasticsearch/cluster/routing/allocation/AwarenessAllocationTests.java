@@ -957,9 +957,9 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         testExplanation(Settings.builder()
                         .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone"),
                 n -> n.add(newNode("X-0", emptyMap())),
-                "there are [5] copies of this shard and [3] values for attribute [zone] ([<missing>, a, b] from nodes in the cluster and " +
-                        "no forced awareness) so there may be at most [2] copies of this shard allocated to nodes with each " +
-                        "value, but (including this copy) there would be [3] copies allocated to nodes with [node.attr.zone: a]");
+                "there are [5] copies of this shard and [2] values for attribute [zone] ([a, b] from nodes in the cluster and " +
+                        "no forced awareness) so there may be at most [3] copies of this shard allocated to nodes with each " +
+                        "value, but (including this copy) there would be [4] copies allocated to nodes with [node.attr.zone: a]");
     }
 
     public void testExplanationWithForcedAttributes() {

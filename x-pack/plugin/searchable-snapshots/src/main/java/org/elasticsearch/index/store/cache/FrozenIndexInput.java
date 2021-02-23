@@ -167,12 +167,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             }
 
             // Requested data is not on disk, so try the cache index next.
-
             final ByteRange indexCacheMiss; // null if not a miss
-
-            // We try to use the cache index if:
-            // - the file is small enough to be fully cached
-            // - we're reading the first N bytes of the file
 
             if (blobCacheByteRange.contains(position, position + length)) {
                 final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), blobCacheByteRange.start(), length);

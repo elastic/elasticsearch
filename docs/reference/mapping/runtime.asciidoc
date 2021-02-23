@@ -83,7 +83,7 @@ When defining a Painless script to use with runtime fields, you must include
 `emit` to emit calculated values. For example, the script in the following
 request extracts the day of the week from the `@timestamp` field, which is
 defined as a `date` type. The script calculates the day of the week based on
-the value of `timestamp`, and uses `emit` to return the calculated value.
+the value of `@timestamp`, and uses `emit` to return the calculated value.
 
 [source,console]
 ----
@@ -99,7 +99,7 @@ PUT my-index/
       }
     },
     "properties": {
-      "timestamp": {"type": "date"}
+      "@timestamp": {"type": "date"}
     }
   }
 }
@@ -131,7 +131,7 @@ PUT my-index
   "mappings": {
     "dynamic": "runtime",
     "properties": {
-      "timestamp": {
+      "@timestamp": {
         "type": "date"
       }
     }
@@ -139,19 +139,56 @@ PUT my-index
 }
 ----
 
-[[runtime-updating-scripts]]
-.Updating runtime scripts
-****
+[[runtime-fields-scriptless]]
+==== Define runtime fields without a script
+You can define a runtime field in the mapping definition without a
+script. At query time, {es} looks in `_source` for a field with the same name
+and returns a value if one exists. If a field with the same name doesn’t
+exist, the response doesn't include any values for that runtime field.
 
-Updating a script while a dependent query is running can return
+[source,console]
+----
+PUT my-index/
+{
+  "mappings": {
+    "runtime": {
+      "day_of_week": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+----
+
+[[runtime-updating-scripts]]
+==== Updating and removing runtime fields
+
+You can update or remove runtime fields at any time. To replace an existing
+runtime field, add a new runtime field to the mappings with the same name. To
+remove a runtime field from the mappings, set the value of the runtime field to
+`null`:
+
+[source,console]
+----
+PUT my-index/_mapping
+{
+ "runtime": {
+   "day_of_week": null
+ }
+}
+----
+//TEST[continued]
+
+.Downstream impacts
+****
+Updating or removing a runtime field while a dependent query is running can return
 inconsistent results. Each shard might have access to different versions of the
 script, depending on when the mapping change takes effect.
 
 Existing queries or visualizations in {kib} that rely on runtime fields can
-fail if you change the field type. For example, a bar chart visualization
+fail if you remove or update the field. For example, a bar chart visualization
 that uses a runtime field of type `ip` will fail if the type is changed
-to `boolean`.
-
+to `boolean`, or if the runtime field is removed.
 ****
 
 [[runtime-search-request]]
@@ -201,27 +238,6 @@ runtime field from a search request to the index mapping by moving the field
 definition from `runtime_mappings` in the search request to the `runtime`
 section of the index mapping.
 
-[[runtime-fields-scriptless]]
-==== Define runtime fields without a script
-You can define a runtime field in the mapping definition without a
-script. At query time, {es} looks in `_source` for a field with the same name
-and returns a value if one exists. If a field with the same name doesn’t
-exist, the response doesn't include any values for that runtime field.
-
-[source,console]
-----
-PUT my-index/
-{
-  "mappings": {
-    "runtime": {
-      "model_number": {
-        "type": "keyword"
-      }
-    }
-  }
-}
-----
-
 [[runtime-override-values]]
 === Override field values at query time
 beta::[]
@@ -238,17 +254,17 @@ For example, let's say you indexed the following documents into `my-index`:
 ----
 POST my-index/_bulk?refresh=true
 {"index":{}}
-{"timestamp":1516729294000,"model_number":"QVKC92Q","measures":{"voltage":5.2}}
+{"@timestamp":1516729294000,"model_number":"QVKC92Q","measures":{"voltage":5.2}}
 {"index":{}}
-{"timestamp":1516642894000,"model_number":"QVKC92Q","measures":{"voltage":5.8}}
+{"@timestamp":1516642894000,"model_number":"QVKC92Q","measures":{"voltage":5.8}}
 {"index":{}}
-{"timestamp":1516556494000,"model_number":"QVKC92Q","measures":{"voltage":5.1}}
+{"@timestamp":1516556494000,"model_number":"QVKC92Q","measures":{"voltage":5.1}}
 {"index":{}}
-{"timestamp":1516470094000,"model_number":"QVKC92Q","measures":{"voltage":5.6}}
+{"@timestamp":1516470094000,"model_number":"QVKC92Q","measures":{"voltage":5.6}}
 {"index":{}}
-{"timestamp":1516383694000,"model_number":"HG537PU","measures":{"voltage":4.2}}
+{"@timestamp":1516383694000,"model_number":"HG537PU","measures":{"voltage":4.2}}
 {"index":{}}
-{"timestamp":1516297294000,"model_number":"HG537PU","measures":{"voltage":4.0}}
+{"@timestamp":1516297294000,"model_number":"HG537PU","measures":{"voltage":4.0}}
 ----
 
 You later realize that the `HG537PU` sensors aren't reporting their true
@@ -291,7 +307,7 @@ The response includes indexed values for documents matching model number
         "_id" : "F1BeSXYBg_szTodcYCmk",
         "_score" : 1.0296195,
         "_source" : {
-          "timestamp" : 1516383694000,
+          "@timestamp" : 1516383694000,
           "model_number" : "HG537PU",
           "measures" : {
             "voltage" : 4.2
@@ -303,7 +319,7 @@ The response includes indexed values for documents matching model number
         "_id" : "l02aSXYBkpNf6QRDO62Q",
         "_score" : 1.0296195,
         "_source" : {
-          "timestamp" : 1516297294000,
+          "@timestamp" : 1516297294000,
           "model_number" : "HG537PU",
           "measures" : {
             "voltage" : 4.0
@@ -372,7 +388,7 @@ which still returns in the response:
         "_id" : "F1BeSXYBg_szTodcYCmk",
         "_score" : 1.0296195,
         "_source" : {
-          "timestamp" : 1516383694000,
+          "@timestamp" : 1516383694000,
           "model_number" : "HG537PU",
           "measures" : {
             "voltage" : 4.2
@@ -389,7 +405,7 @@ which still returns in the response:
         "_id" : "l02aSXYBkpNf6QRDO62Q",
         "_score" : 1.0296195,
         "_source" : {
-          "timestamp" : 1516297294000,
+          "@timestamp" : 1516297294000,
           "model_number" : "HG537PU",
           "measures" : {
             "voltage" : 4.0
@@ -440,7 +456,7 @@ PUT my-index/
       }
     },
     "properties": {
-      "timestamp": {"type": "date"}
+      "@timestamp": {"type": "date"}
     }
   }
 }

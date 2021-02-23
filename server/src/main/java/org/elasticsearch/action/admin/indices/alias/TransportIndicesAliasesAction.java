@@ -135,18 +135,10 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
         IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(unmodifiableList(finalActions))
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
 
-        indexAliasesService.indicesAliases(updateRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse response) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                logger.debug("failed to perform aliases", t);
-                listener.onFailure(t);
-            }
-        });
+        indexAliasesService.indicesAliases(updateRequest, listener.delegateResponse((l, e) -> {
+            logger.debug("failed to perform aliases", e);
+            l.onFailure(e);
+        }));
     }
 
     private static String[] concreteAliases(AliasActions action, Metadata metadata, String concreteIndex) {

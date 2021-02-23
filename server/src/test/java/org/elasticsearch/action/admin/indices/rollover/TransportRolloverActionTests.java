@@ -100,9 +100,9 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
-        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition =
-            new MaxSinglePrimarySizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
-        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxSinglePrimarySizeCondition);
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition =
+            new MaxPrimaryShardSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
+        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxPrimaryShardSizeCondition);
 
         long matchMaxDocs = randomIntBetween(100, 1000);
         long notMatchMaxDocs = randomIntBetween(0, 99);
@@ -135,7 +135,7 @@ public class TransportRolloverActionTests extends ESTestCase {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(maxSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
-            } else if (entry.getKey().equals(maxSinglePrimarySizeCondition.toString())) {
+            } else if (entry.getKey().equals(maxPrimaryShardSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
             } else {
                 fail("unknown condition result found " + entry.getKey());
@@ -147,9 +147,9 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomNonNegativeLong());
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
-        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition =
-            new MaxSinglePrimarySizeCondition(new ByteSizeValue(randomNonNegativeLong()));
-        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxSinglePrimarySizeCondition);
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition =
+            new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxPrimaryShardSizeCondition);
 
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -172,7 +172,7 @@ public class TransportRolloverActionTests extends ESTestCase {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(maxSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
-            } else if (entry.getKey().equals(maxSinglePrimarySizeCondition.toString())) {
+            } else if (entry.getKey().equals(maxPrimaryShardSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
             } else {
                 fail("unknown condition result found " + entry.getKey());
@@ -184,9 +184,9 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
-        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition =
-            new MaxSinglePrimarySizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
-        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxSinglePrimarySizeCondition);
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition =
+            new MaxPrimaryShardSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
+        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxPrimaryShardSizeCondition);
 
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

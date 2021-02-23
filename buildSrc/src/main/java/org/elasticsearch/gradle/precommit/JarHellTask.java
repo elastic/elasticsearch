@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.precommit;
 import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
@@ -24,6 +25,8 @@ import java.io.File;
 @CacheableTask
 public class JarHellTask extends PrecommitTask {
 
+    private FileCollection jarHellRuntimeClasspath;
+
     private FileCollection classpath;
     private ExecOperations execOperations;
 
@@ -36,7 +39,7 @@ public class JarHellTask extends PrecommitTask {
     @TaskAction
     public void runJarHellCheck() {
         LoggedExec.javaexec(execOperations, spec -> {
-            spec.environment("CLASSPATH", getClasspath().getAsPath());
+            spec.environment("CLASSPATH", getJarHellRuntimeClasspath().plus(getClasspath()).getAsPath());
             spec.setMain("org.elasticsearch.bootstrap.JarHell");
         });
     }
@@ -52,4 +55,12 @@ public class JarHellTask extends PrecommitTask {
         this.classpath = classpath;
     }
 
+    @Classpath
+    public FileCollection getJarHellRuntimeClasspath() {
+        return jarHellRuntimeClasspath;
+    }
+
+    public void setJarHellRuntimeClasspath(FileCollection jarHellRuntimeClasspath) {
+        this.jarHellRuntimeClasspath = jarHellRuntimeClasspath;
+    }
 }

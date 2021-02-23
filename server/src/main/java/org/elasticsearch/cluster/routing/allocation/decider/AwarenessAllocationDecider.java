@@ -8,11 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -24,7 +19,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
 
 /**
  * This {@link AllocationDecider} controls shard allocation based on
@@ -118,6 +119,9 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             "allocation awareness is not enabled, set cluster setting ["
                     + CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey() + "] to enable it");
 
+    private static final Decision YES_AUTO_EXPAND_ALL = Decision.single(Decision.Type.YES, NAME,
+            "allocation awareness is ignored, this index is set to auto-expand to all nodes");
+
     private static final Decision YES_ALL_MET =
             Decision.single(Decision.Type.YES, NAME, "node meets all awareness attribute requirements");
 
@@ -128,6 +132,11 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
         final boolean debug = allocation.debugDecision();
         IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+
+        if (INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(indexMetadata.getSettings()).expandToAllNodes()) {
+            return YES_AUTO_EXPAND_ALL;
+        }
+
         int shardCount = indexMetadata.getNumberOfReplicas() + 1; // 1 for primary
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute

@@ -16,7 +16,8 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Nullable;
 
 /**
- * System specific wrappers of the fallocate system call via JNA for Linux and OSX.
+ * System specific wrappers of the fallocate system call via JNA for Linux.
+ * TODO: look into adding native implementations for falloc equivalents for other platforms (Windows) to improve performance.
  */
 abstract class JNAFalloc {
 
@@ -27,9 +28,7 @@ abstract class JNAFalloc {
     @Nullable
     public static JNAFalloc falloc() {
         try {
-            if (Constants.MAC_OS_X) {
-                return OSX.INSTANCE;
-            } else if (Constants.LINUX) {
+            if (Constants.LINUX) {
                 return Linux.INSTANCE;
             }
         } catch (Throwable t) {
@@ -53,22 +52,6 @@ abstract class JNAFalloc {
         }
 
         private static native int fallocate(int fd, int mode, long offset, long length);
-    }
-
-    private static class OSX extends JNAFalloc {
-
-        static final OSX INSTANCE = new OSX();
-
-        static {
-            Native.register("c");
-        }
-
-        @Override
-        public int fallocate(int fd, long offset, long length) {
-            return posix_fallocate(fd, offset, length);
-        }
-
-        private static native int posix_fallocate(int fd, long offset, long length);
     }
 
 }

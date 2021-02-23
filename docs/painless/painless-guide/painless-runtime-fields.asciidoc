@@ -26,7 +26,7 @@ Add a `runtime` section under the {ref}/runtime-mapping-fields.html[mapping defi
 
 The script in the following request extracts the day of the week from the
 `@timestamp` field, which is defined as a `date` type. The script calculates
-the day of the week based on the value of `timestamp`, and uses `emit` to
+the day of the week based on the value of `@timestamp`, and uses `emit` to
 return the calculated value.
 
 [source,console]
@@ -45,7 +45,7 @@ PUT my-index/
       }
     },
     "properties": {
-      "timestamp": {"type": "date"}
+      "@timestamp": {"type": "date"}
     }
   }
 }

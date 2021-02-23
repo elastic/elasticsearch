@@ -1,0 +1,138 @@
+setup:
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                mentions:
+                  type: keyword
+                notifications:
+                  type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body: |
+          {"index":{"_id": "foo|bar|baz0"}}
+          {"notifications" : ["abc"]}
+          {"index":{"_id": "foo|bar|baz1"}}
+          {"mentions" : ["abc"]}
+
+---
+"Hits cache":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        size: 0
+        request_cache: true
+        body:
+          aggs:
+            itemsNotify:
+              filters:
+                filters:
+                  lookup:
+                    terms:
+                      mentions:
+                        index: test
+                        id: foo|bar|baz0
+                        path: notifications
+                  std:
+                    terms:
+                      mentions: ["abc"]
+              aggs:
+                mentions:
+                  terms:
+                    field: mentions
+
+  # validate result
+  - match: { hits.total: 2 }
+  - match: { aggregations.itemsNotify.buckets.lookup.doc_count: 1 }
+  - match: { aggregations.itemsNotify.buckets.std.doc_count: 1 }
+
+  # The first request will miss the cache
+  - do:
+      indices.stats: { index: test, metric: request_cache}
+  - match: { _shards.total: 1 }
+  - match: { _all.total.request_cache.hit_count: 0 }
+  - match: { _all.total.request_cache.miss_count: 1 }
+  - is_true: indices.test
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        size: 0
+        request_cache: true
+        body:
+          aggs:
+            itemsNotify:
+              filters:
+                filters:
+                  lookup:
+                    terms:
+                      mentions:
+                        index: test
+                        id: foo|bar|baz0
+                        path: notifications
+                  std:
+                    terms:
+                      mentions: ["abc"]
+              aggs:
+                mentions:
+                  terms:
+                    field: mentions
+
+  # validate result
+  - match: { hits.total: 2 }
+  - match: { aggregations.itemsNotify.buckets.lookup.doc_count: 1 }
+  - match: { aggregations.itemsNotify.buckets.std.doc_count: 1 }
+
+  # The second result with hit the cache
+  - do:
+      indices.stats: { index: test, metric: request_cache}
+  - match: { _shards.total: 1 }
+  - match: { _all.total.request_cache.hit_count: 1 }
+  - match: { _all.total.request_cache.miss_count: 1 }
+  - is_true: indices.test
+
+---
+"As a child of terms":
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body: |
+          {"index":{}}
+          {"category": "bar", "val": 8}
+          {"index":{}}
+          {"category": "bar", "val": 0}
+  - do:
+      search:
+        size: 0
+        body:
+          aggs:
+            category:
+              terms:
+                field: category.keyword
+              aggs:
+                fake_range:
+                  filters:
+                    filters:
+                      high:
+                        range:
+                          val:
+                            gte: 7
+                      low:
+                        range:
+                          val:
+                            lte: 7
+
+  - match: { hits.total.value: 4 }
+  - match: { aggregations.category.buckets.0.key: bar }
+  - match: { aggregations.category.buckets.0.doc_count: 2 }
+  - match: { aggregations.category.buckets.0.fake_range.buckets.high.doc_count: 1 }
+  - match: { aggregations.category.buckets.0.fake_range.buckets.low.doc_count: 1 }

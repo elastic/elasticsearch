@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.find.NodeFindDanglingIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -98,10 +97,8 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
 
     private void findDanglingIndex(ImportDanglingIndexRequest request, ActionListener<IndexMetadata> listener) {
         final String indexUUID = request.getIndexUUID();
-
-        this.nodeClient.execute(FindDanglingIndexAction.INSTANCE, new FindDanglingIndexRequest(indexUUID), new ActionListener<>() {
-            @Override
-            public void onResponse(FindDanglingIndexResponse response) {
+        this.nodeClient.execute(FindDanglingIndexAction.INSTANCE, new FindDanglingIndexRequest(indexUUID),
+            listener.delegateFailure((l, response) -> {
                 if (response.hasFailures()) {
                     final String nodeIds = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(","));
                     ElasticsearchException e = new ElasticsearchException("Failed to query nodes [" + nodeIds + "]");
@@ -111,7 +108,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                         e.addSuppressed(failure);
                     }
 
-                    listener.onFailure(e);
+                    l.onFailure(e);
                     return;
                 }
 
@@ -122,7 +119,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                 metaDataSortedByVersion.sort(Comparator.comparingLong(IndexMetadata::getVersion));
 
                 if (metaDataSortedByVersion.isEmpty()) {
-                    listener.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
+                    l.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
                     return;
                 }
 
@@ -132,13 +129,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                     indexUUID
                 );
 
-                listener.onResponse(metaDataSortedByVersion.get(metaDataSortedByVersion.size() - 1));
-            }
-
-            @Override
-            public void onFailure(Exception exp) {
-                listener.onFailure(exp);
-            }
-        });
+                l.onResponse(metaDataSortedByVersion.get(metaDataSortedByVersion.size() - 1));
+        }));
     }
 }

@@ -56,6 +56,7 @@ import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescorePhase;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -432,10 +433,14 @@ public class QueryPhase {
             SortField sField = sort.getSort()[i];
             String sFieldName = sField.getField();
             if (sFieldName == null) {
-                if (SortField.FIELD_DOC.equals(sField) == false) return null;
-            } else {
+                if (SortField.FIELD_DOC.equals(sField) == false) {
+                    return null;
+                }
+            } else if (FieldSortBuilder.SHARD_DOC_FIELD_NAME.equals(sFieldName) == false) {
                 //TODO: find out how to cover _script sort that don't use _score
-                if (searchExecutionContext.getFieldType(sFieldName) == null) return null; // could be _script sort that uses _score
+                if (searchExecutionContext.getFieldType(sFieldName) == null) {
+                    return null; // could be _script sort that uses _score
+                }
             }
         }
 

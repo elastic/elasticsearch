@@ -15,6 +15,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
+import org.elasticsearch.runtimefields.mapper.BooleanScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.DateScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.DoubleScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.KeywordScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.LongScriptFieldType;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
@@ -314,36 +319,31 @@ final class DynamicFieldsBuilder {
         @Override
         public void newDynamicStringField(ParseContext context, String name) {
             String fullName = context.path().pathAsText(name);
-            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicStringField(fullName);
-            createDynamicField(runtimeFieldType, context);
+            createDynamicField(new KeywordScriptFieldType(fullName), context);
         }
 
         @Override
         public void newDynamicLongField(ParseContext context, String name) {
             String fullName = context.path().pathAsText(name);
-            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicLongField(fullName);
-            createDynamicField(runtimeFieldType, context);
+            createDynamicField(new LongScriptFieldType(fullName), context);
         }
 
         @Override
         public void newDynamicDoubleField(ParseContext context, String name) {
             String fullName = context.path().pathAsText(name);
-            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicDoubleField(fullName);
-            createDynamicField(runtimeFieldType, context);
+            createDynamicField(new DoubleScriptFieldType(fullName), context);
         }
 
         @Override
         public void newDynamicBooleanField(ParseContext context, String name) {
             String fullName = context.path().pathAsText(name);
-            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicBooleanField(fullName);
-            createDynamicField(runtimeFieldType, context);
+            createDynamicField(new BooleanScriptFieldType(fullName), context);
         }
 
         @Override
         public void newDynamicDateField(ParseContext context, String name, DateFormatter dateFormatter) {
             String fullName = context.path().pathAsText(name);
-            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicDateField(fullName, dateFormatter);
-            createDynamicField(runtimeFieldType, context);
+            createDynamicField(new DateScriptFieldType(fullName, dateFormatter), context);
         }
     }
 }

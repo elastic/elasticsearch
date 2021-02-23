@@ -69,7 +69,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             builder.put(
                 CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(),
                 rarely()
-                    ? new ByteSizeValue(randomIntBetween(1, 1024), ByteSizeUnit.KB)
+                    ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
                     : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
             );
         }

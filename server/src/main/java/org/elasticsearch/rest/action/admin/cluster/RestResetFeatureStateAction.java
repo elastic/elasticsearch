@@ -8,8 +8,8 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.features.SnapshottableFeaturesAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -19,6 +19,10 @@ import java.io.IOException;
 import java.util.List;
 
 public class RestResetFeatureStateAction extends BaseRestHandler {
+
+    @Override public boolean allowSystemIndexAccessByDefault() {
+        return true;
+    }
 
     @Override
     public List<Route> routes() {
@@ -35,7 +39,7 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
         final ResetFeatureStateRequest req = new ResetFeatureStateRequest();
 
         return restChannel -> {
-            client.execute(SnapshottableFeaturesAction.INSTANCE, req, new RestToXContentListener<>(restChannel));
+            client.execute(ResetFeatureStateAction.INSTANCE, req, new RestToXContentListener<>(restChannel));
         };
     }
 }

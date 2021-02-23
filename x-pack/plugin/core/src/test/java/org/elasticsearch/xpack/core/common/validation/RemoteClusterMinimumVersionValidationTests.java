@@ -17,9 +17,11 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.Source
 import org.junit.Before;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
+import java.util.TreeSet;
 
+import static java.util.Collections.emptySet;
+import static java.util.Collections.emptySortedSet;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -43,7 +45,8 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
     }
 
     public void testValidate_NoRemoteClusters() {
-        doReturn(Collections.emptySet()).when(context).getRegisteredRemoteClusterNames();
+        doReturn(emptySet()).when(context).getRegisteredRemoteClusterNames();
+        doReturn(emptySortedSet()).when(context).resolveRemoteSource();
         SourceDestValidation validation = new RemoteClusterMinimumVersionValidation(MIN_EXPECTED_VERSION, REASON);
         validation.validate(
             context,
@@ -54,6 +57,7 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
 
     public void testValidate_RemoteClustersVersionsOk() {
         doReturn(new HashSet<>(Arrays.asList("cluster-B", "cluster-C"))).when(context).getRegisteredRemoteClusterNames();
+        doReturn(new TreeSet<>(Arrays.asList("cluster-B:dummy", "cluster-C:dummy"))).when(context).resolveRemoteSource();
         SourceDestValidation validation = new RemoteClusterMinimumVersionValidation(MIN_EXPECTED_VERSION, REASON);
         validation.validate(
             context,
@@ -64,6 +68,7 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
 
     public void testValidate_OneRemoteClusterVersionTooLow() {
         doReturn(new HashSet<>(Arrays.asList("cluster-A", "cluster-B", "cluster-C"))).when(context).getRegisteredRemoteClusterNames();
+        doReturn(new TreeSet<>(Arrays.asList("cluster-A:dummy", "cluster-B:dummy", "cluster-C:dummy"))).when(context).resolveRemoteSource();
         SourceDestValidation validation = new RemoteClusterMinimumVersionValidation(MIN_EXPECTED_VERSION, REASON);
         validation.validate(
             context,
@@ -77,6 +82,7 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
 
     public void testValidate_TwoRemoteClusterVersionsTooLow() {
         doReturn(new HashSet<>(Arrays.asList("cluster-A", "cluster-B", "cluster-C"))).when(context).getRegisteredRemoteClusterNames();
+        doReturn(new TreeSet<>(Arrays.asList("cluster-A:dummy", "cluster-B:dummy", "cluster-C:dummy"))).when(context).resolveRemoteSource();
         SourceDestValidation validation = new RemoteClusterMinimumVersionValidation(Version.V_7_11_2, REASON);
         validation.validate(
             context,
@@ -90,6 +96,7 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
 
     public void testValidate_NoSuchRemoteCluster() {
         doReturn(new HashSet<>(Arrays.asList("cluster-B", "cluster-C", "cluster-D"))).when(context).getRegisteredRemoteClusterNames();
+        doReturn(new TreeSet<>(Arrays.asList("cluster-B:dummy", "cluster-C:dummy", "cluster-D:dummy"))).when(context).resolveRemoteSource();
         doThrow(new NoSuchRemoteClusterException("cluster-D")).when(context).getRemoteClusterVersion("cluster-D");
         SourceDestValidation validation = new RemoteClusterMinimumVersionValidation(MIN_EXPECTED_VERSION, REASON);
         validation.validate(
@@ -101,6 +108,7 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
 
     public void testValidate_OtherProblem() {
         doReturn(new HashSet<>(Arrays.asList("cluster-B", "cluster-C"))).when(context).getRegisteredRemoteClusterNames();
+        doReturn(new TreeSet<>(Arrays.asList("cluster-B:dummy", "cluster-C:dummy"))).when(context).resolveRemoteSource();
         doThrow(new IllegalArgumentException("some-other-problem")).when(context).getRemoteClusterVersion("cluster-C");
         SourceDestValidation validation = new RemoteClusterMinimumVersionValidation(MIN_EXPECTED_VERSION, REASON);
         validation.validate(

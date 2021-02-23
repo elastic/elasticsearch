@@ -38,6 +38,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import static java.util.Map.Entry.comparingByKey;
+import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -443,12 +444,12 @@ public final class SourceDestValidator {
 
         @Override
         public void validate(Context context, ActionListener<Context> listener) {
-            Set<String> remoteClusterNames = context.getRegisteredRemoteClusterNames();
+            List<String> remoteIndices = new ArrayList<>(context.resolveRemoteSource());
             Map<String, Version> remoteClusterVersions;
             try {
-                remoteClusterVersions =
-                    remoteClusterNames.stream()
-                        .collect(toMap(cluster -> cluster, cluster -> context.getRemoteClusterVersion(cluster)));
+                List<String> remoteAliases =
+                    RemoteClusterLicenseChecker.remoteClusterAliases(context.getRegisteredRemoteClusterNames(), remoteIndices);
+                remoteClusterVersions = remoteAliases.stream().collect(toMap(identity(), context::getRemoteClusterVersion));
             } catch (NoSuchRemoteClusterException e) {
                 context.addValidationError(e.getMessage());
                 listener.onResponse(context);

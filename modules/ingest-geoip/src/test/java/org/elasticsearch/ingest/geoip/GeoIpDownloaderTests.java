@@ -35,6 +35,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -315,7 +316,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
     }
 
     public void testUpdateDatabases() throws IOException {
-        List<Map<String, Object>> maps = List.of(Map.of("a", 1), Map.of("a", 2));
+        List<Map<String, Object>> maps = Arrays.asList(Map.of("a", 1), Map.of("a", 2));
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         builder.startArray();

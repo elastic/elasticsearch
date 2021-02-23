@@ -113,22 +113,23 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
                                                                        IndexNameExpressionResolver expressionResolver) {
         if (GEOIP_V2_FEATURE_FLAG_ENABLED) {
             Settings settings = settingsModule.getSettings();
-            return List.of(new GeoIpDownloaderTaskExecutor(client, new HttpClient(), clusterService, threadPool, settings));
+            return Collections.singletonList(new GeoIpDownloaderTaskExecutor(client, new HttpClient(), clusterService, threadPool,
+                settings));
         } else {
-            return List.of();
+            return Collections.emptyList();
         }
     }
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return List.of(new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(GEOIP_DOWNLOADER),
+        return Arrays.asList(new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(GEOIP_DOWNLOADER),
                 GeoIpTaskParams::fromXContent),
             new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskState::fromXContent));
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(new NamedWriteableRegistry.Entry(PersistentTaskState.class, GEOIP_DOWNLOADER, GeoIpTaskState::new),
+        return Arrays.asList(new NamedWriteableRegistry.Entry(PersistentTaskState.class, GEOIP_DOWNLOADER, GeoIpTaskState::new),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, GEOIP_DOWNLOADER, GeoIpTaskParams::new));
     }
 

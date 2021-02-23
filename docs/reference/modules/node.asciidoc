@@ -40,8 +40,9 @@ Some {stack} features require specific node roles:
 
 - {ccs-cap} and {ccr} require the `remote_cluster_client` role.
 - {stack-monitor-app} and ingest pipelines require the `ingest` role.
-- The {security-app} and {transforms} require the `transform` role. The
-  `remote_cluster_client` role is also required to use {ccs} with these features.
+- The {fleet}, {security-app}, and {transforms} require the `transform` role.
+  The `remote_cluster_client` role is also required to use {ccs} with these
+  features.
 - {ml-cap} features, such as {anomaly-detect}, require the `ml` role.
 ====
 

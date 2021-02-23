@@ -25,8 +25,11 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,6 +40,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.time.Instant;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -47,6 +51,9 @@ public class BlobStoreCacheService {
     private static final Logger logger = LogManager.getLogger(BlobStoreCacheService.class);
 
     public static final int DEFAULT_CACHED_BLOB_SIZE = ByteSizeUnit.KB.toIntBytes(1);
+    private static final Cache<String, String> LOG_EXCEEDING_FILES_CACHE = CacheBuilder.<String, String>builder()
+        .setExpireAfterAccess(TimeValue.timeValueMinutes(60L))
+        .build();
 
     private final ThreadPool threadPool;
     private final Client client;
@@ -223,15 +230,36 @@ public class BlobStoreCacheService {
         if (METADATA_FILES_EXTENSIONS.contains(fileExtension)) {
             final long maxAllowedLengthInBytes = maxMetadataLength.getBytes();
             if (fileLength > maxAllowedLengthInBytes) {
-                logger.warn(
-                    "file of type [{}] and length [{}] is larger than the max. length allowed [{}] to cache metadata files in blob cache",
-                    fileExtension,
-                    fileLength,
-                    maxMetadataLength
-                );
+                logExceedingFile(fileExtension, fileLength, maxMetadataLength);
             }
             return ByteRange.of(0L, Math.min(fileLength, maxAllowedLengthInBytes));
         }
         return ByteRange.of(0L, Math.min(fileLength, DEFAULT_CACHED_BLOB_SIZE));
+    }
+
+    private static void logExceedingFile(String extension, long length, ByteSizeValue maxAllowedLength) {
+        if (logger.isWarnEnabled()) {
+            try {
+                // Use of a cache to prevent too many log traces per hour
+                LOG_EXCEEDING_FILES_CACHE.computeIfAbsent(extension, key -> {
+                    logger.warn(
+                        "file with extension [{}] is larger ([{}]) than the max. length allowed [{}] to cache metadata files in blob cache",
+                        extension,
+                        length,
+                        maxAllowedLength
+                    );
+                    return key;
+                });
+            } catch (ExecutionException e) {
+                logger.warn(
+                    () -> new ParameterizedMessage(
+                        "Failed to log information about exceeding file type [{}] with length [{}]",
+                        extension,
+                        length
+                    ),
+                    e
+                );
+            }
+        }
     }
 }

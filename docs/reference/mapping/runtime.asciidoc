@@ -99,7 +99,7 @@ PUT my-index/
       }
     },
     "properties": {
-      "@timestamp": {"type": "date"}
+      "timestamp": {"type": "date"}
     }
   }
 }
@@ -131,7 +131,7 @@ PUT my-index
   "mappings": {
     "dynamic": "runtime",
     "properties": {
-      "@timestamp": {
+      "timestamp": {
         "type": "date"
       }
     }
@@ -236,17 +236,17 @@ For example, let's say you indexed the following documents into `my-index`:
 ----
 POST my-index/_bulk?refresh=true
 {"index":{}}
-{"@timestamp":1516729294000,"model_number":"QVKC92Q","measures":{"voltage":5.2}}
+{"timestamp":1516729294000,"model_number":"QVKC92Q","measures":{"voltage":5.2}}
 {"index":{}}
-{"@timestamp":1516642894000,"model_number":"QVKC92Q","measures":{"voltage":5.8}}
+{"timestamp":1516642894000,"model_number":"QVKC92Q","measures":{"voltage":5.8}}
 {"index":{}}
-{"@timestamp":1516556494000,"model_number":"QVKC92Q","measures":{"voltage":5.1}}
+{"timestamp":1516556494000,"model_number":"QVKC92Q","measures":{"voltage":5.1}}
 {"index":{}}
-{"@timestamp":1516470094000,"model_number":"QVKC92Q","measures":{"voltage":5.6}}
+{"timestamp":1516470094000,"model_number":"QVKC92Q","measures":{"voltage":5.6}}
 {"index":{}}
-{"@timestamp":1516383694000,"model_number":"HG537PU","measures":{"voltage":4.2}}
+{"timestamp":1516383694000,"model_number":"HG537PU","measures":{"voltage":4.2}}
 {"index":{}}
-{"@timestamp":1516297294000,"model_number":"HG537PU","measures":{"voltage":4.0}}
+{"timestamp":1516297294000,"model_number":"HG537PU","measures":{"voltage":4.0}}
 ----
 
 You later realize that the `HG537PU` sensors aren't reporting their true
@@ -446,7 +446,7 @@ PUT my-index/
       }
     },
     "properties": {
-      "@timestamp": {"type": "date"}
+      "timestamp": {"type": "date"}
     }
   }
 }

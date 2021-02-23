@@ -178,6 +178,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
     /**
      * Executes the shard-level operation. This method is called once per shard serially on the receiving node.
+     * This method should not throw an exception, but pass the exception to the listener instead.
      *
      * @param request      the node-level request
      * @param shardRouting the shard on which to execute the operation
@@ -416,36 +417,36 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
                         @Override
                         public void onResponse(ShardOperationResult shardOperationResult) {
-                            shardResultOrExceptions.set(finalShardIndex, shardOperationResult);
+                            shardResultOrExceptions.setOnce(finalShardIndex, shardOperationResult);
                             if (counter.decrementAndGet() == 0) {
-                                finishHim(request, channel, totalShards, shardResultOrExceptions);
+                                finishHim(request, channel, task, shardResultOrExceptions);
                             }
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            shardResultOrExceptions.set(finalShardIndex, e);
+                            shardResultOrExceptions.setOnce(finalShardIndex, e);
                             if (counter.decrementAndGet() == 0) {
-                                finishHim(request, channel, totalShards, shardResultOrExceptions);
+                                finishHim(request, channel, task, shardResultOrExceptions);
                             }
                         }
                     }));
             }
         }
 
-        private void finishHim(NodeRequest request, TransportChannel channel, int totalShards,
+        private void finishHim(NodeRequest request, TransportChannel channel, Task task,
                                AtomicArray<Object> shardResultOrExceptions) {
+            if (task instanceof CancellableTask && ((CancellableTask)task).isCancelled()) {
+                try {
+                    channel.sendResponse(new TaskCancelledException("task cancelled"));
+                } catch (IOException e) {
+                    logger.warn("failed to send response", e);
+                }
+                return;
+            }
             List<BroadcastShardOperationFailedException> accumulatedExceptions = new ArrayList<>();
             List<ShardOperationResult> results = new ArrayList<>();
-            for (int i = 0; i < totalShards; i++) {
-                if (shardResultOrExceptions.get(i) instanceof TaskCancelledException) {
-                    try {
-                        channel.sendResponse((TaskCancelledException) shardResultOrExceptions.get(i));
-                    } catch (IOException e) {
-                        logger.warn("failed to send response", e);
-                    }
-                    return;
-                }
+            for (int i = 0; i < shardResultOrExceptions.length(); i++) {
                 if (shardResultOrExceptions.get(i) instanceof BroadcastShardOperationFailedException) {
                     accumulatedExceptions.add((BroadcastShardOperationFailedException) shardResultOrExceptions.get(i));
                 } else {
@@ -454,7 +455,8 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             }
 
             try {
-                channel.sendResponse(new NodeResponse(request.getNodeId(), totalShards, results, accumulatedExceptions));
+                channel.sendResponse(new NodeResponse(request.getNodeId(), shardResultOrExceptions.length(), results,
+                    accumulatedExceptions));
             } catch (IOException e) {
                 logger.warn("failed to send response", e);
             }
@@ -470,10 +472,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 logger.trace("[{}]  executing operation for shard [{}]", actionName, shardRouting.shortSummary());
             }
             final Consumer<Exception> failureHandler = e -> {
-                if (e instanceof TaskCancelledException) {
-                    listener.onFailure(e);
-                    return;
-                }
                 BroadcastShardOperationFailedException failure =
                     new BroadcastShardOperationFailedException(shardRouting.shardId(), "operation " + actionName + " failed", e);
                 failure.setShard(shardRouting.shardId());
@@ -506,6 +504,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                     }
                 });
             } catch (Exception e) {
+                assert false : "shardOperation should not throw an exception, but delegate to listener instead";
                 failureHandler.accept(e);
             }
         }

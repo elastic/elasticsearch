@@ -142,7 +142,7 @@ ingest timestamp field. In this example, however, you can use the `order_date`
 field.
 
 .. Optionally, you can configure a retention policy that applies to your 
-{transform}. Select a date field that is used to identify out of date documents 
+{transform}. Select a date field that is used to identify old documents 
 in the destination index and provide a maximum age. Documents that are older 
 than the configured value are removed from the destination index.
 

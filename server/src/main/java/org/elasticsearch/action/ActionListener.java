@@ -52,15 +52,32 @@ public interface ActionListener<Response> {
         return new MappedActionListener<>(fn, this);
     }
 
-    final class MappedActionListener<Response, MappedResponse> implements ActionListener<Response> {
+    abstract class Delegating<Response, DelegateResponse> implements ActionListener<Response> {
+
+        protected final ActionListener<DelegateResponse> delegate;
+
+        protected Delegating(ActionListener<DelegateResponse> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            delegate.onFailure(e);
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getName() + "/" + delegate;
+        }
+    }
+
+    final class MappedActionListener<Response, MappedResponse> extends Delegating<Response, MappedResponse> {
 
         private final CheckedFunction<Response, MappedResponse, Exception> fn;
 
-        private final ActionListener<MappedResponse> delegate;
-
         private MappedActionListener(CheckedFunction<Response, MappedResponse, Exception> fn, ActionListener<MappedResponse> delegate) {
+            super(delegate);
             this.fn = fn;
-            this.delegate = delegate;
         }
 
         @Override
@@ -94,6 +111,11 @@ public interface ActionListener<Response> {
         }
 
         @Override
+        public String toString() {
+            return super.toString() + "/" + fn;
+        }
+
+        @Override
         public <T> ActionListener<T> map(CheckedFunction<T, Response, Exception> fn) {
             return new MappedActionListener<>(t -> this.fn.apply(fn.apply(t)), this.delegate);
         }
@@ -124,54 +146,78 @@ public interface ActionListener<Response> {
             public void onFailure(Exception e) {
                 onFailure.accept(e);
             }
+
+            @Override
+            public String toString() {
+                return "WrappedActionListener{" + onResponse + "}{" + onFailure + "}";
+            }
         };
     }
 
     /**
-     * Creates a listener that delegates all responses it receives to another listener.
+     * Creates a listener that delegates all responses it receives to this instance.
      *
-     * @param delegate ActionListener to wrap and delegate any exception to
      * @param bc BiConsumer invoked with delegate listener and exception
-     * @param <T> Type of the listener
      * @return Delegating listener
      */
-    static <T> ActionListener<T> delegateResponse(ActionListener<T> delegate, BiConsumer<ActionListener<T>, Exception> bc) {
-        return new ActionListener<T>() {
-
-            @Override
-            public void onResponse(T r) {
-                delegate.onResponse(r);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                bc.accept(delegate, e);
-            }
-        };
+    default ActionListener<Response> delegateResponse(BiConsumer<ActionListener<Response>, Exception> bc) {
+        return new DelegatingActionListener<>(this, bc);
     }
 
     /**
      * Creates a listener that delegates all exceptions it receives to another listener.
      *
-     * @param delegate ActionListener to wrap and delegate any exception to
      * @param bc BiConsumer invoked with delegate listener and response
      * @param <T> Type of the delegating listener's response
-     * @param <R> Type of the wrapped listeners
      * @return Delegating listener
      */
-    static <T, R> ActionListener<T> delegateFailure(ActionListener<R> delegate, BiConsumer<ActionListener<R>, T> bc) {
-        return new ActionListener<T>() {
+    default <T> ActionListener<T> delegateFailure(BiConsumer<ActionListener<Response>, T> bc) {
+        return new DelegatingFailureActionListener<>(this, bc);
+    }
 
-            @Override
-            public void onResponse(T r) {
-                bc.accept(delegate, r);
-            }
+    final class DelegatingActionListener<T> extends Delegating<T, T> {
 
-            @Override
-            public void onFailure(Exception e) {
-                delegate.onFailure(e);
-            }
-        };
+        private final BiConsumer<ActionListener<T>, Exception> bc;
+
+        DelegatingActionListener(ActionListener<T> delegate, BiConsumer<ActionListener<T>, Exception> bc) {
+            super(delegate);
+            this.bc = bc;
+        }
+
+        @Override
+        public void onResponse(T t) {
+            delegate.onResponse(t);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            bc.accept(delegate, e);
+        }
+
+        @Override
+        public String toString() {
+            return super.toString() + "/" + bc;
+        }
+    }
+
+    final class DelegatingFailureActionListener<T, R> extends Delegating<T, R> {
+
+        private final BiConsumer<ActionListener<R>, T> bc;
+
+        DelegatingFailureActionListener(ActionListener<R> delegate, BiConsumer<ActionListener<R>, T> bc) {
+            super(delegate);
+            this.bc = bc;
+        }
+
+        @Override
+        public void onResponse(T t) {
+            bc.accept(delegate, t);
+        }
+
+        @Override
+        public String toString() {
+            return super.toString() + "/" + bc;
+        }
     }
 
     /**
@@ -246,25 +292,40 @@ public interface ActionListener<Response> {
      * callback when the listener is notified via either {@code #onResponse} or {@code #onFailure}.
      */
     static <Response> ActionListener<Response> runAfter(ActionListener<Response> delegate, Runnable runAfter) {
-        return new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    delegate.onResponse(response);
-                } finally {
-                    runAfter.run();
-                }
-            }
+        return new RunAfterActionListener<>(delegate, runAfter);
+    }
 
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    delegate.onFailure(e);
-                } finally {
-                    runAfter.run();
-                }
+    final class RunAfterActionListener<T> extends Delegating<T, T> {
+
+        private final Runnable runAfter;
+
+        protected RunAfterActionListener(ActionListener<T> delegate, Runnable runAfter) {
+            super(delegate);
+            this.runAfter = runAfter;
+        }
+
+        @Override
+        public void onResponse(T response) {
+            try {
+                delegate.onResponse(response);
+            } finally {
+                runAfter.run();
             }
-        };
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            try {
+                delegate.onFailure(e);
+            } finally {
+                runAfter.run();
+            }
+        }
+
+        @Override
+        public String toString() {
+            return super.toString() + "/" + runAfter;
+        }
     }
 
     /**
@@ -274,28 +335,43 @@ public interface ActionListener<Response> {
      * not be executed.
      */
     static <Response> ActionListener<Response> runBefore(ActionListener<Response> delegate, CheckedRunnable<?> runBefore) {
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    runBefore.run();
-                } catch (Exception ex) {
-                    delegate.onFailure(ex);
-                    return;
-                }
-                delegate.onResponse(response);
-            }
+        return new RunBeforeActionListener<>(delegate, runBefore);
+    }
 
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    runBefore.run();
-                } catch (Exception ex) {
-                    e.addSuppressed(ex);
-                }
-                delegate.onFailure(e);
+    final class RunBeforeActionListener<T> extends Delegating<T, T> {
+
+        private final CheckedRunnable<?> runBefore;
+
+        protected RunBeforeActionListener(ActionListener<T> delegate, CheckedRunnable<?> runBefore) {
+            super(delegate);
+            this.runBefore = runBefore;
+        }
+
+        @Override
+        public void onResponse(T response) {
+            try {
+                runBefore.run();
+            } catch (Exception ex) {
+                delegate.onFailure(ex);
+                return;
             }
-        };
+            delegate.onResponse(response);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            try {
+                runBefore.run();
+            } catch (Exception ex) {
+                e.addSuppressed(ex);
+            }
+            delegate.onFailure(e);
+        }
+
+        @Override
+        public String toString() {
+            return super.toString() + "/" + runBefore;
+        }
     }
 
     /**

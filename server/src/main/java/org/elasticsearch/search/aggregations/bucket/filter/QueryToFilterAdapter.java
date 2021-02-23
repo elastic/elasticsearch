@@ -80,6 +80,9 @@ public class QueryToFilterAdapter<Q extends Query> {
         return query;
     }
 
+    /**
+     * Key for this filter.
+     */
     public final String key() {
         return key;
     }
@@ -89,9 +92,10 @@ public class QueryToFilterAdapter<Q extends Query> {
     }
 
     /**
-     * Is it safe to use index metadata like
-     * {@link IndexReader#docFreq} or {@link IndexReader#maxDoc} to count the
-     * number of matching documents.
+     * Would using index metadata like {@link IndexReader#docFreq}
+     * or {@link IndexReader#maxDoc} to count the number of matching documents
+     * produce the same answer as collecting the results with a sequence like
+     * {@code searcher.collect(counter); return counter.readAndReset();}.
      */
     protected final boolean countCanUseMetadata(FiltersAggregator.Counter counter, Bits live) {
         if (live != null) {

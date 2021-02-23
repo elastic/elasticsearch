@@ -605,8 +605,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     ) throws Exception {
 
         final byte[] fileContent = randomByteArrayOfLength(randomIntBetween(10, MAX_FILE_LENGTH));
-        final String fileExtension = randomAlphaOfLength(3);
-        final String fileName = randomAlphaOfLength(10) + '.' + fileExtension;
+        final String fileName = randomAlphaOfLength(10) + randomFileExtension();
         final SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
         final IndexId indexId = new IndexId("_name", "_uuid");
         final ShardId shardId = new ShardId("_name", "_uuid", 0);

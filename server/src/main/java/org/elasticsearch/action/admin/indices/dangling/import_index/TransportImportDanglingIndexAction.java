@@ -22,7 +22,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.find.NodeFindDanglingIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -99,54 +98,41 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
 
     private void findDanglingIndex(ImportDanglingIndexRequest request, ActionListener<IndexMetadata> listener) {
         final String indexUUID = request.getIndexUUID();
-
-        this.nodeClient.execute(
-            FindDanglingIndexAction.INSTANCE,
-            new FindDanglingIndexRequest(indexUUID),
-            new ActionListener<FindDanglingIndexResponse>() {
-                @Override
-                public void onResponse(FindDanglingIndexResponse response) {
-                    if (response.hasFailures()) {
-                        final String nodeIds = response.failures()
+        this.nodeClient.execute(FindDanglingIndexAction.INSTANCE, new FindDanglingIndexRequest(indexUUID),
+            listener.delegateFailure((l, response) -> {
+                if (response.hasFailures()) {
+                    final String nodeIds = response.failures()
                             .stream()
                             .map(FailedNodeException::nodeId)
                             .collect(Collectors.joining(","));
-                        ElasticsearchException e = new ElasticsearchException("Failed to query nodes [" + nodeIds + "]");
+                    ElasticsearchException e = new ElasticsearchException("Failed to query nodes [" + nodeIds + "]");
 
-                        for (FailedNodeException failure : response.failures()) {
-                            logger.error("Failed to query node [" + failure.nodeId() + "]", failure);
-                            e.addSuppressed(failure);
-                        }
-
-                        listener.onFailure(e);
-                        return;
+                    for (FailedNodeException failure : response.failures()) {
+                        logger.error("Failed to query node [" + failure.nodeId() + "]", failure);
+                        e.addSuppressed(failure);
                     }
 
-                    final List<IndexMetadata> metaDataSortedByVersion = new ArrayList<>();
-                    for (NodeFindDanglingIndexResponse each : response.getNodes()) {
-                        metaDataSortedByVersion.addAll(each.getDanglingIndexInfo());
-                    }
-                    metaDataSortedByVersion.sort(Comparator.comparingLong(IndexMetadata::getVersion));
+                    l.onFailure(e);
+                    return;
+                }
 
-                    if (metaDataSortedByVersion.isEmpty()) {
-                        listener.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
-                        return;
-                    }
+                final List<IndexMetadata> metaDataSortedByVersion = new ArrayList<>();
+                for (NodeFindDanglingIndexResponse each : response.getNodes()) {
+                    metaDataSortedByVersion.addAll(each.getDanglingIndexInfo());
+                }
+                metaDataSortedByVersion.sort(Comparator.comparingLong(IndexMetadata::getVersion));
 
-                    logger.debug(
+                if (metaDataSortedByVersion.isEmpty()) {
+                    l.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
+                    return;
+                }
+
+                logger.debug(
                         "Metadata versions {} found for index UUID [{}], selecting the highest",
                         metaDataSortedByVersion.stream().map(IndexMetadata::getVersion).collect(Collectors.toList()),
                         indexUUID
-                    );
-
-                    listener.onResponse(metaDataSortedByVersion.get(metaDataSortedByVersion.size() - 1));
-                }
-
-                @Override
-                public void onFailure(Exception exp) {
-                    listener.onFailure(exp);
-                }
-            }
-        );
+                );
+                l.onResponse(metaDataSortedByVersion.get(metaDataSortedByVersion.size() - 1));
+            }));
     }
 }

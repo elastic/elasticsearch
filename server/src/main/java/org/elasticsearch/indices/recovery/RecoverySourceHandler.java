@@ -770,7 +770,7 @@ public class RecoverySourceHandler {
                 maxSeqNoOfUpdatesOrDeletes,
                 retentionLeases,
                 mappingVersion,
-                ActionListener.delegateFailure(listener, (l, newCheckpoint) -> {
+                listener.delegateFailure((l, newCheckpoint) -> {
                     targetLocalCheckpoint.updateAndGet(curr -> SequenceNumbers.max(curr, newCheckpoint));
                     l.onResponse(null);
                 }));
@@ -963,7 +963,7 @@ public class RecoverySourceHandler {
         // are deleted
         cancellableThreads.checkForCancel();
         recoveryTarget.cleanFiles(translogOps.getAsInt(), globalCheckpoint, sourceMetadata,
-            ActionListener.delegateResponse(listener, (l, e) -> ActionListener.completeWith(l, () -> {
+            listener.delegateResponse((l, e) -> ActionListener.completeWith(l, () -> {
                 StoreFileMetadata[] mds = StreamSupport.stream(sourceMetadata.spliterator(), false).toArray(StoreFileMetadata[]::new);
                 ArrayUtil.timSort(mds, Comparator.comparingLong(StoreFileMetadata::length)); // check small files first
                 handleErrorOnSendFiles(store, e, mds);

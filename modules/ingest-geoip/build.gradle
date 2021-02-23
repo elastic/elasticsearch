@@ -72,3 +72,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     systemProperty 'es.geoip.load_db_on_heap', 'true'
   }
 }
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.mmdb'
+}

@@ -39,7 +39,7 @@ public final class TransformNodeAssignments {
     }
 
     /*
-     * Get nodes were (requested) transforms are executed.
+     * Get nodes where (requested) transforms are executed.
      */
     public Set<String> getExecutorNodes() {
         return executorNodes;

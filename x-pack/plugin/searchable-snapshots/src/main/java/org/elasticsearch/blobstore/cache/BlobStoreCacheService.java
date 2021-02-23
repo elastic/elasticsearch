@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.NodeClosedException;
@@ -160,17 +161,46 @@ public class BlobStoreCacheService {
         }
     }
 
-    private static final Set<String> METADATA_FILES_EXTENSIONS = Set.of(
-        "cfe", // compound file's entry table
-        "dvm", // doc values metadata file
-        "fdm", // stored fields metadata file
-        "fnm", // field names metadata file
-        "kdm", // Lucene 8.6 point format metadata file
-        "nvm", // norms metadata file
-        "tmd", // Lucene 8.6 terms metadata file
-        "tvm", // terms vectors metadata file
-        "vem"  // Lucene 9.0 indexed vectors metadata
-    );
+    private static final Set<String> METADATA_FILES_EXTENSIONS;
+    private static final Set<String> OTHER_FILES_EXTENSIONS;
+    static {
+        // List of Lucene file extensions that are considered as "metadata" and should therefore be fully cached in the blob store cache.
+        // Those files are usually fully read by Lucene when it opens a Directory.
+        METADATA_FILES_EXTENSIONS = Set.of(
+            "cfe", // compound file's entry table
+            "dvm", // doc values metadata file
+            "fdm", // stored fields metadata file
+            "fnm", // field names metadata file
+            "kdm", // Lucene 8.6 point format metadata file
+            "nvm", // norms metadata file
+            "tmd", // Lucene 8.6 terms metadata file
+            "tvm", // terms vectors metadata file
+            "vem"  // Lucene 9.0 indexed vectors metadata
+        );
+
+        // List of extensions for which Lucene usually only reads the first 1024 byte and checks a header checksum when opening a Directory.
+        OTHER_FILES_EXTENSIONS = Set.of(
+            "cfs",
+            "dii",
+            "dim",
+            "doc",
+            "dvd",
+            "fdt",
+            "fdx",
+            "kdd",
+            "kdi",
+            "liv",
+            "nvd",
+            "pay",
+            "pos",
+            "tim",
+            "tip",
+            "tvd",
+            "tvx",
+            "vec"
+        );
+        assert Sets.intersection(METADATA_FILES_EXTENSIONS, OTHER_FILES_EXTENSIONS).isEmpty();
+    }
 
     /**
      * Computes the {@link ByteRange} corresponding to the header of a Lucene file. This range can vary depending of the type of the file
@@ -187,6 +217,9 @@ public class BlobStoreCacheService {
      */
     public static ByteRange computeBlobCacheByteRange(String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
         final String fileExtension = IndexFileNames.getExtension(fileName);
+        assert fileExtension == null || METADATA_FILES_EXTENSIONS.contains(fileExtension) || OTHER_FILES_EXTENSIONS.contains(fileExtension)
+            : "unknown Lucene file extension [" + fileExtension + "] - should it be considered a metadata file?";
+
         if (METADATA_FILES_EXTENSIONS.contains(fileExtension)) {
             final long maxAllowedLengthInBytes = maxMetadataLength.getBytes();
             if (fileLength > maxAllowedLengthInBytes) {

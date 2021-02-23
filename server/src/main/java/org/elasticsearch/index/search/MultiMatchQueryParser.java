@@ -182,6 +182,9 @@ public class MultiMatchQueryParser extends MatchQueryParser {
         if (groupQuery.isEmpty()) {
             return zeroTermsQuery();
         }
+        if (groupQuery.size() == 1) {
+            return groupQuery.get(0);
+        }
         BooleanQuery.Builder combinedQuery = new BooleanQuery.Builder();
         for (Query query : groupQuery) {
             combinedQuery.add(query, BooleanClause.Occur.SHOULD);

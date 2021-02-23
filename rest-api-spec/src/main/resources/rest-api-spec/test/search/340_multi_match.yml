@@ -1,0 +1,45 @@
+setup:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              title:
+                type: text
+              abstract:
+                type: text
+              body:
+                type: text
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          title: "Time, Clocks and the Ordering of Events in a Distributed System"
+          abstract: "The concept of one event happening before another..."
+          body: "The concept of time is fundamental to our way of thinking..."
+
+  - do:
+      indices.refresh: {}
+
+---
+"Test combined_fields query":
+  - skip:
+      version: " - 7.99.99"
+      reason: "combined_fields mode is not yet backported"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              type: combined_fields
+              query: "time event"
+              fields: ["abstract", "body"]
+              operator: "and"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "1" }

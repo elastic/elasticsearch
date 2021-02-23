@@ -191,7 +191,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
 
                     final ActionListener<Response> doExecuteListener;
                     if (transformNodeAssignments.getWaitingForAssignment().size() > 0) {
-                        doExecuteListener = cancelTransformTaskWithNoAssignment(finalListener, transformNodeAssignments);
+                        doExecuteListener = cancelTransformTasksWithNoAssignment(finalListener, transformNodeAssignments);
                     } else {
                         doExecuteListener = finalListener;
                     }
@@ -475,7 +475,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         }));
     }
 
-    private ActionListener<Response> cancelTransformTaskWithNoAssignment(
+    private ActionListener<Response> cancelTransformTasksWithNoAssignment(
         final ActionListener<Response> finalListener,
         final TransformNodeAssignments transformNodeAssignments
     ) {

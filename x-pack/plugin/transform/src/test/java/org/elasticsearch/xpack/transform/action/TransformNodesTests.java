@@ -98,6 +98,13 @@ public class TransformNodesTests extends ESTestCase {
         assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-2"));
         assertFalse(transformNodeAssignments.getExecutorNodes().contains(null));
         assertFalse(transformNodeAssignments.getExecutorNodes().contains("node-3"));
+        assertEquals(1, transformNodeAssignments.getWaitingForAssignment().size());
+        assertTrue(transformNodeAssignments.getWaitingForAssignment().contains(transformIdFailed));
+        assertEquals(3, transformNodeAssignments.getAssigned().size());
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdFoo));
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdBar));
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdBaz));
+        assertFalse(transformNodeAssignments.getAssigned().contains(transformIdFailed));
     }
 
     public void testTransformNodes_NoTasks() {
@@ -108,5 +115,7 @@ public class TransformNodesTests extends ESTestCase {
         );
 
         assertEquals(0, transformNodeAssignments.getExecutorNodes().size());
+        assertEquals(1, transformNodeAssignments.getStopped().size());
+        assertTrue(transformNodeAssignments.getStopped().contains("df-id"));
     }
 }

@@ -35,7 +35,7 @@ import java.util.function.IntPredicate;
 /**
  * Adapts a Lucene {@link Query} to the behaviors used be the
  * {@link FiltersAggregator}. In general we try to delegate to {@linkplain Query}
- * when we don't have 
+ * when we don't have a special optimization.
  */
 public abstract class QueryToFilterAdapter {
     /**
@@ -75,11 +75,26 @@ public abstract class QueryToFilterAdapter {
 
     /**
      * Is it safe to use index metadata like
-     * {@link IndexReader#docFreq} or {@link IndexReader#maxDoc} to count. the
+     * {@link IndexReader#docFreq} or {@link IndexReader#maxDoc} to count the
      * number of matching documents.
      */
     protected final boolean countCanUseMetadata(FiltersAggregator.Counter counter, Bits live) {
-        return live == null && counter.docCount.alwaysOne();
+        if (live != null) {
+            /*
+             * We can only use metadata if all of the documents in the reader
+             * are visible. This is done by returning a null `live` bits. The
+             * name `live` is traditional because most of the time a non-null
+             * `live` bits means that there are deleted documents. But `live`
+             * might also be non-null if document level security is enabled.
+             */
+            return false;
+        }
+        /*
+         * We can only use metadata if we're not using the special docCount
+         * field. Otherwise we wouldn't know how many documents each lucene
+         * document represents.
+         */
+        return counter.docCount.alwaysOne();
     }
 
     /**

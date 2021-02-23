@@ -203,7 +203,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             String otherBucketKey, AggregationContext context, Aggregator parent, CardinalityUpperBound cardinality,
             Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, cardinality.multiply(filters.size() + (otherBucketKey == null ? 0 : 1)), metadata);
-        this.filters = filters;
+        this.filters = List.copyOf(filters);
         this.keyed = keyed;
         this.otherBucketKey = otherBucketKey;
     }

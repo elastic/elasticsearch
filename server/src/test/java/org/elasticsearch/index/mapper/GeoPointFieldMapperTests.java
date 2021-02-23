@@ -46,6 +46,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "41.12,-71.34"));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
     }
 
     @Override
@@ -190,6 +191,14 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
         ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(false));
+    }
+
+    public void testIndexParameter() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("index", false)));
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
+        assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
+        boolean searchable = ((GeoPointFieldMapper)fieldMapper).fieldType().isSearchable();
+        assertThat(searchable, equalTo(false));
     }
 
     public void testMultiField() throws Exception {

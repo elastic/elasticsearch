@@ -1,5 +1,5 @@
 [[modules-scripting-using]]
-== How to use scripts
+== How to write scripts
 
 Wherever scripting is supported in the Elasticsearch API, the syntax follows
 the same pattern:
@@ -7,15 +7,104 @@ the same pattern:
 [source,js]
 -------------------------------------
   "script": {
-    "lang":   "...",  <1>
-    "source" | "id": "...", <2>
-    "params": { ... } <3>
+    "lang":   "...",
+    "source" | "id": "...",
+    "params": { ... }
   }
 -------------------------------------
 // NOTCONSOLE
-<1> The language the script is written in, which defaults to `painless`.
-<2> The script itself which may be specified as `source` for an inline script or `id` for a stored script.
-<3> Any named parameters that should be passed into the script.
+
+`lang`::
+
+    Specifies the language the script is written in. Defaults to `painless`.
+
+`source`, `id`::
+
+    Specifies the source of the script. An `inline` script is specified as `source` in the previous example. A `stored` script is specified by `id` and is retrieved from the cluster state (see <<modules-scripting-stored-scripts,Stored Scripts>>).
+
+`params`::
+
+    Specifies any named parameters that are passed into the script as
+    variables. <<prefer-params,Use parameters>> instead of hard-coded values to decrease compile time.
+
+[discrete]
+[[hello-world-script]]
+=== Write your first script
+The <<painless-execute-api, painless execute API>> provides the ability to
+test a script with simple user-defined parameters and receive a result. Let's
+start with a simple script and review its constituent parts.
+
+[source,console]
+----
+POST /_scripts/painless/_execute <1>
+{
+  "script": { <2>
+    "source": "return 'Hello, world!';" <3>
+  }
+}
+----
+<1> Request URL
+<2> `script` object
+<3> `script` source
+
+The request URL partially determines what script contexts are available.
+Contexts control how scripts are executed, what variables are available when
+the script runs, and what the return type is.
+
+We're using the Painless execute API without any URL parameters, which uses
+the `painless_test` context by default. This context optionally makes
+available a `Map` of user-defined parameters, and then returns a value as an
+`Object`. `Map` and `Object` are known as _types_, which we'll discuss more
+later on.
+
+The `script` is a standard JSON object that defines scripts under most APIs
+in {es}. This object requires `source` to define the script itself. The
+example script doesn't specify a language, so it uses Painless by default.
+
+The `source` defines the script itself. The example `source` returns a
+`String` value of `Hello, world!`, converts the string to an `Object`, and
+displays the output.
+
+[discrete]
+[[script-add-parameters]]
+=== Add parameters to your script
+Now that you have a simple script, we'll introduce parameters to pass in
+variables. Using named `params` instead of hard-coding values makes scripts
+flexible, and also reduces compilation time when the script runs.
+
+[source,console]
+----
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": "return params.get('hello_world');", <1>
+    "lang": "painless", <2>
+    "params": { <3>
+        "hello_world": "Hello, world!"
+    }
+  }
+}
+----
+<1> `Map` of user-defined parameters
+<2> Language declaration
+<3> Parameter definition
+
+Our script now contains a `Map` of user-defined parameters. The `get` method
+accesses a value using the `String` key of the `hello_world` parameter.
+
+We'll explicitly specify the `Painless` language, even though that's the
+default language.
+
+The `params` section is where things get interesting. This part of the script
+is where you pass in user-defined parameters, which are written as a JSON
+object that is parsed into a `Map`. Our script defines a key of `hello_world`
+with a `String` value of `Hello, world!`. We then access this value within
+the example script.
+
+[discrete]
+[[script-shorten-syntax]]
+=== Shorten your script
+
 
 For example, the following script is used in a search request to return a
 <<script-fields, scripted field>>:
@@ -42,69 +131,6 @@ GET my-index-000001/_search
   }
 }
 -------------------------------------
-
-[discrete]
-=== Script parameters
-
-`lang`::
-
-    Specifies the language the script is written in.  Defaults to `painless`.
-
-
-`source`, `id`::
-
-    Specifies the source of the script.  An `inline` script is specified
-    `source` as in the example above. A `stored` script is specified `id`
-    and is retrieved from the cluster state (see <<modules-scripting-stored-scripts,Stored Scripts>>).
-
-
-`params`::
-
-    Specifies any named parameters that are passed into the script as
-    variables.
-
-[IMPORTANT]
-[[prefer-params]]
-.Prefer parameters
-========================================
-
-The first time Elasticsearch sees a new script, it compiles it and stores the
-compiled version in a cache. Compilation can be a heavy process.
-
-If you need to pass variables into the script, you should pass them in as
-named `params` instead of hard-coding values into the script itself.  For
-example, if you want to be able to multiply a field value by different
-multipliers, don't hard-code the multiplier into the script:
-
-[source,js]
-----------------------
-  "source": "doc['my_field'] * 2"
-----------------------
-// NOTCONSOLE
-
-Instead, pass it in as a named parameter:
-
-[source,js]
-----------------------
-  "source": "doc['my_field'] * multiplier",
-  "params": {
-    "multiplier": 2
-  }
-----------------------
-// NOTCONSOLE
-
-The first version has to be recompiled every time the multiplier changes.  The
-second version is only compiled once.
-
-If you compile too many unique scripts within a small amount of time,
-Elasticsearch will reject the new dynamic scripts with a
-`circuit_breaking_exception` error. For most contexts, you can compile up to 75
-scripts per 5 minutes by default. For ingest contexts, the default script
-compilation rate is unlimited. You can change these settings dynamically by
-setting `script.context.$CONTEXT.max_compilations_rate` eg.
-`script.context.field.max_compilations_rate=100/10m`.
-
-========================================
 
 [discrete]
 [[modules-scripting-short-script-form]]
@@ -137,7 +163,7 @@ The same script in the normal form:
 Scripts may be stored in and retrieved from the cluster state using the
 `_scripts` end-point.
 
-If the {es} {security-features} are enabled, you must have the following 
+If the {es} {security-features} are enabled, you must have the following
 privileges to create, retrieve, and delete stored scripts:
 
 * cluster: `all` or `manage`

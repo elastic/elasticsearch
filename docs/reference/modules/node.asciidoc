@@ -350,7 +350,7 @@ coordinating nodes.
 
 For more information about these settings, see <<ml-settings>>.
 
-To create a dedicated {ml} node in the {default-dist}, set:
+To create a dedicated {ml} node, set:
 
 [source,yaml]
 ----

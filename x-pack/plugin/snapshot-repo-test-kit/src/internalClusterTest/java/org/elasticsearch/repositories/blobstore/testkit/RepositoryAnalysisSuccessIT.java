@@ -73,6 +73,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69219")
     public void testRepositoryAnalysis() {
 
         createRepositoryNoVerify("test-repo", TestPlugin.ASSERTING_REPO_TYPE);

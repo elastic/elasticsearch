@@ -137,6 +137,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       dependsOn unzip
       executable = "${BuildParams.runtimeJavaHome}/bin/java"
       env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
+      // old versions of Elasticsearch need JAVA_HOME
       env 'JAVA_HOME', jdks.legacy.javaHomePath
       args 'oldes.OldElasticsearch',
         baseDir,

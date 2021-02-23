@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.ql.querydsl.query.GeoDistanceQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
@@ -47,14 +46,6 @@ public class SqlTranslatorHandler implements TranslatorHandler {
     @Override
     public String nameOf(Expression e) {
         return QueryTranslator.nameOf(e);
-    }
-
-    @Override
-    public String dateFormat(Expression e) {
-        if (e instanceof DateTimeFunction) {
-            return ((DateTimeFunction) e).dateTimeFormat();
-        }
-        return null;
     }
 
     @Override

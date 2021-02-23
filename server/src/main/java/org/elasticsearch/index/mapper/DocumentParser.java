@@ -36,14 +36,11 @@ final class DocumentParser {
 
     private final NamedXContentRegistry xContentRegistry;
     private final Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext;
-    private final DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder;
 
     DocumentParser(NamedXContentRegistry xContentRegistry,
-                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext,
-                   DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder) {
+                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext) {
         this.xContentRegistry = xContentRegistry;
         this.dateParserContext = dateParserContext;
-        this.dynamicRuntimeFieldsBuilder = dynamicRuntimeFieldsBuilder;
     }
 
     ParsedDocument parseDocument(SourceToParse source,
@@ -62,7 +59,6 @@ final class DocumentParser {
             context = new ParseContext.InternalParseContext(
                 mappingLookup,
                 dateParserContext,
-                dynamicRuntimeFieldsBuilder,
                 source,
                 parser);
             validateStart(parser);

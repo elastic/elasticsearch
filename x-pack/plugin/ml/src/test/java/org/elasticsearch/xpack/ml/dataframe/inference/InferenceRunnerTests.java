@@ -71,7 +71,7 @@ public class InferenceRunnerTests extends ESTestCase {
         config = new DataFrameAnalyticsConfig.Builder()
             .setId("test")
             .setAnalysis(RegressionTests.createRandom())
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", "test_results_field"))
             .build();
         progressTracker = ProgressTracker.fromZeroes(config.getAnalysis().getProgressPhases(), config.getAnalysis().supportsInference());

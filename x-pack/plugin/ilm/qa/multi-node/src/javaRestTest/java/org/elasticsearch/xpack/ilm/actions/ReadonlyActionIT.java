@@ -69,7 +69,7 @@ public class ReadonlyActionIT extends ESRestTestCase {
 
         // add a policy
         Map<String, LifecycleAction> hotActions = org.elasticsearch.common.collect.Map.of(
-            RolloverAction.NAME, new RolloverAction(null, null, 1L),
+            RolloverAction.NAME, new RolloverAction(null, null, null, 1L),
             ReadOnlyAction.NAME, new ReadOnlyAction());
         Map<String, Phase> phases = org.elasticsearch.common.collect.Map.of(
             "hot", new Phase("hot", TimeValue.ZERO, hotActions));

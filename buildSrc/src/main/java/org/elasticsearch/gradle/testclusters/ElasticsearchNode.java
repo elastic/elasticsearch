@@ -746,7 +746,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private Map<String, String> getESEnvironment() {
         Map<String, String> defaultEnv = new HashMap<>();
-        getRequiredJavaHome().ifPresent(javaHome -> defaultEnv.put("JAVA_HOME", javaHome));
+        if (getVersion().onOrAfter("7.12.0")) {
+            getRequiredJavaHome().ifPresent(javaHome -> defaultEnv.put("ES_JAVA_HOME", javaHome));
+        } else {
+            // older versions of Elasticsearch only understand JAVA_HOME
+            getRequiredJavaHome().ifPresent(javaHome -> defaultEnv.put("JAVA_HOME", javaHome));
+        }
         defaultEnv.put("ES_PATH_CONF", configFile.getParent().toString());
         String systemPropertiesString = "";
         if (systemProperties.isEmpty() == false) {

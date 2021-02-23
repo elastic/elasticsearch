@@ -15,7 +15,7 @@ anomalies and notifies you in an email. This page helps you to configure an
 == Creating an alert
 
 You can create {anomaly-detect} alerts in the {anomaly-job} wizard after you 
-started the job, from the job list or under **{stack-manage-app} > 
+start the job, from the job list, or under **{stack-manage-app} > 
 {alerts-ui}**. On the *Create alert* window, select *{anomaly-detect-cap} alert* 
 under the {ml-cap} section, then give a name to the alert and optionally provide 
 tags.
@@ -24,11 +24,11 @@ Specify the time interval for the alert to check detected anomalies. It is
 recommended to select an interval that is close to the bucket span of the 
 associated job. You can also select a notification option by using the _Notify_ 
 selector. For more details, refer to the documentation of
-{kib-ref}/defining-alerts.html#defining-alerts-general-details[general alert details].
+{kibana-ref}/defining-alerts.html#defining-alerts-general-details[general alert details].
 
 NOTE: {anomaly-detect-cap} alerts handle duplications. If you set an interval 
 that makes the alert check the same bucket multiple times and the bucket 
-contains an anomaly that meets the alert conditions, then the configured action 
+contains an anomaly that meets the alert conditions, the configured action 
 is triggered only once.
   
 [role="screenshot"]
@@ -75,6 +75,6 @@ in the message, like job ID, anomaly score, time, or top influencers.
 [role="screenshot"]
 image::images/ml-anomaly-alert-messages.jpg["Customizing your message"]
 
-After you saved the configurations, the alert appears in the _Alerts and 
-Actions_ list where you can check its status and the overview of its 
+After you save the configurations, the alert appears in the _Alerts and 
+Actions_ list where you can check its status and see the overview of its 
 configuration information.

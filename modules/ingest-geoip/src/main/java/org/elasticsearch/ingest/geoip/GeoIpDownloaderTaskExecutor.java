@@ -32,7 +32,8 @@ import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_V2_FEATURE_FLAG_ENABLED;
 
 /**
- * c
+ * Persistent task executor that is responsible for starting {@link GeoIpDownloader} after task is allocated by master node.
+ * Also bootstraps GeoIP download task on clean cluster and handles changes to the 'geoip.downloader.enabled' setting
  */
 final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTaskParams> implements ClusterStateListener {
 

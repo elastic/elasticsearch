@@ -45,6 +45,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Main component responsible for downloading new GeoIP databases.
+ * New databases are downloaded in chunks and stored in .geoip_databases index
+ * Downloads are verified against MD5 checksum provided by the server
+ * Current state of all stored databases is stored in cluster state in persistent task state
+ */
 class GeoIpDownloader extends AllocatedPersistentTask {
 
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);

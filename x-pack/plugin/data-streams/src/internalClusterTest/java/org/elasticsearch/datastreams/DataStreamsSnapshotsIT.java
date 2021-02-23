@@ -51,7 +51,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
@@ -541,22 +543,64 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         unblockAllDataNodes(repoName);
         final SnapshotInfo snapshotInfo = assertSuccessful(snapshotFuture);
 
-        if (snapshotInfo.dataStreams().contains("ds")) {
-            assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" })).get());
+        assertThat(snapshotInfo.dataStreams(), hasItems("ds"));
+        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" })).get());
 
-            RestoreInfo restoreSnapshotResponse = client().admin()
-                .cluster()
-                .prepareRestoreSnapshot(repoName, snapshotName)
-                .setWaitForCompletion(true)
-                .setIndices("ds")
-                .get()
-                .getRestoreInfo();
+        RestoreInfo restoreSnapshotResponse = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .get()
+            .getRestoreInfo();
 
-            assertEquals(restoreSnapshotResponse.successfulShards(), restoreSnapshotResponse.totalShards());
-            assertEquals(restoreSnapshotResponse.failedShards(), 0);
-            assertFalse(partial);
-        } else {
-            assertTrue(partial);
-        }
+        assertEquals(restoreSnapshotResponse.successfulShards(), restoreSnapshotResponse.totalShards());
+        assertEquals(restoreSnapshotResponse.failedShards(), 0);
+    }
+
+    public void testSnapshotDSDuringRolloverAndDeleteOldIndex() throws Exception {
+        // repository consistency check requires at least one snapshot per registered repository
+        createFullSnapshot(REPO, "snap-so-repo-checks-pass");
+        final String repoName = "mock-repo";
+        createRepository(repoName, "mock");
+        blockAllDataNodes(repoName);
+        final String snapshotName = "ds-snap";
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .setPartial(true)
+            .setIncludeGlobalState(randomBoolean())
+            .execute();
+        waitForBlockOnAnyDataNode(repoName);
+        awaitNumberOfSnapshotsInProgress(1);
+        final RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("ds", null)).get();
+        assertTrue(rolloverResponse.isRolledOver());
+
+        logger.info("--> deleting former write index");
+        assertAcked(client().admin().indices().prepareDelete(rolloverResponse.getOldIndex()));
+
+        unblockAllDataNodes(repoName);
+        final SnapshotInfo snapshotInfo = assertSuccessful(snapshotFuture);
+
+        assertThat(
+            "snapshot should not contain 'ds' since none of its indices existed both at the start and at the end of the snapshot",
+            snapshotInfo.dataStreams(),
+            not(hasItems("ds"))
+        );
+        assertAcked(
+            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "other-ds" })).get()
+        );
+
+        RestoreInfo restoreSnapshotResponse = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices("other-ds")
+            .get()
+            .getRestoreInfo();
+
+        assertEquals(restoreSnapshotResponse.successfulShards(), restoreSnapshotResponse.totalShards());
+        assertEquals(restoreSnapshotResponse.failedShards(), 0);
     }
 }

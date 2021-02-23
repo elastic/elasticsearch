@@ -99,18 +99,10 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
                 .ackTimeout(request.timeout())
                 .masterNodeTimeout(request.masterNodeTimeout());
 
-        updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse response) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to update settings on indices [{}]", (Object) concreteIndices), t);
-                listener.onFailure(t);
-            }
-        });
+        updateSettingsService.updateSettings(clusterStateUpdateRequest, listener.delegateResponse((l, e) -> {
+            logger.debug(() -> new ParameterizedMessage("failed to update settings on indices [{}]", (Object) concreteIndices), e);
+            l.onFailure(e);
+        }));
     }
 
     /**

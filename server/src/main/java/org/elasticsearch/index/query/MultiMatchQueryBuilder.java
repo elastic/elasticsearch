@@ -100,13 +100,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         MOST_FIELDS(MatchQueryParser.Type.BOOLEAN, 1.0f, new ParseField("most_fields")),
 
         /**
-         * Uses Lucene's {@link XCombinedFieldQuery} to search across the provided
-         * fields. This query treats multiple fields as a single 'stream' and scores
-         * terms as if they had been indexed into a single field.
-         */
-        COMBINED_FIELDS(MatchQueryParser.Type.BOOLEAN, 0.0f, new ParseField("combined_fields")),
-
-        /**
          * Uses a blended DocumentFrequency to dynamically combine the queried
          * fields into a single field given the configured analysis is identical.
          * This type uses a tie-breaker to adjust the score based on remaining
@@ -129,7 +122,14 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         /**
          * Uses the sum of the matching boolean fields to score the query
          */
-        BOOL_PREFIX(MatchQueryParser.Type.BOOLEAN_PREFIX, 1.0f, new ParseField("bool_prefix"));
+        BOOL_PREFIX(MatchQueryParser.Type.BOOLEAN_PREFIX, 1.0f, new ParseField("bool_prefix")),
+
+        /**
+         * Uses Lucene's {@link XCombinedFieldQuery} to search across the provided
+         * fields. This query treats multiple fields as a single 'stream' and scores
+         * terms as if they had been indexed into a single field.
+         */
+        COMBINED_FIELDS(MatchQueryParser.Type.BOOLEAN, 0.0f, new ParseField("combined_fields"));
 
         private final MatchQueryParser.Type matchQueryType;
         private final float tieBreaker;
@@ -174,6 +174,10 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (out.getVersion().before(Version.V_8_0_0) && this == COMBINED_FIELDS) {
+                throw new UnsupportedOperationException(
+                    "The [combined_fields] mode for [multi_match] queries is not supported before version 8.0");
+            }
             out.writeVInt(this.ordinal());
         }
     }

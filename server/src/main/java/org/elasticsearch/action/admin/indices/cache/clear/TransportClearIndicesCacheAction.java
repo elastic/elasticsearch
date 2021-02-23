@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.cache.clear;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -64,10 +65,13 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
     }
 
     @Override
-    protected EmptyResult shardOperation(ClearIndicesCacheRequest request, ShardRouting shardRouting, Task task) {
-        indicesService.clearIndexShardCache(shardRouting.shardId(), request.queryCache(), request.fieldDataCache(), request.requestCache(),
-            request.fields());
-        return EmptyResult.INSTANCE;
+    protected void shardOperation(ClearIndicesCacheRequest request, ShardRouting shardRouting, Task task,
+                                  ActionListener<EmptyResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            indicesService.clearIndexShardCache(shardRouting.shardId(), request.queryCache(), request.fieldDataCache(),
+                request.requestCache(), request.fields());
+            return EmptyResult.INSTANCE;
+        });
     }
 
     /**

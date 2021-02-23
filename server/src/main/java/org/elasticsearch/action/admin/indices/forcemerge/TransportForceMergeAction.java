@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.admin.indices.forcemerge;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -22,7 +24,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -36,13 +40,15 @@ public class TransportForceMergeAction
         extends TransportBroadcastByNodeAction<ForceMergeRequest, ForceMergeResponse, TransportBroadcastByNodeAction.EmptyResult> {
 
     private final IndicesService indicesService;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportForceMergeAction(ClusterService clusterService, TransportService transportService, IndicesService indicesService,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(ForceMergeAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                ForceMergeRequest::new, ThreadPool.Names.FORCE_MERGE);
+                ForceMergeRequest::new, ThreadPool.Names.SAME);
         this.indicesService = indicesService;
+        this.threadPool = transportService.getThreadPool();
     }
 
     @Override
@@ -63,10 +69,19 @@ public class TransportForceMergeAction
     }
 
     @Override
-    protected EmptyResult shardOperation(ForceMergeRequest request, ShardRouting shardRouting, Task task) throws IOException {
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex()).getShard(shardRouting.shardId().id());
-        indexShard.forceMerge(request);
-        return EmptyResult.INSTANCE;
+    protected void shardOperation(ForceMergeRequest request, ShardRouting shardRouting, Task task,
+                                  ActionListener<TransportBroadcastByNodeAction.EmptyResult> listener) {
+        threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(ActionRunnable.run(listener,
+            () -> {
+                if (task instanceof CancellableTask && ((CancellableTask)task).isCancelled()) {
+                    listener.onFailure(new TaskCancelledException("task cancelled"));
+                    return;
+                }
+                IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex())
+                    .getShard(shardRouting.shardId().id());
+                indexShard.forceMerge(request);
+                listener.onResponse(EmptyResult.INSTANCE);
+            }));
     }
 
     /**

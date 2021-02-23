@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -88,11 +89,14 @@ public class TransportReloadAnalyzersAction
     }
 
     @Override
-    protected ReloadResult shardOperation(ReloadAnalyzersRequest request, ShardRouting shardRouting, Task task) throws IOException {
-        logger.info("reloading analyzers for index shard " + shardRouting);
-        IndexService indexService = indicesService.indexService(shardRouting.index());
-        List<String> reloadedSearchAnalyzers = indexService.mapperService().reloadSearchAnalyzers(indicesService.getAnalysis());
-        return new ReloadResult(shardRouting.index().getName(), shardRouting.currentNodeId(), reloadedSearchAnalyzers);
+    protected void shardOperation(ReloadAnalyzersRequest request, ShardRouting shardRouting, Task task,
+                                  ActionListener<ReloadResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            logger.info("reloading analyzers for index shard " + shardRouting);
+            IndexService indexService = indicesService.indexService(shardRouting.index());
+            List<String> reloadedSearchAnalyzers = indexService.mapperService().reloadSearchAnalyzers(indicesService.getAnalysis());
+            return new ReloadResult(shardRouting.index().getName(), shardRouting.currentNodeId(), reloadedSearchAnalyzers);
+        });
     }
 
     static final class ReloadResult implements Writeable {

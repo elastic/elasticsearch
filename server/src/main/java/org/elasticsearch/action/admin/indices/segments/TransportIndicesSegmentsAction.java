@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -82,10 +83,13 @@ public class TransportIndicesSegmentsAction
     }
 
     @Override
-    protected ShardSegments shardOperation(IndicesSegmentsRequest request, ShardRouting shardRouting, Task task) {
-        assert task instanceof CancellableTask;
-        IndexService indexService = indicesService.indexServiceSafe(shardRouting.index());
-        IndexShard indexShard = indexService.getShard(shardRouting.id());
-        return new ShardSegments(indexShard.routingEntry(), indexShard.segments(request.verbose()));
+    protected void shardOperation(IndicesSegmentsRequest request, ShardRouting shardRouting, Task task,
+                                  ActionListener<ShardSegments> listener) {
+        ActionListener.completeWith(listener, () -> {
+            assert task instanceof CancellableTask;
+            IndexService indexService = indicesService.indexServiceSafe(shardRouting.index());
+            IndexShard indexShard = indexService.getShard(shardRouting.id());
+            return new ShardSegments(indexShard.routingEntry(), indexShard.segments(request.verbose()));
+        });
     }
 }

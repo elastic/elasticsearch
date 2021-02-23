@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -107,13 +108,15 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
     }
 
     @Override
-    protected ShardOperationResult shardOperation(Request request, ShardRouting shardRouting, Task task) throws IOException {
-        SearchableSnapshots.ensureValidLicense(licenseState);
-        final IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
-        final SearchableSnapshotDirectory directory = unwrapDirectory(indexShard.store().directory());
-        assert directory != null;
-        assert directory.getShardId().equals(shardRouting.shardId());
-        return executeShardOperation(request, shardRouting, directory);
+    protected void shardOperation(Request request, ShardRouting shardRouting, Task task, ActionListener<ShardOperationResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            SearchableSnapshots.ensureValidLicense(licenseState);
+            final IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
+            final SearchableSnapshotDirectory directory = unwrapDirectory(indexShard.store().directory());
+            assert directory != null;
+            assert directory.getShardId().equals(shardRouting.shardId());
+            return executeShardOperation(request, shardRouting, directory);
+        });
     }
 
     protected abstract ShardOperationResult executeShardOperation(

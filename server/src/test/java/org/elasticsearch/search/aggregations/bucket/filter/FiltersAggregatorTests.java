@@ -252,10 +252,9 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
              * to prove that we unwrapped the IndexOrDocValuesQuery that the date
              * field mapper adds
              */
-            QueryToFilterAdapter filter = ((FiltersAggregator) aggregator).filters().get(0);
+            QueryToFilterAdapter<?> filter = ((FiltersAggregator) aggregator).filters().get(0);
             Map<String, Object> debug = new HashMap<>();
             filter.collectDebugInfo(debug::put);
-            assertThat(debug, hasEntry("type", "query"));
             assertThat(debug, hasEntry("query", ((IndexOrDocValuesQuery) topLevelQuery).getIndexQuery().toString()));
         }, ft);
     }
@@ -317,7 +316,6 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 List<?> filtersDebug = (List<?>) debug.get("filters");
                 for (int i = 0; i < filterByFilter.filters().size(); i++) {
                     Map<?, ?> filterDebug = (Map<?, ?>) filtersDebug.get(i);
-                    assertThat(filterDebug, hasEntry("type", "query"));
                     assertThat((int) filterDebug.get("scorers_prepared_while_estimating_cost"), greaterThan(0));
                 }
             },
@@ -370,7 +368,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             // The estimated cost is 0 because we're going to read from metadata
             assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(0L));
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
-            assertThat(debug, hasEntry("type", "match_all"));
+            assertThat(debug, hasEntry("specialized_for", "match_all"));
             assertThat((int) debug.get("results_from_metadata"), greaterThan(0));
         });
         testCase(
@@ -396,7 +394,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             // The estimated cost is 0 because we're going to read from metadata
             assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(10L));
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
-            assertThat(debug, equalTo(Map.of("type", "match_all", "results_from_metadata", 0)));
+            assertThat(debug, hasEntry("specialized_for", "match_all"));
+            assertThat(debug, hasEntry("results_from_metadata", 0));
         });
         testCase(
             builder,
@@ -459,7 +458,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(5L));
                 Map<String, Object> debug = new HashMap<>();
                 ((FiltersAggregator.FilterByFilter) aggregator).filters().get(0).collectDebugInfo(debug::put);
-                assertThat(debug, equalTo(Map.of("type", "match_all", "results_from_metadata", 0)));
+                assertThat(debug, hasEntry("specialized_for", "match_all"));
+                assertThat(debug, hasEntry("results_from_metadata", 0));
             }
         }
     }
@@ -476,7 +476,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             // The estimated cost is 0 because we're going to read from metadata
             assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(0L));
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
-            assertThat(debug, equalTo(Map.of("type", "match_none")));
+            assertThat(debug, hasEntry("specialized_for", "match_none"));
         });
         testCase(
             builder,
@@ -503,7 +503,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             // The estimated cost is 0 because we're going to read from metadata
             assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(0L));
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
-            assertThat(debug, hasEntry("type", "term"));
+            assertThat(debug, hasEntry("specialized_for", "term"));
             assertThat((int) debug.get("results_from_metadata"), greaterThan(0));
             assertThat((int) debug.get("scorers_prepared_while_estimating_cost"), equalTo(0));
         }, ft);

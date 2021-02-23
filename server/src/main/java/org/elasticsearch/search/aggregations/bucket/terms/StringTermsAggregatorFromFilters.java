@@ -71,7 +71,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         if (false == FiltersAggregator.canUseFilterByFilter(parent, factories, null)) {
             return null;
         }
-        List<QueryToFilterAdapter> filters = new ArrayList<>();
+        List<QueryToFilterAdapter<?>> filters = new ArrayList<>();
         TermsEnum terms = values.termsEnum();
         for (long ord = 0; ord < values.getValueCount(); ord++) {
             if (acceptedOrds.test(ord) == false) {

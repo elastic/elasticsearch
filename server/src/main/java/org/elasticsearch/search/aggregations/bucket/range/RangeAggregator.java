@@ -354,7 +354,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             return null;
         }
         boolean wholeNumbersOnly = false == ((ValuesSource.Numeric) valuesSourceConfig.getValuesSource()).isFloatingPoint();
-        List<QueryToFilterAdapter> filters = new ArrayList<>(ranges.length);
+        List<QueryToFilterAdapter<?>> filters = new ArrayList<>(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
             /*
              * If the bounds on the ranges are too high then the `double`s

@@ -8,13 +8,21 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Map;
+
+import static org.elasticsearch.indices.SystemIndexDescriptor.findDynamicMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SystemIndexDescriptorTests extends ESTestCase {
 
+    /**
+     * Tests the various validation rules that are applied when creating a new system index descriptor.
+     */
     public void testValidation() {
         {
             Exception ex = expectThrows(NullPointerException.class,
@@ -74,5 +82,36 @@ public class SystemIndexDescriptorTests extends ESTestCase {
                 equalTo("system primary index provided as [" + primaryIndex + "] but cannot contain special characters or patterns")
             );
         }
+    }
+
+    /**
+     * Check that a system index descriptor correctly identifies the presence of a dynamic mapping when once is present.
+     */
+    public void testFindDynamicMappingsWithDynamicMapping() {
+        String json = "{"
+            + "  \"foo\": {"
+            + "    \"bar\": {"
+            + "      \"dynamic\": false"
+            + "    },"
+            + "    \"baz\": {"
+            + "      \"dynamic\": true"
+            + "    }"
+            + "  }"
+            + "}";
+
+        final Map<String, Object> mappings = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
+
+        assertThat(findDynamicMapping(mappings), equalTo(true));
+    }
+
+    /**
+     * Check that a system index descriptor correctly identifies the absence of a dynamic mapping when none are present.
+     */
+    public void testFindDynamicMappingsWithoutDynamicMapping() {
+        String json = "{ \"foo\": { \"bar\": { \"dynamic\": false } } }";
+
+        final Map<String, Object> mappings = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
+
+        assertThat(findDynamicMapping(mappings), equalTo(false));
     }
 }

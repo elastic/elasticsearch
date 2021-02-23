@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -63,8 +62,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     @Inject
     public TransportRankEvalAction(ActionFilters actionFilters, Client client, TransportService transportService,
                                    ScriptService scriptService, NamedXContentRegistry namedXContentRegistry) {
-        super(RankEvalAction.NAME, transportService, actionFilters,
-              (Writeable.Reader<RankEvalRequest>) RankEvalRequest::new);
+        super(RankEvalAction.NAME, transportService, actionFilters, RankEvalRequest::new);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
         this.client = client;
@@ -126,9 +124,8 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 ratedRequestsInSearch.toArray(new RatedRequest[ratedRequestsInSearch.size()]), errors));
     }
 
-    class RankEvalActionListener implements ActionListener<MultiSearchResponse> {
+    static class RankEvalActionListener extends ActionListener.Delegating<MultiSearchResponse, RankEvalResponse> {
 
-        private final ActionListener<RankEvalResponse> listener;
         private final RatedRequest[] specifications;
 
         private final Map<String, Exception> errors;
@@ -136,7 +133,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
 
         RankEvalActionListener(ActionListener<RankEvalResponse> listener, EvaluationMetric metric, RatedRequest[] specifications,
                 Map<String, Exception> errors) {
-            this.listener = listener;
+            super(listener);
             this.metric = metric;
             this.errors = errors;
             this.specifications = specifications;
@@ -157,12 +154,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 }
                 responsePosition++;
             }
-            listener.onResponse(new RankEvalResponse(this.metric.combine(responseDetails.values()), responseDetails, this.errors));
-        }
-
-        @Override
-        public void onFailure(Exception exception) {
-            listener.onFailure(exception);
+            delegate.onResponse(new RankEvalResponse(this.metric.combine(responseDetails.values()), responseDetails, this.errors));
         }
     }
 }

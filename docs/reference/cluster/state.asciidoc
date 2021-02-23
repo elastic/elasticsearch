@@ -41,7 +41,7 @@ The response provides the cluster state itself, which can be filtered to only
 retrieve the parts of interest as described below.
 
 The cluster's `cluster_uuid` is also returned as part of the top-level response,
-in addition to the `metadata` section. added[6.4.0]
+in addition to the `metadata` section.
 
 NOTE: While the cluster is still forming, it is possible for the `cluster_uuid`
       to be `_na_` as well as the cluster state's version to be `-1`.

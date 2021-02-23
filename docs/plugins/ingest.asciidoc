@@ -29,11 +29,4 @@ A processor that extracts details from the User-Agent header value. The
 distributed by default with Elasticsearch. See
 {ref}/user-agent-processor.html[User Agent processor] for more details.
 
-[discrete]
-=== Community contributed ingest plugins
-
-The following plugin has been contributed by our community:
-
-* https://github.com/johtani/elasticsearch-ingest-csv[Ingest CSV Processor Plugin] (by Jun Ohtani)
-
 include::ingest-attachment.asciidoc[]

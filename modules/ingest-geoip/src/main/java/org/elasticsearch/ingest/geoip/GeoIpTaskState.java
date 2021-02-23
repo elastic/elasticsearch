@@ -56,7 +56,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
     private final Map<String, Metadata> databases;
 
     private GeoIpTaskState(Map<String, Metadata> databases) {
-        this.databases = Map.copyOf(databases);
+        this.databases = Collections.unmodifiableMap(new HashMap<>(databases));
     }
 
     GeoIpTaskState(StreamInput input) throws IOException {

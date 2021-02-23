@@ -934,6 +934,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                         ).build(), strategy);
 
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED), empty());
+        assertTrue(clusterState.getRoutingNodes().node("X-0").isEmpty());
     }
 
 }

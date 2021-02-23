@@ -367,6 +367,8 @@ import java.util.function.UnaryOperator;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
+import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX;
 
 public class MachineLearning extends Plugin implements SystemIndexPlugin,
                                                        AnalysisPlugin,
@@ -1096,7 +1098,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         List<String> templateNames =
             Arrays.asList(
                 NotificationsIndex.NOTIFICATIONS_INDEX,
-                AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
+                STATE_INDEX_PREFIX,
                 AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String templateName : templateNames) {
             allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
@@ -1215,6 +1217,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             .setVersionMetaKey("version")
             .setOrigin(ML_ORIGIN)
             .build();
+    }
+
+    @Override
+    public Collection<String> getAssociatedIndexPatterns() {
+        return List.of(RESULTS_INDEX_PREFIX + "*", STATE_INDEX_PREFIX + "*", ".ml-notifications*", ".ml-annotations*");
     }
 
     @Override

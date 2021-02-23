@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.StreamsUtils;
@@ -25,14 +26,15 @@ import java.util.Collections;
 import java.util.List;
 
 public abstract class AbstractGeoIpIT extends ESIntegTestCase {
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(IngestGeoIpPlugin.class, IngestGeoIpSettingsPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, IngestGeoIpPlugin.class, IngestGeoIpSettingsPlugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singleton(IngestGeoIpPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, IngestGeoIpPlugin.class);
     }
 
 

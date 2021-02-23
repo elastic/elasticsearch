@@ -53,6 +53,7 @@ public class DeviceTypeParserTests extends ESTestCase {
                         testDevice.put("type", map.get("type"));
                         testDevice.put("os", map.get("os"));
                         testDevice.put("browser", map.get("browser"));
+                        testDevice.put("device", map.get("device"));
                         testDevices.add(testDevice);
 
                     }
@@ -125,6 +126,15 @@ public class DeviceTypeParserTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testRobotAgentString() throws Exception {
+
+        String deviceType = deviceTypeParser.findDeviceType("Mozilla/5.0 (Windows NT 6.1; WOW64; rv:63.0.247) Gecko/20100101 Firefox/63.0.247 Site24x7",
+            null, null, null);
+
+        assertThat(deviceType, is("Robot"));
+    }
+
+    @SuppressWarnings("unchecked")
     public void testRobotDevices() throws Exception {
 
         InputStream deviceTypeRegexStream = IngestUserAgentPlugin.class.getResourceAsStream("/robot-devices.yml");
@@ -192,7 +202,9 @@ public class DeviceTypeParserTests extends ESTestCase {
 
             VersionedName userAgent = new VersionedName(testDevice.get("browser"));
 
-            String deviceType = deviceTypeParser.findDeviceType(userAgent, os, null);
+            VersionedName device = new VersionedName(testDevice.get("device"));
+
+            String deviceType = deviceTypeParser.findDeviceType(userAgent, os, device);
 
             assertThat(deviceType, is("Tablet"));
         }

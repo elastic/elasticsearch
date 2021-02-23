@@ -25,5 +25,15 @@ tablet_devices:
   - type: Tablet
     browser: Crosswalk
     os: Android
-
-
+  - type: Tablet
+    browser: Chrome Mobile WebView
+    os: Android
+    device: Samsung SM-T590
+  - type: Tablet
+    browser: Amazon Silk
+    os: Linux
+    device: Kindle
+  - type: Tablet
+    browser: Chrome
+    os: Android
+    device: Samsung SM-T307U

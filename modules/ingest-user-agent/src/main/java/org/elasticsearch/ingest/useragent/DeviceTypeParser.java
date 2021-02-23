@@ -9,7 +9,11 @@
 package org.elasticsearch.ingest.useragent;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,17 +25,18 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.ingest.useragent.UserAgentParser.readParserConfigurations;
+import static org.elasticsearch.ingest.useragent.UserAgentParser.VersionedName;
 
 public class DeviceTypeParser {
 
     private static final String OS_PARSERS = "os_parsers";
     private static final String BROWSER_PARSER = "browser_parsers";
     private static final String DEVICE_PARSER = "device_parsers";
+    private static final String AGENT_STRING_PARSER = "agent_string_parsers";
 
-    private final List<String> patternListKeys = List.of(OS_PARSERS, BROWSER_PARSER, DEVICE_PARSER);
+    private final List<String> patternListKeys = List.of(OS_PARSERS, BROWSER_PARSER, DEVICE_PARSER, AGENT_STRING_PARSER);
 
     private final HashMap<String, ArrayList<DeviceTypeSubPattern>> deviceTypePatterns = new HashMap<>();
-
 
     public void init(InputStream regexStream) throws IOException {
         // EMPTY is safe here because we don't use namedObject
@@ -62,15 +67,21 @@ public class DeviceTypeParser {
         }
     }
 
-    public String findDeviceType(UserAgentParser.VersionedName userAgent,
-                                 UserAgentParser.VersionedName os, UserAgentParser.VersionedName device) {
+    public String findDeviceType(String agentString, VersionedName userAgent, VersionedName os, VersionedName device) {
+
+        if (agentString != null) {
+            String deviceType = findMatch(deviceTypePatterns.get(AGENT_STRING_PARSER), agentString);
+            if (deviceType != null) {
+                return deviceType;
+            }
+        }
+        return findDeviceType(userAgent, os, device);
+    }
+
+    public String findDeviceType(VersionedName userAgent, VersionedName os, VersionedName device) {
         ArrayList<String> extractedDeviceTypes = new ArrayList<>();
 
         String robot = "Robot", tablet = "Tablet", desktop = "Desktop", mobile = "Mobile";
-
-        if (userAgent == null) {
-            return null;
-        }
 
         for (String patternKey : patternListKeys) {
             String deviceType = null;
@@ -81,7 +92,7 @@ public class DeviceTypeParser {
                     }
                     break;
                 case BROWSER_PARSER:
-                    if (userAgent.name != null) {
+                    if (userAgent != null && userAgent.name != null) {
                         deviceType = findMatch(deviceTypePatterns.get(patternKey), userAgent.name);
                     }
                     break;

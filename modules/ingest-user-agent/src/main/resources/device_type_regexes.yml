@@ -28,7 +28,7 @@ os_parsers:
   - regex: '^(Android$|iOS|Windows Phone|Firefox OS|BlackBerry OS|KaiOS|Sailfish$|Maemo)'
     replacement: 'Mobile'
   #  Desktop OS, Not Common
-  - regex: '^(FreeBSD|OpenBSD|Arch Linux|Solaris|NetBSD|SUSE|SunOS|BeOS\/Haiku)'
+  - regex: '^(Windows XP|Windows 7|Windows 10|FreeBSD|OpenBSD|Arch Linux|Solaris|NetBSD|SUSE|SunOS|BeOS\/Haiku)'
     replacement: 'Desktop'
   - regex: 'Tablet|BlackBerry Tablet OS|iPad|FireOS|Crosswalk'
     replacement: 'Tablet'
@@ -50,5 +50,18 @@ browser_parsers:
     replacement: 'Tablet'
 
 device_parsers:
-  - regex: 'Tablet|BlackBerry Tablet OS|iPad|FireOS|Crosswalk'
+  - regex: 'Tablet|BlackBerry Tablet OS|iPad|FireOS|Crosswalk|Kindle'
     replacement: 'Tablet'
+    # Samsung tablets
+  - regex: 'SM-T\d+|SM-P\d+|GT-P\d+'
+    replacement: 'Tablet'
+    # other tablets
+  - regex: 'Asus Nexus \d+|Lenovo TB'
+    replacement: 'Tablet'
+
+agent_string_parsers:
+  - regex: 'Synthetic|Scanner|Crawler|Site24x7|PagePeeker|SpeedCurve|RuxitSynthetic|Google Web Preview|Synthetic|SiteChecker|Parser'
+    replacement: 'Robot'
+  - regex: 'Tablet'
+    replacement: 'Tablet'
+

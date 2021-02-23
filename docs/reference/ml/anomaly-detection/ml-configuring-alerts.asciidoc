@@ -1,0 +1,80 @@
+[role="xpack"]
+[[ml-configuring-alerts]]
+= Configuring {anomaly-detect} alerts
+
+{anomaly-detect-cap} alerts run scheduled checks on an {anomaly-job} or a group 
+of jobs to detect anomalies with certain conditions. If an anomaly meets the 
+conditions, the alert triggers the defined action. For example, you can create 
+an alert that checks an {anomaly-job} every fifteen minutes for critical 
+anomalies and notifies you in an email. This page helps you to configure an 
+{anomaly-detect} alert. To learn more about alerts in the {stack}, refer to 
+{kibana-ref}/alerting-getting-started.html#alerting-getting-started[Alerting and Actions].
+
+
+[[creating-anomaly-alerts]]
+== Creating an alert
+
+You can create {anomaly-detect} alerts in the {anomaly-job} wizard after you 
+start the job, from the job list, or under **{stack-manage-app} > 
+{alerts-ui}**. On the *Create alert* window, select *{anomaly-detect-cap} alert* 
+under the {ml-cap} section, then give a name to the alert and optionally provide 
+tags.
+
+Specify the time interval for the alert to check detected anomalies. It is 
+recommended to select an interval that is close to the bucket span of the 
+associated job. You can also select a notification option by using the _Notify_ 
+selector. For more details, refer to the documentation of
+{kibana-ref}/defining-alerts.html#defining-alerts-general-details[general alert details].
+
+NOTE: {anomaly-detect-cap} alerts handle duplications. If you set an interval 
+that makes the alert check the same bucket multiple times and the bucket 
+contains an anomaly that meets the alert conditions, the configured action 
+is triggered only once.
+  
+[role="screenshot"]
+image::images/ml-anomaly-alert-type.jpg["Creating an anomaly detection alert"]
+  
+Select the {anomaly-job} or the group of {anomaly-jobs} that is checked by the 
+alert. If you assign additional jobs to the group, the alert automatically 
+checks the new jobs the next time when the alert runs.
+
+You can select the result type of the {anomaly-job} that triggers the alert. 
+In particular, you can create alerts based on bucket, record, or influencer 
+results.
+
+[role="screenshot"]
+image::images/ml-anomaly-alert-severity.jpg["Selecting result type, severity, and test interval"]
+
+For each alert, you can configure the `anomaly_score` that triggers it. The 
+`anomaly_score` indicates the significance of a given anomaly compared to 
+previous anomalies. The default severity threshold is 75 which means every 
+anomaly with an `anomaly_score` of 75 or higher triggers the alert.
+
+You can also test the configured conditions against your existing data and check 
+the sample results by providing a valid interval for your data. The generated 
+preview contains the number of potentially created alert instances during the 
+relative time range you defined.
+
+
+[[defining-actions]]
+== Defining actions
+
+As a next step, connect your alert to actions that use supported built-in 
+integrations. Actions are {kib} services or third-party integrations that run 
+when the alert conditions are met.
+
+[role="screenshot"]
+image::images/ml-anomaly-alert-actions.jpg["Selecting action type"]
+
+For example, you can choose _Slack_ as an action type and configure it to send a 
+message to a channel you selected. You can also create an index connector that 
+writes the JSON object you configure to a specific index. It's also possible to 
+customize the notification messages. A list of variables is available to include 
+in the message, like job ID, anomaly score, time, or top influencers.
+
+[role="screenshot"]
+image::images/ml-anomaly-alert-messages.jpg["Customizing your message"]
+
+After you save the configurations, the alert appears in the _Alerts and 
+Actions_ list where you can check its status and see the overview of its 
+configuration information.

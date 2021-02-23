@@ -210,7 +210,6 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             }
         },
         Setting.Property.IndexScope,
-        Setting.Property.NodeScope,
         Setting.Property.NotCopyableOnResize
     );
 

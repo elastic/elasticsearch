@@ -95,11 +95,11 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
      */
     private boolean maybeReadChecksumFromFileInfo(ByteBuffer b) throws IOException {
         final int remaining = b.remaining();
-        if (remaining != CodecUtil.footerLength()) {
+        if (remaining > CodecUtil.footerLength()) {
             return false;
         }
         final long position = getFilePointer() + this.offset;
-        if (position != fileInfo.length() - CodecUtil.footerLength()) {
+        if (position < fileInfo.length() - CodecUtil.footerLength()) {
             return false;
         }
         if (isClone) {
@@ -107,7 +107,8 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         }
         boolean success = false;
         try {
-            b.put(checksumToBytesArray(fileInfo.checksum()));
+            final byte[] checksum = checksumToBytesArray(fileInfo.checksum());
+            b.put(checksum, CodecUtil.footerLength() - remaining, remaining);
             success = true;
         } catch (NumberFormatException e) {
             // tests disable this optimisation by passing an invalid checksum

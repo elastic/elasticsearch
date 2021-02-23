@@ -129,20 +129,25 @@ POST _transform/_preview
 {transform}.
 +
 --
-.. Supply a job ID and the name of the target (or _destination_) index. If the
-target index does not exist, it will be created automatically.
+.. Supply a {transform} ID, the name of the target (or _destination_) index and 
+optionally a description. If the target index does not exist, it will be created 
+automatically.
 
-.. Decide whether you want the {transform} to run once or continuously.
---
-+
---
-Since this sample data index is unchanging, let's use the default behavior and
-just run the {transform} once.
+.. Decide whether you want the {transform} to run once or continuously. Since 
+this sample data index is unchanging, let's use the default behavior and just 
+run the {transform} once. If you want to try it out, however, go ahead and click 
+on *Continuous mode*. You must choose a field that the {transform} can use to 
+check which entities have changed. In general, it's a good idea to use the 
+ingest timestamp field. In this example, however, you can use the `order_date` 
+field.
 
-If you want to try it out, however, go ahead and click on *Continuous mode*.
-You must choose a field that the {transform} can use to check which
-entities have changed. In general, it's a good idea to use the ingest timestamp
-field. In this example, however, you can use the `order_date` field.
+.. Optionally, you can configure a retention policy that applies to your 
+{transform}. Select a date field that is used to identify old documents 
+in the destination index and provide a maximum age. Documents that are older 
+than the configured value are removed from the destination index.
+
+[role="screenshot"]
+image::images/ecommerce-pivot3.png["Adding transfrom ID and retention policy to a {transform} in {kib}"]
 
 If you prefer, you can use the
 <<put-transform,create {transforms} API>>.
@@ -201,7 +206,13 @@ PUT _transform/ecommerce-customer-transform
   },
   "dest": {
     "index": "ecommerce-customers"
-  }
+  },
+  "retention_policy": {
+    "time": {
+      "field": "order_date",
+      "max_age": "60d"
+    }
+  }  
 }
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]

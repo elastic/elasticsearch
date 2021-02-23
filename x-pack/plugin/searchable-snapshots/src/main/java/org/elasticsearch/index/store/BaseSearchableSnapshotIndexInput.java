@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput.checksumToBytesArray;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInput {
 
@@ -95,11 +96,12 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
      */
     private boolean maybeReadChecksumFromFileInfo(ByteBuffer b) throws IOException {
         final int remaining = b.remaining();
-        if (remaining != CodecUtil.footerLength()) {
+        if (remaining > CodecUtil.footerLength()) {
             return false;
         }
         final long position = getFilePointer() + this.offset;
-        if (position != fileInfo.length() - CodecUtil.footerLength()) {
+        final long checksumPosition = fileInfo.length() - CodecUtil.footerLength();
+        if (position < checksumPosition) {
             return false;
         }
         if (isClone) {
@@ -107,7 +109,12 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         }
         boolean success = false;
         try {
-            b.put(checksumToBytesArray(fileInfo.checksum()));
+            final int checksumOffset = toIntBytes(Math.subtractExact(position, checksumPosition));
+            assert checksumOffset <= CodecUtil.footerLength() : checksumOffset;
+            assert 0 <= checksumOffset : checksumOffset;
+
+            final byte[] checksum = checksumToBytesArray(fileInfo.checksum());
+            b.put(checksum, checksumOffset, remaining);
             success = true;
         } catch (NumberFormatException e) {
             // tests disable this optimisation by passing an invalid checksum

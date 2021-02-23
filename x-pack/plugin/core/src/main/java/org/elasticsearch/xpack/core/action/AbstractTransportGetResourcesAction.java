@@ -95,9 +95,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
         executeAsyncWithOrigin(client.threadPool().getThreadContext(),
             executionOrigin(),
             searchRequest,
-            new ActionListener<SearchResponse>() {
-                @Override
-                public void onResponse(SearchResponse response) {
+            listener.<SearchResponse>delegateFailure((l, response) -> {
                     List<Resource> docs = new ArrayList<>();
                     Set<String> foundResourceIds = new HashSet<>();
                     long totalHitCount = response.getHits().getTotalHits().value;
@@ -114,30 +112,23 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                                 foundResourceIds.add(id);
                             }
                         } catch (IOException e) {
-                            this.onFailure(e);
+                            l.onFailure(e);
                         }
                     }
                     ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, request.isAllowNoResources());
                     requiredMatches.filterMatchedIds(foundResourceIds);
                     if (requiredMatches.hasUnmatchedIds()) {
-                        listener.onFailure(notFoundException(requiredMatches.unmatchedIdsString()));
+                        l.onFailure(notFoundException(requiredMatches.unmatchedIdsString()));
                     } else {
                         // if only exact ids have been given, take the count from docs to avoid potential duplicates
                         // in versioned indexes (like transform)
                         if (requiredMatches.isOnlyExact()) {
-                            listener.onResponse(new QueryPage<>(docs, docs.size(), getResultsField()));
+                            l.onResponse(new QueryPage<>(docs, docs.size(), getResultsField()));
                         } else {
-                            listener.onResponse(new QueryPage<>(docs, totalHitCount, getResultsField()));
+                            l.onResponse(new QueryPage<>(docs, totalHitCount, getResultsField()));
                         }
                     }
-                }
-
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            },
+                }),
             client::search);
     }
 

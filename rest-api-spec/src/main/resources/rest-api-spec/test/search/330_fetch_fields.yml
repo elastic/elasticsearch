@@ -815,7 +815,6 @@ Test nested field with sibling field resolving to DocValueFetcher:
         hits.hits.0.fields.products.0: { "manufacturer" : ["Supersoft"]}
   - match:
         hits.hits.0.fields.products.1: { "manufacturer" : ["HyperSmart"]}
-
 ---
 "Test ignores malformed values while returning valid ones":
   - skip:
@@ -850,3 +849,40 @@ Test nested field with sibling field resolving to DocValueFetcher:
   - match: { hits.hits.0.fields.number.2 : 3 }
   - match: { hits.hits.0.fields.number.3 : 5 }
   - match: { hits.hits.0.fields.number.4 : 6 }
+---
+Test token_count inside nested field doesn't fail:
+  - skip:
+      version: ' - 7.99.99'
+      reason:  'Added in 8.0 - change on backport'
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                   user:
+                     type: nested
+                     properties:
+                       name:
+                         type: text
+                         fields:
+                           length:
+                             type: token_count
+                             analyzer: standard
+
+  -  do:
+        index:
+           index: test
+           id: 1
+           refresh: true
+           body:
+              user:
+                 - { "name" : "Ann Marie Smith"}
+                 - { "name" : "James Brown"}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: [ "*" ]

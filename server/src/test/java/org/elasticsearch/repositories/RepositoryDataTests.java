@@ -65,8 +65,7 @@ public class RepositoryDataTests extends ESTestCase {
     }
 
     public void testXContent() throws IOException {
-        RepositoryData repositoryData =
-                generateRandomRepoData().withUuid(UUIDs.randomBase64UUID(random())).withClusterUuid(UUIDs.randomBase64UUID(random()));
+        RepositoryData repositoryData = generateRandomRepoData().withClusterUuid(UUIDs.randomBase64UUID(random()));
         XContentBuilder builder = JsonXContent.contentBuilder();
         repositoryData.snapshotsToXContent(builder, Version.CURRENT);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
@@ -144,7 +143,7 @@ public class RepositoryDataTests extends ESTestCase {
         // test that initializing indices works
         Map<IndexId, List<SnapshotId>> indices = randomIndices(snapshotIds);
         RepositoryData newRepoData = new RepositoryData(
-                repositoryData.getUuid(),
+                UUIDs.randomBase64UUID(random()),
                 repositoryData.getGenId(),
                 snapshotIds,
                 snapshotStates,
@@ -198,8 +197,7 @@ public class RepositoryDataTests extends ESTestCase {
 
     public void testIndexThatReferencesAnUnknownSnapshot() throws IOException {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
-        final RepositoryData repositoryData =
-                generateRandomRepoData().withUuid(UUIDs.randomBase64UUID()).withClusterUuid(UUIDs.randomBase64UUID(random()));
+        final RepositoryData repositoryData = generateRandomRepoData().withClusterUuid(UUIDs.randomBase64UUID(random()));
 
         XContentBuilder builder = XContentBuilder.builder(xContent);
         repositoryData.snapshotsToXContent(builder, Version.CURRENT);

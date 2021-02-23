@@ -31,6 +31,12 @@ public abstract class AbstractGeoIpIT extends ESIntegTestCase {
     }
 
     @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Collections.singleton(IngestGeoIpPlugin.class);
+    }
+
+
+    @Override
     protected Settings nodeSettings(final int nodeOrdinal) {
         final Path databasePath = createTempDir();
         try {

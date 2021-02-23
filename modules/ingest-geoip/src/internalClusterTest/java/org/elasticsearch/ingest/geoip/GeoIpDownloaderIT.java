@@ -56,11 +56,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singleton(IngestGeoIpPlugin.class);
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))

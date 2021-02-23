@@ -65,7 +65,7 @@ increases the relevance score.
 `case_insensitive` added:[7.10.0]::
 (Optional, Boolean) Allows ASCII case insensitive matching of the
 value with the indexed field values when set to true. Default is false which means
-the case sensitivity of matching depends on the underlying field's mapping
+the case sensitivity of matching depends on the underlying field's mapping.
 
 [[term-query-notes]]
 ==== Notes

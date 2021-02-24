@@ -10,6 +10,7 @@ your application to {es} 7.11.
 See also <<release-highlights>> and <<es-release-notes>>.
 
 * <<breaking_711_ml_changes>>
+* <<breaking_711_rest_changes>>
 * <<breaking_711_search_changes>>
 * <<breaking_711_transform_changes>>
 

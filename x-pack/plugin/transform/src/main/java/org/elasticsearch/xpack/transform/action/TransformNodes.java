@@ -15,6 +15,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public final class TransformNodes {
 
@@ -27,9 +28,11 @@ public final class TransformNodes {
      * @param clusterState State
      * @return The executor nodes
      */
-    public static String[] transformTaskNodes(List<String> transformIds, ClusterState clusterState) {
+    public static TransformNodeAssignments transformTaskNodes(List<String> transformIds, ClusterState clusterState) {
 
         Set<String> executorNodes = new HashSet<>();
+        Set<String> assigned = new HashSet<>();
+        Set<String> waitingForAssignment = new HashSet<>();
 
         PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
 
@@ -38,14 +41,23 @@ public final class TransformNodes {
 
             Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = tasksMetadata.findTasks(
                 TransformField.TASK_NAME,
-                t -> transformIdsSet.contains(t.getId()) && t.isAssigned()
+                t -> transformIdsSet.contains(t.getId())
             );
 
             for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
-                executorNodes.add(task.getExecutorNode());
+                if (task.isAssigned()) {
+                    executorNodes.add(task.getExecutorNode());
+                    assigned.add(task.getId());
+                } else {
+                    waitingForAssignment.add(task.getId());
+                }
             }
         }
 
-        return executorNodes.toArray(new String[0]);
+        Set<String> stopped = transformIds.stream()
+            .filter(id -> (assigned.contains(id) || waitingForAssignment.contains(id)) == false)
+            .collect(Collectors.toSet());
+
+        return new TransformNodeAssignments(executorNodes, assigned, waitingForAssignment, stopped);
     }
 }

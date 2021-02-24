@@ -1,6 +1,5 @@
 [[painless-runtime-fields]]
 === Use Painless scripts in runtime fields
-beta::[]
 A runtime field is a field that is evaluated at query time. When you define a
 runtime field, you can immediately use it in search requests, aggregations,
 filtering, and sorting.

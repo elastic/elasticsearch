@@ -58,8 +58,6 @@ import org.apache.lucene.util.SmallFloat;
  * same approach but allows other similarities besides {@link
  * org.apache.lucene.search.similarities.BM25Similarity}.
  *
- * @lucene.experimental
- *
  * TODO: this is temporarily copied from Lucene, remove once we update to Lucene 8.9.
  */
 public final class XCombinedFieldQuery extends Query implements Accountable {

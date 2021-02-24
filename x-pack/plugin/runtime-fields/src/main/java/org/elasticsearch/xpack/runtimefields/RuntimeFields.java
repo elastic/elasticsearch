@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.runtimefields;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -18,18 +17,15 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.runtimefields.mapper.NamedGroupExtractor;
 import org.elasticsearch.xpack.runtimefields.mapper.NamedGroupExtractor.GrokHelper;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -58,11 +54,6 @@ public final class RuntimeFields extends Plugin {
     @Override
     public List<Setting<?>> getSettings() {
         return org.elasticsearch.common.collect.List.of(GROK_WATCHDOG_INTERVAL, GROK_WATCHDOG_MAX_EXECUTION_TIME);
-    }
-
-    @Override
-    public Collection<Module> createGuiceModules() {
-        return Collections.singletonList(b -> XPackPlugin.bindFeatureSet(b, RuntimeFieldsFeatureSet.class));
     }
 
     @Override

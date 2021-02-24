@@ -139,7 +139,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
-  "priority": 200,
+  "priority": 500,
   "template": {
     "settings": {
       "index.lifecycle.name": "my-data-stream-policy"

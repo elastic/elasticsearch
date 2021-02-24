@@ -134,14 +134,13 @@ public class FieldFetcher {
         this.unmappedFieldsFetchAutomaton = unmappedFieldsFetchAutomaton;
     }
 
-    public Map<String, DocumentField> fetch(SourceLookup sourceLookup, Set<String> ignoredFields) throws IOException {
-        assert ignoredFields != null;
+    public Map<String, DocumentField> fetch(SourceLookup sourceLookup) throws IOException {
         Map<String, DocumentField> documentFields = new HashMap<>();
         for (FieldContext context : fieldContexts.values()) {
             String field = context.fieldName;
 
             ValueFetcher valueFetcher = context.valueFetcher;
-            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup, ignoredFields);
+            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup);
             if (parsedValues.isEmpty() == false) {
                 documentFields.put(field, new DocumentField(field, parsedValues));
             }

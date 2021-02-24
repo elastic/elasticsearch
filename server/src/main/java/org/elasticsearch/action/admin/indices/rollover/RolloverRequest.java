@@ -44,7 +44,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private static final ParseField MAX_AGE_CONDITION = new ParseField(MaxAgeCondition.NAME);
     private static final ParseField MAX_DOCS_CONDITION = new ParseField(MaxDocsCondition.NAME);
     private static final ParseField MAX_SIZE_CONDITION = new ParseField(MaxSizeCondition.NAME);
-    private static final ParseField MAX_SINGLE_PRIMARY_SIZE_CONDITION = new ParseField(MaxSinglePrimarySizeCondition.NAME);
+    private static final ParseField MAX_PRIMARY_SHARD_SIZE_CONDITION = new ParseField(MaxPrimaryShardSizeCondition.NAME);
 
     static {
         CONDITION_PARSER.declareString((conditions, s) ->
@@ -59,9 +59,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
                     new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSizeCondition.NAME))),
             MAX_SIZE_CONDITION);
         CONDITION_PARSER.declareString((conditions, s) ->
-                conditions.put(MaxSinglePrimarySizeCondition.NAME,
-                    new MaxSinglePrimarySizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSinglePrimarySizeCondition.NAME))),
-            MAX_SINGLE_PRIMARY_SIZE_CONDITION);
+                conditions.put(MaxPrimaryShardSizeCondition.NAME,
+                    new MaxPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxPrimaryShardSizeCondition.NAME))),
+            MAX_PRIMARY_SHARD_SIZE_CONDITION);
 
         PARSER.declareField((parser, request, context) -> CONDITION_PARSER.parse(parser, request.conditions, null),
             CONDITIONS, ObjectParser.ValueType.OBJECT);
@@ -206,12 +206,12 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     /**
      * Adds a size-based condition to check if the size of the largest primary shard is at least <code>size</code>.
      */
-    public void addMaxSinglePrimarySizeCondition(ByteSizeValue size) {
-        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition = new MaxSinglePrimarySizeCondition(size);
-        if (this.conditions.containsKey(maxSinglePrimarySizeCondition.name)) {
-            throw new IllegalArgumentException(maxSinglePrimarySizeCondition + " condition is already set");
+    public void addMaxPrimaryShardSizeCondition(ByteSizeValue size) {
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(size);
+        if (this.conditions.containsKey(maxPrimaryShardSizeCondition.name)) {
+            throw new IllegalArgumentException(maxPrimaryShardSizeCondition + " condition is already set");
         }
-        this.conditions.put(maxSinglePrimarySizeCondition.name, maxSinglePrimarySizeCondition);
+        this.conditions.put(maxPrimaryShardSizeCondition.name, maxPrimaryShardSizeCondition);
     }
 
     public boolean isDryRun() {

@@ -164,7 +164,9 @@ public final class RepositoryData {
         this.shardGenerations = shardGenerations;
         this.indexMetaDataGenerations = indexMetaDataGenerations;
         this.snapshotVersions = snapshotVersions;
-        this.clusterUUID = clusterUUID;
+        this.clusterUUID = Objects.requireNonNull(clusterUUID);
+        assert uuid.equals(MISSING_UUID) == clusterUUID.equals(MISSING_UUID) : "Either repository- and cluster UUID must both be missing" +
+                " or neither of them must be missing but saw [" + uuid + "][" + clusterUUID + "]";
         assert indices.values().containsAll(shardGenerations.indices()) : "ShardGenerations contained indices "
                 + shardGenerations.indices() + " but snapshots only reference indices " + indices.values();
         assert indexSnapshots.values().stream().noneMatch(snapshotIdList -> Set.copyOf(snapshotIdList).size() != snapshotIdList.size()) :
@@ -215,7 +217,7 @@ public final class RepositoryData {
 
     /**
      * @return The UUID of this repository, or {@link RepositoryData#MISSING_UUID} if this repository has no UUID because it still
-     * supports access from versions earlier than {@link SnapshotsService#REPOSITORY_UUID_IN_REPO_DATA_VERSION}.
+     * supports access from versions earlier than {@link SnapshotsService#UUIDS_IN_REPO_DATA_VERSION}.
      */
     public String getUuid() {
         return uuid;
@@ -223,7 +225,7 @@ public final class RepositoryData {
 
     /**
      * @return the cluster UUID of the cluster that wrote this instance to the repository or {@link RepositoryData#MISSING_UUID} if this
-     * instance was written by a cluster older than {@link SnapshotsService#CLUSTER_UUID_IN_REPO_DATA_VERSION}.
+     * instance was written by a cluster older than {@link SnapshotsService#UUIDS_IN_REPO_DATA_VERSION}.
      */
     public String getClusterUUID() {
         return clusterUUID;
@@ -404,48 +406,12 @@ public final class RepositoryData {
     }
 
     /**
-     * Make a copy of this instance with the given UUID and all other fields unchanged.
+     * For test purposes, make a copy of this instance with the cluster- and repository UUIDs removed and all other fields unchanged,
+     * as if from an older version.
      */
-    public RepositoryData withUuid(String uuid) {
-        assert this.uuid.equals(MISSING_UUID) : this.uuid;
-        assert uuid.equals(MISSING_UUID) == false;
-        return new RepositoryData(
-                uuid,
-                genId,
-                snapshotIds,
-                snapshotStates,
-                snapshotVersions,
-                indices,
-                indexSnapshots,
-                shardGenerations,
-                indexMetaDataGenerations,
-                clusterUUID);
-    }
-
-    /**
-     * For test purposes, make a copy of this instance with the UUID removed and all other fields unchanged, as if from an older version.
-     */
-    public RepositoryData withoutRepositoryUUID() {
+    public RepositoryData withoutUUIDs() {
         return new RepositoryData(
                 MISSING_UUID,
-                genId,
-                snapshotIds,
-                snapshotStates,
-                snapshotVersions,
-                indices,
-                indexSnapshots,
-                shardGenerations,
-                indexMetaDataGenerations,
-                clusterUUID);
-    }
-
-    /**
-     * For test purposes, make a copy of this instance with the cluster UUID removed and all other fields unchanged, as if from an older
-     * version.
-     */
-    public RepositoryData withoutClusterUUID() {
-        return new RepositoryData(
-                uuid,
                 genId,
                 snapshotIds,
                 snapshotStates,
@@ -460,7 +426,7 @@ public final class RepositoryData {
     public RepositoryData withClusterUuid(String clusterUUID) {
         assert clusterUUID.equals(MISSING_UUID) == false;
         return new RepositoryData(
-                uuid,
+                uuid.equals(MISSING_UUID) ? UUIDs.randomBase64UUID() : uuid,
                 genId,
                 snapshotIds,
                 snapshotStates,
@@ -470,24 +436,6 @@ public final class RepositoryData {
                 shardGenerations,
                 indexMetaDataGenerations,
                 clusterUUID);
-    }
-
-    /**
-     * For test purposes, make a copy of this instance with the cluster UUID removed and all other fields unchanged,
-     * as if from an older version.
-     */
-    public RepositoryData withoutClusterUuid() {
-        return new RepositoryData(
-                uuid,
-                genId,
-                snapshotIds,
-                snapshotStates,
-                snapshotVersions,
-                indices,
-                indexSnapshots,
-                shardGenerations,
-                indexMetaDataGenerations,
-                MISSING_UUID);
     }
 
     /**
@@ -647,13 +595,11 @@ public final class RepositoryData {
             final Version repoMetaVersion,
             boolean permitMissingUuid) throws IOException {
 
-        final boolean shouldWriteClusterId = SnapshotsService.includesClusterUUID(repoMetaVersion);
-        final boolean shouldWriteRepoUuid = SnapshotsService.includesRepositoryUuid(repoMetaVersion);
+        final boolean shouldWriteUUIDS = SnapshotsService.includesUUIDs(repoMetaVersion);
         final boolean shouldWriteIndexGens = SnapshotsService.useIndexGenerations(repoMetaVersion);
         final boolean shouldWriteShardGens = SnapshotsService.useShardGenerations(repoMetaVersion);
 
-        assert Boolean.compare(shouldWriteClusterId, shouldWriteRepoUuid) <= 0;
-        assert Boolean.compare(shouldWriteRepoUuid, shouldWriteIndexGens) <= 0;
+        assert Boolean.compare(shouldWriteUUIDS, shouldWriteIndexGens) <= 0;
         assert Boolean.compare(shouldWriteIndexGens, shouldWriteShardGens) <= 0;
 
         builder.startObject();
@@ -661,10 +607,8 @@ public final class RepositoryData {
         if (shouldWriteShardGens) {
             // Add min version field to make it impossible for older ES versions to deserialize this object
             final Version minVersion;
-            if (shouldWriteClusterId) {
-                minVersion = SnapshotsService.CLUSTER_UUID_IN_REPO_DATA_VERSION;
-            } else if (shouldWriteRepoUuid) {
-                minVersion = SnapshotsService.REPOSITORY_UUID_IN_REPO_DATA_VERSION;
+            if (shouldWriteUUIDS) {
+                minVersion = SnapshotsService.UUIDS_IN_REPO_DATA_VERSION;
             } else if (shouldWriteIndexGens) {
                 minVersion = SnapshotsService.INDEX_GEN_IN_REPO_DATA_VERSION;
             } else {
@@ -673,23 +617,19 @@ public final class RepositoryData {
             builder.field(MIN_VERSION, minVersion.toString());
         }
 
-        if (shouldWriteRepoUuid) {
+        if (shouldWriteUUIDS) {
             if (uuid.equals(MISSING_UUID)) {
                 assert permitMissingUuid : "missing uuid";
             } else {
                 builder.field(UUID, uuid);
             }
-        } else {
-            assert uuid.equals(MISSING_UUID) : "lost uuid " + uuid;
-        }
-
-        if (shouldWriteClusterId) {
             if (clusterUUID.equals(MISSING_UUID)) {
                 assert permitMissingUuid : "missing clusterUUID";
             } else {
                 builder.field(CLUSTER_UUID, clusterUUID);
             }
         } else {
+            assert uuid.equals(MISSING_UUID) : "lost uuid " + uuid;
             assert clusterUUID.equals(MISSING_UUID) : "lost clusterUUID " + clusterUUID;
         }
 

@@ -530,7 +530,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
         private void onWorkerCompletion() {
             if (workerCountdown.countDown()) {
-                transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.run(listener, () -> {
+                transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
                     final long listingStartTimeNanos = System.nanoTime();
                     ensureConsistentListing();
                     final long deleteStartTimeNanos = System.nanoTime();

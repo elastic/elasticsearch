@@ -436,6 +436,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      *       "ignore_malformed": true/false
      *    }
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69071")
     public void testGeoShapeField() throws IOException {
         String query = "SELECT geo_shape_field FROM test";
         String actualValue = "[-77.03653, 38.897676]";

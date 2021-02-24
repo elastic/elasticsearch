@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -58,6 +59,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final String TOTAL_FEATURE_IMPORTANCE = "total_feature_importance";
     public static final String FEATURE_IMPORTANCE_BASELINE = "feature_importance_baseline";
     public static final String HYPERPARAMETERS = "hyperparameters";
+    public static final String MODEL_ALIASES = "model_aliases";
 
     private static final String ESTIMATED_HEAP_MEMORY_USAGE_HUMAN = "estimated_heap_memory_usage";
 
@@ -471,34 +473,41 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             if (totalFeatureImportance == null) {
                 return this;
             }
-            if (this.metadata == null) {
-                this.metadata = new HashMap<>();
-            }
-            this.metadata.put(TOTAL_FEATURE_IMPORTANCE,
-                totalFeatureImportance.stream().map(TotalFeatureImportance::asMap).collect(Collectors.toList()));
-            return this;
+            return addToMetadata(
+                TOTAL_FEATURE_IMPORTANCE,
+                totalFeatureImportance.stream().map(TotalFeatureImportance::asMap).collect(Collectors.toList())
+            );
         }
 
         public Builder setBaselineFeatureImportance(FeatureImportanceBaseline featureImportanceBaseline) {
             if (featureImportanceBaseline == null) {
                 return this;
             }
-            if (this.metadata == null) {
-                this.metadata = new HashMap<>();
-            }
-            this.metadata.put(FEATURE_IMPORTANCE_BASELINE, featureImportanceBaseline.asMap());
-            return this;
+            return addToMetadata(FEATURE_IMPORTANCE_BASELINE, featureImportanceBaseline.asMap());
         }
 
         public Builder setHyperparameters(List<Hyperparameters> hyperparameters) {
             if (hyperparameters == null) {
                 return this;
             }
+            return addToMetadata(
+                HYPERPARAMETERS,
+                hyperparameters.stream().map(Hyperparameters::asMap).collect(Collectors.toList())
+            );
+        }
+
+        public Builder setModelAliases(Set<String> modelAliases) {
+            if (modelAliases == null || modelAliases.isEmpty()) {
+                return this;
+            }
+            return addToMetadata(MODEL_ALIASES, modelAliases.stream().sorted().collect(Collectors.toList()));
+        }
+
+        private Builder addToMetadata(String fieldName, Object value) {
             if (this.metadata == null) {
                 this.metadata = new HashMap<>();
             }
-            this.metadata.put(HYPERPARAMETERS,
-            hyperparameters.stream().map(Hyperparameters::asMap).collect(Collectors.toList()));
+            this.metadata.put(fieldName, value);
             return this;
         }
 
@@ -662,6 +671,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                     validationException = checkIllegalSetting(
                         metadata.get(TOTAL_FEATURE_IMPORTANCE),
                         METADATA.getPreferredName() + "." + TOTAL_FEATURE_IMPORTANCE,
+                        validationException);
+                    validationException = checkIllegalSetting(
+                        metadata.get(MODEL_ALIASES),
+                        METADATA.getPreferredName() + "." + MODEL_ALIASES,
                         validationException);
                 }
             }

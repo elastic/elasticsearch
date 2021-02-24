@@ -31,8 +31,4 @@ public class SecondOfMinute extends TimeFunction {
         return new SecondOfMinute(source(), newChild, zoneId());
     }
 
-    @Override
-    public String dateTimeFormat() {
-        return "s";
-    }
 }

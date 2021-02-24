@@ -16,16 +16,23 @@ import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
+import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
 import org.elasticsearch.gradle.test.rest.transform.headers.InjectHeaders;
 import org.elasticsearch.gradle.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.RemoveMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.ReplaceMatch;
+import org.elasticsearch.gradle.test.rest.transform.warnings.InjectAllowedWarnings;
+import org.elasticsearch.gradle.test.rest.transform.warnings.InjectWarnings;
+import org.elasticsearch.gradle.test.rest.transform.warnings.RemoveWarnings;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SkipWhenEmpty;
@@ -38,12 +45,12 @@ import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin.COMPATIBLE_VERSION;
+import java.util.Set;
 
 /**
  * A task to transform REST tests for use in REST API compatibility before they are executed.
@@ -58,18 +65,22 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     private static final Map<String, String> headers = new LinkedHashMap<>();
 
-    private FileCollection input;
-    private File output;
+    private final int compatibleVersion;
+    private final DirectoryProperty sourceDirectory;
+    private final DirectoryProperty outputDirectory;
     private final PatternFilterable testPatternSet;
     private final List<RestTestTransform<?>> transformations = new ArrayList<>();
 
     @Inject
-    public RestCompatTestTransformTask(Factory<PatternSet> patternSetFactory) {
+    public RestCompatTestTransformTask(Factory<PatternSet> patternSetFactory, ObjectFactory objectFactory) {
+        this.compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
+        this.sourceDirectory = objectFactory.directoryProperty();
+        this.outputDirectory = objectFactory.directoryProperty();
         this.testPatternSet = patternSetFactory.create();
         this.testPatternSet.include("/*" + "*/*.yml"); // concat these strings to keep build from thinking this is invalid javadoc
         // always inject compat headers
-        headers.put("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + COMPATIBLE_VERSION);
-        headers.put("Accept", "application/vnd.elasticsearch+json;compatible-with=" + COMPATIBLE_VERSION);
+        headers.put("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
+        headers.put("Accept", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
         transformations.add(new InjectHeaders(headers));
     }
 
@@ -128,20 +139,46 @@ public class RestCompatTestTransformTask extends DefaultTask {
         transformations.add(new AddMatch(subKey, MAPPER.convertValue(value, JsonNode.class), testName));
     }
 
+    /**
+     * Adds one or more warnings to the given test
+     * @param testName the test name to add the warning
+     * @param warnings the warning(s) to add
+     */
+    public void addWarning(String testName, String... warnings) {
+        transformations.add(new InjectWarnings(Arrays.asList(warnings), testName));
+    }
+
+    /**
+     * Removes one or more warnings
+     * @param warnings the warning(s) to remove
+     */
+    public void removeWarning(String... warnings) {
+        transformations.add(new RemoveWarnings(Set.copyOf(Arrays.asList(warnings))));
+    }
+
+    /**
+     * Adds one or more allowed warnings
+     * @param allowedWarnings the warning(s) to add
+     */
+    public void addAllowedWarning(String... allowedWarnings) {
+        transformations.add(new InjectAllowedWarnings(Arrays.asList(allowedWarnings)));
+    }
+
     @OutputDirectory
-    public File getOutputDir() {
-        return output;
+    public DirectoryProperty getOutputDirectory() {
+        return outputDirectory;
     }
 
     @SkipWhenEmpty
     @InputFiles
     public FileTree getTestFiles() {
-        return input.getAsFileTree().matching(testPatternSet);
+        return sourceDirectory.getAsFileTree().matching(testPatternSet);
     }
 
     @TaskAction
     public void transform() throws IOException {
         RestTestTransformer transformer = new RestTestTransformer();
+        // TODO: instead of flattening the FileTree here leverage FileTree.visit() so we can preserve folder hierarchy in a more robust way
         for (File file : getTestFiles().getFiles()) {
             YAMLParser yamlParser = YAML_FACTORY.createParser(file);
             List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
@@ -151,7 +188,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
             if (testFileParts.length != 2) {
                 throw new IllegalArgumentException("could not split " + file + " into expected parts");
             }
-            File output = new File(getOutputDir(), testFileParts[1]);
+            File output = new File(outputDirectory.get().dir(REST_TEST_PREFIX).getAsFile(), testFileParts[1]);
             output.getParentFile().mkdirs();
             try (SequenceWriter sequenceWriter = WRITER.writeValues(output)) {
                 for (ObjectNode transformedTest : transformRestTests) {
@@ -161,16 +198,13 @@ public class RestCompatTestTransformTask extends DefaultTask {
         }
     }
 
+    @Internal
+    public DirectoryProperty getSourceDirectory() {
+        return sourceDirectory;
+    }
+
     @Nested
     public List<RestTestTransform<?>> getTransformations() {
         return transformations;
-    }
-
-    public void setInput(FileCollection input) {
-        this.input = input;
-    }
-
-    public void setOutput(File output) {
-        this.output = output;
     }
 }

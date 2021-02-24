@@ -578,15 +578,15 @@ candidate split.
 end::dfas-feature-bag-fraction[]
 
 tag::dfas-feature-processors[]
-Advanced configuration option.
-A collection of feature preprocessors that modify one or more included fields.
-The analysis uses the resulting one or more features instead of the
-original document field. Multiple `feature_processors` entries can refer to the
-same document fields. Automatic categorical 
-{ml-docs}/ml-feature-encoding.html[feature encoding] still occurs for the fields 
-that are unprocessed by a custom processor or that have categorical values.
-Only use this if you want to override the automatic feature encoding of the 
-specified fields. Refer to 
+Advanced configuration option. A collection of feature preprocessors that modify 
+one or more included fields. The analysis uses the resulting one or more 
+features instead of the original document field. However, these features are 
+ephemeral; they are not stored in the destination index. Multiple 
+`feature_processors` entries can refer to the same document fields. Automatic 
+categorical {ml-docs}/ml-feature-encoding.html[feature encoding] still occurs 
+for the fields that are unprocessed by a custom processor or that have
+categorical values. Use this property only if you want to override the automatic 
+feature encoding of the specified fields. Refer to 
 {ml-docs}/ml-feature-processors.html[{dfanalytics} feature processors] to learn 
 more.
 end::dfas-feature-processors[]
@@ -619,8 +619,8 @@ The ordered array of custom processors to execute. Must be more than 1.
 end::dfas-feature-processors-multi-proc[]
 
 tag::dfas-feature-processors-ngram[]
-The configuration information necessary to perform ngram encoding. Features 
-written out by this encoder have the following name format: 
+The configuration information necessary to perform n-gram encoding. Features 
+created by this encoder have the following name format: 
 `<feature_prefix>.<ngram><string position>`. For example, if the 
 `feature_prefix` is `f`, the feature name for the second unigram in a string is 
 `f.11`.
@@ -635,18 +635,18 @@ The name of the text field to encode.
 end::dfas-feature-processors-ngram-field[]
 
 tag::dfas-feature-processors-ngram-length[]
-Specifies the length of the ngram substring. Defaults to `50`. Must be greater 
+Specifies the length of the n-gram substring. Defaults to `50`. Must be greater 
 than `0`.
 end::dfas-feature-processors-ngram-length[]
 
 tag::dfas-feature-processors-ngram-ngrams[]
-Specifies which ngrams to gather. It’s an array of integer values where the 
+Specifies which n-grams to gather. It’s an array of integer values where the 
 minimum value is 1, and a maximum value is 5.
 end::dfas-feature-processors-ngram-ngrams[]
 
 tag::dfas-feature-processors-ngram-start[]
-Specifies the zero-indexed start of the ngram substring. Negative values are 
-allowed for encoding ngram of string suffixes. Defaults to `0`.
+Specifies the zero-indexed start of the n-gram substring. Negative values are 
+allowed for encoding n-grams of string suffixes. Defaults to `0`.
 end::dfas-feature-processors-ngram-start[]
 
 tag::dfas-feature-processors-one-hot[]
@@ -1148,6 +1148,10 @@ end::model-bytes-exceeded[]
 tag::model-id[]
 The unique identifier of the trained model.
 end::model-id[]
+
+tag::model-id-or-alias[]
+The unique identifier of the trained model or a model alias.
+end::model-id-or-alias[]
 
 tag::model-memory-limit[]
 The approximate maximum amount of memory resources that are required for

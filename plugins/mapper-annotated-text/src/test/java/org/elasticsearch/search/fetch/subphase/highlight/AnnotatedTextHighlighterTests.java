@@ -90,6 +90,9 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                 for (int i = 0; i < markedUpInputs.length; i++) {
                     annotations[i] = AnnotatedText.parse(markedUpInputs[i]);
                 }
+                if (queryMaxAnalyzedOffset != null) {
+                    wrapperAnalyzer = new LimitTokenOffsetAnalyzer(wrapperAnalyzer, queryMaxAnalyzedOffset);
+                }
                 AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer);
                 hiliteAnalyzer.setAnnotations(annotations);
                 AnnotatedPassageFormatter passageFormatter = new AnnotatedPassageFormatter(new DefaultEncoder());

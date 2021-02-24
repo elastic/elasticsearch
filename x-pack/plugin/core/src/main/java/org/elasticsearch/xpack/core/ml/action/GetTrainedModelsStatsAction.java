@@ -171,7 +171,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
         public static class Builder {
 
             private long totalModelCount;
-            private Set<String> expandedIds;
+            private Map<String, Set<String>> expandedIdsWithAliases;
             private Map<String, IngestStats> ingestStatsMap;
             private Map<String, InferenceStats> inferenceStatsMap;
 
@@ -180,13 +180,13 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return this;
             }
 
-            public Builder setExpandedIds(Set<String> expandedIds) {
-                this.expandedIds = expandedIds;
+            public Builder setExpandedIdsWithAliases(Map<String, Set<String>> expandedIdsWithAliases) {
+                this.expandedIdsWithAliases = expandedIdsWithAliases;
                 return this;
             }
 
-            public Set<String> getExpandedIds() {
-                return this.expandedIds;
+            public Map<String, Set<String>> getExpandedIdsWithAliases() {
+                return this.expandedIdsWithAliases;
             }
 
             public Builder setIngestStatsByModelId(Map<String, IngestStats> ingestStatsByModelId) {
@@ -200,8 +200,8 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             }
 
             public Response build() {
-                List<TrainedModelStats> trainedModelStats = new ArrayList<>(expandedIds.size());
-                expandedIds.forEach(id -> {
+                List<TrainedModelStats> trainedModelStats = new ArrayList<>(expandedIdsWithAliases.size());
+                expandedIdsWithAliases.keySet().forEach(id -> {
                     IngestStats ingestStats = ingestStatsMap.get(id);
                     InferenceStats inferenceStats = inferenceStatsMap.get(id);
                     trainedModelStats.add(new TrainedModelStats(

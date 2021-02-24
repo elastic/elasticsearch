@@ -161,7 +161,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
     }
 
     public void testMoveToStepRereadsPolicy() throws Exception {
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, TimeValue.timeValueHours(1), null), TimeValue.ZERO);
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, TimeValue.timeValueHours(1), null), TimeValue.ZERO);
 
         createIndexWithSettings(client(), "test-1", alias, Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -173,7 +173,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), "test-1"),
             equalTo(new StepKey("hot", "rollover", "check-rollover-ready"))), 30, TimeUnit.SECONDS);
 
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, 1L), TimeValue.ZERO);
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L), TimeValue.ZERO);
 
         // Move to the same step, which should re-read the policy
         Request moveToStepRequest = new Request("POST", "_ilm/move/test-1");

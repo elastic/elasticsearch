@@ -4,7 +4,7 @@ plugins {
 
 tasks.register("launchReaper") {
   doLast {
-    def reaper = project.extensions.getByName('reaper')
+    def reaper = project.extensions.getByName('reaper').reaperService.get()
     reaper.registerCommand('test', 'true')
     reaper.unregister('test')
   }

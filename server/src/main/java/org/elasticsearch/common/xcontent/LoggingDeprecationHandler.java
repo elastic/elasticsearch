@@ -59,4 +59,11 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
         deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_field",
             "{}Deprecated field [{}] used, this field is unused and will be removed entirely", prefix, usedName);
     }
+
+    @Override
+    public void usedCompatibleField(String parserName, Supplier<XContentLocation> location, String fieldName) {
+        String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+        deprecationLogger.compatibleApiWarning("deprecated_field",
+            "{}A field [{}] was removed. Check deprecation warnings", prefix, fieldName);
+    }
 }

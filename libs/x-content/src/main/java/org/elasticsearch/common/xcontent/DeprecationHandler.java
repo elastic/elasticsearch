@@ -97,4 +97,6 @@ public interface DeprecationHandler {
      */
     void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName);
 
+    default void usedCompatibleField(String parserName, Supplier<XContentLocation> location, String fieldName) {
+    }
 }

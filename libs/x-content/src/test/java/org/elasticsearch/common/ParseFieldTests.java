@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -60,8 +61,6 @@ public class ParseFieldTests extends ESTestCase {
         assertWarnings("Deprecated field [old_dep] used, this field is unused and will be removed entirely");
         assertTrue(field.match("new_dep", LoggingDeprecationHandler.INSTANCE));
         assertWarnings("Deprecated field [new_dep] used, this field is unused and will be removed entirely");
-
-
     }
 
     public void testGetAllNamesIncludedDeprecated() {
@@ -70,5 +69,26 @@ public class ParseFieldTests extends ESTestCase {
 
         parseField = new ParseField("more_like_this", "mlt");
         assertThat(parseField.getAllNamesIncludedDeprecated(), arrayContainingInAnyOrder("more_like_this", "mlt"));
+    }
+
+    public void testCompatibleField() {
+        ParseField field = new ParseField("new_name", "old_name")
+            .withRestApiCompatibilityVersions(RestApiCompatibleVersion.V_7);
+
+        assertTrue(field.match("new_name", LoggingDeprecationHandler.INSTANCE));
+        assertTrue(field.match("old_name", LoggingDeprecationHandler.INSTANCE));
+        assertWarnings("Deprecated field [old_name] used, expected [new_name] instead",
+            "A field [old_name] was removed. Check deprecation warnings");
+
+        ParseField allDepField = new ParseField("dep", "old_name")
+            .withAllDeprecated()
+            .withRestApiCompatibilityVersions(RestApiCompatibleVersion.V_7);
+
+        assertTrue(allDepField.match("dep", LoggingDeprecationHandler.INSTANCE));
+        assertWarnings("Deprecated field [dep] used, this field is unused and will be removed entirely",
+            "A field [dep] was removed. Check deprecation warnings");
+        assertTrue(allDepField.match("old_name", LoggingDeprecationHandler.INSTANCE));
+        assertWarnings("Deprecated field [old_name] used, this field is unused and will be removed entirely",
+            "A field [old_name] was removed. Check deprecation warnings");
     }
 }

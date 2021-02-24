@@ -28,15 +28,19 @@ public class ParseField {
     private final String name;
     private final String[] deprecatedNames;
     private final Set<RestApiCompatibleVersion> restApiCompatibleVersions = new HashSet<>(2);
-    private String allReplacedWith = null;
+    private final String allReplacedWith;
+    private final boolean fullyDeprecated;
+
     private final String[] allNames;
-    private boolean fullyDeprecated = false;
 
     private static final String[] EMPTY = new String[0];
 
 
-    private ParseField(String name, Collection<RestApiCompatibleVersion> restApiCompatibleVersions, String[] deprecatedNames) {
+    private ParseField(String name, Collection<RestApiCompatibleVersion> restApiCompatibleVersions, String[] deprecatedNames,
+                       boolean fullyDeprecated, String allReplacedWith) {
         this.name = name;
+        this.fullyDeprecated = fullyDeprecated;
+        this.allReplacedWith = allReplacedWith;
         if (deprecatedNames == null || deprecatedNames.length == 0) {
             this.deprecatedNames = EMPTY;
         } else {
@@ -60,7 +64,8 @@ public class ParseField {
      *                        accepted when strict matching is used.
      */
     public ParseField(String name, String... deprecatedNames) {
-        this(name, List.of(RestApiCompatibleVersion.currentVersion(), RestApiCompatibleVersion.minimumSupported()) ,deprecatedNames);
+        this(name, List.of(RestApiCompatibleVersion.currentVersion(), RestApiCompatibleVersion.minimumSupported()) ,deprecatedNames,
+            false, null);
     }
 
     /**
@@ -86,7 +91,7 @@ public class ParseField {
      *         but with the specified deprecated names
      */
     public ParseField withDeprecation(String... deprecatedNames) {
-        return new ParseField(this.name, deprecatedNames);
+        return new ParseField(this.name, this.restApiCompatibleVersions, deprecatedNames, this.fullyDeprecated, this.allReplacedWith);
     }
 
 
@@ -95,7 +100,8 @@ public class ParseField {
      * @param restApiCompatibleVersions rest api compatibility versions under which specifies when a lookup will be allowed
      */
     public ParseField withRestApiCompatibilityVersions(RestApiCompatibleVersion... restApiCompatibleVersions) {
-        return new ParseField(this.name, Arrays.asList(restApiCompatibleVersions), this.deprecatedNames);
+        return new ParseField(this.name, Arrays.asList(restApiCompatibleVersions), this.deprecatedNames,
+            this.fullyDeprecated, this.allReplacedWith);
     }
 
     /**
@@ -110,18 +116,16 @@ public class ParseField {
      * with {@code allReplacedWith}.
      */
     public ParseField withAllDeprecated(String allReplacedWith) {
-        ParseField parseField = this.withDeprecation(getAllNamesIncludedDeprecated());
-        parseField.allReplacedWith = allReplacedWith;
-        return parseField;
+        return new ParseField(this.name, this.restApiCompatibleVersions, getAllNamesIncludedDeprecated(),
+            this.fullyDeprecated, allReplacedWith);
     }
 
     /**
      * Return a new ParseField where all field names are deprecated with no replacement
      */
     public ParseField withAllDeprecated() {
-        ParseField parseField = this.withDeprecation(getAllNamesIncludedDeprecated());
-        parseField.fullyDeprecated = true;
-        return parseField;
+        return new ParseField(this.name, this.restApiCompatibleVersions, getAllNamesIncludedDeprecated(),
+            true, this.allReplacedWith);
     }
 
     /**
@@ -167,9 +171,16 @@ public class ParseField {
                 } else {
                     deprecationHandler.usedDeprecatedField(parserName, location, fieldName, allReplacedWith);
                 }
+
+                if(restApiCompatibleVersions.size() == 1 &&
+                    restApiCompatibleVersions.contains(RestApiCompatibleVersion.minimumSupported())) {
+                    deprecationHandler.usedCompatibleField(parserName, location, fieldName);
+                }
                 return true;
             }
         }
+
+
         return false;
     }
 

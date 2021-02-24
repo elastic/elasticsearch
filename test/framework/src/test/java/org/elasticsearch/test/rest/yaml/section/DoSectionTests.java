@@ -60,7 +60,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             final DoSection section = new DoSection(new XContentLocation(1, 1));
 
             final AssertionError one = expectThrows(AssertionError.class, () ->
-                section.checkWarningHeaders(singletonList(testHeader), Version.CURRENT));
+                    section.checkWarningHeaders(singletonList(testHeader), Version.CURRENT));
             assertEquals("got unexpected warning header [\n\t" + testHeader + "\n]\n", one.getMessage());
 
             final AssertionError multiple = expectThrows(AssertionError.class, () ->

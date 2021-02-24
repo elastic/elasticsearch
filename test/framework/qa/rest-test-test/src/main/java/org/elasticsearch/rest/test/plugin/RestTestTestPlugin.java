@@ -8,7 +8,6 @@
 
 package org.elasticsearch.rest.test.plugin;
 
-
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -32,7 +31,8 @@ public class RestTestTestPlugin extends Plugin implements ActionPlugin {
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster) {
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         return List.of(new EmitWarningEndpoint());
     }
 }

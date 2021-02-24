@@ -152,14 +152,14 @@ public class ClientYamlTestSuite {
                 "without a corresponding [\"skip\": \"features\": \"warnings\"] so runners that do not support the [warnings] " +
                 "section can skip the test at line [" + section.getLocation().lineNumber + "]");
 
-        errors = sections.stream().filter(section -> section instanceof DoSection)
+        errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
             .map(section -> (DoSection) section)
             .filter(section -> false == section.getExpectedWarningHeadersRegex()
                 .isEmpty())
             .filter(section -> false == hasSkipFeature("warnings_regex", testSection, setupSection, teardownSection))
             .map(section -> "attempted to add a [do] with a [warnings_regex] section " +
                 "without a corresponding [\"skip\": \"features\": \"warnings_regex\"] so runners that do not support the [warnings_regex] "+
-                "section can skip the test at line [" + section.getLocation().lineNumber + "]");
+                "section can skip the test at line [" + section.getLocation().lineNumber + "]"));
 
         errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
                 .map(section -> (DoSection) section)

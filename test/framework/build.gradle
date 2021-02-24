@@ -9,7 +9,6 @@ import org.elasticsearch.gradle.info.BuildParams;
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
-apply plugin: 'elasticsearch.yaml-rest-test'
 
 dependencies {
   api project(":client:rest")

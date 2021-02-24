@@ -41,5 +41,4 @@ public class EmitWarningEndpoint extends BaseRestHandler {
         return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, ""));
     }
 
-
 }

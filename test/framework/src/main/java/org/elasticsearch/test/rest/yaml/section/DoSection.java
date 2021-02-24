@@ -45,7 +45,6 @@ import java.util.regex.Pattern;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toCollection;
-import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.common.collect.Tuple.tuple;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
@@ -122,7 +121,8 @@ public class DoSection implements ExecutableSection {
                         expectedWarningsRegex.add(Pattern.compile(parser.text()));
                     }
                     if (token != XContentParser.Token.END_ARRAY) {
-                        throw new ParsingException(parser.getTokenLocation(), "[warnings_regex] must be a string array but saw [" + token + "]");
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "[warnings_regex] must be a string array but saw [" + token + "]");
                     }
                 } else if ("allowed_warnings".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) == XContentParser.Token.VALUE_STRING) {
@@ -429,7 +429,10 @@ public class DoSection implements ExecutableSection {
             }
         }
 
-        if (unexpected.isEmpty() == false || unmatched.isEmpty() == false || missing.isEmpty() == false || missingRegex.isEmpty() == false) {
+        if (unexpected.isEmpty() == false
+            || unmatched.isEmpty() == false
+            || missing.isEmpty() == false
+            || missingRegex.isEmpty() == false) {
             final StringBuilder failureMessage = new StringBuilder();
             appendBadHeaders(failureMessage, unexpected, "got unexpected warning header" + (unexpected.size() > 1 ? "s" : ""));
             appendBadHeaders(failureMessage, unmatched, "got unmatched warning header" + (unmatched.size() > 1 ? "s" : ""));
@@ -438,7 +441,6 @@ public class DoSection implements ExecutableSection {
                 + " did not match any warning header");
             fail(failureMessage.toString());
         }
-
     }
 
     private void appendBadHeaders(final StringBuilder sb, final List<String> headers, final String message) {

@@ -8,23 +8,44 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.eql.AbstractBWCSerializationTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.xpack.eql.AbstractBWCWireSerializingTestCase;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class EqlSearchResponseTests extends AbstractBWCSerializationTestCase<EqlSearchResponse> {
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+
+public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<EqlSearchResponse> {
+
+    public void testFromXContent() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values()).canonical();
+        EqlSearchResponse response = randomEqlSearchResponse(xContentType);
+        boolean humanReadable = randomBoolean();
+        BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        EqlSearchResponse parsed;
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            parsed = EqlSearchResponse.fromXContent(parser);
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+    }
 
     private static class RandomSource implements ToXContentObject {
 
@@ -78,7 +99,14 @@ public class EqlSearchResponseTests extends AbstractBWCSerializationTestCase<Eql
             hits = new ArrayList<>();
             for (int i = 0; i < size; i++) {
                 BytesReference bytes = new RandomSource(() -> randomAlphaOfLength(10)).toBytes(xType);
-                hits.add(new Event(String.valueOf(i), randomAlphaOfLength(10), bytes));
+                Map<String, DocumentField> fetchFields = new HashMap<>();
+                for (int j = 0; j < randomIntBetween(0, 5); j++) {
+                    fetchFields.put(randomAlphaOfLength(10), randomDocumentField(xType).v1());
+                }
+                if (fetchFields.isEmpty() && randomBoolean()) {
+                    fetchFields = null;
+                }
+                hits.add(new Event(String.valueOf(i), randomAlphaOfLength(10), bytes, fetchFields));
             }
         }
         if (randomBoolean()) {
@@ -87,9 +115,28 @@ public class EqlSearchResponseTests extends AbstractBWCSerializationTestCase<Eql
         return null;
     }
 
-    @Override
-    protected EqlSearchResponse createXContextTestInstance(XContentType xContentType) {
-        return randomEqlSearchResponse(xContentType);
+    private static Tuple<DocumentField, DocumentField> randomDocumentField(XContentType xType) {
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                String fieldName = randomAlphaOfLengthBetween(3, 10);
+                Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xType);
+                DocumentField input = new DocumentField(fieldName, tuple.v1());
+                DocumentField expected = new DocumentField(fieldName, tuple.v2());
+                return Tuple.tuple(input, expected);
+            case 1:
+                List<Object> listValues = randomList(1, 5, () -> randomList(1, 5, ESTestCase::randomInt));
+                DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
+                return Tuple.tuple(listField, listField);
+            case 2:
+                List<Object> objectValues = randomList(1, 5, () ->
+                    Map.of(randomAlphaOfLength(5), randomInt(),
+                        randomAlphaOfLength(5), randomBoolean(),
+                        randomAlphaOfLength(5), randomAlphaOfLength(10)));
+                DocumentField objectField = new DocumentField(randomAlphaOfLength(5), objectValues);
+                return Tuple.tuple(objectField, objectField);
+            default:
+                throw new IllegalStateException();
+        }
     }
 
     @Override
@@ -170,9 +217,5 @@ public class EqlSearchResponseTests extends AbstractBWCSerializationTestCase<Eql
                 return null;
         }
     }
-
-    @Override
-    protected EqlSearchResponse doParseInstance(XContentParser parser) {
-        return EqlSearchResponse.fromXContent(parser);
-    }
+    
 }

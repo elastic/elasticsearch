@@ -10,20 +10,14 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Plugin for defining system indices. Extends {@link ActionPlugin} because system indices must be accessed via APIs
@@ -66,34 +60,19 @@ public interface SystemIndexPlugin extends ActionPlugin {
      * Override to do more for cleanup (e.g. cancelling tasks).
      * @param clusterService Cluster service to provide cluster state
      * @param client A client, for executing actions
-     * @param listener Listener for post-cleanup result TODO[wrb]: need to gather results over features
+     * @param listener Listener for post-cleanup result
      */
     default void cleanUpFeature(
         ClusterService clusterService, Client client,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener) {
 
-        List<String> systemIndices = getSystemIndexDescriptors(clusterService.getSettings()).stream()
-            .map(sid -> sid.getMatchingIndices(clusterService.state().getMetadata()))
-            .flatMap(List::stream)
-            .collect(Collectors.toList());
-
-        List<String> associatedIndices = new ArrayList<>(getAssociatedIndexPatterns());
-
-        List<String> allIndices = Stream.concat(systemIndices.stream(), associatedIndices.stream())
-            .collect(Collectors.toList());
-
-        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
-        deleteIndexRequest.indices(allIndices.toArray(String[]::new));
-        client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                listener.onResponse(new ResetFeatureStateResponse.ResetFeatureStateStatus(getFeatureName(), "SUCCESS"));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onResponse(new ResetFeatureStateResponse.ResetFeatureStateStatus(getFeatureName(), "FAILURE"));
-            }
-        });
+        SystemIndices.Feature.cleanUpFeature(
+            getSystemIndexDescriptors(clusterService.getSettings()),
+            getAssociatedIndexPatterns(),
+            getFeatureName(),
+            clusterService,
+            client,
+            listener
+        );
     }
 }

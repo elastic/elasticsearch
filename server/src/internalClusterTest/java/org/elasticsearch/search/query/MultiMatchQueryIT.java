@@ -603,139 +603,139 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
     public void testCombinedFieldModeFieldGrouping() {
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name")
+            .setQuery(multiMatchQuery("captain america", "full_name", "first_name", "last_name")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
-                .operator(Operator.OR))).get();
+                .operator(Operator.OR)).get();
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category")
+            .setQuery(multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
-                .operator(Operator.OR))).get();
+                .operator(Operator.OR)).get();
         assertFirstHit(searchResponse, hasId("theother"));
         assertSecondHit(searchResponse, hasId("theone"));
         assertThat(searchResponse.getHits().getHits()[0].getScore(), greaterThan(searchResponse.getHits().getHits()[1].getScore()));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("marvel hero", "full_name", "first_name", "last_name", "category")
+            .setQuery(multiMatchQuery("marvel hero", "full_name", "first_name", "last_name", "category")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
-                .operator(Operator.OR))).get();
+                .operator(Operator.OR)).get();
         assertFirstHit(searchResponse, hasId("theother"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
+            .setQuery(multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
-                .operator(Operator.AND))).get();
+                .operator(Operator.AND)).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("captain america 15", "full_name", "first_name", "last_name", "category", "skill")
+            .setQuery(multiMatchQuery("captain america 15", "full_name", "first_name", "last_name", "category", "skill")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
                 .analyzer("category")
                 .lenient(true)
-                .operator(Operator.AND))).get();
+                .operator(Operator.AND)).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("captain america 15", "full_name", "first_name", "last_name", "category", "skill",
+            .setQuery(multiMatchQuery("captain america 15", "full_name", "first_name", "last_name", "category", "skill",
                 "int-field")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
                 .analyzer("category")
                 .lenient(true)
-                .operator(Operator.AND))).get();
+                .operator(Operator.AND)).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("captain america 15", "skill", "full_name", "first_name", "last_name", "category",
+            .setQuery(multiMatchQuery("captain america 15", "skill", "full_name", "first_name", "last_name", "category",
                 "int-field")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
                 .analyzer("category")
                 .lenient(true)
-                .operator(Operator.AND))).get();
+                .operator(Operator.AND)).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("captain america 15", "first_name", "last_name", "skill")
+            .setQuery(multiMatchQuery("captain america 15", "first_name", "last_name", "skill")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
                 .lenient(true)
-                .analyzer("category"))).get();
+                .analyzer("category")).get();
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("15", "skill")
+            .setQuery(multiMatchQuery("15", "skill")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
-                .analyzer("category"))).get();
+                .analyzer("category")).get();
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("25 15", "skill")
+            .setQuery(multiMatchQuery("25 15", "skill")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
-                .analyzer("category"))).get();
+                .analyzer("category")).get();
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("25 15", "int-field", "skill")
+            .setQuery(multiMatchQuery("25 15", "int-field", "skill")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
-                .analyzer("category"))).get();
+                .analyzer("category")).get();
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("25 15", "first_name", "int-field", "skill")
+            .setQuery(multiMatchQuery("25 15", "first_name", "int-field", "skill")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
-                .analyzer("category"))).get();
+                .analyzer("category")).get();
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("25 15", "int-field", "skill", "first_name")
+            .setQuery(multiMatchQuery("25 15", "int-field", "skill", "first_name")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
-                .analyzer("category"))).get();
+                .analyzer("category")).get();
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("25 15", "int-field", "first_name", "skill")
+            .setQuery(multiMatchQuery("25 15", "int-field", "first_name", "skill")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
-                .analyzer("category"))).get();
+                .analyzer("category")).get();
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category")
+            .setQuery(multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
                 .analyzer("category")
-                .operator(Operator.OR))).get();
+                .operator(Operator.OR)).get();
         assertFirstHit(searchResponse, hasId("theone"));
 
         // test group based on analyzer -- all fields are grouped into a combined field search
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category")
+            .setQuery(multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
                 .analyzer("category")
-                .operator(Operator.AND))).get();
+                .operator(Operator.AND)).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         // counter example
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category")
+            .setQuery(multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
-                .operator(Operator.AND))).get();
+                .operator(Operator.AND)).get();
         assertHitCount(searchResponse, 0L);
 
         // counter example
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category")
+            .setQuery(multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
-                .operator(Operator.AND))).get();
+                .operator(Operator.AND)).get();
         assertHitCount(searchResponse, 0L);
 
         // test if boosts work
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("the ultimate", "full_name", "first_name", "category").field("last_name", 10)
+            .setQuery(multiMatchQuery("the ultimate", "full_name", "first_name", "category").field("last_name", 10)
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
-                .operator(Operator.AND))).get();
+                .operator(Operator.AND)).get();
         assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasId("ultimate1"));   // has ultimate in the last_name and that is boosted
         assertSecondHit(searchResponse, hasId("ultimate2"));
@@ -743,34 +743,34 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
         // Test group based on numeric fields
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("15", "skill")
-                .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS))).get();
+            .setQuery(multiMatchQuery("15", "skill")
+                .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("15", "skill", "first_name")
-                .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS))).get();
+            .setQuery(multiMatchQuery("15", "skill", "first_name")
+                .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         // Two numeric fields together caused trouble at one point!
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("15", "int-field", "skill")
-                .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS))).get();
+            .setQuery(multiMatchQuery("15", "int-field", "skill")
+                .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("15", "int-field", "first_name", "skill")
-                .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS))).get();
+            .setQuery(multiMatchQuery("15", "int-field", "first_name", "skill")
+                .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("alpha 15", "first_name", "skill")
+            .setQuery(multiMatchQuery("alpha 15", "first_name", "skill")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
-                .lenient(true))).get();
+                .lenient(true)).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("ultimate1"));
         /*
@@ -781,16 +781,17 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
         // Lenient wasn't always properly lenient with two numeric fields
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("alpha 15", "int-field", "first_name", "skill")
+            .setQuery(multiMatchQuery("alpha 15", "int-field", "first_name", "skill")
                 .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
-                .lenient(true))).get();
+                .lenient(true)).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("ultimate1"));
 
         // Check that combined fields works with date fields
         searchResponse = client().prepareSearch("test")
-            .setQuery(randomizeType(multiMatchQuery("now", "f*", "date")
-                .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)).lenient(true))
+            .setQuery(multiMatchQuery("now", "f*", "date")
+                .type(MultiMatchQueryBuilder.Type.COMBINED_FIELDS)
+                .lenient(true))
             .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("nowHero"));

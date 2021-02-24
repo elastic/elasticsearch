@@ -492,6 +492,7 @@ Number of fields mapped to the field data type in selected nodes.
 `index_count`::
 (integer)
 Number of indices containing a mapping of the field data type in selected nodes.
+======
 
 `runtime_field_types`::
 (array of objects)

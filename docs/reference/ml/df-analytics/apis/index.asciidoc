@@ -1,8 +1,8 @@
 include::ml-df-analytics-apis.asciidoc[leveloffset=+1]
 //CREATE
 include::put-dfanalytics.asciidoc[leveloffset=+2]
-include::put-trained-models.asciidoc[leveloffset=+2]
 include::put-trained-models-aliases.asciidoc[leveloffset=+2]
+include::put-trained-models.asciidoc[leveloffset=+2]
 //UPDATE
 include::update-dfanalytics.asciidoc[leveloffset=+2]
 //DELETE

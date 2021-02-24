@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
@@ -48,7 +49,8 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
      */
     public void test() throws Exception {
         ThreadPool threadPool = new TestThreadPool("test");
-        ResourceWatcherService resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
+        Settings settings = Settings.builder().put("resource.reload.interval.high", TimeValue.timeValueMillis(100)).build();
+        ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
         try {
             final Path geoIpDir = createTempDir();
             copyDatabaseFiles(geoIpDir);

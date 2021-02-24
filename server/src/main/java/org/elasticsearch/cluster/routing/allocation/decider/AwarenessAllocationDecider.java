@@ -23,8 +23,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
 
 /**
@@ -186,7 +188,15 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             final int currentNodeCount = shardPerAttribute.get(node.node().getAttributes().get(awarenessAttribute));
             final int maximumNodeCount = (shardCount + numberOfAttributes - 1) / numberOfAttributes; // ceil(shardCount/numberOfAttributes)
             if (currentNodeCount > maximumNodeCount) {
-                return debug ? debugNoTooManyCopies(shardCount, awarenessAttribute, numberOfAttributes, currentNodeCount, maximumNodeCount)
+                return debug ? debugNoTooManyCopies(
+                        shardCount,
+                        awarenessAttribute,
+                        node.node().getAttributes().get(awarenessAttribute),
+                        numberOfAttributes,
+                        StreamSupport.stream(nodesPerAttribute.keys().spliterator(), false).map(c -> c.value).sorted().collect(toList()),
+                        fullValues == null ? null : fullValues.stream().sorted().collect(toList()),
+                        currentNodeCount,
+                        maximumNodeCount)
                         : Decision.NO;
             }
         }
@@ -194,17 +204,28 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         return YES_ALL_MET;
     }
 
-    private static Decision debugNoTooManyCopies(int shardCount, String awarenessAttribute, int numberOfAttributes, int currentNodeCount,
-                                                 int maximumNodeCount) {
+    private static Decision debugNoTooManyCopies(
+            int shardCount,
+            String attributeName,
+            String attributeValue,
+            int numberOfAttributes,
+            List<String> realAttributes,
+            List<String> forcedAttributes,
+            int currentNodeCount,
+            int maximumNodeCount) {
         return Decision.single(Decision.Type.NO, NAME,
-                "there are too many copies of the shard allocated to nodes with attribute [%s], there are [%d] total configured " +
-                        "shard copies for this shard id and [%d] total attribute values, expected the allocated shard count per " +
-                        "attribute [%d] to be less than or equal to the upper bound of the required number of shards per attribute [%d]",
-                awarenessAttribute,
+                "there are [%d] copies of this shard and [%d] values for attribute [%s] (%s from nodes in the cluster and %s) so there " +
+                        "may be at most [%d] copies of this shard allocated to nodes with each value, but (including this copy) there " +
+                        "would be [%d] copies allocated to nodes with [node.attr.%s: %s]",
                 shardCount,
                 numberOfAttributes,
+                attributeName,
+                realAttributes,
+                forcedAttributes == null ? "no forced awareness" : forcedAttributes + " from forced awareness",
+                maximumNodeCount,
                 currentNodeCount,
-                maximumNodeCount);
+                attributeName,
+                attributeValue);
     }
 
     private static Decision debugNoMissingAttribute(String awarenessAttribute, List<String> awarenessAttributes) {

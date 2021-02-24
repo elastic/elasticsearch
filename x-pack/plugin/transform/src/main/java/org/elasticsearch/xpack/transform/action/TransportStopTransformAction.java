@@ -479,10 +479,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         final ActionListener<Response> finalListener,
         final TransformNodeAssignments transformNodeAssignments
     ) {
-        final ActionListener<Response> doExecuteListener;
-        doExecuteListener = ActionListener.wrap(response -> {
-            GroupedActionListener<PersistentTask<?>> groupedListener;
-            groupedListener = new GroupedActionListener<>(
+        final ActionListener<Response> doExecuteListener = ActionListener.wrap(response -> {
+            GroupedActionListener<PersistentTask<?>> groupedListener = new GroupedActionListener<>(
                 ActionListener.wrap(r -> { finalListener.onResponse(response); }, finalListener::onFailure),
                 transformNodeAssignments.getWaitingForAssignment().size()
             );
@@ -492,8 +490,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             }
 
         }, e -> {
-            GroupedActionListener<PersistentTask<?>> groupedListener;
-            groupedListener = new GroupedActionListener<>(
+            GroupedActionListener<PersistentTask<?>> groupedListener = new GroupedActionListener<>(
                 ActionListener.wrap(r -> { finalListener.onFailure(e); }, finalListener::onFailure),
                 transformNodeAssignments.getWaitingForAssignment().size()
             );

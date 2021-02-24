@@ -242,7 +242,7 @@ somevalue with whatever is the response in the same position."
 === `warnings`
 
 The runner can assert specific warnings headers are returned by Elasticsearch through the `warning:` assertations
-under `do:`  operations. The test will fail if the warning in not found.
+under `do:`  operations. The test will fail if the warning is not found.
 
 === `warnings_regex`
 

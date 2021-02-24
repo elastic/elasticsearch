@@ -36,6 +36,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     public ReleasableBytesReference(BytesReference delegate, AbstractRefCounted refCounted) {
         this.delegate = delegate;
         this.refCounted = refCounted;
+        assert refCounted.refCount() > 0;
     }
 
     public static ReleasableBytesReference wrap(BytesReference reference) {

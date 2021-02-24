@@ -25,7 +25,6 @@ public abstract class AbstractRefCounted implements RefCounted {
 
     @Override
     public final void incRef() {
-        touch();
         if (tryIncRef() == false) {
             alreadyClosed();
         }

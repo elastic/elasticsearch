@@ -76,6 +76,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_CLUSTERS_TOO_OLD;
+
 /* This class extends from TransportMasterNodeAction for cluster state observing purposes.
  The stop datafeed api also redirect the elected master node.
  The master node will wait for the datafeed to be started by checking the persistent task's status and then return.
@@ -278,10 +280,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         throw ExceptionsHelper.badRequestException(
-            "remote clusters {} are not at least version [{}] which is required for [{}]",
-            clustersTooOld,
-            minVersion.toString(),
-            reason
+            Messages.getMessage(
+                REMOTE_CLUSTERS_TOO_OLD,
+                minVersion.toString(),
+                reason,
+                Strings.collectionToCommaDelimitedString(clustersTooOld)
+            )
         );
     }
 

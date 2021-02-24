@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT;
@@ -115,11 +114,12 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             .put("old_cluster_1", Version.V_7_0_0)
             .map();
 
-        Map<String, Object> settings = new HashMap<>();
-        settings.put("type", "keyword");
-        settings.put("script", "");
-        Map<String, Object> field = new HashMap<>();
-        field.put("runtime_field_foo", settings);
+        Map<String, Object> field = Collections.singletonMap(
+            "runtime_field_foo",
+            MapBuilder.<String, Object>newMapBuilder()
+                .put("type", "keyword")
+                .put("script", "")
+                .map());
 
         DatafeedConfig config = new DatafeedConfig.Builder(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"))
             .setRuntimeMappings(field)
@@ -134,7 +134,8 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         assertThat(
             ex.getMessage(),
             containsString(
-                "remote clusters [old_cluster_1] are not at least version [7.11.0] which is required for [runtime_mappings]"
+                "remote clusters are expected to run at least version [7.11.0] (reason: [runtime_mappings]), "
+                    + "but the following clusters were too old: [old_cluster_1]"
             )
         );
 

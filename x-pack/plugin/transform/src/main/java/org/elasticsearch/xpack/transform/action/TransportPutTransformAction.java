@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestService;
@@ -207,24 +206,12 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        List<SourceDestValidator.SourceDestValidation> validations;
-        if (request.isDeferValidation()) {
-            validations = SourceDestValidations.NON_DEFERABLE_VALIDATIONS;
-        } else if (config.getMinRemoteClusterVersion().isPresent()) {
-            validations = new ArrayList<>(SourceDestValidations.ALL_VALIDATIONS);
-            Tuple<Version, String> minRemoteClusterVersionAndReason = config.getMinRemoteClusterVersion().get();
-            validations.add(
-                new SourceDestValidator.RemoteClusterMinimumVersionValidation(
-                    minRemoteClusterVersionAndReason.v1(), minRemoteClusterVersionAndReason.v2()));
-        } else {
-            validations = SourceDestValidations.ALL_VALIDATIONS;
-        }
         sourceDestValidator.validate(
             clusterState,
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
             config.getDestination().getPipeline(),
-            validations,
+            SourceDestValidations.getValidations(request.isDeferValidation(), config.getAdditionalValidations()),
             ActionListener.wrap(
                 validationResponse -> {
                     // Early check to verify that the user can create the destination index and can read from the source

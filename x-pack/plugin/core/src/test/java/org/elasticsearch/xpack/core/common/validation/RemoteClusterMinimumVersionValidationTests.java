@@ -23,6 +23,7 @@ import java.util.TreeSet;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.emptySortedSet;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.doReturn;
@@ -42,6 +43,12 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
         doReturn(Version.V_7_10_2).when(context).getRemoteClusterVersion("cluster-A");
         doReturn(Version.V_7_11_0).when(context).getRemoteClusterVersion("cluster-B");
         doReturn(Version.V_7_11_2).when(context).getRemoteClusterVersion("cluster-C");
+    }
+
+    public void testGetters() {
+        RemoteClusterMinimumVersionValidation validation = new RemoteClusterMinimumVersionValidation(MIN_EXPECTED_VERSION, REASON);
+        assertThat(validation.getMinExpectedVersion(), is(equalTo(MIN_EXPECTED_VERSION)));
+        assertThat(validation.getReason(), is(equalTo(REASON)));
     }
 
     public void testValidate_NoRemoteClusters() {

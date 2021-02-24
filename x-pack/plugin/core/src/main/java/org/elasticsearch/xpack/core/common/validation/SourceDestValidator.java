@@ -442,6 +442,14 @@ public final class SourceDestValidator {
             this.reason = reason;
         }
 
+        public Version getMinExpectedVersion() {
+            return minExpectedVersion;
+        }
+
+        public String getReason() {
+            return reason;
+        }
+
         @Override
         public void validate(Context context, ActionListener<Context> listener) {
             List<String> remoteIndices = new ArrayList<>(context.resolveRemoteSource());

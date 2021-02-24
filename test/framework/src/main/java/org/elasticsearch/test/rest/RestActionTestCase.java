@@ -110,6 +110,13 @@ public abstract class RestActionTestCase extends ESTestCase {
          * @param verifier A function which is called in place of {@link #doExecute(ActionType, ActionRequest, ActionListener)}
          */
         public <R extends ActionResponse> void setExecuteVerifier(BiFunction<ActionType<R>, ActionRequest, R> verifier) {
+            /*
+             * Perform a little generics dance to force the callers to mock
+             * a return type appropriate for the action even though we can't
+             * declare such types. We have force the caller to be specific
+             * and then throw away their specificity. Then we case back
+             * to the specific erased type in the method below.
+             */
             BiFunction<?, ?, ?> dropTypeInfo = (BiFunction<?, ?, ?>) verifier;
             @SuppressWarnings("unchecked")
             BiFunction<ActionType<?>, ActionRequest, ActionResponse> pasteGenerics = (BiFunction<

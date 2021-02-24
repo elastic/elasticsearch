@@ -358,11 +358,17 @@ as `most_fields` or `best_fields`.
 [[type-cross-fields]]
 ==== `cross_fields`
 
-The `cross_fields` type also takes a term-centric approach to scoring, allowing
-each term to match any of the provided fields. It tries to pretend that the content
-had been indexed into one combined field by _blending_ the term statistics across
-fields. It also gives a slight scoring advantage to fields that frequently contain
-the term, under the assumption that these matches are most interesting.
+The `cross_fields` type also takes a term-centric approach to scoring,
+allowing each term to match any of the provided fields. It tries to pretend
+that the content had been indexed into one combined field by _blending_ the
+term statistics across fields. It also gives a slight scoring advantage to
+fields that frequently contain the term, under the assumption that these
+matches are most interesting.
+
+The `cross_fields` type has a complex approach to blending field scores that
+does not always produce well-formed scores (for example scores can become
+negative). For this reason it's recommended to use `combined_fields`, which
+combines field statistics in a more robust and principled way.
 
 Note that `cross_fields` is usually only useful on short string fields
 that all have a `boost` of `1`. Otherwise boosts, term freqs and length

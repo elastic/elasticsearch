@@ -57,6 +57,7 @@ public abstract class AbstractGeoIpIT extends ESIntegTestCase {
         }
         return Settings.builder()
             .put("ingest.geoip.database_path", databasePath)
+            .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false)
             .put(super.nodeSettings(nodeOrdinal))
             .build();
     }

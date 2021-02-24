@@ -189,7 +189,7 @@ public class UserAgentProcessor extends AbstractProcessor {
             UserAgentParser parser = userAgentParsers.get(regexFilename);
             if (parser == null) {
                 throw newConfigurationException(TYPE, processorTag,
-                    "regex_file", "regex file [" + regexFilename + "] doesn't exist (has to exist at node startup)");
+                        "regex_file", "regex file [" + regexFilename + "] doesn't exist (has to exist at node startup)");
             }
 
             final Set<Property> properties;
@@ -223,7 +223,7 @@ public class UserAgentProcessor extends AbstractProcessor {
                 return valueOf(propertyName.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("illegal property value [" + propertyName + "]. valid values are " +
-                    Arrays.toString(EnumSet.allOf(Property.class).toArray()));
+                        Arrays.toString(EnumSet.allOf(Property.class).toArray()));
             }
         }
     }

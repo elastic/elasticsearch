@@ -119,10 +119,8 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
                 DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
                 return Tuple.tuple(listField, listField);
             case 2:
-                List<Object> objectValues = randomList(1, 5, () ->
-                    Map.of(randomAlphaOfLength(5), randomInt(),
-                        randomAlphaOfLength(5), randomBoolean(),
-                        randomAlphaOfLength(5), randomAlphaOfLength(10)));
+                List<Object> objectValues = randomList(1, 5,
+                    randomFrom(Arrays.asList(() -> randomAlphaOfLength(10), ESTestCase::randomInt, ESTestCase::randomBoolean)));
                 DocumentField objectField = new DocumentField(randomAlphaOfLength(5), objectValues);
                 return Tuple.tuple(objectField, objectField);
             default:

@@ -233,7 +233,7 @@ elasticsearch_distributions {
 }
 
 tasks.named("preProcessFixture").configure {
-  dependsOn elasticsearch_distributions.docker_default, elasticsearch_distributions.docker_oss
+  dependsOn elasticsearch_distributions.matching { it.architecture == Architecture.current() }
   dependsOn "copyNodeKeyMaterial"
   doLast {
     // tests expect to have an empty repo

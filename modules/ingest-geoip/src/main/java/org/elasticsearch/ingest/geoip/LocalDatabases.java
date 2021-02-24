@@ -83,20 +83,8 @@ final class LocalDatabases implements Closeable {
             defaultDatabases.keySet(), configDatabases.keySet(), geoipConfigDir);
     }
 
-    // There is a need for reference counting in order to avoid using an instance
-    // that gets closed while using it. (this can happen during a database update)
-    DatabaseReaderLazyLoader getDatabase(String name) {
-        while (true) {
-            DatabaseReaderLazyLoader instance = configDatabases.getOrDefault(name, defaultDatabases.get(name));
-            if (instance == null) {
-                return null;
-            }
-            if (instance.preLookup()) {
-                return instance;
-            }
-            // instance is closed after incrementing its usage,
-            // drop this instance and fetch another one.
-        }
+    DatabaseReaderLazyLoader getDatabase(String name, boolean fallbackUsingDefaultDatabases) {
+        return configDatabases.getOrDefault(name, fallbackUsingDefaultDatabases ? defaultDatabases.get(name) : null);
     }
 
     List<DatabaseReaderLazyLoader> getAllDatabases() {

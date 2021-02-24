@@ -8,12 +8,14 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,6 +39,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
 
@@ -60,9 +63,12 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
             Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
                 geoIpConfigDir.resolve("GeoLite2-City-Test.mmdb"));
 
-            LocalDatabases localDatabases = new LocalDatabases(geoIpDir, geoIpConfigDir, new GeoIpCache(0));
-            localDatabases.initialize(resourceWatcherService);
-            GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(localDatabases);
+            GeoIpCache cache = new GeoIpCache(0);
+            LocalDatabases localDatabases = new LocalDatabases(geoIpDir, geoIpConfigDir, cache);
+            DatabaseRegistry databaseRegistry =
+                new DatabaseRegistry(createTempDir(), mock(Client.class), cache, localDatabases, Runnable::run);
+            databaseRegistry.initialize(resourceWatcherService, mock(IngestService.class));
+            GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
             lazyLoadReaders(localDatabases);
 
             final GeoIpProcessor processor1 = factory.create(null, "_tag", null, new HashMap<>(Map.of("field", "_field")));
@@ -145,7 +151,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
             assertThat(failureHolder2.get(), nullValue());
             assertThat(numberOfIngestRuns.get(), greaterThan(0));
 
-            for (DatabaseReaderLazyLoader lazyLoader : localDatabases.getAllDatabases()) {
+            for (DatabaseReaderLazyLoader lazyLoader : databaseRegistry.getAllDatabases()) {
                 assertThat(lazyLoader.current(), equalTo(0));
             }
         } finally {

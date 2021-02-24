@@ -66,7 +66,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final Scroll scroll;
     private final String[] types;
     private final float indexBoost;
-    private final Boolean requestCache;
+    private Boolean requestCache;
     private final long nowInMillis;
     private final boolean allowPartialSearchResults;
     private final OriginalIndices originalIndices;
@@ -342,6 +342,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public Boolean requestCache() {
         return requestCache;
+    }
+
+    public void requestCache(Boolean requestCache) {
+        this.requestCache = requestCache;
     }
 
     public boolean allowPartialSearchResults() {

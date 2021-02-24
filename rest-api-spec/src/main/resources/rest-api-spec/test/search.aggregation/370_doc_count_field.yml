@@ -151,6 +151,7 @@ setup:
 "Test filters agg with doc_count":
   - skip:
       version: " - 7.11.1"
+      features: default_shards
       reason: "fixed in 7.11.2"
   - do:
       search:

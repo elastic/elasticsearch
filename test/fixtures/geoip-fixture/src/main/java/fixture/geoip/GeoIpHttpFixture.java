@@ -15,7 +15,6 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
 public class GeoIpHttpFixture {
@@ -26,6 +25,11 @@ public class GeoIpHttpFixture {
         String rawData = new String(GeoIpHttpFixture.class.getResourceAsStream("/data.json").readAllBytes(), StandardCharsets.UTF_8);
         this.server = HttpServer.create(new InetSocketAddress(InetAddress.getByName(args[0]), Integer.parseInt(args[1])), 0);
         this.server.createContext("/", exchange -> {
+            String query = exchange.getRequestURI().getQuery();
+            if (query.contains("elastic_geoip_service_tos=agree") == false) {
+                exchange.sendResponseHeaders(400, 0);
+                return;
+            }
             String data = rawData.replace("endpoint", "http://" + exchange.getRequestHeaders().getFirst("Host"));
             exchange.sendResponseHeaders(200, data.length());
             try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(exchange.getResponseBody()))) {

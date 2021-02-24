@@ -29,8 +29,8 @@ public class JarHellPrecommitPlugin extends PrecommitPlugin {
         TaskProvider<JarHellTask> jarHell = project.getTasks().register("jarHell", JarHellTask.class);
         jarHell.configure(t -> {
             SourceSet testSourceSet = Util.getJavaTestSourceSet(project).get();
-            t.setClasspath(testSourceSet.getRuntimeClasspath().plus(jarHellConfig));
-            t.dependsOn(jarHellConfig);
+            t.setClasspath(testSourceSet.getRuntimeClasspath());
+            t.setJarHellRuntimeClasspath(jarHellConfig);
         });
 
         return jarHell;

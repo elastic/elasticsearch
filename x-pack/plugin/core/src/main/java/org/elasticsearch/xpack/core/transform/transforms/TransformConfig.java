@@ -23,6 +23,8 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -45,6 +48,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
+    /** Version in which {@code FieldCapabilitiesRequest.runtime_fields} field was introduced. */
+    private static final Version FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION = Version.V_7_12_0;
 
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
@@ -302,6 +307,22 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     @Nullable
     public RetentionPolicyConfig getRetentionPolicyConfig() {
         return retentionPolicyConfig;
+    }
+
+    /**
+     * Determines the minimum version of a cluster in multi-cluster setup that is needed to successfully run this transform config.
+     *
+     * @return version
+     */
+    public List<SourceDestValidation> getAdditionalValidations() {
+        if ((source.getRuntimeMappings() == null || source.getRuntimeMappings().isEmpty()) == false) {
+            SourceDestValidation validation =
+                new SourceDestValidator.RemoteClusterMinimumVersionValidation(
+                    FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION, "source.runtime_mappings field was set");
+            return Collections.singletonList(validation);
+        } else {
+            return Collections.emptyList();
+        }
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {

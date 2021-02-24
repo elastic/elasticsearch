@@ -151,9 +151,11 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         }
         indexRandom(true, true, indexRequestBuilders);
         refresh(indexName);
-        assertThat(
-            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
-            equalTo(0)
-        );
+        if (randomBoolean()) {
+            assertThat(
+                client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+                equalTo(0)
+            );
+        }
     }
 }

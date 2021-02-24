@@ -133,7 +133,6 @@ public class MappingVisitorTests extends ESTestCase {
         assertEquals(new HashSet<>(Arrays.asList("keyword", "long")), fields);
     }
 
-
     private static void collectRuntimeTypes(Map<String, ?> mapping, Set<String> types) {
         MappingVisitor.visitRuntimeMapping(mapping, (f, m) -> types.add(m.get("type").toString()));
     }

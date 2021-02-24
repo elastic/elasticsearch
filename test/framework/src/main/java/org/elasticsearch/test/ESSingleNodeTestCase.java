@@ -358,13 +358,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return true;
     }
 
-
     /**
      * waits until all shard initialization is completed.
      *
      * inspired by {@link ESRestTestCase}
-     *
-     * @throws IOException
      */
     protected void ensureNoInitializingShards() throws IOException {
         ClusterHealthResponse actionGet = client().admin()

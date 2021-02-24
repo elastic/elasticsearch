@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.geoip;
 import com.maxmind.geoip2.model.CityResponse;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,7 +34,8 @@ public class LocalDatabasesTests extends ESTestCase {
     @Before
     public void setup() {
         threadPool = new TestThreadPool(LocalDatabases.class.getSimpleName());
-        resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
+        Settings settings = Settings.builder().put("resource.reload.interval.high", TimeValue.timeValueMillis(100)).build();
+        resourceWatcherService = new ResourceWatcherService(settings, threadPool);
     }
 
     @After

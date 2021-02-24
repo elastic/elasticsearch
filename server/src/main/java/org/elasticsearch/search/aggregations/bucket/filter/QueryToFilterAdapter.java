@@ -214,7 +214,7 @@ public class QueryToFilterAdapter<Q extends Query> {
             // There aren't any matches for this filter in this leaf
             return 0;
         }
-        return scorer.cost();
+        return scorer.cost();   // TODO in another PR (please) change this to ScorerSupplier.cost
     }
 
     /**
@@ -310,7 +310,7 @@ public class QueryToFilterAdapter<Q extends Query> {
         long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
             if (countCanUseMetadata(counter, live)) {
                 resultsFromMetadata++;
-                return ctx.reader().maxDoc();
+                return ctx.reader().maxDoc();  // TODO we could use numDocs even if live is not null because provides accurate numDocs.
             }
             return super.count(ctx, counter, live);
         }

@@ -11,8 +11,6 @@ import org.apache.tools.ant.taskdefs.condition.Os
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
-final Project fixture = project(':test:fixtures:geoip-fixture')
-
 esplugin {
   description 'Ingest processor that uses lookup geo data based on IP adresses using the MaxMind geo database'
   classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
@@ -35,28 +33,27 @@ restResources {
   }
 }
 
-def useFixture = System.getenv("geoip_use_service") != "true"
+def useFixture = providers.environmentVariable("geoip_use_service")
+  .forUseAtConfigurationTime()
+  .map { s -> Boolean.parseBoolean(s) == false }
+  .getOrElse(true)
+
+def fixtureAddress = {
+  assert useFixture: 'closure should not be used without a fixture'
+  int ephemeralPort = tasks.getByPath(":test:fixtures:geoip-fixture:postProcessFixture").ext."test.fixtures.geoip-fixture.tcp.80"
+  assert ephemeralPort > 0
+  return "http://127.0.0.1:${ephemeralPort}"
+}
 
 if (useFixture) {
   apply plugin: 'elasticsearch.test.fixtures'
-  testFixtures.useFixture(fixture.path, 'geoip-fixture')
-
-  task "beforeInternalClusterTest" {
-    dependsOn ':test:fixtures:geoip-fixture:postProcessFixture'
-    doLast {
-      int ephemeralPort = fixture.postProcessFixture.ext."test.fixtures.geoip-fixture.tcp.80"
-      assert ephemeralPort > 0
-      internalClusterTest {
-        nonInputProperties.systemProperty "geoip_endpoint", "http://127.0.0.1:" + ephemeralPort
-      }
-    }
-  }
+  testFixtures.useFixture(':test:fixtures:geoip-fixture', 'geoip-fixture')
 }
 
-internalClusterTest {
+tasks.named("internalClusterTest").configure {
   systemProperty "es.geoip_v2_feature_flag_enabled", "true"
   if (useFixture) {
-    dependsOn "beforeInternalClusterTest"
+    nonInputProperties.systemProperty "geoip_endpoint", "${-> fixtureAddress()}"
   }
 }
 

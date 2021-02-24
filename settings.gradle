@@ -73,7 +73,6 @@ List projects = [
   'server',
   'server:cli',
   'test:framework',
-  'test:framework:qa:rest-test-test',
   'test:fixtures:azure-fixture',
   'test:fixtures:gcs-fixture',
   'test:fixtures:hdfs-fixture',

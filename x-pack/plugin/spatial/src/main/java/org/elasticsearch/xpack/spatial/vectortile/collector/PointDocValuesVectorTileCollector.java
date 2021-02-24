@@ -37,10 +37,10 @@ public class PointDocValuesVectorTileCollector extends AbstractVectorTileCollect
     public VectorTileLeafCollector getVectorTileLeafCollector(LeafReaderContext context) {
         final double xScale = 1d / (tileEnvelope.getWidth() / (double) extent);
         final double yScale = -1d / (tileEnvelope.getHeight() / (double) extent);
-        LeafGeoPointFieldData data = points.load(context);
-        MultiGeoPointValues values = data.getGeoPointValues();
+        final LeafGeoPointFieldData data = points.load(context);
+        final MultiGeoPointValues values = data.getGeoPointValues();
         final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
-        List<Integer> commands = new ArrayList<>();
+        final List<Integer> commands = new ArrayList<>();
         return (docID -> {
             featureBuilder.clear();
             commands.clear();

@@ -11,24 +11,33 @@ import com.wdtinc.mapbox_vector_tile.VectorTile;
 import com.wdtinc.mapbox_vector_tile.encoding.GeomCmd;
 import com.wdtinc.mapbox_vector_tile.encoding.GeomCmdHdr;
 import com.wdtinc.mapbox_vector_tile.encoding.ZigZag;
-import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.geo.Rectangle;
+import org.apache.lucene.geo.SimpleWKTShapeParser;
+import org.apache.lucene.geo.XYPolygon;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafGeoShapeFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeReader;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractLatLonShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.vectortile.VectorTileUtils;
 import org.locationtech.jts.geom.Envelope;
 
+import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class ShapeDocValuesVectorTileCollector extends AbstractVectorTileCollector {
 
     final AbstractLatLonShapeIndexFieldData.LatLonShapeIndexFieldData shapes;
-    private static int extent = 256;
+    final MappedFieldType sourceField;
+    private static int extent = 4096;
     Rectangle rectangle;
     double height;
     double width;
@@ -36,150 +45,103 @@ public class ShapeDocValuesVectorTileCollector extends AbstractVectorTileCollect
     public ShapeDocValuesVectorTileCollector(final AbstractLatLonShapeIndexFieldData.LatLonShapeIndexFieldData shapes,
                                       Envelope tileEnvelope,
                                       Rectangle rectangle,
-                                      String field) {
+                                      String field,
+                                      MappedFieldType sourceField) {
         super(tileEnvelope, field, extent);
         this.shapes = shapes;
         this.rectangle = rectangle;
-        this.height = (rectangle.maxLat - rectangle.minLat) / extent;
-        this.width = (rectangle.maxLon - rectangle.minLon) / extent;
+        this.height = 3 * (rectangle.maxLat - rectangle.minLat) / extent;
+        this.width = 3 * (rectangle.maxLon - rectangle.minLon) / extent;
+        this.sourceField = sourceField;
     }
 
     @Override
     public VectorTileLeafCollector getVectorTileLeafCollector(LeafReaderContext context) {
-        Visitor visitor = new Visitor();
-        LeafGeoShapeFieldData data = shapes.load(context);
-        GeoShapeValues values = data.getGeoShapeValues();
+        final double xScale = 1d / (tileEnvelope.getWidth() / (double) extent);
+        final double yScale = -1d / (tileEnvelope.getHeight() / (double) extent);
+        final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
+        final List<Integer> commands = new ArrayList<>();
+        final List<Object> fieldVisitorCollector = new ArrayList<>();
+        final SingleFieldsVisitor visitor = new SingleFieldsVisitor(sourceField, fieldVisitorCollector);
+        final LeafGeoShapeFieldData data = shapes.load(context);
+        final GeoShapeValues values = data.getGeoShapeValues();
         return (docID -> {
             values.advanceExact(docID);
             GeoShapeValues.GeoShapeValue shapeValue = values.value();
-            boolean skip = false;
-            if (shapeValue.dimensionalShapeType() != DimensionalShapeType.POINT) {
-                double width = shapeValue.boundingBox().maxX() - shapeValue.boundingBox().minX();
-                double heigth = shapeValue.boundingBox().maxY() - shapeValue.boundingBox().minY();
-                skip = width <= this.width || heigth <= this.height;
-            }
-            if (skip == false) {
-                visitor.reset();
-                shapeValue.visit(visitor);
-                return visitor.getFeature();
-            } else {
+            boolean skip = skip(shapeValue);
+            if (skip) {
                 return null;
+            } else {
+                featureBuilder.clear();
+                commands.clear();
+                fieldVisitorCollector.clear();
+                context.reader().document(docID, visitor);
+                XYPolygon p = toMVTPol(getPolygon((BytesRef) fieldVisitorCollector.get(0)), tileEnvelope, xScale, yScale);
+                featureBuilder.setType(VectorTile.Tile.GeomType.POLYGON);
+                commands.add(GeomCmdHdr.cmdHdr(GeomCmd.MoveTo, 1));
+                commands.add(ZigZag.encode((int) p.getPolyX(0)));
+                commands.add(ZigZag.encode((int) p.getPolyY(0)));
+                commands.add(0); // placeHolder
+                int numPoints = 0;
+                for (int i = 1; i < p.numPoints() - 1; i++) {
+                    if ((int) p.getPolyX(i) != (int) p.getPolyX(i - 1) || (int) p.getPolyY(i) != (int) p.getPolyY(i - 1)) {
+                        commands.add(ZigZag.encode((int) p.getPolyX(i) - (int) p.getPolyX(i - 1)));
+                        commands.add(ZigZag.encode((int) p.getPolyY(i) - (int) p.getPolyY(i - 1)));
+                        numPoints++;
+                    }
+                }
+                commands.set(3, GeomCmdHdr.cmdHdr(GeomCmd.LineTo, numPoints));
+                //closePath
+                commands.add(GeomCmdHdr.closePathCmdHdr());
+                featureBuilder.addAllGeometry(commands);
+                layerBuilder.addFeatures(featureBuilder);
+                return featureBuilder;
             }
         });
     }
 
-    private class Visitor implements TriangleTreeReader.Visitor {
-        List<Integer> commands = new ArrayList<>();
-        final double xScale = 1d / (tileEnvelope.getWidth() / (double) extent);
-        final double yScale = -1d / (tileEnvelope.getHeight() / (double) extent);
-        final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
-
-        void reset() {
-            commands.clear();
-            featureBuilder.clear();
-            lastX  = Integer.MIN_VALUE;
-            lastY = Integer.MIN_VALUE;
+    private Polygon getPolygon(BytesRef bytes) throws IOException {
+        final SourceLookup lookup = new SourceLookup();
+        lookup.setSource(new BytesArray(bytes));
+        final Object o;
+        try {
+            o = SimpleWKTShapeParser.parse((String) lookup.get(field));
+        } catch (ParseException p) {
+            throw new IOException(p);
         }
-
-        VectorTile.Tile.Feature.Builder getFeature() {
-            featureBuilder.addAllGeometry(commands);
-            return featureBuilder;
-
+        // we only support single polygons
+        if (o instanceof Polygon) {
+            return (Polygon) o;
+        } else if (o instanceof Polygon[]) {
+            return ((Polygon[]) o)[0];
+        } else {
+            throw new IllegalArgumentException("Unsupported shape");
         }
+    }
 
-        @Override
-        public void visitPoint(int x, int y) {
-            featureBuilder.setType(VectorTile.Tile.GeomType.POINT);
-            commands.add(GeomCmdHdr.cmdHdr(GeomCmd.MoveTo, 1));
-            add(x, y);
+    private boolean skip(GeoShapeValues.GeoShapeValue shapeValue) {
+        if (shapeValue.dimensionalShapeType() != DimensionalShapeType.POINT) {
+            double width = shapeValue.boundingBox().maxX() - shapeValue.boundingBox().minX();
+            double height = shapeValue.boundingBox().maxY() - shapeValue.boundingBox().minY();
+            return width <= this.width || height <= this.height;
         }
+        return false;
+    }
 
-        @Override
-        public void visitLine(int aX, int aY, int bX, int bY, byte metadata) {
-            featureBuilder.setType(VectorTile.Tile.GeomType.LINESTRING);
-            commands.add(GeomCmdHdr.cmdHdr(GeomCmd.MoveTo, 1));
-            add(aX, aY);
-            commands.add(GeomCmdHdr.cmdHdr(GeomCmd.LineTo, 1));
-            add(bX, bY);
+    public static XYPolygon toMVTPol(Polygon p, Envelope tile, double xScale, double yScale) {
+        // Transform Setup: Scale X and Y to tile extent values, flip Y values
+        float[] xs = new float[p.numPoints()];
+        float[] ys = new float[p.numPoints()];
+        for (int i = 0; i < p.numPoints(); i++) {
+            xs[p.numPoints() - 1 - i] =
+                (float) (xScale * (VectorTileUtils.lonToSphericalMercator(p.getPolyLon(i)) - tile.getMinX()));
+            ys[p.numPoints() - 1 - i] =
+                (float) (yScale * (VectorTileUtils.latToSphericalMercator(p.getPolyLat(i)) - tile.getMinY())) + extent;
         }
-
-        int lastX  = Integer.MIN_VALUE;
-        int lastY = Integer.MIN_VALUE;
-
-
-        @Override
-        public void visitTriangle(int aX, int aY, int bX, int bY, int cX, int cY, byte metadata) {
-            int aX3 = (int) (xScale *
-                (VectorTileUtils.lonToSphericalMercator(GeoEncodingUtils.decodeLongitude(aX))
-                    - tileEnvelope.getMinX()));
-            int ay3 = (int) (yScale *
-                (VectorTileUtils.latToSphericalMercator(GeoEncodingUtils.decodeLatitude(aY))
-                    - tileEnvelope.getMinY())) + extent;
-            commands.add(GeomCmdHdr.cmdHdr(GeomCmd.MoveTo, 1));
-            if (lastX == Integer.MIN_VALUE) {
-                featureBuilder.setType(VectorTile.Tile.GeomType.POLYGON);
-                commands.add(ZigZag.encode(aX3));
-                commands.add(ZigZag.encode(ay3));
-            } else {
-                commands.add(ZigZag.encode(aX3 - lastX));
-                commands.add(ZigZag.encode(ay3 - lastY));
-            }
-            commands.add(GeomCmdHdr.cmdHdr(GeomCmd.LineTo, 2));
-            int bX3 = (int) (xScale *
-                (VectorTileUtils.lonToSphericalMercator(GeoEncodingUtils.decodeLongitude(bX))
-                    - tileEnvelope.getMinX()));
-            int by3 = (int) (yScale *
-                (VectorTileUtils.latToSphericalMercator(GeoEncodingUtils.decodeLatitude(bY))
-                    - tileEnvelope.getMinY())) + extent;
-            commands.add(ZigZag.encode(bX3 - aX3));
-            commands.add(ZigZag.encode(by3 - ay3));
-            int cX3 = (int) (xScale *
-                (VectorTileUtils.lonToSphericalMercator(GeoEncodingUtils.decodeLongitude(cX))
-                    - tileEnvelope.getMinX()));
-            int cy3 = (int) (yScale *
-                (VectorTileUtils.latToSphericalMercator(GeoEncodingUtils.decodeLatitude(cY))
-                    - tileEnvelope.getMinY())) + extent;
-            commands.add(ZigZag.encode(cX3 - bX3));
-            commands.add(ZigZag.encode(cy3 - by3));
-            commands.add(GeomCmdHdr.closePathCmdHdr());
-            lastX = cX3;
-            lastY = cy3;
+        XYPolygon[] holes = new XYPolygon[p.numHoles()];
+        for (int i = 0; i < p.numHoles(); i++) {
+            holes[i] = toMVTPol(p.getHoles()[i], tile, xScale, yScale);
         }
-
-        private void add(int x, int y) {
-            int aX3 = (int) (xScale *
-                (VectorTileUtils.lonToSphericalMercator(GeoEncodingUtils.decodeLongitude(x))
-                    - tileEnvelope.getMinX()));
-            int ay3 = (int) (yScale *
-                (VectorTileUtils.latToSphericalMercator(GeoEncodingUtils.decodeLatitude(y))
-                    - tileEnvelope.getMinY())) + extent;
-            commands.add(ZigZag.encode(aX3));
-            commands.add(ZigZag.encode(ay3));
-        }
-
-        @Override
-        public boolean push() {
-            return true;
-        }
-
-        @Override
-        public boolean pushX(int minX) {
-            return true;
-        }
-
-        @Override
-        public boolean pushY(int minY) {
-            return true;
-        }
-
-        @Override
-        public boolean push(int maxX, int maxY) {
-            return true;
-        }
-
-        @Override
-        public boolean push(int minX, int minY, int maxX, int maxY) {
-            return true;
-        }
+        return new XYPolygon(xs, ys, holes);
     }
 }

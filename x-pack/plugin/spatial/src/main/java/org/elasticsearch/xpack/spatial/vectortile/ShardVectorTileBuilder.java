@@ -38,13 +38,11 @@ import java.util.Collections;
 class ShardVectorTileBuilder {
     private static final Logger logger = LogManager.getLogger(ShardVectorTileBuilder.class);
 
-    // controls which type of collector to use (hardcoded)
-    private static boolean useDocValues = false;
-
     private final IndexShard indexShard;
     private final Engine.Searcher searcher;
     private final SearchExecutionContext searchExecutionContext;
     private final GeoShapeQueryable geoField;
+    private final boolean hasDocValues;
     private final MappedFieldType sourceField;
     private final IndexFieldData<?> indexFieldData;
     private final int z;
@@ -72,8 +70,9 @@ class ShardVectorTileBuilder {
                 Collections.emptyMap()
             );
             MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
+            this.hasDocValues = fieldType.hasDocValues();
             this.sourceField = searchExecutionContext.getFieldType(SourceFieldMapper.NAME);
-            indexFieldData = fieldType.hasDocValues() ? searchExecutionContext.getForField(fieldType) : null;
+            this.indexFieldData = fieldType.hasDocValues() ? searchExecutionContext.getForField(fieldType) : null;
             this.z = z;
             this.x = x;
             this.y = y;
@@ -106,26 +105,28 @@ class ShardVectorTileBuilder {
             Query tileQuery = geoField.geoShapeQuery(rectangle, field, ShapeRelation.INTERSECTS, searchExecutionContext);
             // TODO: We can use other implementations for point and doc values to speed up the construction of a tile
             // TODO: How can we track memory usage when building a tile?
-            VectorTileCollector collector;
-            if (useDocValues) {
-                if (geoField instanceof GeoPointFieldMapper.GeoPointFieldType) {
-                    AbstractLatLonPointIndexFieldData.LatLonPointIndexFieldData points =
-                        (AbstractLatLonPointIndexFieldData.LatLonPointIndexFieldData) indexFieldData;
-                    collector = new PointDocValuesVectorTileCollector(points, tileEnvelope, field);
-                } else {
-                    AbstractLatLonShapeIndexFieldData.LatLonShapeIndexFieldData shapes =
-                        (AbstractLatLonShapeIndexFieldData.LatLonShapeIndexFieldData) indexFieldData;
-                    org.apache.lucene.geo.Rectangle rectangle1 =
-                        new org.apache.lucene.geo.Rectangle(rectangle.getMinLat(), rectangle.getMaxLat(),
-                            rectangle.getMinLon(), rectangle.getMaxLon());
-                    collector = new ShapeDocValuesVectorTileCollector(shapes, tileEnvelope, rectangle1, field);
-                }
-            } else {
-                collector = new WKTMapBoxCollector(sourceField, tileEnvelope, field);
-                //collector = new ShapeVectorTileCollector(sourceField, tileEnvelope, field);
-            }
+            VectorTileCollector collector = getCollector(tileEnvelope, rectangle);
             searcher.search(tileQuery, collector);
             return collector.getVectorTile();
+        }
+    }
+
+    private VectorTileCollector getCollector(Envelope tileEnvelope, Rectangle rectangle) {
+        if (hasDocValues) {
+            if (geoField instanceof GeoPointFieldMapper.GeoPointFieldType) {
+                AbstractLatLonPointIndexFieldData.LatLonPointIndexFieldData points =
+                    (AbstractLatLonPointIndexFieldData.LatLonPointIndexFieldData) indexFieldData;
+                return new PointDocValuesVectorTileCollector(points, tileEnvelope, field);
+            } else {
+                AbstractLatLonShapeIndexFieldData.LatLonShapeIndexFieldData shapes =
+                    (AbstractLatLonShapeIndexFieldData.LatLonShapeIndexFieldData) indexFieldData;
+                org.apache.lucene.geo.Rectangle rectangle1 =
+                    new org.apache.lucene.geo.Rectangle(rectangle.getMinLat(), rectangle.getMaxLat(),
+                        rectangle.getMinLon(), rectangle.getMaxLon());
+                return  new ShapeDocValuesVectorTileCollector(shapes, tileEnvelope, rectangle1, field, sourceField);
+            }
+        } else {
+            return new WKTMapBoxCollector(sourceField, tileEnvelope, field);
         }
     }
 }

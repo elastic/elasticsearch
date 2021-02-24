@@ -278,7 +278,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testReadFromPreRuntimeFields() throws IOException {
         byte[] bytes = Base64.getDecoder().decode("AQdrZXl3b3JkCgcAAAAAAA==");
         StreamInput in = StreamInput.wrap(bytes);
-        in.setVersion(Version.V_7_12_0);
+        in.setVersion(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_7_12_0));
         MappingStats deserialized = new MappingStats(in);
         assertEquals(1, deserialized.getFieldTypeStats().size());
         assertEquals(0, deserialized.getRuntimeFieldTypeStats().size());

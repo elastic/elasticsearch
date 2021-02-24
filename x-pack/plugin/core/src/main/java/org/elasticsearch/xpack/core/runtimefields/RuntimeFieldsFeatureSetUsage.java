@@ -24,6 +24,8 @@ import java.util.Collections;
  */
 public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
 
+    static final Version MINIMAL_SUPPORTED_VERSION = Version.V_7_11_0;
+
     public RuntimeFieldsFeatureSetUsage(StreamInput in) throws IOException {
         super(in.getVersion().before(Version.V_7_13_0) ? in.readString() : "runtime_fields",
             in.getVersion().before(Version.V_7_13_0) ? in.readBoolean() : true,
@@ -43,6 +45,6 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_7_11_0;
+        return MINIMAL_SUPPORTED_VERSION;
     }
 }

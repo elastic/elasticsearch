@@ -23,9 +23,10 @@ public class RuntimeFieldsFeatureSetUsageTests extends ESTestCase {
             "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
         byte[] bytes = Base64.getDecoder().decode(stats);
         RuntimeFieldsFeatureSetUsage deserialized = deserialize(bytes,
-            VersionUtils.randomVersionBetween(random(), Version.V_7_11_0, Version.V_7_12_0));
+            VersionUtils.randomVersionBetween(random(), RuntimeFieldsFeatureSetUsage.MINIMAL_SUPPORTED_VERSION, Version.V_7_12_0));
 
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_11_0, Version.V_7_13_0);
+        Version version = VersionUtils.randomVersionBetween(random(),
+            RuntimeFieldsFeatureSetUsage.MINIMAL_SUPPORTED_VERSION, Version.CURRENT);
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(version);
         deserialized.writeTo(out);

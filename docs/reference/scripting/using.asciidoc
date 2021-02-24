@@ -104,7 +104,34 @@ the example script.
 [discrete]
 [[script-shorten-syntax]]
 === Shorten your script
+Using syntactic sugar that is native to Painless, you can reduce verbosity in
+your scripts and make them shorter. In the shortened form, `script` is
+represented by a string that contains the script source instead of an object.
 
+[source,console]
+----
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": "params['hello_world']",
+    "params": {
+        "hello_world": "Hello, world!"
+    }
+  }
+}
+----
+
+This script removes several components to achieve greater brevity:
+
+. The `return` keyword. Painless automatically uses the final statement in a
+script (when possible) to produce a return value in a script context that
+requires one.
+. The semicolon at the end of the `source` statement. Painless does not
+require semicolons for the final statement of a block. However, it does require
+them in other cases to remove ambiguity.
+. The `get` method, which is replaced with brackets `[]`. Painless
+uses a shortcut specifically for the `Map` type that allows us to use brackets
+instead of the lengthier `get` method.
 
 For example, the following script is used in a search request to return a
 <<script-fields, scripted field>>:

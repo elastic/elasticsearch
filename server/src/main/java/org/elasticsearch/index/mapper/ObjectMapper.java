@@ -569,4 +569,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
     }
+
+    @Override
+    public void postParse(ParseContext context) throws IOException {
+        for (Mapper mapper : this) {
+            mapper.postParse(context);
+        }
+    }
 }

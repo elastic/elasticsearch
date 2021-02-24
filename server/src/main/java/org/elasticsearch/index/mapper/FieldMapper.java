@@ -167,6 +167,18 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         multiFields.parse(this, context);
     }
 
+    @Override
+    public void postParse(ParseContext context) throws IOException { // TODO make final, convert metadatamappers to doPostParse
+        doPostParse(context);
+        for (Mapper mapper : this) {
+            mapper.postParse(context);
+        }
+    }
+
+    protected void doPostParse(ParseContext context) throws IOException {
+        // no-op by default
+    }
+
     /**
      * Parse the field value and populate the fields on {@link ParseContext#doc()}.
      *

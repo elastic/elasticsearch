@@ -15,6 +15,9 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -169,6 +172,11 @@ public abstract class ParseContext {
         }
 
         @Override
+        public IndexTimeScriptContext getScriptContext() {
+            return in.getScriptContext();
+        }
+
+        @Override
         public boolean isWithinCopyTo() {
             return in.isWithinCopyTo();
         }
@@ -311,6 +319,7 @@ public abstract class ParseContext {
         private SeqNoFieldMapper.SequenceIDFields seqID;
         private long numNestedDocs;
         private boolean docsReversed = false;
+        private IndexTimeScriptContext scriptContext = null;
 
         public InternalParseContext(MappingLookup mappingLookup,
                                     Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction,
@@ -330,6 +339,20 @@ public abstract class ParseContext {
         @Override
         public Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter) {
             return parserContextFunction.apply(dateFormatter);
+        }
+
+        @Override
+        public IndexTimeScriptContext getScriptContext() {
+            if (scriptContext == null) {
+                SearchLookup lookup = new SearchLookup(
+                    this.mappingLookup::getFieldType,
+                    (ft, s) -> ft.fielddataBuilder("", s).build(
+                        new IndexFieldDataCache.None(),
+                        new NoneCircuitBreakerService())
+                );
+                scriptContext = new IndexTimeScriptContext(lookup, document, this.sourceToParse.source());
+            }
+            return scriptContext;
         }
 
         @Override
@@ -510,6 +533,8 @@ public abstract class ParseContext {
     public abstract Collection<String> getIgnoredFields();
 
     public abstract Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter);
+
+    public abstract IndexTimeScriptContext getScriptContext();
 
     /**
      * Return a new context that will be within a copy-to operation.

@@ -106,6 +106,8 @@ final class DocumentParser {
             parseObjectOrNested(context, root);
         }
 
+        root.postParse(context);
+
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
             metadataMapper.postParse(context);
         }

@@ -36,6 +36,10 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.runtimefields.mapper.DoubleFieldScript;
+import org.elasticsearch.runtimefields.mapper.LongFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -48,6 +52,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -73,6 +78,8 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final Parameter<Number> nullValue;
 
+        private final Parameter<ScriptParams.CompiledScriptParameter<MapperScript>> script;
+
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final NumberType type;
@@ -96,6 +103,10 @@ public class NumberFieldMapper extends FieldMapper {
                 = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
             this.nullValue = new Parameter<>("null_value", false, () -> null,
                 (n, c, o) -> o == null ? null : type.parse(o, false), m -> toType(m).nullValue).acceptsNull();
+            this.script = ScriptParams.script(
+                type.compiler(name),
+                m -> toType(m).script
+            );
         }
 
         Builder nullValue(Number number) {
@@ -110,7 +121,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, meta);
+            return List.of(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, script, meta);
         }
 
         @Override
@@ -136,6 +147,11 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 validateParsed(result);
                 return result;
+            }
+
+            @Override
+            public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
+                return DOUBLE.compiler(fieldName);
             }
 
             @Override
@@ -249,6 +265,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
+                return DOUBLE.compiler(fieldName);
+            }
+
+            @Override
             public Query termQuery(String field, Object value) {
                 float v = parse(value, false);
                 return FloatPoint.newExactQuery(field, v);
@@ -336,6 +357,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
+                return (script, service)
+                    -> new DoubleMapperScript(fieldName, service.compile(script, DoubleFieldScript.CONTEXT), script.getParams());
+            }
+
+            @Override
             public Query termQuery(String field, Object value) {
                 double v = parse(value, false);
                 return DoublePoint.newExactQuery(field, v);
@@ -411,6 +438,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
+                return LONG.compiler(fieldName);
+            }
+
+            @Override
             public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 int value = parser.intValue(coerce);
                 if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
@@ -477,6 +509,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
+                return LONG.compiler(fieldName);
+            }
+
+            @Override
             public Query termQuery(String field, Object value) {
                 return INTEGER.termQuery(field, value);
             }
@@ -531,6 +568,11 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public Integer parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.intValue(coerce);
+            }
+
+            @Override
+            public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
+                return LONG.compiler(fieldName);
             }
 
             @Override
@@ -639,6 +681,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
+                return (script, service)
+                    -> new LongMapperScript(fieldName, service.compile(script, LongFieldScript.CONTEXT), script.getParams());
+            }
+
+            @Override
             public Query termQuery(String field, Object value) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
@@ -722,6 +770,7 @@ public class NumberFieldMapper extends FieldMapper {
         public final TypeParser parser() {
             return parser;
         }
+        public abstract BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName);
         public abstract Query termQuery(String field, Object value);
         public abstract Query termsQuery(String field, Collection<?> values);
         public abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
@@ -1001,6 +1050,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final Explicit<Boolean> ignoreMalformed;
     private final Explicit<Boolean> coerce;
     private final Number nullValue;
+    private final ScriptParams.CompiledScriptParameter<MapperScript> script;
 
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
@@ -1021,6 +1071,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.nullValue = builder.nullValue.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
+        this.script = builder.script.get();
     }
 
     boolean coerce() {
@@ -1080,6 +1131,10 @@ public class NumberFieldMapper extends FieldMapper {
             numericValue = fieldType().type.parse(value, coerce.value());
         }
 
+        indexValue(context, numericValue);
+    }
+
+    private void indexValue(ParseContext context, Number numericValue) {
         context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue,
             indexed, hasDocValues, stored));
 
@@ -1089,7 +1144,69 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected void doPostParse(ParseContext context) {
+        if (this.script == null) {
+            return;
+        }
+        this.script.compiledScript.executeAndIndex(context, this::indexValue);
+    }
+
+    @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), type, ignoreMalformedByDefault, coerceByDefault).init(this);
+    }
+
+    private interface MapperScript {
+        void executeAndIndex(ParseContext context, BiConsumer<ParseContext, Number> emitter);
+    }
+
+    private static class LongMapperScript implements MapperScript {
+
+        final LongFieldScript.Factory scriptFactory;
+        final Map<String, Object> scriptParams;
+        final String fieldName;
+
+        private LongMapperScript(String fieldName, LongFieldScript.Factory scriptFactory, Map<String, Object> scriptParams) {
+            this.scriptFactory = scriptFactory;
+            this.scriptParams = scriptParams;
+            this.fieldName = fieldName;
+        }
+
+        @Override
+        public void executeAndIndex(ParseContext context, BiConsumer<ParseContext, Number> emitter) {
+            IndexTimeScriptContext scriptContext = context.getScriptContext();
+            LongFieldScript s = scriptFactory
+                .newFactory(fieldName, scriptParams, scriptContext.searchLookup)
+                .newInstance(scriptContext.leafReaderContext);
+            s.runForDoc(0);
+            for (long v : s.values()) {
+                emitter.accept(context, v);
+            }
+        }
+    }
+
+    private static class DoubleMapperScript implements MapperScript {
+
+        final DoubleFieldScript.Factory scriptFactory;
+        final Map<String, Object> scriptParams;
+        final String fieldName;
+
+        private DoubleMapperScript(String fieldName, DoubleFieldScript.Factory scriptFactory, Map<String, Object> scriptParams) {
+            this.scriptFactory = scriptFactory;
+            this.scriptParams = scriptParams;
+            this.fieldName = fieldName;
+        }
+
+        @Override
+        public void executeAndIndex(ParseContext context, BiConsumer<ParseContext, Number> emitter) {
+            IndexTimeScriptContext scriptContext = context.getScriptContext();
+            DoubleFieldScript s = scriptFactory
+                .newFactory(fieldName, scriptParams, scriptContext.searchLookup)
+                .newInstance(scriptContext.leafReaderContext);
+            s.runForDoc(0);
+            for (double v : s.values()) {
+                emitter.accept(context, v);
+            }
+        }
     }
 }

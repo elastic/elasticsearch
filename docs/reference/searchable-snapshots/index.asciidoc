@@ -82,7 +82,8 @@ You can use any of the following repository types with searchable snapshots:
 * <<snapshots-filesystem-repository,Shared filesystems>> such as NFS
 
 You can also use alternative implementations of these repository types, for
-instance {plugins}/repository-s3.html#repository-s3-compatible-services[Minio],
+instance
+{plugins}/repository-s3-client.html#repository-s3-compatible-services[Minio],
 as long as they are fully compatible.
 
 [discrete]

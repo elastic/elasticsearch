@@ -13,7 +13,7 @@ import java.util.Set;
 /**
  * Record of transform tasks and their current persistent task state.
  *
- * This class is aimed to be be used by start/stop and stats action.
+ * This class is aimed to be used by start/stop and stats action.
  */
 public final class TransformNodeAssignments {
 

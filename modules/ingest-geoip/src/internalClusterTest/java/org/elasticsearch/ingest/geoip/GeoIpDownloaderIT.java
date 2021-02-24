@@ -25,6 +25,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.junit.After;
 
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
@@ -56,14 +57,21 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false);
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         String endpoint = System.getProperty("geoip_endpoint");
         if (endpoint != null) {
             settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), endpoint);
         }
         return settings.build();
+    }
+
+    @After
+    public void disableDownloader(){
+        ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false))
+            .get();
+        assertTrue(settingsResponse.isAcknowledged());
     }
 
     public void testGeoIpDatabasesDownload() throws Exception {

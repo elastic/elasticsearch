@@ -25,7 +25,7 @@ public class EventPayload extends AbstractPayload {
         List<SearchHit> hits = RuntimeUtils.searchHits(response);
         values = new ArrayList<>(hits.size());
         for (SearchHit hit : hits) {
-            values.add(new Event(hit.getIndex(), hit.getId(), hit.getSourceRef()));
+            values.add(new Event(hit.getIndex(), hit.getId(), hit.getSourceRef(), hit.getFields()));
         }
     }
 

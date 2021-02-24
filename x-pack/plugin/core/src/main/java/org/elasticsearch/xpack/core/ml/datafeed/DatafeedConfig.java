@@ -292,7 +292,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     }
 
     public Optional<Tuple<Version, String>> minRequiredClusterVersion() {
-        return runtimeMappings.isEmpty() ? Optional.empty() : Optional.of(Tuple.tuple(RUNTIME_MAPPINGS_INTRODUCED, "runtime mappings"));
+        return runtimeMappings.isEmpty() ?
+            Optional.empty() :
+            Optional.of(Tuple.tuple(RUNTIME_MAPPINGS_INTRODUCED, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()));
     }
 
     /**

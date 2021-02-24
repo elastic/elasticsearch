@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -50,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -65,6 +67,8 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GEN
  * values.
  */
 public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements ToXContentObject {
+
+    private static final Version RUNTIME_MAPPINGS_INTRODUCED = Version.V_7_11_0;
 
     public static final int DEFAULT_SCROLL_SIZE = 1000;
 
@@ -311,6 +315,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
     public Integer getScrollSize() {
         return scrollSize;
+    }
+
+    public Optional<Tuple<Version, String>> minRequiredClusterVersion() {
+        return runtimeMappings.isEmpty() ?
+            Optional.empty() :
+            Optional.of(Tuple.tuple(RUNTIME_MAPPINGS_INTRODUCED, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()));
     }
 
     /**
@@ -845,9 +855,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             return this.indicesOptions;
         }
 
-        public void setRuntimeMappings(Map<String, Object> runtimeMappings) {
+        public Builder setRuntimeMappings(Map<String, Object> runtimeMappings) {
             this.runtimeMappings = ExceptionsHelper.requireNonNull(runtimeMappings,
                 SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName());
+            return this;
         }
 
         public DatafeedConfig build() {

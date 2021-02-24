@@ -1012,7 +1012,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.transport.TransportService.tracer:trace,_root:DEBUG",
+        value = "org.elasticsearch.transport.TransportService.tracer:trace",
         reason = "to ensure we log network events on TRACE level")
     public void testTracerLog() throws Exception {
         TransportRequestHandler<TransportRequest> handler = (request, channel, task) -> channel.sendResponse(new StringMessageResponse(""));
@@ -1062,88 +1062,127 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), excludeSettings)
             .build());
 
-        boolean success = false;
         MockLogAppender appender = new MockLogAppender();
         try {
             appender.start();
             Loggers.addAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
-            final String requestSent = ".*\\[internal:test].*sent to.*\\{TS_B}.*";
-            final MockLogAppender.LoggingExpectation requestSentExpectation =
-                new MockLogAppender.PatternSeenEventExpectation(
-                    "sent request", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, requestSent);
-            final String requestReceived = ".*\\[internal:test].*received request.*";
-            final MockLogAppender.LoggingExpectation requestReceivedExpectation =
-                new MockLogAppender.PatternSeenEventExpectation(
-                    "received request", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, requestReceived);
-            final String responseSent = ".*\\[internal:test].*sent response.*";
-            final MockLogAppender.LoggingExpectation responseSentExpectation =
-                new MockLogAppender.PatternSeenEventExpectation(
-                    "sent response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, responseSent);
-            final String responseReceived = ".*\\[internal:test].*received response from.*\\{TS_B}.*";
-            final MockLogAppender.LoggingExpectation responseReceivedExpectation =
-                new MockLogAppender.PatternSeenEventExpectation(
-                    "received response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, responseReceived);
 
-            appender.addExpectation(requestSentExpectation);
-            appender.addExpectation(requestReceivedExpectation);
-            appender.addExpectation(responseSentExpectation);
-            appender.addExpectation(responseReceivedExpectation);
 
-            StringMessageRequest request = new StringMessageRequest("", 10);
-            serviceA.sendRequest(nodeB, "internal:test", request, TransportRequestOptions.EMPTY, noopResponseHandler);
+            ////////////////////////////////////////////////////////////////////////
+            // tests for included action type "internal:test"
+            //
+
+            // serviceA logs the request was sent
+            appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
+                    "sent request",
+                    "org.elasticsearch.transport.TransportService.tracer",
+                    Level.TRACE,
+                    ".*\\[internal:test].*sent to.*\\{TS_B}.*"));
+            // serviceB logs the request was received
+            appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
+                    "received request",
+                    "org.elasticsearch.transport.TransportService.tracer",
+                    Level.TRACE,
+                    ".*\\[internal:test].*received request.*"));
+            // serviceB logs the response was sent
+            appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
+                    "sent response",
+                    "org.elasticsearch.transport.TransportService.tracer",
+                    Level.TRACE,
+                    ".*\\[internal:test].*sent response.*"));
+            // serviceA logs the response was received
+            appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
+                    "received response",
+                    "org.elasticsearch.transport.TransportService.tracer",
+                    Level.TRACE,
+                    ".*\\[internal:test].*received response from.*\\{TS_B}.*"));
+
+            serviceA.sendRequest(
+                    nodeB,
+                    "internal:test",
+                    new StringMessageRequest("", 10),
+                    noopResponseHandler);
 
             assertBusy(appender::assertAllExpectationsMatched);
 
-            final String errorResponseSent = ".*\\[internal:testError].*sent error response.*";
-            final MockLogAppender.LoggingExpectation errorResponseSentExpectation =
-                new MockLogAppender.PatternSeenEventExpectation(
-                    "sent error response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, errorResponseSent);
+            ////////////////////////////////////////////////////////////////////////
+            // tests for included action type "internal:testError" which returns an error
+            //
+            // NB we check again for the logging that request was sent and received because we have to wait for them before shutting the
+            // appender down. The logging happens after messages are sent so might happen out of order.
 
-            final String errorResponseReceived = ".*\\[internal:testError].*received response from.*\\{TS_B}.*";
-            final MockLogAppender.LoggingExpectation errorResponseReceivedExpectation =
-                new MockLogAppender.PatternSeenEventExpectation(
-                    "received error response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, errorResponseReceived);
+            // serviceA logs the request was sent
+            appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
+                    "sent request",
+                    "org.elasticsearch.transport.TransportService.tracer",
+                    Level.TRACE,
+                    ".*\\[internal:testError].*sent to.*\\{TS_B}.*"));
+            // serviceB logs the request was received
+            appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
+                    "received request",
+                    "org.elasticsearch.transport.TransportService.tracer",
+                    Level.TRACE,
+                    ".*\\[internal:testError].*received request.*"));
+            // serviceB logs the error response was sent
+            appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
+                    "sent error response",
+                    "org.elasticsearch.transport.TransportService.tracer",
+                    Level.TRACE,
+                    ".*\\[internal:testError].*sent error response.*"));
+            // serviceA logs the error response was sent
+            appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
+                    "received error response",
+                    "org.elasticsearch.transport.TransportService.tracer",
+                    Level.TRACE,
+                    ".*\\[internal:testError].*received response from.*\\{TS_B}.*"));
 
-            appender.addExpectation(errorResponseSentExpectation);
-            appender.addExpectation(errorResponseReceivedExpectation);
+            serviceA.sendRequest(
+                    nodeB,
+                    "internal:testError",
+                    new StringMessageRequest(""),
+                    noopResponseHandler);
 
-            logger.info("--> [internal:testError] sending message");
-            serviceA.sendRequest(nodeB, "internal:testError", new StringMessageRequest(""), noopResponseHandler);
-            logger.info("--> [internal:testError] checking expectations");
             assertBusy(appender::assertAllExpectationsMatched);
-            logger.info("--> [internal:testError] expectations ok");
 
-            final String notSeenSent = "*[internal:testNotSeen]*sent to*";
-            final MockLogAppender.LoggingExpectation notSeenSentExpectation =
-                new MockLogAppender.UnseenEventExpectation(
-                    "not seen request sent", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, notSeenSent);
-            final String notSeenReceived = ".*\\[internal:testNotSeen].*received request.*";
-            final MockLogAppender.LoggingExpectation notSeenReceivedExpectation =
-                new MockLogAppender.PatternSeenEventExpectation(
-                    "not seen request received", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, notSeenReceived);
+            ////////////////////////////////////////////////////////////////////////
+            // tests for excluded action type "internal:testNotSeen"
+            //
+            // NB We have to assert the messages logged by serviceB because we have to wait for them before shutting the appender down.
+            // The logging happens after messages are sent so might happen after the response future is completed.
 
-            appender.addExpectation(notSeenSentExpectation);
-            appender.addExpectation(notSeenReceivedExpectation);
+            // serviceA does not log that it sent the message
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                    "not seen request sent",
+                    "org.elasticsearch.transport.TransportService.tracer",
+                    Level.TRACE,
+                    "*[internal:testNotSeen]*sent to*"));
+            // serviceB does log that it received the request
+            appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
+                    "not seen request received",
+                    "org.elasticsearch.transport.TransportService.tracer",
+                    Level.TRACE,
+                    ".*\\[internal:testNotSeen].*received request.*"));
+            // serviceB does log that it sent the response
+            appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
+                    "not seen request received",
+                    "org.elasticsearch.transport.TransportService.tracer",
+                    Level.TRACE,
+                    ".*\\[internal:testNotSeen].*sent response.*"));
+            // serviceA does not log that it received the response
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                    "not seen request sent",
+                    "org.elasticsearch.transport.TransportService.tracer",
+                    Level.TRACE,
+                    "*[internal:testNotSeen]*received response from*"));
 
-            PlainTransportFuture<StringMessageResponse> future = new PlainTransportFuture<>(noopResponseHandler);
-            logger.info("--> [internal:testNotSeen] sending message");
+            final PlainTransportFuture<StringMessageResponse> future = new PlainTransportFuture<>(noopResponseHandler);
             serviceA.sendRequest(nodeB, "internal:testNotSeen", new StringMessageRequest(""), future);
-            logger.info("--> [internal:testNotSeen] awaiting response");
             future.txGet();
-            logger.info("--> [internal:testNotSeen] checking expectations");
-            assertBusy(appender::assertAllExpectationsMatched);
-            logger.info("--> [internal:testNotSeen] expectations ok");
 
-            success = true;
-        } catch (Throwable t) { // TODO remove once https://github.com/elastic/elasticsearch/issues/66630 resolved
-            logger.info("--> test failed", t);
-            throw t;
+            assertBusy(appender::assertAllExpectationsMatched);
         } finally {
-            logger.info("--> removing appender [success={}]", success);
             Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
-            logger.info("--> stopping appender [success={}]", success);
             appender.stop();
-            logger.info("--> all done [success={}]", success);
         }
     }
 

@@ -1169,8 +1169,14 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
                         index.field("type", "keyword");
                     }
                     index.endObject();
-                    randomValue.set(randomAlphaOfLength(10));
-                    bulkContent.append("\"" + fieldName + "\":{\"" + leafFieldName + "\":\"" + randomValue.get() + "\"");
+                    // from time to time set a null value instead of an actual value
+                    if (randomBoolean()) {
+                        randomValue.set(null);
+                        bulkContent.append("\"" + fieldName + "\":{\"" + leafFieldName + "\":null");
+                    } else {
+                        randomValue.set(randomAlphaOfLength(10));
+                        bulkContent.append("\"" + fieldName + "\":{\"" + leafFieldName + "\":\"" + randomValue.get() + "\"");
+                    }
                     if (remainingFields > 1) {
                         bulkContent.append(",");
                         addField(index, true, remainingFields - 1, path, bulkContent, randomValue);

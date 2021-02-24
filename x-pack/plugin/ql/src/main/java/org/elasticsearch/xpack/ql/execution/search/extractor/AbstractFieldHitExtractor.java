@@ -94,7 +94,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     }
 
     /*
-     * For a tree of fields like root.nested1.nested2.leaf where nested1 and nested2 are nested field types,
+     * For a path of fields like root.nested1.nested2.leaf where nested1 and nested2 are nested field types,
      * fieldName is root.nested1.nested2.leaf, while hitName is root.nested1.nested2
      * We first look for root.nested1.nested2 or root.nested1 or root in the SearchHit until we find something.
      * If the DocumentField lives under "root.nested1" the remaining path to search for (in the DocumentField itself) is nested2.
@@ -107,8 +107,11 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         String tempHitname = hitName;
         List<String> remainingPath = new ArrayList<>();
         // first, search for the "root" DocumentField under which the remaining path of nested document values is
-        while((field = hit.field(tempHitname)) == null) {
+        while ((field = hit.field(tempHitname)) == null) {
             int indexOfDot = tempHitname.lastIndexOf(".");
+            if (indexOfDot < 0) {// there is no such field in the hit
+                return null;
+            }
             remainingPath.add(0, tempHitname.substring(indexOfDot + 1));
             tempHitname = tempHitname.substring(0, indexOfDot);
         }
@@ -116,7 +119,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         if (remainingPath.size() > 0) {
             List<Object> values = field.getValues();
             Iterator<String> pathIterator = remainingPath.iterator();
-            while(pathIterator.hasNext()) {
+            while (pathIterator.hasNext()) {
                 String pathElement = pathIterator.next();
                 Map<String, Object> elements = (Map<String, Object>) values.get(0);
                 values = (List<Object>) elements.get(pathElement);

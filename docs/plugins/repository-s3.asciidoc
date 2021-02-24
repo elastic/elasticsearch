@@ -222,12 +222,17 @@ Note that some storage systems claim to be S3-compatible without correctly
 supporting the full S3 API. The `repository-s3` plugin requires full
 compatibility with S3. In particular it must support the same set of API
 endpoints, return the same errors in case of failures, and offer a consistency
-model no weaker than S3's when accessed concurrently by multiple nodes. If you
-wish to use another storage system with the `repository-s3` plugin then you
-will need to work with the supplier of the storage system to address any
-incompatibilities you encounter. Incompatible error codes and consistency
-models may be particularly hard to track down since errors and consistency
-failures are usually rare and hard to reproduce.
+model no weaker than S3's when accessed concurrently by multiple nodes.
+Incompatible error codes and consistency models may be particularly hard to
+track down since errors and consistency failures are usually rare and hard to
+reproduce.
+
+You can perform some basic checks of the suitability of your storage system
+using the {ref}/repo-analysis-api.html[repository analysis API]. If this API
+does not complete successfully, or indicates poor performance, then your
+storage system is not fully compatible with AWS S3 and therefore unsuitable for
+use as a snapshot repository. You will need to work with the supplier of your
+storage system to address any incompatibilities you encounter.
 
 [[repository-s3-repository]]
 ==== Repository Settings

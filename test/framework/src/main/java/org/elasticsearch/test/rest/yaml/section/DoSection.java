@@ -320,6 +320,10 @@ public class DoSection implements ExecutableSection {
             final boolean matches = matcher.matches();
             if (matches) {
                 final String message = HeaderWarning.extractWarningValueFromWarningHeader(header, true);
+                if (message.startsWith("[types removal]") || message.startsWith("[Compatible API usage]")) {
+                    // We skip warnings related to types deprecation because they are *everywhere*.
+                    continue;
+                }
                 if (allowed.contains(message)) {
                     continue;
                 }

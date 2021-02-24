@@ -8,7 +8,6 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -628,7 +627,7 @@ public class RestControllerTests extends ESTestCase {
 
         RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
 
-        final byte version = RestApiCompatibleVersion.minimumSupported().major;
+        final RestApiCompatibleVersion version = RestApiCompatibleVersion.minimumSupported();
 
         final String mediaType = randomCompatibleMediaType(version);
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
@@ -659,7 +658,7 @@ public class RestControllerTests extends ESTestCase {
 
         RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
 
-        final byte version = RestApiCompatibleVersion.minimumSupported().major;
+        final RestApiCompatibleVersion version = RestApiCompatibleVersion.minimumSupported();
 
         final String mediaType = randomCompatibleMediaType(version);
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
@@ -704,7 +703,7 @@ public class RestControllerTests extends ESTestCase {
     public void testCurrentVersionVNDMediaTypeIsNotUsingCompatibility() {
         RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
 
-        final byte version = Version.CURRENT.major;
+        final RestApiCompatibleVersion version = RestApiCompatibleVersion.currentVersion();
 
         final String mediaType = randomCompatibleMediaType(version);
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);

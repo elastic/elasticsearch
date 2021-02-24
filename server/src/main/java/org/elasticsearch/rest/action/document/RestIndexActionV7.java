@@ -27,11 +27,13 @@ public class RestIndexActionV7 {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document "
         + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
         + "or /{index}/_create/{id}).";
+    static final String COMPATIBLE_API_MESSAGE = "[Compatible API usage] Index API with types has been removed, use typeless endpoints.";
+
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndexActionV7.class);
 
     private static void logDeprecationMessage() {
         deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "index_with_types", TYPES_DEPRECATION_MESSAGE);
-        deprecationLogger.compatibleApiWarning("index_with_types", TYPES_DEPRECATION_MESSAGE);
+        deprecationLogger.compatibleApiWarning("index_with_types", COMPATIBLE_API_MESSAGE);
     }
 
     public static class CompatibleRestIndexAction extends RestIndexAction {

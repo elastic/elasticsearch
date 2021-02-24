@@ -25,6 +25,7 @@ public class RestGetActionV7 extends RestGetAction {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetActionV7.class);
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
         + "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
+    static final String COMPATIBLE_API_MESSAGE = "[Compatible API usage] Index API with types has been removed, use typeless endpoints.";
 
     @Override
     public String getName() {
@@ -39,6 +40,7 @@ public class RestGetActionV7 extends RestGetAction {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
         deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "get_with_types", TYPES_DEPRECATION_MESSAGE);
+        deprecationLogger.compatibleApiWarning("get_with_types", COMPATIBLE_API_MESSAGE);
         request.param("type");
         return super.prepareRequest(request, client);
     }

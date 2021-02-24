@@ -220,7 +220,7 @@ GET /_search
     "multi_match" : {
       "query":      "quick brown fox",
       "type":       "most_fields",
-      "fields":     [ `title`, "title.original", "title.shingles" ]
+      "fields":     [ "title", "title.original", "title.shingles" ]
     }
   }
 }
@@ -235,7 +235,7 @@ GET /_search
   "query": {
     "bool": {
       "should": [
-        { "match": { `title`:          "quick brown fox" }},
+        { "match": { "title":          "quick brown fox" }},
         { "match": { "title.original": "quick brown fox" }},
         { "match": { "title.shingles": "quick brown fox" }}
       ]
@@ -274,7 +274,7 @@ GET /_search
     "multi_match" : {
       "query":      "database systems",
       "type":       "combined_fields",
-      "fields":     [ `title`, "abstract"],
+      "fields":     [ "title", "abstract"],
       "operator":   "and"
     }
   }
@@ -283,8 +283,8 @@ GET /_search
 
 is executed as
 
-    +(combined("database", fields:[`title`, "abstract"]))
-    +(combined("systems", fields:[`title`, "abstract"]))
+    +(combined("database", fields:["title" "abstract"]))
+    +(combined("systems", fields:["title", "abstract"]))
 
 In other words, *all terms* must be present *in at least one field* for a
 document to match.  (Compare this to <<operator-min,the logic used for

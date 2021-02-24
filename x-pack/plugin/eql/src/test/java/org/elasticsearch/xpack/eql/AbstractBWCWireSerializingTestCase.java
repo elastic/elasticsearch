@@ -8,8 +8,7 @@ package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -19,7 +18,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.Version.getDeclaredVersions;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToXContent> extends AbstractSerializingTestCase<T> {
+public abstract class AbstractBWCWireSerializingTestCase<T extends Writeable> extends AbstractWireSerializingTestCase<T> {
 
     private static final List<Version> ALL_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
     private static Version EQL_GA_VERSION = Version.V_7_10_0;

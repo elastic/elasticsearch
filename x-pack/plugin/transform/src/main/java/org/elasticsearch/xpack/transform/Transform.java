@@ -123,6 +123,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants.AUDIT_INDEX_PATTERN;
 
 public class Transform extends Plugin implements SystemIndexPlugin, PersistentTaskPlugin {
 
@@ -395,6 +396,10 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    @Override public Collection<String> getAssociatedIndexPatterns() {
+        return org.elasticsearch.common.collect.List.of(AUDIT_INDEX_PATTERN);
     }
 
     @Override

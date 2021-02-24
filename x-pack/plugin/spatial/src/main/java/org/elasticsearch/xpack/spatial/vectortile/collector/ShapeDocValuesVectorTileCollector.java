@@ -94,7 +94,6 @@ public class ShapeDocValuesVectorTileCollector extends AbstractVectorTileCollect
                 //closePath
                 commands.add(GeomCmdHdr.closePathCmdHdr());
                 featureBuilder.addAllGeometry(commands);
-                layerBuilder.addFeatures(featureBuilder);
                 return featureBuilder;
             }
         });

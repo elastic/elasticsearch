@@ -507,7 +507,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * @return the current collection of registered repositories, keyed by name.
      */
     public Map<String, Repository> getRepositories() {
-        return unmodifiableMap(repositories);
+        return repositories;
     }
 
     public List<RepositoryStatsSnapshot> repositoriesStats() {

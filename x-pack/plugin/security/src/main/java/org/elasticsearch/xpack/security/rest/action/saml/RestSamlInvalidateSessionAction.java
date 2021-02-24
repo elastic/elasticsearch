@@ -34,7 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestSamlInvalidateSessionAction extends SamlBaseRestHandler {
 
     static final ObjectParser<SamlInvalidateSessionRequest, RestSamlInvalidateSessionAction> PARSER =
-            new ObjectParser<>("saml_invalidate_session", SamlInvalidateSessionRequest::new);
+        new ObjectParser<>("saml_invalidate_session", SamlInvalidateSessionRequest::new);
 
     static {
         PARSER.declareString(SamlInvalidateSessionRequest::setQueryString, new ParseField("queryString"));
@@ -65,17 +65,17 @@ public class RestSamlInvalidateSessionAction extends SamlBaseRestHandler {
         try (XContentParser parser = request.contentParser()) {
             final SamlInvalidateSessionRequest invalidateRequest = PARSER.parse(parser, this);
             return channel -> client.execute(SamlInvalidateSessionAction.INSTANCE, invalidateRequest,
-                    new RestBuilderListener<SamlInvalidateSessionResponse>(channel) {
-                        @Override
-                        public RestResponse buildResponse(SamlInvalidateSessionResponse resp, XContentBuilder builder) throws Exception {
-                            builder.startObject();
-                            builder.field("realm", resp.getRealmName());
-                            builder.field("invalidated", resp.getCount());
-                            builder.field("redirect", resp.getRedirectUrl());
-                            builder.endObject();
-                            return new BytesRestResponse(RestStatus.OK, builder);
-                        }
-                    });
+                new RestBuilderListener<SamlInvalidateSessionResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(SamlInvalidateSessionResponse resp, XContentBuilder builder) throws Exception {
+                        builder.startObject();
+                        builder.field("realm", resp.getRealmName());
+                        builder.field("invalidated", resp.getCount());
+                        builder.field("redirect", resp.getRedirectUrl());
+                        builder.endObject();
+                        return new BytesRestResponse(RestStatus.OK, builder);
+                    }
+                });
         }
     }
 

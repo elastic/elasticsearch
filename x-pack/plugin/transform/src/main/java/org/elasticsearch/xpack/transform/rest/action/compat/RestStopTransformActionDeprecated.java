@@ -34,7 +34,7 @@ public class RestStopTransformActionDeprecated extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String id = restRequest.param(TransformField.ID.getPreferredName());
         TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(),
-                StopTransformAction.DEFAULT_TIMEOUT);
+            StopTransformAction.DEFAULT_TIMEOUT);
         boolean waitForCompletion = restRequest.paramAsBoolean(TransformField.WAIT_FOR_COMPLETION.getPreferredName(), false);
         boolean force = restRequest.paramAsBoolean(TransformField.FORCE.getPreferredName(), false);
         boolean allowNoMatch = restRequest.paramAsBoolean(TransformField.ALLOW_NO_MATCH.getPreferredName(), false);
@@ -49,7 +49,7 @@ public class RestStopTransformActionDeprecated extends BaseRestHandler {
             waitForCheckpoint);
 
         return channel -> client.execute(StopTransformActionDeprecated.INSTANCE, request,
-                new RestToXContentListener<>(channel));
+            new RestToXContentListener<>(channel));
     }
 
     @Override

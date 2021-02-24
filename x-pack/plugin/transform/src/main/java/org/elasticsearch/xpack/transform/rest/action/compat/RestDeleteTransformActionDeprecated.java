@@ -41,7 +41,7 @@ public class RestDeleteTransformActionDeprecated extends BaseRestHandler {
         DeleteTransformAction.Request request = new DeleteTransformAction.Request(id, force);
 
         return channel -> client.execute(DeleteTransformActionDeprecated.INSTANCE, request,
-                new RestToXContentListener<>(channel));
+            new RestToXContentListener<>(channel));
     }
 
     @Override

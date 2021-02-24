@@ -54,6 +54,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     private static final Map<String, String> DEFAULT_TO_XCONTENT_VALUES =
         Collections.singletonMap(TrainedModelConfig.DECOMPRESS_DEFINITION, Boolean.toString(true));
+
     @Override
     public String getName() {
         return "ml_get_trained_models_action";

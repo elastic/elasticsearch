@@ -37,7 +37,7 @@ public class RestStartTransformActionDeprecated extends BaseRestHandler {
         StartTransformAction.Request request = new StartTransformAction.Request(id);
         request.timeout(restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT));
         return channel -> client.execute(StartTransformActionDeprecated.INSTANCE, request,
-                new RestToXContentListener<>(channel));
+            new RestToXContentListener<>(channel));
     }
 
     @Override

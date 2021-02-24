@@ -100,9 +100,9 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
 
     static Map<String, Set<ApplicationPrivilegeDescriptor>> groupByApplicationName(ApplicationPrivilegeDescriptor[] privileges) {
         return Arrays.stream(privileges).collect(Collectors.toMap(
-                ApplicationPrivilegeDescriptor::getApplication,
-                Collections::singleton,
-                Sets::union
+            ApplicationPrivilegeDescriptor::getApplication,
+            Collections::singleton,
+            Sets::union
         ));
     }
 }

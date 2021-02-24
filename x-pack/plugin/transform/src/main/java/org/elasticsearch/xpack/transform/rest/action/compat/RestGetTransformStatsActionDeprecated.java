@@ -44,7 +44,7 @@ public class RestGetTransformStatsActionDeprecated extends BaseRestHandler {
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
         return channel -> client.execute(GetTransformStatsActionDeprecated.INSTANCE, request,
-                new RestToXContentListener<>(channel));
+            new RestToXContentListener<>(channel));
     }
 
     @Override

@@ -65,16 +65,16 @@ public class RestSamlLogoutAction extends SamlBaseRestHandler {
         try (XContentParser parser = request.contentParser()) {
             final SamlLogoutRequest logoutRequest = PARSER.parse(parser, null);
             return channel -> client.execute(SamlLogoutAction.INSTANCE, logoutRequest,
-                    new RestBuilderListener<SamlLogoutResponse>(channel) {
-                        @Override
-                        public RestResponse buildResponse(SamlLogoutResponse response, XContentBuilder builder) throws Exception {
-                            builder.startObject();
-                            builder.field("id", response.getRequestId());
-                            builder.field("redirect", response.getRedirectUrl());
-                            builder.endObject();
-                            return new BytesRestResponse(RestStatus.OK, builder);
-                        }
-                    });
+                new RestBuilderListener<SamlLogoutResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(SamlLogoutResponse response, XContentBuilder builder) throws Exception {
+                        builder.startObject();
+                        builder.field("id", response.getRequestId());
+                        builder.field("redirect", response.getRedirectUrl());
+                        builder.endObject();
+                        return new BytesRestResponse(RestStatus.OK, builder);
+                    }
+                });
         }
     }
 }

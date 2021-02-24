@@ -71,9 +71,9 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
                 final List<ApplicationPrivilegeDescriptor> privileges = requestBuilder.request().getPrivileges();
                 Map<String, Map<String, Map<String, Boolean>>> result = new HashMap<>();
                 privileges.stream()
-                        .map(ApplicationPrivilegeDescriptor::getApplication)
-                        .distinct()
-                        .forEach(a -> result.put(a, new HashMap<>()));
+                    .map(ApplicationPrivilegeDescriptor::getApplication)
+                    .distinct()
+                    .forEach(a -> result.put(a, new HashMap<>()));
                 privileges.forEach(privilege -> {
                     String name = privilege.getName();
                     boolean created = response.created().getOrDefault(privilege.getApplication(), Collections.emptyList()).contains(name);

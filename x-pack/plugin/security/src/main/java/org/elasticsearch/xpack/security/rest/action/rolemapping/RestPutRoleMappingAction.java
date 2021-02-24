@@ -59,11 +59,11 @@ public class RestPutRoleMappingAction extends SecurityBaseRestHandler {
             .source(name, request.requiredContent(), request.getXContentType())
             .setRefreshPolicy(request.param("refresh"));
         return channel -> requestBuilder.execute(
-                new RestBuilderListener<>(channel) {
-                    @Override
-                    public RestResponse buildResponse(PutRoleMappingResponse response, XContentBuilder builder) throws Exception {
-                        return new BytesRestResponse(RestStatus.OK, builder.startObject().field("role_mapping", response).endObject());
-                    }
-                });
+            new RestBuilderListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(PutRoleMappingResponse response, XContentBuilder builder) throws Exception {
+                    return new BytesRestResponse(RestStatus.OK, builder.startObject().field("role_mapping", response).endObject());
+                }
+            });
     }
 }

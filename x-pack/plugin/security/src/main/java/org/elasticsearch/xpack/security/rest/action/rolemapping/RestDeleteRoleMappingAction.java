@@ -59,7 +59,7 @@ public class RestDeleteRoleMappingAction extends SecurityBaseRestHandler {
                 @Override
                 public RestResponse buildResponse(DeleteRoleMappingResponse response, XContentBuilder builder) throws Exception {
                     return new BytesRestResponse(response.isFound() ? RestStatus.OK : RestStatus.NOT_FOUND,
-                            builder.startObject().field("found", response.isFound()).endObject());
+                        builder.startObject().field("found", response.isFound()).endObject());
                 }
             });
     }

@@ -63,6 +63,13 @@ split as follows:
 This setting's default value depends on the number of primary shards in the
 index. The default is designed to allow you to split by factors of 2 up
 to a maximum of 1024 shards.
+
+NOTE: In {es} 7.0.0 and later versions, this setting affects how documents are
+distributed across shards. When reindexing an older index with custom routing,
+you must explicitly set `index.number_of_routing_shards` to maintain the same
+document distribution. See the
+{ref-70}/breaking-changes-7.0.html#_document_distribution_changes[related
+breaking change].
 ====
 
 `index.shard.check_on_startup`::

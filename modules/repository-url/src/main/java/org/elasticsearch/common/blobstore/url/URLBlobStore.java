@@ -13,9 +13,11 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -24,6 +26,21 @@ import java.net.URL;
  * Read-only URL-based blob store
  */
 public class URLBlobStore implements BlobStore {
+
+    static final Setting<Integer> HTTP_MAX_RETRIES_SETTING = Setting.intSetting(
+        "repositories.uri.http.max_retries",
+        HttpClientSettings.DEFAULT_MAX_RETRIES,
+        0,
+        Integer.MAX_VALUE,
+        Setting.Property.NodeScope);
+
+    static final Setting<TimeValue> SOCKET_TIMEOUT_SETTING = Setting.timeSetting(
+        "repositories.uri.http.socket_timeout",
+        TimeValue.timeValueMillis(HttpClientSettings.DEFAULT_SOCKET_TIMEOUT_MILLIS),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueMinutes(60),
+        Setting.Property.NodeScope);
+
 
     private final URL path;
 
@@ -46,15 +63,16 @@ public class URLBlobStore implements BlobStore {
         this.path = path;
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.uri.buffer_size",
             new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
-        int maxRetries = settings.getAsInt("repositories.uri.http.max_retries", HttpClientSettings.DEFAULT_MAX_RETRIES);
-        int socketTimeout = settings.getAsInt("repositories.uri.http.socket_timeout", HttpClientSettings.DEFAULT_SOCKET_TIMEOUT);
         final HttpClientSettings httpClientSettings = new HttpClientSettings();
-        httpClientSettings.setMaxRetries(maxRetries);
-        httpClientSettings.setSocketTimeoutMs(socketTimeout);
+        httpClientSettings.setMaxRetries(HTTP_MAX_RETRIES_SETTING.get(settings));
+        httpClientSettings.setSocketTimeoutMs((int) SOCKET_TIMEOUT_SETTING.get(settings).millis());
 
-        if (this.path.getProtocol().equals("http") || this.path.getProtocol().equals("https")) {
+        final String protocol = this.path.getProtocol();
+        if (protocol.equals("http") || protocol.equals("https")) {
             this.blobContainerFactory = (blobPath) ->
                 new HttpURLBlobContainer(this, blobPath, buildPath(blobPath), httpClient, httpClientSettings);
+        } else if (protocol.equals("file")) {
+            this.blobContainerFactory = (blobPath) -> new FileURLBlobContainer(this, blobPath, buildPath(blobPath));
         } else {
             this.blobContainerFactory = (blobPath) -> new URLBlobContainer(this, blobPath, buildPath(blobPath));
         }

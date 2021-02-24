@@ -8,15 +8,16 @@
 
 package org.elasticsearch.common.blobstore.url;
 
+import org.apache.http.Header;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.conn.HttpClientConnectionManager;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.elasticsearch.common.Nullable;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -47,13 +48,19 @@ public class URLHttpClient implements Closeable {
 
         return new HttpResponse() {
             @Override
-            public InputStream getInputStream() throws IOException {
-                return response.getEntity().getContent();
+            public HttpResponseInputStream getInputStream() throws IOException{
+                return new HttpResponseInputStream(request, response);
             }
 
             @Override
             public int getStatusCode() {
                 return response.getStatusLine().getStatusCode();
+            }
+
+            @Override
+            public String getHeader(String headerName) {
+                final Header header = response.getFirstHeader(headerName);
+                return header == null ? null : header.getValue();
             }
 
             @Override
@@ -71,7 +78,11 @@ public class URLHttpClient implements Closeable {
     }
 
     interface HttpResponse extends Closeable {
-        InputStream getInputStream() throws IOException;
+        HttpResponseInputStream getInputStream() throws IOException;
+
         int getStatusCode();
+
+        @Nullable
+        String getHeader(String headerName);
     }
 }

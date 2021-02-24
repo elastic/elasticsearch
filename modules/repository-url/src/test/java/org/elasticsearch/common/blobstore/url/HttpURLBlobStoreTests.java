@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
 
 @SuppressForbidden(reason = "use http server")
 public class HttpURLBlobStoreTests extends AbstractURLBlobStoreTests {
-    private static final Pattern RANGE_PATTERN = Pattern.compile("bytes=(\\d+)-(\\d+)*$");
+    private static final Pattern RANGE_PATTERN = Pattern.compile("bytes=(\\d+)-(\\d+)$");
     private static HttpServer httpServer;
     private static String blobName;
     private static byte[] content;
@@ -70,8 +70,7 @@ public class HttpURLBlobStoreTests extends AbstractURLBlobStoreTests {
                 }
 
                 int lowerBound = Integer.parseInt(rangeMatcher.group(1));
-                int upperBound = rangeMatcher.group(2) == null ? content.length - 1 : Integer.parseInt(rangeMatcher.group(2));
-                upperBound = Math.min(upperBound, content.length - 1);
+                int upperBound = Math.min(Integer.parseInt(rangeMatcher.group(2)), content.length - 1);
                 int rangeLength = upperBound - lowerBound + 1;
                 if (lowerBound >= content.length || lowerBound > upperBound || rangeLength > content.length) {
                     exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
@@ -126,7 +125,7 @@ public class HttpURLBlobStoreTests extends AbstractURLBlobStoreTests {
 
     public void testRangeReadOutsideOfLegalRange() {
         BlobContainer container = getBlobContainer();
-        expectThrows(IOException.class, () -> container.readBlob(blobName, -1, content.length).read());
+        expectThrows(IllegalArgumentException.class, () -> container.readBlob(blobName, -1, content.length).read());
         expectThrows(IOException.class, () -> container.readBlob(blobName, content.length + 1, content.length).read());
     }
 

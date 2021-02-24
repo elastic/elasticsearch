@@ -11,6 +11,7 @@ package org.elasticsearch.plugin.repository.url;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -38,11 +39,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
-    private final AtomicReference<URLHttpClient> httpClient = new AtomicReference<>();
+    private final SetOnce<URLHttpClient> httpClient = new SetOnce<>();
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -76,23 +76,19 @@ public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
                                                NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver indexNameExpressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
-
         PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager();
         final CloseableHttpClient apacheHttpClient = HttpClients.custom()
             .disableAutomaticRetries()
             .setConnectionManager(connManager)
             .build();
         final URLHttpClient apacheURLHttpClient = new URLHttpClient(apacheHttpClient, connManager);
-        httpClient.compareAndSet(null, apacheURLHttpClient);
+        httpClient.set(apacheURLHttpClient);
         return List.of(apacheURLHttpClient);
     }
 
     @Override
     public void close() throws IOException {
         super.close();
-        URLHttpClient urlHttpClient = httpClient.getAndSet(null);
-        if (urlHttpClient != null) {
-            IOUtils.closeWhileHandlingException(urlHttpClient);
-        }
+        IOUtils.closeWhileHandlingException(httpClient.get());
     }
 }

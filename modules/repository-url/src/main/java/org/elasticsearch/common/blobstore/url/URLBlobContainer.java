@@ -15,7 +15,6 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 
 import java.io.BufferedInputStream;
 import java.io.FileNotFoundException;
@@ -114,12 +113,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
 
     @Override
     public InputStream readBlob(String blobName, long position, long length) throws IOException {
-        final InputStream inputStream = getInputStream(new URL(path, blobName));
-        // This can be extremely inefficient for jar and ftp URLs
-        if (position > 0) {
-            inputStream.skip(position);
-        }
-        return Streams.limitStream(inputStream, length);
+        throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
     @Override
@@ -133,7 +127,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
     }
 
     @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
-    private static InputStream getInputStream(URL url) throws IOException {
+    protected static InputStream getInputStream(URL url) throws IOException {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<InputStream>) url::openStream);
         } catch (PrivilegedActionException e) {

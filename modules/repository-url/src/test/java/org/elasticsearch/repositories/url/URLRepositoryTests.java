@@ -25,10 +25,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 
-import static org.elasticsearch.mock.orig.Mockito.mock;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class URLRepositoryTests extends ESTestCase {
 

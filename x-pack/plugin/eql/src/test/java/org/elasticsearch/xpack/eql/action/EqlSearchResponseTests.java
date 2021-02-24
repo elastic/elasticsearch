@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
@@ -20,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xpack.eql.AbstractBWCWireSerializingTestCase;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
+import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -100,7 +102,8 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             for (int i = 0; i < size; i++) {
                 BytesReference bytes = new RandomSource(() -> randomAlphaOfLength(10)).toBytes(xType);
                 Map<String, DocumentField> fetchFields = new HashMap<>();
-                for (int j = 0; j < randomIntBetween(0, 5); j++) {
+                int fieldsCount = randomIntBetween(0, 5);
+                for (int j = 0; j < fieldsCount; j++) {
                     fetchFields.put(randomAlphaOfLength(10), randomDocumentField(xType).v1());
                 }
                 if (fetchFields.isEmpty() && randomBoolean()) {
@@ -217,5 +220,32 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 return null;
         }
     }
-    
+
+    @Override
+    protected EqlSearchResponse mutateInstanceForVersion(EqlSearchResponse instance, Version version) {
+        List<Event> mutatedEvents = mutateEvents(instance.hits().events(), version);
+
+        List<Sequence> sequences = instance.hits().sequences();
+        List<Sequence> mutatedSequences = null;
+        if (sequences != null) {
+            mutatedSequences = new ArrayList<>(sequences.size());
+            for(Sequence s : sequences) {
+                mutatedSequences.add(new Sequence(s.joinKeys(), mutateEvents(s.events(), version)));
+            }
+        }
+        
+        return new EqlSearchResponse(new EqlSearchResponse.Hits(mutatedEvents, mutatedSequences, instance.hits().totalHits()),
+            instance.took(), instance.isTimeout(), instance.id(), instance.isRunning(), instance.isPartial());
+    }
+
+    private List<Event> mutateEvents(List<Event> original, Version version) {
+        if (original == null || original.isEmpty()) {
+            return original;
+        }
+        List<Event> mutatedEvents = new ArrayList<>(original.size());
+        for(Event e : original) {
+            mutatedEvents.add(new Event(e.index(), e.id(), e.source(), version.onOrAfter(Version.V_7_13_0) ? e.fetchFields() : null));
+        }
+        return mutatedEvents;
+    }
 }

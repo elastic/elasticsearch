@@ -9,15 +9,15 @@ The {ml} decider is enabled for policies governing `ml` nodes.
 
 NOTE: For {ml} jobs to open when the cluster is not appropriately
 scaled, set `xpack.ml.max_lazy_ml_nodes` to the largest number of possible {ml} 
-jobs (refer to <<advanced-ml-settings>> for more info). In {ess} this is 
+jobs (refer to <<advanced-ml-settings>> for more information). In {ess}, this is 
 automatically set.
 
 [[autoscaling-machine-learning-decider-settings]]
 ==== Configuration settings
 
 Both `num_anomaly_jobs_in_queue` and `num_analytics_jobs_in_queue` are designed 
-to delay a scale-up event. They indicate how many jobs of that type can be 
-unassigned from a node due to the cluster being too small. Both settings are 
+to delay a scale-up event. If the cluster is too small, these settings indicate how many jobs of each type can be 
+unassigned from a node. Both settings are 
 only considered for jobs that can be opened given the current scale. If a job is 
 too large for any node size or if a job can't be assigned without user 
 intervention (for example, a user calling `_stop` against a real-time 

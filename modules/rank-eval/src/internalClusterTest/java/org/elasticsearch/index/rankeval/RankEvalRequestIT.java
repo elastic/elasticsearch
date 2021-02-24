@@ -104,7 +104,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         // the expected Prec@ for the first query is 4/6 and the expected Prec@ for the
         // second is 1/6, divided by 2 to get the average
         double expectedPrecision = (1.0 / 6.0 + 4.0 / 6.0) / 2.0;
-        assertEquals(expectedPrecision, response.getMetricScore(), Double.MIN_VALUE);
+        assertEquals(expectedPrecision, response.getMetricScore(), 0.0000000001);
         Set<Entry<String, EvalQueryQuality>> entrySet = response.getPartialResults().entrySet();
         assertEquals(2, entrySet.size());
         for (Entry<String, EvalQueryQuality> entry : entrySet) {
@@ -147,7 +147,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         // if we look only at top 3 documente, the expected P@3 for the first query is
         // 2/3 and the expected Prec@ for the second is 1/3, divided by 2 to get the average
         expectedPrecision = (1.0 / 3.0 + 2.0 / 3.0) / 2.0;
-        assertEquals(expectedPrecision, response.getMetricScore(), Double.MIN_VALUE);
+        assertEquals(expectedPrecision, response.getMetricScore(), 0.0000000001);
     }
 
     /**

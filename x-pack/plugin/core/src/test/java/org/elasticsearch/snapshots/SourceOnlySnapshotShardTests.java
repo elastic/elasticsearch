@@ -228,9 +228,9 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
                     new SnapshotInfo(snapshotId,
                         shardGenerations.indices().stream()
-                        .map(IndexId::getName).collect(Collectors.toList()), Collections.emptyList(), 0L, null, 1L,
-                        shardGenerations.totalShards(),
-                        Collections.emptyList(), true, Collections.emptyMap()),
+                        .map(IndexId::getName).collect(Collectors.toList()), Collections.emptyList(), Collections.emptyList(), null, 1L,
+                        shardGenerations.totalShards(), Collections.emptyList(), true, Collections.emptyMap(), 0L
+                    ),
                     Version.CURRENT, Function.identity(), finFuture);
                 finFuture.actionGet();
             });

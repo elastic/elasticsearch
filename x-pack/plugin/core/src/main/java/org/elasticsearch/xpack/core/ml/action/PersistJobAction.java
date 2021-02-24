@@ -48,7 +48,7 @@ public class PersistJobAction extends ActionType<PersistJobAction.Response> {
         }
 
         public boolean isForeground() {
-            return !isBackGround();
+            return isBackGround() == false;
         }
 
         @Override

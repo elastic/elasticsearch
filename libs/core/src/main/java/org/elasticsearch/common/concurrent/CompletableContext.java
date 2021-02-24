@@ -27,7 +27,7 @@ public class CompletableContext<T> {
             if (t == null) {
                 listener.accept(v, null);
             } else {
-                assert !(t instanceof Error) : "Cannot be error";
+                assert (t instanceof Error) == false: "Cannot be error";
                 listener.accept(v, (Exception) t);
             }
         };

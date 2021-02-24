@@ -62,6 +62,12 @@ public final class Sets {
         return left.stream().noneMatch(right::contains);
     }
 
+    public static <T> boolean haveNonEmptyIntersection(Set<T> left, Set<T> right) {
+        Objects.requireNonNull(left);
+        Objects.requireNonNull(right);
+        return left.stream().anyMatch(right::contains);
+    }
+
     /**
      * The relative complement, or difference, of the specified left and right set. Namely, the resulting set contains all the elements that
      * are in the left set but not in the right set. Neither input is mutated by this operation, an entirely new set is returned.
@@ -74,7 +80,7 @@ public final class Sets {
     public static <T> Set<T> difference(Set<T> left, Set<T> right) {
         Objects.requireNonNull(left);
         Objects.requireNonNull(right);
-        return left.stream().filter(k -> !right.contains(k)).collect(Collectors.toSet());
+        return left.stream().filter(k -> right.contains(k) == false).collect(Collectors.toSet());
     }
 
     /**

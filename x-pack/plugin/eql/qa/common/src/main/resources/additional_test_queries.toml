@@ -131,46 +131,6 @@ name = "numberStringConversion5"
 query = 'any where number(string(serial_event_id), 16) == 17'
 expected_event_ids = [11]
 
-# [[queries]]
-# name = "matchWithCharacterClasses1"
-# expected_event_ids  = [98]
-# notes = "regexp doesn't support character classes"
-# query = '''
-# //
-# //                                """.*?net1\s+localgroup.*?""")
-# process where match(command_line, """.*?net1[ ]+localgroup.*?""")
-# '''
-#
-# [[queries]]
-# name = "matchLiteAdditional"
-# expected_event_ids  = [98]
-# query = '''
-# process where matchLite(command_line, """.*?net1.*?""")
-# '''
-#
-# [[queries]]
-# name = "matchWithCharacterClasses2"
-# expected_event_ids  = [98]
-# notes = "regexp doesn't support predefined character classes (like \\s)"
-# query = '''
-# //                                """.*?net1\s+\w{4,15}\s+.*?"""
-# process where match(command_line, """.*?net1[ ]+[a-z]{4,15}[ ]+.*?""")
-# '''
-#
-# [[queries]]
-# name = "multiPatternMatch"
-# expected_event_ids  = [50, 97, 98]
-# query = '''
-# process where match(command_line, ".*?net[1]?  localgroup.*?", ".*? myappserver.py .*?")
-# '''
-#
-# [[queries]]
-# name = "matchWithSubstring"
-# expected_event_ids  = [50, 98]
-# query = '''
-# process where match(substring(command_line, 5), ".*?net[1]?  localgroup.*?", ".*? myappserver.py .*?")
-# '''
-
 [[queries]]
 name = "moduloEqualsField"
 # Basic test for modulo function
@@ -355,3 +315,116 @@ query = '''
 file where file_name in~ ("winini*.exe", "lsass.e?e") and opcode == 2
 '''
 expected_event_ids  = []
+
+[[queries]]
+name = "likeWithScript"
+query = 'process where string(serial_event_id) like "1"'
+expected_event_ids  = [1]
+
+[[queries]]
+name = "likeScriptWithPattern"
+query = 'process where string(serial_event_id) like ("1*")'
+expected_event_ids  = [1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+
+[[queries]]
+name = "likeScriptWithQuestionPattern"
+query = 'process where string(serial_event_id) like ("1?")'
+expected_event_ids  = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+
+[[queries]]
+name = "likeMultipleArgs"
+query = '''
+file where file_name like ("wininit.exe", "lsass.exe") and opcode == 2
+'''
+expected_event_ids  = [65, 86]
+
+[[queries]]
+name = "likeMultipleArgsInsensitive"
+query = '''
+file where file_name like~ ("winInIT.exe", "lsASS.exe") and opcode == 2
+'''
+expected_event_ids  = [65, 86]
+
+[[queries]]
+name = "likeMultipleArgWithPattern"
+query = '''
+file where file_name like ("winini*.exe", "lsass.*") and opcode == 2
+'''
+expected_event_ids  = [65, 86]
+
+[[queries]]
+name = "likeMultipleArgWithPatternInsensitive"
+query = '''
+file where file_name like~ ("winIni*.exe", "lSaSs.*") and opcode == 2
+'''
+expected_event_ids  = [65, 86]
+
+[[queries]]
+name = "likeMultipleArgsWildcardPatternQuestionMark"
+query = '''
+file where file_name like ("winini?.exe", "lsass.e?e") and opcode == 2
+'''
+expected_event_ids  = [65, 86]
+
+[[queries]]
+name = "likeMultipleArgsWildcardPatternQuestionMarkInsensitive"
+query = '''
+file where file_name like~ ("winINI?.exE", "lSasS.E?E") and opcode == 2
+'''
+expected_event_ids  = [65, 86]
+
+[[queries]]
+name = "regexWOCharClasses"
+expected_event_ids  = [98]
+notes = "regexp doesn't support character classes"
+query = '''
+//
+//                                """.*?net1\s+localgroup.*?""")
+process where command_line regex """.*?net1[ ]+localgroup.*?"""
+'''
+
+[[queries]]
+name = "regexWOCharClasses-Insensitive"
+expected_event_ids  = [98]
+notes = "regexp doesn't support character classes"
+query = '''
+process where command_line regex~ """.*?net1[ ]+localgroup.*?"""
+'''
+
+[[queries]]
+name = "simpleRegex"
+expected_event_ids  = [98]
+query = '''
+process where command_line regex """.*?net1.*?"""
+'''
+
+[[queries]]
+name = "simpleRegexInsensitive"
+expected_event_ids  = [98]
+query = '''
+process where command_line regex~ """.*?net1.*?"""
+'''
+
+[[queries]]
+name = "regexWithCharacterClasses2"
+expected_event_ids  = [98]
+notes = "regexp doesn't support predefined character classes (like \\s)"
+query = '''
+//                                """.*?net1\s+\w{4,15}\s+.*?"""
+process where command_line regex  (""".*?net1[ ]+[a-z]{4,15}[ ]+.*?""")
+'''
+
+[[queries]]
+name = "regexMultiPatternMatch"
+expected_event_ids  = [50, 97, 98]
+query = '''
+process where command_line regex (".*?net[1]?  localgroup.*?", ".*? myappserver.py .*?")
+'''
+
+[[queries]]
+name = "regexWithSubstring"
+expected_event_ids  = [50, 98]
+query = '''
+process where substring(command_line, 5) regex (".*?net[1]?  localgroup.*?", ".*? myappserver.py .*?")
+'''
+

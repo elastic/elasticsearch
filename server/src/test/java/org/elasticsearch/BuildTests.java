@@ -68,7 +68,7 @@ public class BuildTests extends ESTestCase {
         assertEquals(build.hashCode(), another.hashCode());
 
         final Set<Build.Flavor> otherFlavors =
-                Arrays.stream(Build.Flavor.values()).filter(f -> !f.equals(build.flavor())).collect(Collectors.toSet());
+                Arrays.stream(Build.Flavor.values()).filter(f -> f.equals(build.flavor()) == false).collect(Collectors.toSet());
         final Build.Flavor otherFlavor = randomFrom(otherFlavors);
         Build differentFlavor = new Build(
             otherFlavor, build.type(), build.hash(), build.date(), build.isSnapshot(), build.getQualifiedVersion()
@@ -76,7 +76,7 @@ public class BuildTests extends ESTestCase {
         assertNotEquals(build, differentFlavor);
 
         final Set<Build.Type> otherTypes =
-                Arrays.stream(Build.Type.values()).filter(f -> !f.equals(build.type())).collect(Collectors.toSet());
+                Arrays.stream(Build.Type.values()).filter(f -> f.equals(build.type()) == false).collect(Collectors.toSet());
         final Build.Type otherType = randomFrom(otherTypes);
         Build differentType = new Build(
             build.flavor(), otherType, build.hash(), build.date(), build.isSnapshot(), build.getQualifiedVersion()
@@ -95,7 +95,7 @@ public class BuildTests extends ESTestCase {
         assertNotEquals(build, differentDate);
 
         Build differentSnapshot = new Build(
-            build.flavor(), build.type(), build.hash(), build.date(), !build.isSnapshot(), build.getQualifiedVersion()
+            build.flavor(), build.type(), build.hash(), build.date(), build.isSnapshot() == false, build.getQualifiedVersion()
         );
         assertNotEquals(build, differentSnapshot);
 

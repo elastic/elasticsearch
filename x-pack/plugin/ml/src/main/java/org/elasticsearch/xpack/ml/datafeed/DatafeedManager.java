@@ -223,7 +223,7 @@ public class DatafeedManager {
     }
 
     void doDatafeedRealtime(long delayInMsSinceEpoch, String jobId, Holder holder) {
-        if (holder.isRunning() && !holder.isIsolated()) {
+        if (holder.isRunning() && holder.isIsolated() == false) {
             TimeValue delay = computeNextDelay(delayInMsSinceEpoch);
             logger.debug("Waiting [{}] before executing next realtime import for job [{}]", delay, jobId);
             holder.cancellable = threadPool.schedule(new AbstractRunnable() {
@@ -417,7 +417,7 @@ public class DatafeedManager {
         private Long executeLookBack(long startTime, Long endTime) throws Exception {
             datafeedJobLock.lock();
             try {
-                if (isRunning() && !isIsolated()) {
+                if (isRunning() && isIsolated() == false) {
                     return datafeedJob.runLookBack(startTime, endTime);
                 } else {
                     return null;
@@ -430,7 +430,7 @@ public class DatafeedManager {
         private long executeRealTime() throws Exception {
             datafeedJobLock.lock();
             try {
-                if (isRunning() && !isIsolated()) {
+                if (isRunning() && isIsolated() == false) {
                     return datafeedJob.runRealtime();
                 } else {
                     return -1L;

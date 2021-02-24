@@ -68,7 +68,7 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        boolean hasValue = !Double.isInfinite(max);
+        boolean hasValue = Double.isInfinite(max) == false;
         builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? max : null);
         if (hasValue && format != DocValueFormat.RAW) {
             builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(max).toString());

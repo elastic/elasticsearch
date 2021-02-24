@@ -1,6 +1,2 @@
-This package is free to use under the Elastic license. It contains open source 
-and free commercial features and access to paid commercial features.  
-{kibana-ref}/managing-licenses.html[Start a 30-day trial] to try out all of the 
-paid commercial features. See the 
-https://www.elastic.co/subscriptions[Subscriptions] page for information about 
-Elastic license levels.
+This package contains both free and subscription features.
+<<license-settings,Start a 30-day trial>> to try out all of the features.

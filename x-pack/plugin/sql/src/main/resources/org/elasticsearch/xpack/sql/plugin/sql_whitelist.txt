@@ -60,6 +60,7 @@ class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQl
 # Regex
 #
   Boolean regex(String, String)
+  Boolean regex(String, String, Boolean)
 
 #
 # Math
@@ -76,11 +77,6 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   def greatest(java.util.List)
   def least(java.util.List)
   def nullif(Object, Object)
-
-#
-# Regex
-#
-  Boolean regex(String, String)
 
 #
 # Math
@@ -125,6 +121,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 # Date/Time functions
 #
   Integer dateTimeChrono(Object, String, String)
+  Integer dateTimeExtract(Object, String, String)
   String  dayName(Object, String)
   Integer dayOfWeek(Object, String)
   String  monthName(Object, String)

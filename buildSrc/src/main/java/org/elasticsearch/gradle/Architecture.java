@@ -10,8 +10,14 @@ package org.elasticsearch.gradle;
 
 public enum Architecture {
 
-    X64,
-    AARCH64;
+    X64("x86_64"),
+    AARCH64("aarch64");
+
+    public final String classifier;
+
+    Architecture(String classifier) {
+        this.classifier = classifier;
+    }
 
     public static Architecture current() {
         final String architecture = System.getProperty("os.arch", "");

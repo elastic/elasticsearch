@@ -110,7 +110,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         if (encoder == null) {
             if (isDaitchMokotoff) {
-                return new DaitchMokotoffSoundexFilter(tokenStream, !replace);
+                return new DaitchMokotoffSoundexFilter(tokenStream, replace == false);
             }
             if (ruletype != null && nametype != null) {
                 LanguageSet langset = null;
@@ -120,10 +120,10 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
                 return new BeiderMorseFilter(tokenStream, new PhoneticEngine(nametype, ruletype, true), langset);
             }
             if (maxcodelength > 0) {
-                return new DoubleMetaphoneFilter(tokenStream, maxcodelength, !replace);
+                return new DoubleMetaphoneFilter(tokenStream, maxcodelength, replace == false);
             }
         } else {
-            return new PhoneticFilter(tokenStream, encoder, !replace);
+            return new PhoneticFilter(tokenStream, encoder, replace == false);
         }
         throw new IllegalArgumentException("encoder error");
     }

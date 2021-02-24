@@ -138,7 +138,11 @@ public abstract class RestActionTestCase extends ESTestCase {
             @SuppressWarnings("unchecked") // Callers are responsible for lining this up
             Response response = (Response) executeLocallyVerifier.get().apply(action, request);
             listener.onResponse(response);
-            return new Task(taskIdGenerator.incrementAndGet(), "transport", action.name(), "", request.getParentTask(),
+            return request.createTask(
+                    taskIdGenerator.incrementAndGet(),
+                    "transport",
+                    action.name(),
+                    request.getParentTask(),
                     Collections.emptyMap());
         }
 

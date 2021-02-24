@@ -229,6 +229,6 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
         return collectMode == SubAggCollectionMode.BREADTH_FIRST
-                && !aggsUsedForSorting.contains(aggregator);
+                && aggsUsedForSorting.contains(aggregator) == false;
     }
 }

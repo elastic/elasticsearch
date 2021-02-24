@@ -110,6 +110,6 @@ public class JobUpdateTests extends AbstractXContentTestCase<JobUpdate> {
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 }

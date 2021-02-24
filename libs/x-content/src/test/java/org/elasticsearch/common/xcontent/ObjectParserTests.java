@@ -10,6 +10,7 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -63,10 +64,6 @@ public class ObjectParserTests extends ESTestCase {
         assertEquals(s.test, "foo");
         assertEquals(s.testNumber, 2);
         assertEquals(s.ints, Arrays.asList(1, 2, 3, 4));
-        assertEquals(objectParser.toString(), "ObjectParser{name='foo', fields=["
-                + "FieldParser{preferred_name=test, supportedTokens=[VALUE_STRING], type=STRING}, "
-                + "FieldParser{preferred_name=test_array, supportedTokens=[START_ARRAY, VALUE_STRING, VALUE_NUMBER], type=INT_ARRAY}, "
-                + "FieldParser{preferred_name=test_number, supportedTokens=[VALUE_STRING, VALUE_NUMBER], type=INT}]}");
     }
 
     public void testNullDeclares() {
@@ -1009,5 +1006,72 @@ public class ObjectParserTests extends ESTestCase {
         String context = randomAlphaOfLength(5);
         AtomicReference<String> parsed = parser.parse(createParser(JsonXContent.jsonXContent, "{}"), context);
         assertThat(parsed.get(), equalTo(context));
+    }
+
+    public static class StructWithCompatibleFields {
+        // real usage would have RestApiCompatibleVersion.V_7 instead of currentVersion or minimumSupported
+
+        static final ObjectParser<StructWithCompatibleFields, Void> PARSER =
+            new ObjectParser<>("struct_with_compatible_fields", StructWithCompatibleFields::new);
+        static {
+            // declare a field with `new_name` being preferable, and old_name deprecated.
+            // The declaration is only available for lookup when parser has compatibility set
+            PARSER.declareInt(StructWithCompatibleFields::setIntField,
+                new ParseField("new_name", "old_name")
+                    .withRestApiCompatibilityVersions(RestApiCompatibleVersion.minimumSupported()));
+
+            // declare `new_name` to be parsed when compatibility is NOT used
+            PARSER.declareInt(StructWithCompatibleFields::setIntField,
+                new ParseField("new_name").withRestApiCompatibilityVersions(RestApiCompatibleVersion.currentVersion()));
+
+            // declare `old_name` to throw exception when compatibility is NOT used
+            PARSER.declareInt((r,s) -> failWithException(),
+                new ParseField("old_name").withRestApiCompatibilityVersions(RestApiCompatibleVersion.currentVersion()));
+        }
+
+        private static void failWithException() {
+            throw new IllegalArgumentException("invalid parameter [old_name], use [new_name] instead");
+        }
+
+        private int intField;
+
+        private  void setIntField(int intField) {
+            this.intField = intField;
+        }
+    }
+
+    public void testCompatibleFieldDeclarations() throws IOException {
+        {
+            // new_name is the only way to parse when compatibility is not set
+            XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"new_name\": 1}",
+                RestApiCompatibleVersion.currentVersion());
+            StructWithCompatibleFields o = StructWithCompatibleFields.PARSER.parse(parser, null);
+            assertEquals(1, o.intField);
+        }
+
+        {
+            // old_name results with an exception when compatibility is not set
+            XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"old_name\": 1}",
+                RestApiCompatibleVersion.currentVersion());
+            expectThrows(IllegalArgumentException.class, () -> StructWithCompatibleFields.PARSER.parse(parser, null));
+        }
+        {
+            // new_name is allowed to be parsed with compatibility
+            XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"new_name\": 1}",
+                RestApiCompatibleVersion.minimumSupported());
+            StructWithCompatibleFields o = StructWithCompatibleFields.PARSER.parse(parser, null);
+            assertEquals(1, o.intField);
+        }
+        {
+
+            // old_name is allowed to be parsed with compatibility, but results in deprecation
+            XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"old_name\": 1}",
+                RestApiCompatibleVersion.minimumSupported());
+            StructWithCompatibleFields o = StructWithCompatibleFields.PARSER.parse(parser, null);
+            assertEquals(1, o.intField);
+            assertWarnings(false, "[struct_with_compatible_fields][1:14] " +
+                "Deprecated field [old_name] used, expected [new_name] instead");
+
+        }
     }
 }

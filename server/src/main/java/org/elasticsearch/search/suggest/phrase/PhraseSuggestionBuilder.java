@@ -636,7 +636,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                 if (shingleFilterFactory != null) {
                     suggestionContext.setGramSize(shingleFilterFactory.getMaxShingleSize());
                     if (suggestionContext.getAnalyzer() == null && shingleFilterFactory.getMinShingleSize() > 1
-                            && !shingleFilterFactory.getOutputUnigrams()) {
+                            && shingleFilterFactory.getOutputUnigrams() == false) {
                         throw new IllegalArgumentException("The default analyzer for field: [" + suggestionContext.getField()
                                 + "] doesn't emit unigrams. If this is intentional try to set the analyzer explicitly");
                     }

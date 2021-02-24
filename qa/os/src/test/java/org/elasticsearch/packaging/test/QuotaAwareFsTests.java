@@ -11,6 +11,7 @@ package org.elasticsearch.packaging.test;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
@@ -113,9 +114,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
 
         sh.getEnv().put("ES_JAVA_OPTS", "-Des.fs.quota.file=" + quotaPath.toUri());
 
-        try {
-            startElasticsearch();
-
+        startElasticsearchAndThen(() -> {
             final Totals actualTotals = fetchFilesystemTotals();
 
             assertThat(actualTotals.totalInBytes, equalTo(total));
@@ -135,10 +134,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
 
             assertThat(updatedActualTotals.totalInBytes, equalTo(updatedTotal));
             assertThat(updatedActualTotals.availableInBytes, equalTo(updatedAvailable));
-        } finally {
-            stopElasticsearch();
-            Files.deleteIfExists(quotaPath);
-        }
+        });
     }
 
     /**
@@ -157,9 +153,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
 
         sh.getEnv().put("ES_JAVA_OPTS", "-Des.fs.quota.file=" + quotaPath.toUri());
 
-        try {
-            startElasticsearch();
-
+        startElasticsearchAndThen(() -> {
             final String uri = "http://localhost:9200/_cat/plugins?include_bootstrap=true&h=component,type";
             String response = ServerUtils.makeRequest(Request.Get(uri)).trim();
             assertThat(response, not(emptyString()));
@@ -169,9 +163,20 @@ public class QuotaAwareFsTests extends PackagingTestCase {
 
             final String[] fields = lines.get(0).split(" ");
             assertThat(fields, arrayContaining("quota-aware-fs", "bootstrap"));
+        });
+    }
+
+    private void startElasticsearchAndThen(CheckedRunnable<Exception> runnable) throws Exception {
+        boolean started = false;
+        try {
+            startElasticsearch();
+            started = true;
+
+            runnable.run();
         } finally {
-            stopElasticsearch();
-            Files.deleteIfExists(quotaPath);
+            if (started) {
+                stopElasticsearch();
+            }
         }
     }
 
@@ -185,18 +190,22 @@ public class QuotaAwareFsTests extends PackagingTestCase {
         }
     }
 
-    private Totals fetchFilesystemTotals() throws Exception {
-        final String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200/_nodes/stats"));
+    private Totals fetchFilesystemTotals() {
+        try {
+            final String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200/_nodes/stats"));
 
-        final ObjectMapper mapper = new ObjectMapper();
-        final JsonNode rootNode = mapper.readTree(response);
+            final ObjectMapper mapper = new ObjectMapper();
+            final JsonNode rootNode = mapper.readTree(response);
 
-        assertThat("Some nodes failed", rootNode.at("/_nodes/failed").intValue(), equalTo(0));
+            assertThat("Some nodes failed", rootNode.at("/_nodes/failed").intValue(), equalTo(0));
 
-        final String nodeId = rootNode.get("nodes").fieldNames().next();
+            final String nodeId = rootNode.get("nodes").fieldNames().next();
 
-        final JsonNode fsNode = rootNode.at("/nodes/" + nodeId + "/fs/total");
+            final JsonNode fsNode = rootNode.at("/nodes/" + nodeId + "/fs/total");
 
-        return new Totals(fsNode.get("total_in_bytes").intValue(), fsNode.get("available_in_bytes").intValue());
+            return new Totals(fsNode.get("total_in_bytes").intValue(), fsNode.get("available_in_bytes").intValue());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch filesystem totals: " + e.getMessage(), e);
+        }
     }
 }

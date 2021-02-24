@@ -101,8 +101,8 @@ operatorExpression
 //   https://github.com/antlr/antlr4/issues/781
 predicate
     : NOT? kind=(IN | IN_INSENSITIVE) LP expression (COMMA expression)* RP
-    | kind=SEQ constant
-    | kind=SEQ LP constant (COMMA constant)* RP
+    | kind=(SEQ | LIKE | LIKE_INSENSITIVE | REGEX | REGEX_INSENSITIVE) constant
+    | kind=(SEQ | LIKE | LIKE_INSENSITIVE | REGEX | REGEX_INSENSITIVE) LP constant (COMMA constant)* RP
     ;
 
 primaryExpression
@@ -165,11 +165,15 @@ FALSE: 'false';
 IN: 'in';
 IN_INSENSITIVE : 'in~';
 JOIN: 'join';
+LIKE: 'like';
+LIKE_INSENSITIVE: 'like~';
 MAXSPAN: 'maxspan';
 NOT: 'not';
 NULL: 'null';
 OF: 'of';
 OR: 'or';
+REGEX: 'regex';
+REGEX_INSENSITIVE: 'regex~';
 SEQUENCE: 'sequence';
 TRUE: 'true';
 UNTIL: 'until';

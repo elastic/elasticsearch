@@ -222,7 +222,7 @@ public class PrecisionAtKTests extends ESTestCase {
         PrecisionAtK pAtK;
         switch (randomIntBetween(0, 2)) {
         case 0:
-            pAtK = new PrecisionAtK(original.getRelevantRatingThreshold(), !original.getIgnoreUnlabeled(),
+            pAtK = new PrecisionAtK(original.getRelevantRatingThreshold(), original.getIgnoreUnlabeled() == false,
                     original.forcedSearchSize().getAsInt());
             break;
         case 1:

@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -20,11 +21,11 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
+import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -42,7 +43,7 @@ public class Locate extends ScalarFunction implements OptionalArgument {
     private final Expression pattern, input, start;
 
     public Locate(Source source, Expression pattern, Expression input, Expression start) {
-        super(source, start != null ? Arrays.asList(pattern, input, start) : Arrays.asList(pattern, input));
+        super(source, start != null ? asList(pattern, input, start) : asList(pattern, input));
         this.pattern = pattern;
         this.input = input;
         this.start = start;
@@ -81,6 +82,11 @@ public class Locate extends ScalarFunction implements OptionalArgument {
     }
 
     @Override
+    public Nullability nullable() {
+        return (Expressions.isNull(pattern) || Expressions.isNull(input)) ? Nullability.TRUE : Nullability.UNKNOWN;
+    }
+
+    @Override
     public boolean foldable() {
         return pattern.foldable()
                 && input.foldable()
@@ -89,7 +95,7 @@ public class Locate extends ScalarFunction implements OptionalArgument {
 
     @Override
     public Object fold() {
-        return doProcess(pattern.fold(), input.fold(), (start == null ? null : start.fold()));
+        return doProcess(pattern.fold(), input.fold(), start == null ? null : start.fold());
     }
 
     @Override

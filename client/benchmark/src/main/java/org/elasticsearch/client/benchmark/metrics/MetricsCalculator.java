@@ -53,7 +53,7 @@ public final class MetricsCalculator {
 
             metrics.add(new Metrics(operationAndMetrics.getKey(),
                 samples.stream().filter((r) -> r.isSuccess()).count(),
-                samples.stream().filter((r) -> !r.isSuccess()).count(),
+                samples.stream().filter((r) -> r.isSuccess() == false).count(),
                 // throughput calculation is based on the total (Wall clock) time it took to generate all samples
                 calculateThroughput(samples.size(), latestEnd - firstStart),
                 // convert ns -> ms without losing precision

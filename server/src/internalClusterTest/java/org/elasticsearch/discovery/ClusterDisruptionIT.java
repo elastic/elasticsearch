@@ -99,7 +99,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         issueUrl = "https://github.com/elastic/elasticsearch/issues/41068")
     public void testAckedIndexing() throws Exception {
 
-        final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;
+        final int seconds = (TEST_NIGHTLY && rarely()) == false ? 1 : 5;
         final String timeout = seconds + "s";
 
         final List<String> nodes = startCluster(rarely() ? 5 : 3);
@@ -312,7 +312,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     public void testSendingShardFailure() throws Exception {
         List<String> nodes = startCluster(3);
         String masterNode = internalCluster().getMasterName();
-        List<String> nonMasterNodes = nodes.stream().filter(node -> !node.equals(masterNode)).collect(Collectors.toList());
+        List<String> nonMasterNodes = nodes.stream().filter(node -> node.equals(masterNode) == false).collect(Collectors.toList());
         String nonMasterNode = randomFrom(nonMasterNodes);
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder()

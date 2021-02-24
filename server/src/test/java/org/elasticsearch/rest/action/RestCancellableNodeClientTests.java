@@ -17,7 +17,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpChannel;
@@ -74,7 +74,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                 TestHttpChannel channel = new TestHttpChannel();
                 totalSearches += numTasks;
                 for (int j = 0; j < numTasks; j++) {
-                    PlainListenableActionFuture<SearchResponse> actionFuture = PlainListenableActionFuture.newListenableFuture();
+                    ListenableActionFuture<SearchResponse> actionFuture = new ListenableActionFuture<>();
                     RestCancellableNodeClient client = new RestCancellableNodeClient(testClient, channel);
                     threadPool.generic().submit(() -> client.execute(SearchAction.INSTANCE, new SearchRequest(), actionFuture));
                     futures.add(actionFuture);

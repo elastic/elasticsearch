@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -18,8 +19,7 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
     private boolean lenient;
 
     public static DestConfig randomDestConfig() {
-        return new DestConfig(randomAlphaOfLength(10),
-            randomBoolean() ? null : randomAlphaOfLength(10));
+        return new DestConfig(randomAlphaOfLength(10), randomBoolean() ? null : randomAlphaOfLength(10));
     }
 
     @Before

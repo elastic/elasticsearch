@@ -107,7 +107,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     }
 
     public boolean anySet() {
-        return !flags.isEmpty();
+        return flags.isEmpty() == false;
     }
 
     public Flag[] getFlags() {

@@ -136,7 +136,7 @@ public class SqlSession implements Session {
 
             String cluster = table.cluster();
 
-            if (Strings.hasText(cluster) && !indexResolver.clusterName().equals(cluster)) {
+            if (Strings.hasText(cluster) && indexResolver.clusterName().equals(cluster) == false) {
                 listener.onFailure(new MappingException("Cannot inspect indices in cluster/catalog [{}]", cluster));
             }
 

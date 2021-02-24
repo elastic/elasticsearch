@@ -446,7 +446,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 skip = Strings.isNullOrEmpty(substitutions.get(key));
                 continue;
             } else if (line.equals("#else")) {
-                skip = !skip;
+                skip = skip == false;
                 continue;
             } else if (line.equals("#endif")) {
                 skip = false;

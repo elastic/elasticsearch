@@ -474,7 +474,7 @@ public class CompletionFieldMapper extends FieldMapper {
                                     contextMapping = contextMappings.get(fieldName);
                                 } else {
                                     assert fieldName != null;
-                                    assert !contextsMap.containsKey(fieldName);
+                                    assert contextsMap.containsKey(fieldName) == false;
                                     contextsMap.put(fieldName, contextMapping.parseContext(parseContext, parser));
                                 }
                             }

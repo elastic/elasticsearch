@@ -14,11 +14,18 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -66,6 +73,9 @@ public class SystemIndexDescriptor {
 
     /** The minimum cluster node version required for this descriptor, or null if there is no restriction */
     private final Version minimumNodeVersion;
+
+    /** Whether there are dynamic fields in this descriptor's mappings */
+    private final boolean hasDynamicMappings;
 
     /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
@@ -162,7 +172,11 @@ public class SystemIndexDescriptor {
         this.versionMetaKey = versionMetaKey;
         this.origin = origin;
         this.minimumNodeVersion = minimumNodeVersion;
+
+        this.hasDynamicMappings = this.mappings != null
+            && findDynamicMapping(XContentHelper.convertToMap(JsonXContent.jsonXContent, mappings, false));
     }
+
 
     /**
      * @return The pattern of index names that this descriptor will be used for.
@@ -186,6 +200,26 @@ public class SystemIndexDescriptor {
      */
     public boolean matchesIndexPattern(String index) {
         return indexPatternAutomaton.run(index);
+    }
+
+    /**
+     * Retrieves a list of all indices which match this descriptor's pattern.
+     *
+     * This cannot be done via {@link org.elasticsearch.cluster.metadata.IndexNameExpressionResolver} because that class can only handle
+     * simple wildcard expressions, but system index name patterns may use full Lucene regular expression syntax,
+     *
+     * @param metadata The current metadata to get the list of matching indices from
+     * @return A list of index names that match this descriptor
+     */
+    public List<String> getMatchingIndices(Metadata metadata) {
+        ArrayList<String> matchingIndices = new ArrayList<>();
+        metadata.indices().keysIt().forEachRemaining(indexName -> {
+            if (matchesIndexPattern(indexName)) {
+                matchingIndices.add(indexName);
+            }
+        });
+
+        return Collections.unmodifiableList(matchingIndices);
     }
 
     /**
@@ -228,6 +262,10 @@ public class SystemIndexDescriptor {
         return this.origin;
     }
 
+    public boolean hasDynamicMappings() {
+        return this.hasDynamicMappings;
+    }
+
     /**
      * Checks that this descriptor can be used within this cluster, by comparing the supplied minimum
      * node version to this descriptor's minimum version.
@@ -265,7 +303,7 @@ public class SystemIndexDescriptor {
         private String indexPattern;
         private String primaryIndex;
         private String description;
-        private XContentBuilder mappingsBuilder = null;
+        private String mappings = null;
         private Settings settings = null;
         private String aliasName = null;
         private int indexFormat = 0;
@@ -291,7 +329,12 @@ public class SystemIndexDescriptor {
         }
 
         public Builder setMappings(XContentBuilder mappingsBuilder) {
-            this.mappingsBuilder = mappingsBuilder;
+            mappings = mappingsBuilder == null ? null : Strings.toString(mappingsBuilder);
+            return this;
+        }
+
+        public Builder setMappings(String mappings) {
+            this.mappings = mappings;
             return this;
         }
 
@@ -330,7 +373,6 @@ public class SystemIndexDescriptor {
          * @return a populated descriptor.
          */
         public SystemIndexDescriptor build() {
-            String mappings = mappingsBuilder == null ? null : Strings.toString(mappingsBuilder);
 
             return new SystemIndexDescriptor(
                 indexPattern,
@@ -381,5 +423,33 @@ public class SystemIndexDescriptor {
         output = output.replaceAll("\\.", "\\.");
         output = output.replaceAll("\\*", ".*");
         return output;
+    }
+
+    /**
+     * Recursively searches for <code>dynamic: true</code> in the supplies mappings
+     * @param map a parsed fragment of an index's mappings
+     * @return whether the fragment contains a dynamic mapping
+     */
+    @SuppressWarnings("unchecked")
+    static boolean findDynamicMapping(Map<String, Object> map) {
+        if (map == null) {
+            return false;
+        }
+
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            final String key = entry.getKey();
+            final Object value = entry.getValue();
+            if (key.equals("dynamic") && (value instanceof Boolean) && ((Boolean) value)) {
+                return true;
+            }
+
+            if (value instanceof Map) {
+                if (findDynamicMapping((Map<String, Object>) value)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

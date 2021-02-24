@@ -80,7 +80,7 @@ fetch:
 ---
 mutable pattern:
   - do:
-      catch: /all arguments must be constant but the \[1\] argument isn't/
+      catch: /all arguments to \[grok\] must be constant but the \[1\] argument isn't/
       search:
         index: http_logs
         body:

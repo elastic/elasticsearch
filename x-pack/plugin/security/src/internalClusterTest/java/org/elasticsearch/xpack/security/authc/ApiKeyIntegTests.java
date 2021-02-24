@@ -555,7 +555,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 listener);
             InvalidateApiKeyResponse invalidateResponse = listener.get();
             invalidatedApiKeyIds = invalidateResponse.getInvalidatedApiKeys();
-            expectedValidKeyIds = responses.stream().filter(o -> !o.getId().equals(responses.get(0).getId())).map(o -> o.getId())
+            expectedValidKeyIds = responses.stream().filter(o -> o.getId().equals(responses.get(0).getId()) == false).map(o -> o.getId())
                 .collect(Collectors.toSet());
         } else {
             invalidatedApiKeyIds = Collections.emptyList();

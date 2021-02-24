@@ -193,7 +193,7 @@ public final class Automatons {
 
     private static Automaton buildAutomaton(String pattern) {
         if (pattern.startsWith("/")) { // it's a lucene regexp
-            if (pattern.length() == 1 || !pattern.endsWith("/")) {
+            if (pattern.length() == 1 || pattern.endsWith("/") == false) {
                 throw new IllegalArgumentException("invalid pattern [" + pattern + "]. patterns starting with '/' " +
                     "indicate regular expression pattern and therefore must also end with '/'." +
                     " other patterns (those that do not start with '/') will be treated as simple wildcard patterns");

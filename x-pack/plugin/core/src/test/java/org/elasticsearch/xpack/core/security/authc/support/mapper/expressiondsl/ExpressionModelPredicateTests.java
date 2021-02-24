@@ -28,7 +28,7 @@ public class ExpressionModelPredicateTests extends ESTestCase {
         final boolean matchValue = randomBoolean();
         final Predicate<FieldValue> predicate = ExpressionModel.buildPredicate(matchValue);
         assertThat(predicate.test(new FieldValue(matchValue)), is(true));
-        Object value = !matchValue;
+        Object value = matchValue == false;
         assertThat(predicate.test(new FieldValue(value)), is(false));
         assertThat(predicate.test(new FieldValue(String.valueOf(matchValue))), is(false));
         assertThat(predicate.test(new FieldValue("")), is(false));

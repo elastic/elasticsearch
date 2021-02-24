@@ -29,6 +29,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
@@ -90,7 +91,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
     }
 
     @Override
-    protected EmptyResult shardOperation(final ForgetFollowerAction.Request request, final ShardRouting shardRouting) {
+    protected EmptyResult shardOperation(final ForgetFollowerAction.Request request, final ShardRouting shardRouting, Task task) {
         final Index followerIndex = new Index(request.followerIndex(), request.followerIndexUUID());
         final Index leaderIndex = clusterService.state().metadata().index(request.leaderIndex()).getIndex();
         final String id = CcrRetentionLeases.retentionLeaseId(

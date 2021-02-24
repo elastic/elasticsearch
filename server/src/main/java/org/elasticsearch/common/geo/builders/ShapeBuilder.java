@@ -261,12 +261,12 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
      */
     protected static int intersections(double dateline, Edge[] edges) {
         int numIntersections = 0;
-        assert !Double.isNaN(dateline);
+        assert Double.isNaN(dateline) == false;
         int maxComponent = 0;
         for (int i = 0; i < edges.length; i++) {
             Coordinate p1 = edges[i].coordinate;
             Coordinate p2 = edges[i].next.coordinate;
-            assert !Double.isNaN(p2.x) && !Double.isNaN(p1.x);
+            assert Double.isNaN(p2.x) == false && Double.isNaN(p1.x) == false;
             edges[i].intersect = Edge.MAX_COORDINATE;
 
             double position = intersection(p1, p2, dateline);

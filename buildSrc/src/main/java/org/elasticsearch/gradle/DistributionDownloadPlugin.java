@@ -166,14 +166,11 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
         Version distroVersion = Version.fromString(distribution.getVersion());
         String extension = distribution.getType().toString();
-        String classifier = ":" + (Architecture.current() == Architecture.AARCH64 ? "aarch64" : "x86_64");
+        String classifier = ":" + Architecture.current().classifier;
         if (distribution.getType() == Type.ARCHIVE) {
             extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
             if (distroVersion.onOrAfter("7.0.0")) {
-                classifier = ":"
-                    + distribution.getPlatform()
-                    + "-"
-                    + (Architecture.current() == Architecture.AARCH64 ? "aarch64" : "x86_64");
+                classifier = ":" + distribution.getPlatform() + "-" + Architecture.current().classifier;
             } else {
                 classifier = "";
             }

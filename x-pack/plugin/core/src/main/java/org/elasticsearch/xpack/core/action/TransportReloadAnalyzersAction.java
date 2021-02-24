@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse.ReloadDetails;
@@ -87,7 +88,7 @@ public class TransportReloadAnalyzersAction
     }
 
     @Override
-    protected ReloadResult shardOperation(ReloadAnalyzersRequest request, ShardRouting shardRouting) throws IOException {
+    protected ReloadResult shardOperation(ReloadAnalyzersRequest request, ShardRouting shardRouting, Task task) throws IOException {
         logger.info("reloading analyzers for index shard " + shardRouting);
         IndexService indexService = indicesService.indexService(shardRouting.index());
         List<String> reloadedSearchAnalyzers = indexService.mapperService().reloadSearchAnalyzers(indicesService.getAnalysis());

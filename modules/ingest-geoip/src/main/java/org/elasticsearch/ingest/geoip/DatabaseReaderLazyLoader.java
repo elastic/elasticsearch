@@ -8,20 +8,35 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import com.maxmind.db.NoCache;
+import com.maxmind.db.Reader;
 import com.maxmind.geoip2.DatabaseReader;
+import com.maxmind.geoip2.exception.AddressNotFoundException;
+import com.maxmind.geoip2.model.AbstractResponse;
+import com.maxmind.geoip2.model.AsnResponse;
+import com.maxmind.geoip2.model.CityResponse;
+import com.maxmind.geoip2.model.CountryResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Facilitates lazy loading of the database reader, so that when the geoip plugin is installed, but not used,
@@ -29,8 +44,12 @@ import java.util.Objects;
  */
 class DatabaseReaderLazyLoader implements Closeable {
 
+    private static final boolean LOAD_DATABASE_ON_HEAP =
+        Booleans.parseBoolean(System.getProperty("es.geoip.load_db_on_heap", "false"));
+
     private static final Logger LOGGER = LogManager.getLogger(DatabaseReaderLazyLoader.class);
 
+    private final GeoIpCache cache;
     private final Path databasePath;
     private final CheckedSupplier<DatabaseReader, IOException> loader;
     final SetOnce<DatabaseReader> databaseReader;
@@ -38,7 +57,14 @@ class DatabaseReaderLazyLoader implements Closeable {
     // cache the database type so that we do not re-read it on every pipeline execution
     final SetOnce<String> databaseType;
 
-    DatabaseReaderLazyLoader(final Path databasePath, final CheckedSupplier<DatabaseReader, IOException> loader) {
+    private final AtomicInteger currentUsages = new AtomicInteger(0);
+
+    DatabaseReaderLazyLoader(final GeoIpCache cache, final Path databasePath) {
+        this(cache, databasePath, createDatabaseLoader(databasePath));
+    }
+
+    DatabaseReaderLazyLoader(final GeoIpCache cache, final Path databasePath, final CheckedSupplier<DatabaseReader, IOException> loader) {
+        this.cache = cache;
         this.databasePath = Objects.requireNonNull(databasePath);
         this.loader = Objects.requireNonNull(loader);
         this.databaseReader = new SetOnce<>();
@@ -123,6 +149,47 @@ class DatabaseReaderLazyLoader implements Closeable {
         return Files.newInputStream(databasePath);
     }
 
+    CityResponse getCity(InetAddress ipAddress) {
+        return getResponse(ipAddress, DatabaseReader::city);
+    }
+
+    CountryResponse getCountry(InetAddress ipAddress) {
+        return getResponse(ipAddress, DatabaseReader::country);
+    }
+
+    AsnResponse getAsn(InetAddress ipAddress) {
+        return getResponse(ipAddress, DatabaseReader::asn);
+    }
+
+    boolean preLookup() {
+        return currentUsages.updateAndGet(current -> current < 0 ? current : current + 1) > 0;
+    }
+
+    void postLookup() throws IOException {
+        if (currentUsages.updateAndGet(current -> current > 0 ? current - 1 : current + 1) == -1) {
+            doClose();
+        }
+    }
+
+    int current() {
+        return currentUsages.get();
+    }
+
+    private <T extends AbstractResponse> T getResponse(InetAddress ipAddress,
+                                                       CheckedBiFunction<DatabaseReader, InetAddress, T, Exception> responseProvider) {
+        SpecialPermission.check();
+        return AccessController.doPrivileged((PrivilegedAction<T>) () ->
+            cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
+                try {
+                    return responseProvider.apply(get(), ipAddress);
+                } catch (AddressNotFoundException e) {
+                    throw new GeoIpProcessor.AddressNotFoundRuntimeException(e);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }));
+    }
+
     DatabaseReader get() throws IOException {
         if (databaseReader.get() == null) {
             synchronized (databaseReader) {
@@ -136,8 +203,33 @@ class DatabaseReaderLazyLoader implements Closeable {
     }
 
     @Override
-    public synchronized void close() throws IOException {
+    public void close() throws IOException {
+        if (currentUsages.updateAndGet(u -> -1 - u) == -1) {
+            doClose();
+        }
+    }
+
+    private void doClose() throws IOException {
         IOUtils.close(databaseReader.get());
+        int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(databasePath);
+        LOGGER.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, databasePath);
+    }
+
+    private static CheckedSupplier<DatabaseReader, IOException> createDatabaseLoader(Path databasePath) {
+        return () -> {
+            DatabaseReader.Builder builder = createDatabaseBuilder(databasePath).withCache(NoCache.getInstance());
+            if (LOAD_DATABASE_ON_HEAP) {
+                builder.fileMode(Reader.FileMode.MEMORY);
+            } else {
+                builder.fileMode(Reader.FileMode.MEMORY_MAPPED);
+            }
+            return builder.build();
+        };
+    }
+
+    @SuppressForbidden(reason = "Maxmind API requires java.io.File")
+    private static DatabaseReader.Builder createDatabaseBuilder(Path databasePath) {
+        return new DatabaseReader.Builder(databasePath.toFile());
     }
 
 }

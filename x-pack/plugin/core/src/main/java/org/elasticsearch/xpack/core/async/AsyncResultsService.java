@@ -82,7 +82,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
             // EQL doesn't store initial or intermediate results so we only need to update expiration time in store for only in case of
             // async search
             if (updateInitialResultsInStore & expirationTime > 0) {
-                store.extendExpirationTime(searchId.getDocId(), expirationTime,
+                store.updateExpirationTime(searchId.getDocId(), expirationTime,
                     ActionListener.wrap(
                         p -> getSearchResponseFromTask(searchId, request, nowInMillis, expirationTime, listener),
                         exc -> {
@@ -112,7 +112,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
                                            long expirationTimeMillis,
                                            ActionListener<Response> listener) {
         try {
-            final Task task = store.getTask(taskManager, searchId, asyncTaskClass);
+            final Task task = store.getTaskAndCheckAuthentication(taskManager, searchId, asyncTaskClass);
             if (task == null) {
                 getSearchResponseFromIndex(searchId, request, nowInMillis, listener);
                 return;
@@ -124,7 +124,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
             }
 
             if (expirationTimeMillis != -1) {
-                task.extendExpirationTime(expirationTimeMillis);
+                task.setExpirationTime(expirationTimeMillis);
             }
             addCompletionListener.apply(task, new ActionListener<>() {
                 @Override

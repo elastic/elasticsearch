@@ -137,6 +137,14 @@ public class LeafStoredFieldsLookup implements Map<Object, Object> {
     }
 
     private void clearCache() {
+        if (cachedFieldData.isEmpty()) {
+            /*
+             * This code is in the hot path for things like ScoreScript and
+             * runtime fields but the map is almost always empty. So we
+             * bail early then instead of building the entrySet.
+             */
+            return;
+        }
         for (Entry<String, FieldLookup> entry : cachedFieldData.entrySet()) {
             entry.getValue().clear();
         }

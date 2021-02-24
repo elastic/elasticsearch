@@ -117,7 +117,7 @@ public final class DissectParser {
         }
         this.maxMatches = matchPairs.size();
         this.maxResults = Long.valueOf(matchPairs.stream()
-            .filter(dissectPair -> !dissectPair.getKey().skip()).map(KEY_NAME).distinct().count()).intValue();
+            .filter(dissectPair -> dissectPair.getKey().skip() == false).map(KEY_NAME).distinct().count()).intValue();
         if (this.maxMatches == 0 || maxResults == 0) {
             throw new DissectException.PatternParse(pattern, "Unable to find any keys or delimiters.");
         }

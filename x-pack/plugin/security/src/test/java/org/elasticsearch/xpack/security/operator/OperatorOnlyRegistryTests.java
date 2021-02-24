@@ -7,18 +7,54 @@
 
 package org.elasticsearch.xpack.security.operator;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.security.transport.filter.IPFilter.HTTP_FILTER_ALLOW_SETTING;
+import static org.elasticsearch.xpack.security.transport.filter.IPFilter.HTTP_FILTER_DENY_SETTING;
+import static org.elasticsearch.xpack.security.transport.filter.IPFilter.IP_FILTER_ENABLED_HTTP_SETTING;
+import static org.elasticsearch.xpack.security.transport.filter.IPFilter.IP_FILTER_ENABLED_SETTING;
+import static org.elasticsearch.xpack.security.transport.filter.IPFilter.PROFILE_FILTER_ALLOW_SETTING;
+import static org.elasticsearch.xpack.security.transport.filter.IPFilter.PROFILE_FILTER_DENY_SETTING;
+import static org.elasticsearch.xpack.security.transport.filter.IPFilter.TRANSPORT_FILTER_ALLOW_SETTING;
+import static org.elasticsearch.xpack.security.transport.filter.IPFilter.TRANSPORT_FILTER_DENY_SETTING;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class OperatorOnlyRegistryTests extends ESTestCase {
+
+    private static final Set<Setting<?>> DYNAMIC_SETTINGS = ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream()
+        .filter(Setting::isDynamic)
+        .filter(setting -> false == setting.isOperatorOnly())
+        .collect(Collectors.toSet());
+    private static final Set<Setting<?>> IP_FILTER_SETTINGS = Set.of(
+        IP_FILTER_ENABLED_HTTP_SETTING,
+        IP_FILTER_ENABLED_SETTING,
+        TRANSPORT_FILTER_ALLOW_SETTING,
+        TRANSPORT_FILTER_DENY_SETTING,
+        PROFILE_FILTER_DENY_SETTING,
+        PROFILE_FILTER_ALLOW_SETTING,
+        HTTP_FILTER_ALLOW_SETTING,
+        HTTP_FILTER_DENY_SETTING);
 
     private OperatorOnlyRegistry operatorOnlyRegistry;
 
     @Before
     public void init() {
-        operatorOnlyRegistry = new OperatorOnlyRegistry();
+        final Set<Setting<?>> settingsSet = new HashSet<>(IP_FILTER_SETTINGS);
+        settingsSet.addAll(DYNAMIC_SETTINGS);
+        operatorOnlyRegistry = new OperatorOnlyRegistry(new ClusterSettings(Settings.EMPTY, settingsSet));
     }
 
     public void testSimpleOperatorOnlyApi() {
@@ -35,6 +71,61 @@ public class OperatorOnlyRegistryTests extends ESTestCase {
         assertNull(operatorOnlyRegistry.check(actionName, null));
     }
 
-    // TODO: not tests for settings yet since it's not settled whether it will be part of phase 1
+    public void testOperatorOnlySettings() {
+        final ClusterUpdateSettingsRequest request;
+        final Setting<?> transientSetting;
+        final Setting<?> persistentSetting;
+        final OperatorOnlyRegistry.OperatorPrivilegesViolation violation;
+
+        switch (randomIntBetween(0, 3)) {
+            case 0:
+                transientSetting = convertToConcreteSettingIfNecessary(randomFrom(IP_FILTER_SETTINGS));
+                persistentSetting = convertToConcreteSettingIfNecessary(
+                    randomValueOtherThan(transientSetting, () -> randomFrom(IP_FILTER_SETTINGS)));
+                request = prepareClusterUpdateSettingsRequest(transientSetting, persistentSetting);
+                violation = operatorOnlyRegistry.check(ClusterUpdateSettingsAction.NAME, request);
+                assertThat(violation.message(), containsString(String.format(Locale.ROOT, "settings [%s,%s]",
+                    transientSetting.getKey(), persistentSetting.getKey())));
+                break;
+            case 1:
+                transientSetting = convertToConcreteSettingIfNecessary(randomFrom(IP_FILTER_SETTINGS));
+                persistentSetting = convertToConcreteSettingIfNecessary(randomFrom(DYNAMIC_SETTINGS));
+                request = prepareClusterUpdateSettingsRequest(transientSetting, persistentSetting);
+                violation = operatorOnlyRegistry.check(ClusterUpdateSettingsAction.NAME, request);
+                assertThat(violation.message(), containsString(String.format(Locale.ROOT, "setting [%s]",
+                    transientSetting.getKey())));
+                break;
+            case 2:
+                transientSetting = convertToConcreteSettingIfNecessary(randomFrom(DYNAMIC_SETTINGS));
+                persistentSetting = convertToConcreteSettingIfNecessary(randomFrom(IP_FILTER_SETTINGS));
+                request = prepareClusterUpdateSettingsRequest(transientSetting, persistentSetting);
+                violation = operatorOnlyRegistry.check(ClusterUpdateSettingsAction.NAME, request);
+                assertThat(violation.message(), containsString(String.format(Locale.ROOT, "setting [%s]",
+                    persistentSetting.getKey())));
+                break;
+            case 3:
+                transientSetting = convertToConcreteSettingIfNecessary(randomFrom(DYNAMIC_SETTINGS));
+                persistentSetting = convertToConcreteSettingIfNecessary(randomFrom(DYNAMIC_SETTINGS));
+                request = prepareClusterUpdateSettingsRequest(transientSetting, persistentSetting);
+                assertNull(operatorOnlyRegistry.check(ClusterUpdateSettingsAction.NAME, request));
+                break;
+        }
+
+    }
+
+    private Setting<?> convertToConcreteSettingIfNecessary(Setting<?> setting) {
+        if (setting instanceof Setting.AffixSetting) {
+            return ((Setting.AffixSetting<?>) setting).getConcreteSettingForNamespace(randomAlphaOfLengthBetween(4, 8));
+        } else {
+            return setting;
+        }
+    }
+
+    private ClusterUpdateSettingsRequest prepareClusterUpdateSettingsRequest(Setting<?> transientSetting, Setting<?> persistentSetting) {
+        final ClusterUpdateSettingsRequest request = mock(ClusterUpdateSettingsRequest.class);
+        when(request.transientSettings()).thenReturn(Settings.builder().put(transientSetting.getKey(), "null").build());
+        when(request.persistentSettings()).thenReturn(Settings.builder().put(persistentSetting.getKey(), "null").build());
+        return request;
+    }
 
 }

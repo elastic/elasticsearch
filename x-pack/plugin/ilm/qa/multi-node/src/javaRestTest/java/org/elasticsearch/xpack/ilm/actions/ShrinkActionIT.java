@@ -105,6 +105,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69325")
     public void testShrinkDuringSnapshot() throws Exception {
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
         // Create the repository before taking the snapshot.
@@ -161,7 +162,7 @@ public class ShrinkActionIT extends ESRestTestCase {
 
         // add a policy
         Map<String, LifecycleAction> hotActions = Map.of(
-            RolloverAction.NAME, new RolloverAction(null, null, 1L),
+            RolloverAction.NAME, new RolloverAction(null, null, null, 1L),
             ShrinkAction.NAME, new ShrinkAction(expectedFinalShards, null));
         Map<String, Phase> phases = Map.of(
             "hot", new Phase("hot", TimeValue.ZERO, hotActions));

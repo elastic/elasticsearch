@@ -461,7 +461,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public boolean hasChanges() {
-            return masterNodeChanged() || !removed.isEmpty() || !added.isEmpty();
+            return masterNodeChanged() || removed.isEmpty() == false || added.isEmpty() == false;
         }
 
         public boolean masterNodeChanged() {
@@ -479,7 +479,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public boolean removed() {
-            return !removed.isEmpty();
+            return removed.isEmpty() == false;
         }
 
         public List<DiscoveryNode> removedNodes() {
@@ -487,7 +487,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public boolean added() {
-            return !added.isEmpty();
+            return added.isEmpty() == false;
         }
 
         public List<DiscoveryNode> addedNodes() {

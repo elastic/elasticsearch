@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -48,6 +49,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private long lastSeenSeqNo;
     private int skippedOperations;
     private final boolean requiredFullRange;
+    private final boolean singleConsumer;
 
     private final IndexSearcher indexSearcher;
     private int docIndex = 0;
@@ -55,6 +57,11 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private ScoreDoc[] scoreDocs;
     private final ParallelArray parallelArray;
     private final Closeable onClose;
+
+    private int storedFieldsReaderOrd = -1;
+    private StoredFieldsReader storedFieldsReader = null;
+
+    private final Thread creationThread; // for assertion
 
     /**
      * Creates a new "translog" snapshot from Lucene for reading operations whose seq# in the specified range.
@@ -64,9 +71,11 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
      * @param fromSeqNo         the min requesting seq# - inclusive
      * @param toSeqNo           the maximum requesting seq# - inclusive
      * @param requiredFullRange if true, the snapshot will strictly check for the existence of operations between fromSeqNo and toSeqNo
+     * @param singleConsumer    true if the snapshot is accessed by a single thread that creates the snapshot
      */
     LuceneChangesSnapshot(Engine.Searcher engineSearcher, int searchBatchSize,
-                          long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+                          long fromSeqNo, long toSeqNo, boolean requiredFullRange,
+                          boolean singleConsumer) throws IOException {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
         }
@@ -80,11 +89,13 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             }
         };
         final long requestingSize = (toSeqNo - fromSeqNo) == Long.MAX_VALUE ? Long.MAX_VALUE : (toSeqNo - fromSeqNo + 1L);
+        this.creationThread = Thread.currentThread();
         this.searchBatchSize = requestingSize < searchBatchSize ? Math.toIntExact(requestingSize) : searchBatchSize;
         this.fromSeqNo = fromSeqNo;
         this.toSeqNo = toSeqNo;
         this.lastSeenSeqNo = fromSeqNo - 1;
         this.requiredFullRange = requiredFullRange;
+        this.singleConsumer = singleConsumer;
         this.indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
         this.indexSearcher.setQueryCache(null);
         this.parallelArray = new ParallelArray(this.searchBatchSize);
@@ -96,21 +107,25 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
 
     @Override
     public void close() throws IOException {
+        assert assertAccessingThread();
         onClose.close();
     }
 
     @Override
     public int totalOperations() {
+        assert assertAccessingThread();
         return totalHits;
     }
 
     @Override
     public int skippedOperations() {
+        assert assertAccessingThread();
         return skippedOperations;
     }
 
     @Override
     public Translog.Operation next() throws IOException {
+        assert assertAccessingThread();
         Translog.Operation op = null;
         for (int idx = nextDocIndex(); idx != -1; idx = nextDocIndex()) {
             op = readDocAsOp(idx);
@@ -125,6 +140,12 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             lastSeenSeqNo = op.seqNo();
         }
         return op;
+    }
+
+    private boolean assertAccessingThread() {
+        assert singleConsumer == false || creationThread == Thread.currentThread() :
+            "created by [" + creationThread + "] != current thread [" + Thread.currentThread() + "]";
+        return true;
     }
 
     private void rangeCheck(Translog.Operation op) {
@@ -163,9 +184,16 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             for (int i = 0; i < scoreDocs.length; i++) {
                 scoreDocs[i].shardIndex = i;
             }
+            parallelArray.useSequentialStoredFieldsReader = singleConsumer && scoreDocs.length >= 10 && hasSequentialAccess(scoreDocs);
+            if (parallelArray.useSequentialStoredFieldsReader == false) {
+                storedFieldsReaderOrd = -1;
+                storedFieldsReader = null;
+            }
             // for better loading performance we sort the array by docID and
             // then visit all leaves in order.
-            ArrayUtil.introSort(scoreDocs, Comparator.comparingInt(i -> i.doc));
+            if (parallelArray.useSequentialStoredFieldsReader == false) {
+                ArrayUtil.introSort(scoreDocs, Comparator.comparingInt(i -> i.doc));
+            }
             int docBase = -1;
             int maxDoc = 0;
             List<LeafReaderContext> leaves = indexSearcher.getIndexReader().leaves();
@@ -191,8 +219,19 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
                 parallelArray.hasRecoverySource[index] = combinedDocValues.hasRecoverySource(segmentDocID);
             }
             // now sort back based on the shardIndex. we use this to store the previous index
-            ArrayUtil.introSort(scoreDocs, Comparator.comparingInt(i -> i.shardIndex));
+            if (parallelArray.useSequentialStoredFieldsReader == false) {
+                ArrayUtil.introSort(scoreDocs, Comparator.comparingInt(i -> i.shardIndex));
+            }
         }
+    }
+
+    private static boolean hasSequentialAccess(ScoreDoc[] scoreDocs) {
+        for (int i = 0; i < scoreDocs.length - 1; i++) {
+            if (scoreDocs[i].doc + 1 != scoreDocs[i + 1].doc) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private TopDocs searchOperations(ScoreDoc after) throws IOException {
@@ -219,12 +258,27 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final String sourceField = parallelArray.hasRecoverySource[docIndex] ? SourceFieldMapper.RECOVERY_SOURCE_NAME :
             SourceFieldMapper.NAME;
         final FieldsVisitor fields = new FieldsVisitor(true, sourceField);
-        if (leaf.reader() instanceof SequentialStoredFieldsLeafReader) {
-            ((SequentialStoredFieldsLeafReader) leaf.reader()).getSequentialStoredFieldsReader().visitDocument(segmentDocID, fields);
-        } else {
-            assert false : "The changes reader isn't wrapped with Lucene#wrapAllDocsLive";
-            throw new IllegalStateException("The changes reader isn't wrapped with Lucene#wrapAllDocsLive");
+
+        if (parallelArray.useSequentialStoredFieldsReader) {
+            if (storedFieldsReaderOrd != leaf.ord) {
+                if (leaf.reader() instanceof SequentialStoredFieldsLeafReader) {
+                    storedFieldsReader = ((SequentialStoredFieldsLeafReader) leaf.reader()).getSequentialStoredFieldsReader();
+                    storedFieldsReaderOrd = leaf.ord;
+                } else {
+                    storedFieldsReader = null;
+                    storedFieldsReaderOrd = -1;
+                }
+            }
         }
+        if (storedFieldsReader != null) {
+            assert singleConsumer : "Sequential access optimization must not be enabled for multiple consumers";
+            assert parallelArray.useSequentialStoredFieldsReader;
+            assert storedFieldsReaderOrd == leaf.ord : storedFieldsReaderOrd + " != " + leaf.ord;
+            storedFieldsReader.visitDocument(segmentDocID, fields);
+        } else {
+            leaf.reader().document(segmentDocID, fields);
+        }
+
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];
         if (isTombstone && fields.id() == null) {
@@ -275,6 +329,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final long[] primaryTerm;
         final boolean[] isTombStone;
         final boolean[] hasRecoverySource;
+        boolean useSequentialStoredFieldsReader = false;
 
         ParallelArray(int size) {
             version = new long[size];
@@ -286,4 +341,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         }
     }
 
+    // for testing
+    boolean useSequentialStoredFieldsReader() {
+        return storedFieldsReader != null;
+    }
 }

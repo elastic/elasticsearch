@@ -333,7 +333,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
         Fields esTermVectorFields = esResponse.getFields();
         for (TestFieldSetting field : testDoc.fieldSettings) {
             Terms esTerms = esTermVectorFields.terms(field.name);
-            if (selectedFields != null && !selectedFields.contains(field.name)) {
+            if (selectedFields != null && selectedFields.contains(field.name) == false) {
                 assertNull(esTerms);
                 continue;
             }

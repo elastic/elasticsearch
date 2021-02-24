@@ -29,7 +29,7 @@ public final class TransformStrings {
     }
 
     public static boolean isValidId(String id) {
-        return id != null && VALID_ID_CHAR_PATTERN.matcher(id).matches() && !Metadata.ALL.equals(id);
+        return id != null && VALID_ID_CHAR_PATTERN.matcher(id).matches() && Metadata.ALL.equals(id) == false;
     }
 
     /**

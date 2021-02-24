@@ -28,11 +28,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MlConfigIndex;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -109,22 +105,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         compareFields(expected, ReservedFieldNames.RESERVED_RESULT_FIELD_NAMES);
     }
 
-    public void testConfigMappingReservedFields() throws Exception {
-        Set<String> overridden = new HashSet<>(KEYWORDS);
-
-        // These are not reserved because they're data types, not field names
-        overridden.add(Job.TYPE);
-        overridden.add(DatafeedConfig.TYPE);
-        // ModelPlotConfig has an 'enabled' the same as one of the keywords
-        overridden.remove(ModelPlotConfig.ENABLED_FIELD.getPreferredName());
-
-        Set<String> expected = collectConfigDocFieldNames();
-        expected.removeAll(overridden);
-        expected.addAll(INTERNAL_FIELDS);
-
-        compareFields(expected, ReservedFieldNames.RESERVED_CONFIG_FIELD_NAMES);
-    }
-
     private void compareFields(Set<String> expected, Set<String> reserved) {
         if (reserved.size() != expected.size()) {
             Set<String> diff = new HashSet<>(reserved);
@@ -145,7 +125,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         }
     }
 
-    public void testMappingRequiresUpdateNoMapping() throws IOException {
+    public void testMappingRequiresUpdateNoMapping() {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         ClusterState cs = csBuilder.build();
         String[] indices = new String[] { "no_index" };
@@ -153,44 +133,44 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         assertArrayEquals(new String[] { "no_index" }, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
-    public void testMappingRequiresUpdateNullMapping() throws IOException {
+    public void testMappingRequiresUpdateNullMapping() {
         ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("null_mapping", null));
         String[] indices = new String[] { "null_index" };
         assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
-    public void testMappingRequiresUpdateNoVersion() throws IOException {
+    public void testMappingRequiresUpdateNoVersion() {
         ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("no_version_field", "NO_VERSION_FIELD"));
         String[] indices = new String[] { "no_version_field" };
         assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
-    public void testMappingRequiresUpdateRecentMappingVersion() throws IOException {
+    public void testMappingRequiresUpdateRecentMappingVersion() {
         ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("version_current", Version.CURRENT.toString()));
         String[] indices = new String[] { "version_current" };
         assertArrayEquals(new String[] {}, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
-    public void testMappingRequiresUpdateMaliciousMappingVersion() throws IOException {
+    public void testMappingRequiresUpdateMaliciousMappingVersion() {
         ClusterState cs = getClusterStateWithMappingsWithMetadata(
             Collections.singletonMap("version_current", Collections.singletonMap("nested", "1.0")));
         String[] indices = new String[] { "version_nested" };
         assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
-    public void testMappingRequiresUpdateBogusMappingVersion() throws IOException {
+    public void testMappingRequiresUpdateBogusMappingVersion() {
         ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("version_bogus", "0.0"));
         String[] indices = new String[] { "version_bogus" };
         assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
-    public void testMappingRequiresUpdateNewerMappingVersion() throws IOException {
+    public void testMappingRequiresUpdateNewerMappingVersion() {
         ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("version_newer", Version.CURRENT));
         String[] indices = new String[] { "version_newer" };
         assertArrayEquals(new String[] {}, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousVersion()));
     }
 
-    public void testMappingRequiresUpdateNewerMappingVersionMinor() throws IOException {
+    public void testMappingRequiresUpdateNewerMappingVersionMinor() {
         ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("version_newer_minor", Version.CURRENT));
         String[] indices = new String[] { "version_newer_minor" };
         assertArrayEquals(new String[] {},
@@ -272,11 +252,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
     private Set<String> collectResultsDocFieldNames() throws IOException {
         // Only the mappings for the results index should be added below.  Do NOT add mappings for other indexes here.
         return collectFieldNames(AnomalyDetectorsIndex.resultsMapping());
-    }
-
-    private Set<String> collectConfigDocFieldNames() throws IOException {
-        // Only the mappings for the config index should be added below.  Do NOT add mappings for other indexes here.
-        return collectFieldNames(MlConfigIndex.mapping());
     }
 
     private Set<String> collectFieldNames(String mapping) throws IOException {

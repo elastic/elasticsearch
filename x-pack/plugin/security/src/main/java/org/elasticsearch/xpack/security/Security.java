@@ -217,10 +217,10 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
+import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
-import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAuthenticationAction;
@@ -500,9 +500,11 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
         final OperatorPrivilegesService operatorPrivilegesService;
-        if (OPERATOR_PRIVILEGES_ENABLED.get(settings)) {
+        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings);
+        if (operatorPrivilegesEnabled) {
             operatorPrivilegesService = new OperatorPrivileges.DefaultOperatorPrivilegesService(getLicenseState(),
-                new FileOperatorUsersStore(environment, resourceWatcherService), new OperatorOnlyRegistry());
+                new FileOperatorUsersStore(environment, resourceWatcherService),
+                new OperatorOnlyRegistry(clusterService.getClusterSettings()));
         } else {
             operatorPrivilegesService = OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
         }
@@ -1771,5 +1773,13 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         }
     }
 
-}
+    @Override
+    public String getFeatureName() {
+        return "security";
+    }
 
+    @Override
+    public String getFeatureDescription() {
+        return "Manages configuration for Security features, such as users and roles";
+    }
+}

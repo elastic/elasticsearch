@@ -11,6 +11,7 @@ package org.elasticsearch.common.xcontent.json;
 import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -27,13 +28,14 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     public JsonXContentParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, JsonParser parser) {
-        super(xContentRegistry, deprecationHandler, false);
+        super(xContentRegistry, deprecationHandler, RestApiCompatibleVersion.currentVersion());
         this.parser = parser;
     }
 
     public JsonXContentParser(NamedXContentRegistry xContentRegistry,
-                              DeprecationHandler deprecationHandler, JsonParser parser, boolean useCompatibility) {
-        super(xContentRegistry, deprecationHandler, useCompatibility);
+                              DeprecationHandler deprecationHandler, JsonParser parser,
+                              RestApiCompatibleVersion restApiCompatibleVersion) {
+        super(xContentRegistry, deprecationHandler, restApiCompatibleVersion);
         this.parser = parser;
     }
 

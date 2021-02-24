@@ -99,7 +99,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                     }, listener::onFailure), client::get);
         } else if (request.getWatchSource() != null) {
             try {
-                assert !request.isRecordExecution();
+                assert request.isRecordExecution() == false;
                 Watch watch = watchParser.parse(ExecuteWatchRequest.INLINE_WATCH_ID, true, request.getWatchSource(),
                     request.getXContentType(), SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
                 executeWatch(request, listener, watch, false);

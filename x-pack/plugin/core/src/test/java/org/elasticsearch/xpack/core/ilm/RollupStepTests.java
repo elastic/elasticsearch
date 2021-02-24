@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -141,9 +142,9 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         Mockito.doAnswer(invocation -> {
             RollupAction.Request request = (RollupAction.Request) invocation.getArguments()[1];
             @SuppressWarnings("unchecked")
-            ActionListener<RollupAction.Response> listener = (ActionListener<RollupAction.Response>) invocation.getArguments()[2];
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             assertRollupActionRequest(request, sourceIndex);
-            listener.onResponse(new RollupAction.Response(true));
+            listener.onResponse(AcknowledgedResponse.of(true));
             return null;
         }).when(client).execute(Mockito.any(), Mockito.any(), Mockito.any());
     }

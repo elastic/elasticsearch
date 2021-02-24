@@ -135,7 +135,7 @@ public class FastVectorHighlighter implements Highlighter {
             Integer.MAX_VALUE : field.fieldOptions().fragmentCharSize();
         // we highlight against the low level reader and docId, because if we load source, we want to reuse it if possible
         // Only send matched fields if they were requested to save time.
-        if (field.fieldOptions().matchedFields() != null && !field.fieldOptions().matchedFields().isEmpty()) {
+        if (field.fieldOptions().matchedFields() != null && field.fieldOptions().matchedFields().isEmpty() == false) {
             fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(),
                 fieldType.name(), field.fieldOptions().matchedFields(), fragmentCharSize,
                 numberOfFragments, entry.fragListBuilder, fragmentsBuilder, field.fieldOptions().preTags(),

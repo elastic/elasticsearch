@@ -16,8 +16,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.search.MatchQuery;
-import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
+import org.elasticsearch.index.search.MatchQueryParser;
+import org.elasticsearch.index.search.MatchQueryParser.ZeroTermsQuery;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -37,9 +37,9 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
 
     private String analyzer;
 
-    private int slop = MatchQuery.DEFAULT_PHRASE_SLOP;
+    private int slop = MatchQueryParser.DEFAULT_PHRASE_SLOP;
 
-    private ZeroTermsQuery zeroTermsQuery = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
+    private ZeroTermsQuery zeroTermsQuery = MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY;
 
     public MatchPhraseQueryBuilder(String fieldName, Object value) {
         if (Strings.isEmpty(fieldName)) {
@@ -156,14 +156,14 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
             throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");
         }
 
-        MatchQuery matchQuery = new MatchQuery(context);
+        MatchQueryParser queryParser = new MatchQueryParser(context);
         if (analyzer != null) {
-            matchQuery.setAnalyzer(analyzer);
+            queryParser.setAnalyzer(analyzer);
         }
-        matchQuery.setPhraseSlop(slop);
-        matchQuery.setZeroTermsQuery(zeroTermsQuery);
+        queryParser.setPhraseSlop(slop);
+        queryParser.setZeroTermsQuery(zeroTermsQuery);
 
-        return matchQuery.parse(MatchQuery.Type.PHRASE, fieldName, value);
+        return queryParser.parse(MatchQueryParser.Type.PHRASE, fieldName, value);
     }
 
     @Override
@@ -185,8 +185,8 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String analyzer = null;
-        int slop = MatchQuery.DEFAULT_PHRASE_SLOP;
-        ZeroTermsQuery zeroTermsQuery = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
+        int slop = MatchQueryParser.DEFAULT_PHRASE_SLOP;
+        ZeroTermsQuery zeroTermsQuery = MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;

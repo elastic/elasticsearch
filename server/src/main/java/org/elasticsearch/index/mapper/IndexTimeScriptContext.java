@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -62,7 +63,7 @@ public class IndexTimeScriptContext {
             MemoryIndex mi = new MemoryIndex();
             for (IndexableField f : document) {
                 if (f.fieldType().docValuesType() != null) {
-                    mi.addField(f, null);
+                    mi.addField(f, EMPTY_ANALYZER);
                 }
             }
             mi.freeze();
@@ -186,4 +187,11 @@ public class IndexTimeScriptContext {
         0,
         false
     );
+
+    private static final Analyzer EMPTY_ANALYZER = new Analyzer() {
+        @Override
+        protected TokenStreamComponents createComponents(String fieldName) {
+            return new TokenStreamComponents(reader -> {}, null);
+        }
+    };
 }

@@ -87,6 +87,23 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
             Strings.toString(mapper.mapping()));
     }
 
+    public void testCrossReferences() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("message").field("type", "text").endObject();
+            b.startObject("message_length_plus_two");
+            b.field("type", "long");
+            b.field("script", "message_length_plus_two");
+            b.endObject();
+            b.startObject("message_length");
+            b.field("type", "long");
+            b.field("script", "length");
+            b.endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("message", "this is a message")));
+        assertEquals(doc.rootDoc().getField("message_length_plus_two").numericValue(), 19L);
+        assertEquals(doc.rootDoc().getField("message_length").numericValue(), 17L);
+    }
+
     public static class TestScriptPlugin extends Plugin implements ScriptPlugin {
 
         @Override
@@ -108,7 +125,7 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
                     if (context.factoryClazz == LongFieldScript.Factory.class) {
                         switch (code) {
                             case "length":
-                                return (FactoryType) (LongFieldScript.Factory) (n, p, lookup) -> ctx -> new LongFieldScript(n, p, lookup, ctx) {
+                                return (FactoryType) (LongFieldScript.Factory) (n, p, l) -> ctx -> new LongFieldScript(n, p, l, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object v : extractFromSource("message")) {
@@ -117,10 +134,18 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
                                     }
                                 };
                             case "plus_two":
-                                return (FactoryType) (LongFieldScript.Factory) (n, p, lookup) -> ctx -> new LongFieldScript(n, p, lookup, ctx) {
+                                return (FactoryType) (LongFieldScript.Factory) (n, p, l) -> ctx -> new LongFieldScript(n, p, l, ctx) {
                                     @Override
                                     public void execute() {
                                         long input = (long) getDoc().get("long_field").get(0);
+                                        emit(input + 2);
+                                    }
+                                };
+                            case "message_length_plus_two":
+                                return (FactoryType) (LongFieldScript.Factory) (n, p, l) -> ctx -> new LongFieldScript(n, p, l, ctx) {
+                                    @Override
+                                    public void execute() {
+                                        long input = (long) getDoc().get("message_length").get(0);
                                         emit(input + 2);
                                     }
                                 };
@@ -128,7 +153,7 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
                     }
                     if (context.factoryClazz == DoubleFieldScript.Factory.class) {
                         if (code.equals("plus_two")) {
-                            return (FactoryType) (DoubleFieldScript.Factory) (n, p, lookup) -> ctx -> new DoubleFieldScript(n, p, lookup, ctx) {
+                            return (FactoryType) (DoubleFieldScript.Factory) (n, p, l) -> ctx -> new DoubleFieldScript(n, p, l, ctx) {
                                 @Override
                                 public void execute() {
                                     double input = (double) getDoc().get("double_field").get(0);

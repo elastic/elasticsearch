@@ -28,11 +28,6 @@ public final class RestClearRolesCacheAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(new ReplacedRoute(POST, "/_security/role/{name}/_clear_cache", POST,
             "/_xpack/security/role/{name}/_clear_cache"));

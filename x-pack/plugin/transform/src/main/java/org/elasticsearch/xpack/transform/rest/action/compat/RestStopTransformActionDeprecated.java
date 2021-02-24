@@ -16,22 +16,16 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.compat.StopTransformActionDeprecated;
 
-import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestStopTransformActionDeprecated extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
-        return singletonList(new DeprecatedRoute(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_stop",
+        return List.of(
+            new DeprecatedRoute(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_stop",
                 TransformMessages.REST_DEPRECATED_ENDPOINT));
     }
 

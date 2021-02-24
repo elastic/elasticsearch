@@ -43,11 +43,6 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
             new ReplacedRoute(GET, "/_security/privilege/", GET, "/_xpack/security/privilege/"),

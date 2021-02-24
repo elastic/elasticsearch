@@ -36,11 +36,6 @@ public class RestDeleteUserAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
             new ReplacedRoute(DELETE, "/_security/user/{username}", DELETE, "/_xpack/security/user/{username}")

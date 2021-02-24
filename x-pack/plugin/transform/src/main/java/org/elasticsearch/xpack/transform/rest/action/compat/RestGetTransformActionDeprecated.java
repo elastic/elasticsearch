@@ -28,11 +28,6 @@ import static org.elasticsearch.xpack.core.transform.TransformField.EXCLUDE_GENE
 public class RestGetTransformActionDeprecated extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
         return List.of(
             new DeprecatedRoute(GET, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED,
                     TransformMessages.REST_DEPRECATED_ENDPOINT),

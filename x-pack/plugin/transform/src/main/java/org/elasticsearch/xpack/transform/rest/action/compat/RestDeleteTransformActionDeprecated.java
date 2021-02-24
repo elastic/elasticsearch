@@ -16,22 +16,16 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.compat.DeleteTransformActionDeprecated;
 
-import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteTransformActionDeprecated extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
-        return singletonList(new DeprecatedRoute(DELETE, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED,
+        return List.of(
+            new DeprecatedRoute(DELETE, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED,
                 TransformMessages.REST_DEPRECATED_ENDPOINT));
     }
 

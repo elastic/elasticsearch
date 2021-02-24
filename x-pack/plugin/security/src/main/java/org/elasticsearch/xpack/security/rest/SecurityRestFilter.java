@@ -138,16 +138,6 @@ public class SecurityRestFilter implements RestHandler {
         return restHandler.routes();
     }
 
-    @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
-        return restHandler.deprecatedRoutes();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        return restHandler.replacedRoutes();
-    }
-
     private RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {
         if (restHandler instanceof RestRequestFilter) {
             return ((RestRequestFilter)restHandler).getFilteredRequest(restRequest);

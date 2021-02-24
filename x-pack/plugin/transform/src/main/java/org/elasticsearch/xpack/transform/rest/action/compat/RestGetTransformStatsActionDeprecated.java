@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.compat.GetTransformStatsActionDeprecated;
 
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -26,11 +25,6 @@ import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MAT
 public class RestGetTransformStatsActionDeprecated extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
         return List.of(
             new DeprecatedRoute(GET, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED + "_stats",
                     TransformMessages.REST_DEPRECATED_ENDPOINT),

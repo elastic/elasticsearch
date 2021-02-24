@@ -171,11 +171,22 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * and {@code path} combinations.
      */
     public void registerHandler(final RestHandler restHandler) {
-        restHandler.routes().forEach(route -> registerHandler(route.getMethod(), route.getPath(), restHandler));
-        restHandler.deprecatedRoutes().forEach(route ->
-            registerAsDeprecatedHandler(route.getMethod(), route.getPath(), restHandler, route.getDeprecationMessage()));
-        restHandler.replacedRoutes().forEach(route -> registerWithDeprecatedHandler(route.getMethod(), route.getPath(),
-            restHandler, route.getDeprecatedMethod(), route.getDeprecatedPath()));
+        // TODO eh, instanceof checks are not the most fun thing in the world
+        restHandler.routes().forEach(route -> {
+            if (route instanceof RestHandler.DeprecatedRoute) {
+               RestHandler.DeprecatedRoute deprecatedRoute = (RestHandler.DeprecatedRoute) route;
+               registerAsDeprecatedHandler(route.getMethod(), route.getPath(), restHandler,
+                   deprecatedRoute.getDeprecationMessage());
+            } else if (route instanceof RestHandler.ReplacedRoute) {
+                RestHandler.ReplacedRoute replacedRoute = (RestHandler.ReplacedRoute) route;
+                registerWithDeprecatedHandler(route.getMethod(), route.getPath(), restHandler,
+                    replacedRoute.getDeprecatedMethod(), replacedRoute.getDeprecatedPath());
+            } else if (route.getClass() == RestHandler.Route.class) {
+                registerHandler(route.getMethod(), route.getPath(), restHandler);
+            } else {
+                throw new IllegalArgumentException("Unable to register route " + route);
+            }
+        });
     }
 
     @Override

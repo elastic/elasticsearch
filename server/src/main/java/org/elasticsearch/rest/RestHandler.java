@@ -66,25 +66,6 @@ public interface RestHandler {
     }
 
     /**
-     * A list of routes handled by this RestHandler that are deprecated and do not have a direct
-     * replacement. If changing the {@code path} or {@code method} of a route,
-     * use {@link #replacedRoutes()}.
-     */
-    default List<DeprecatedRoute> deprecatedRoutes() {
-        return Collections.emptyList();
-    }
-
-    /**
-     * A list of routes handled by this RestHandler that have had their {@code path} and/or
-     * {@code method} changed. The pre-existing {@code route} will be registered
-     * as deprecated alongside the updated {@code route}.
-     */
-    default List<ReplacedRoute> replacedRoutes() {
-        return Collections.emptyList();
-    }
-
-
-    /**
      * Controls whether requests handled by this class are allowed to to access system indices by default.
      * @return {@code true} if requests handled by this class should be allowed to access system indices.
      */

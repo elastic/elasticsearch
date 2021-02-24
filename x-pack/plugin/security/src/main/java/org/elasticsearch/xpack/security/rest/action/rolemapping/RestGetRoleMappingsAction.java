@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRole
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -37,11 +36,6 @@ public class RestGetRoleMappingsAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
             new ReplacedRoute(GET, "/_security/role_mapping/", GET, "/_xpack/security/role_mapping/"),

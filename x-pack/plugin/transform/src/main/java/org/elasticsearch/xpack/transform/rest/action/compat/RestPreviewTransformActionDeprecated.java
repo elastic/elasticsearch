@@ -18,22 +18,16 @@ import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.compat.PreviewTransformActionDeprecated;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPreviewTransformActionDeprecated extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
-        return singletonList(new DeprecatedRoute(POST, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED + "_preview",
+        return List.of(
+            new DeprecatedRoute(POST, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED + "_preview",
                 TransformMessages.REST_DEPRECATED_ENDPOINT));
     }
 

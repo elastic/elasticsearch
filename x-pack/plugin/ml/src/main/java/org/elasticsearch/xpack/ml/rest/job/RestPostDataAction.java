@@ -27,11 +27,6 @@ public class RestPostDataAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
         return Collections.singletonList(
             new DeprecatedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_data",
             "Posting data directly to anomaly detection jobs is deprecated, " +

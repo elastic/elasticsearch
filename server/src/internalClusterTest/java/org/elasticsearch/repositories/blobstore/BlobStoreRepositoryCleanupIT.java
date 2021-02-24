@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.repositories.blobstore;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
@@ -19,9 +20,11 @@ import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -61,11 +64,10 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         awaitClusterState(state ->
                 state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress() == false);
 
-        try {
-            cleanupFuture.get();
-        } catch (ExecutionException e) {
-            // ignored and expected
-        }
+        final ExecutionException e = expectThrows(ExecutionException.class, cleanupFuture::get);
+        final Throwable ioe = ExceptionsHelper.unwrap(e, IOException.class);
+        assertThat(ioe, instanceOf(IOException.class));
+        assertThat(ioe.getMessage(), is("exception after block"));
     }
 
     private ActionFuture<CleanupRepositoryResponse> startBlockedCleanup(String repoName) throws Exception {
@@ -90,7 +92,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
 
         logger.info("--> starting repository cleanup");
-        // not running from a non-master client because shutting down a master while a request to it is pending might result in the future
+        // running from a non-master client because shutting down a master while a request to it is pending might result in the future
         // never completing
         final ActionFuture<CleanupRepositoryResponse> future =
                 internalCluster().nonMasterClient().admin().cluster().prepareCleanupRepository(repoName).execute();

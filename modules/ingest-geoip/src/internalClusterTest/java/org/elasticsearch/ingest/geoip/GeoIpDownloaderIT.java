@@ -46,12 +46,13 @@ import static java.nio.file.StandardOpenOption.WRITE;
 @ClusterScope(scope = Scope.TEST, maxNumDataNodes = 1)
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
+    private static final String ENDPOINT = System.getProperty("geoip_endpoint");
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        String endpoint = System.getProperty("geoip_endpoint");
-        if (endpoint != null) {
-            settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), endpoint);
+        if (ENDPOINT != null) {
+            settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), ENDPOINT);
         }
         return settings.build();
     }
@@ -66,6 +67,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     public void testGeoIpDatabasesDownload() throws Exception {
+        // use short wait for local fixture, longer when we hit real service
+        int waitTime = ENDPOINT == null ? 120 : 10;
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
@@ -77,7 +80,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             GeoIpTaskState state = (GeoIpTaskState) task.getState();
             assertNotNull(state);
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
-        }, 2, TimeUnit.MINUTES);
+        }, waitTime, TimeUnit.SECONDS);
 
         GeoIpTaskState state = (GeoIpTaskState) getTask().getState();
         for (String id : org.elasticsearch.common.collect.List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb")) {

@@ -12,14 +12,18 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -249,5 +253,31 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         expectThrows(TaskCancelledException.class, () -> MappingStats.of(metadata, () -> {
             throw new TaskCancelledException("task cancelled");
         }));
+    }
+
+    public void testWriteToPreRuntimeFields() throws IOException {
+        MappingStats instance = createTestInstance();
+        BytesStreamOutput out = new BytesStreamOutput();
+        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        out.setVersion(version);
+        instance.writeTo(out);
+        StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+        in.setVersion(version);
+        MappingStats deserialized = new MappingStats(in);
+        assertEquals(instance.getFieldTypeStats(), deserialized.getFieldTypeStats());
+        if (version.onOrAfter(Version.V_7_13_0)) {
+            assertEquals(instance.getRuntimeFieldTypeStats(), deserialized.getRuntimeFieldTypeStats());
+        } else {
+            assertEquals(0, deserialized.getRuntimeFieldTypeStats().size());
+        }
+    }
+
+    public void testReadFromPreRuntimeFields() throws IOException {
+        byte[] bytes = Base64.getDecoder().decode("AQdrZXl3b3JkCgcAAAAAAA==");
+        StreamInput in = StreamInput.wrap(bytes);
+        in.setVersion(Version.V_7_12_0);
+        MappingStats deserialized = new MappingStats(in);
+        assertEquals(1, deserialized.getFieldTypeStats().size());
+        assertEquals(0, deserialized.getRuntimeFieldTypeStats().size());
     }
 }

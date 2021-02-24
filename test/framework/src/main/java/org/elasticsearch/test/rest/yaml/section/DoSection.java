@@ -68,7 +68,7 @@ import static org.junit.Assert.fail;
  *          - Stuff is deprecated, yo
  *          - Don't use deprecated stuff
  *          - Please, stop. It hurts.
- *          - The non _regex version matches against the warning text and no need to worry about escaped quotes or backslashes
+ *          - The non _regex version exact matches against the warning text and no need to worry about escaped quotes or backslashes
  *          - The _regex version matches against the raw value of the warning text which may include backlashes and quotes escaped
  *      allowed_warnings|allowed_warnings_regex:
  *          - Maybe this warning shows up
@@ -249,7 +249,8 @@ public class DoSection implements ExecutableSection {
     }
 
     /**
-     * Warning headers that we expect from this response. If the headers don't match exactly this request is considered to have failed.
+     * Warning headers patterns that we expect from this response.
+     * If the headers don't match exactly this request is considered to have failed.
      * Defaults to emptyList.
      */
     List<String> getExpectedWarningHeaders() {
@@ -257,7 +258,8 @@ public class DoSection implements ExecutableSection {
     }
 
     /**
-     * Warning headers patterns that we expect from this response. If the headers don't match this request is considered to have failed.
+     * Warning headers patterns that we expect from this response.
+     * If the headers don't match this request is considered to have failed.
      * Defaults to emptyList.
      */
     List<Pattern> getExpectedWarningHeadersRegex() {
@@ -376,21 +378,16 @@ public class DoSection implements ExecutableSection {
         final Set<String> allowed = allowedWarningHeaders.stream()
                 .map(HeaderWarning::escapeAndEncode)
                 .collect(toCollection(LinkedHashSet::new));
-        final Set<Pattern> allowedRegex = allowedWarningHeadersRegex.stream()
-            .collect(toCollection(LinkedHashSet::new));
+        final Set<Pattern> allowedRegex = new LinkedHashSet<>(allowedWarningHeadersRegex);
         final Set<String> expected = expectedWarningHeaders.stream()
                 .map(HeaderWarning::escapeAndEncode)
                 .collect(toCollection(LinkedHashSet::new));
-        expected.forEach(e -> System.out.println("EXPECTED: " + e));
-        final Set<Pattern> expectedRegex = expectedWarningHeadersRegex.stream()
-            .collect(toCollection(LinkedHashSet::new));
+        final Set<Pattern> expectedRegex = new LinkedHashSet<>(expectedWarningHeadersRegex);
         for (final String header : warningHeaders) {
             final Matcher matcher = HeaderWarning.WARNING_HEADER_PATTERN.matcher(header);
             final boolean matches = matcher.matches();
             if (matches) {
-                System.out.println("HEADER: " + header);
                 final String message = HeaderWarning.extractWarningValueFromWarningHeader(header, true);
-                System.out.println("MESSAGE: " + message);
                 if (allowed.contains(message)) {
                     continue;
                 }

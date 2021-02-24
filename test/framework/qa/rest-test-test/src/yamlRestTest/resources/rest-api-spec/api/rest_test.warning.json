@@ -1,11 +1,11 @@
 {
   "rest_test.warning":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-stop.html",
-      "description":"Stops Watcher if it is running."
+      "url": null,
+      "description":"An endpoint that always emits a warning"
     },
-    "stability":"stable",
-    "visibility":"public",
+    "stability":"experimental",
+    "visibility":"private",
     "headers":{
       "accept": [ "application/json"]
     },

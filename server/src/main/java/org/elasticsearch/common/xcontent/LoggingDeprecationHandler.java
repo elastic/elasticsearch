@@ -24,6 +24,7 @@ import java.util.function.Supplier;
  * though the user sent them.
  */
 public class LoggingDeprecationHandler implements DeprecationHandler {
+    public static final String COMPATIBLE_API_WARNING_PREFIX = "[Compatible REST Api]";
     public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler();
     /**
      * The logger to which to send deprecation messages.
@@ -64,6 +65,6 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
     public void usedCompatibleField(String parserName, Supplier<XContentLocation> location, String fieldName) {
         String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
         deprecationLogger.compatibleApiWarning("deprecated_field",
-            "{}A field [{}] was removed. Check deprecation warnings", prefix, fieldName);
+            COMPATIBLE_API_WARNING_PREFIX+ " {}A field [{}] was removed. Check deprecation warnings", prefix, fieldName);
     }
 }

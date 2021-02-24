@@ -12,7 +12,8 @@ import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import java.nio.file.Path;
+
+import java.io.File;
 
 /**
  * A plugin to handle reaping external services spawned by a build if Gradle dies.
@@ -27,18 +28,18 @@ public class ReaperPlugin implements Plugin<Project> {
 
         project.getPlugins().apply(GlobalBuildInfoPlugin.class);
 
-        Path inputDir = project.getRootDir()
+        File inputDir = project.getRootDir()
             .toPath()
             .resolve(".gradle")
             .resolve("reaper")
-            .resolve("build-" + ProcessHandle.current().pid());
+            .resolve("build-" + ProcessHandle.current().pid())
+            .toFile();
 
         var reaperServiceProvider = project.getGradle().getSharedServices().registerIfAbsent("reaper", ReaperService.class, spec -> {
             // Provide some parameters
             spec.getParameters().getInputDir().set(inputDir);
-            spec.getParameters().getBuildDir().set(project.getBuildDir().toPath());
+            spec.getParameters().getBuildDir().set(project.getBuildDir());
             spec.getParameters().getInternal().set(BuildParams.isInternal());
-            spec.getParameters().getLogger().set(project.getLogger());
         });
 
         project.getExtensions().create("reaper", ReaperExtension.class, reaperServiceProvider);

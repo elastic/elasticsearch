@@ -39,14 +39,14 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new ReplacedRoute(POST, "/_security/user/{username}/_enable",
-                POST, "/_xpack/security/user/{username}/_enable"),
-            new ReplacedRoute(PUT, "/_security/user/{username}/_enable",
-                PUT, "/_xpack/security/user/{username}/_enable"),
-            new ReplacedRoute(POST, "/_security/user/{username}/_disable",
-                POST, "/_xpack/security/user/{username}/_disable"),
-            new ReplacedRoute(PUT, "/_security/user/{username}/_disable",
-                PUT, "/_xpack/security/user/{username}/_disable")
+            new Route(POST, "/_security/user/{username}/_enable")
+                .replaces(POST, "/_xpack/security/user/{username}/_enable"),
+            new Route(PUT, "/_security/user/{username}/_enable")
+                .replaces(PUT, "/_xpack/security/user/{username}/_enable"),
+            new Route(POST, "/_security/user/{username}/_disable")
+                .replaces(POST, "/_xpack/security/user/{username}/_disable"),
+            new Route(PUT, "/_security/user/{username}/_disable")
+                .replaces(PUT, "/_xpack/security/user/{username}/_disable")
         );
     }
 

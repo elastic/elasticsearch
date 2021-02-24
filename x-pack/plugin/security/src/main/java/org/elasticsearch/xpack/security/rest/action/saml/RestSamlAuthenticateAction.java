@@ -18,16 +18,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateResponse;
-import org.elasticsearch.rest.RestRequestFilter;
 
 import java.io.IOException;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -70,9 +69,9 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
     @Override
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.singletonList(
-            new ReplacedRoute(POST, "/_security/saml/authenticate",
-                POST, "/_xpack/security/saml/authenticate")
+        return List.of(
+            new Route(POST, "/_security/saml/authenticate")
+                .replaces(POST, "/_xpack/security/saml/authenticate")
         );
     }
 

@@ -28,12 +28,11 @@ public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new ReplacedRoute(
-                GET, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats",
-                GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats"),
-            new ReplacedRoute(
-                GET, MachineLearning.BASE_PATH + "trained_models/_stats",
-                GET, MachineLearning.BASE_PATH + "inference/_stats"));
+            new Route(GET, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats")
+                .replaces(GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats"),
+            new Route(GET, MachineLearning.BASE_PATH + "trained_models/_stats")
+                .replaces(GET, MachineLearning.BASE_PATH + "inference/_stats")
+        );
     }
 
     @Override

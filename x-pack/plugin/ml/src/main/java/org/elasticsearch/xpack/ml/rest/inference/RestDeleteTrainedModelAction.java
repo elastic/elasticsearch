@@ -24,9 +24,9 @@ public class RestDeleteTrainedModelAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new ReplacedRoute(
-                DELETE, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
-                DELETE, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"));
+            new Route(DELETE, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}")
+                .replaces(DELETE, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}")
+        );
     }
 
     @Override

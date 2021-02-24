@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
@@ -37,8 +36,9 @@ public class RestDeleteRoleAction extends SecurityBaseRestHandler {
     @Override
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.singletonList(new ReplacedRoute(DELETE, "/_security/role/{name}", DELETE,
-            "/_xpack/security/role/{name}"));
+        return List.of(
+            new Route(DELETE, "/_security/role/{name}").replaces(DELETE, "/_xpack/security/role/{name}")
+        );
     }
 
     @Override

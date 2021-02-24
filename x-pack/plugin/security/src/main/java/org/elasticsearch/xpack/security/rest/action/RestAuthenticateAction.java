@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -40,8 +39,10 @@ public class RestAuthenticateAction extends SecurityBaseRestHandler {
     @Override
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.singletonList(new ReplacedRoute(GET, "/_security/_authenticate", GET,
-            "/_xpack/security/_authenticate"));
+        return List.of(
+            new Route(GET, "/_security/_authenticate")
+                .replaces(GET, "/_xpack/security/_authenticate")
+        );
     }
 
     @Override

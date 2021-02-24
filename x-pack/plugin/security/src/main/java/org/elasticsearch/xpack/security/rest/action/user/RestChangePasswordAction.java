@@ -48,14 +48,14 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new ReplacedRoute(PUT, "/_security/user/{username}/_password",
-                PUT, "/_xpack/security/user/{username}/_password"),
-            new ReplacedRoute(POST, "/_security/user/{username}/_password",
-                POST, "/_xpack/security/user/{username}/_password"),
-            new ReplacedRoute(PUT, "/_security/user/_password",
-                PUT, "/_xpack/security/user/_password"),
-            new ReplacedRoute(POST, "/_security/user/_password",
-                POST, "/_xpack/security/user/_password")
+            new Route(PUT, "/_security/user/{username}/_password")
+                .replaces(PUT, "/_xpack/security/user/{username}/_password"),
+            new Route(POST, "/_security/user/{username}/_password")
+                .replaces(POST, "/_xpack/security/user/{username}/_password"),
+            new Route(PUT, "/_security/user/_password")
+                .replaces(PUT, "/_xpack/security/user/_password"),
+            new Route(POST, "/_security/user/_password")
+                .replaces(POST, "/_xpack/security/user/_password")
         );
     }
 

@@ -47,10 +47,10 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new ReplacedRoute(POST, "/_security/user/{username}",
-                POST, "/_xpack/security/user/{username}"),
-            new ReplacedRoute(PUT, "/_security/user/{username}",
-                PUT, "/_xpack/security/user/{username}")
+            new Route(POST, "/_security/user/{username}")
+                .replaces(POST, "/_xpack/security/user/{username}"),
+            new Route(PUT, "/_security/user/{username}")
+                .replaces(PUT, "/_xpack/security/user/{username}")
         );
     }
 

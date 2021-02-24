@@ -23,17 +23,16 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
-import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -72,8 +71,9 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
     @Override
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.singletonList(
-            new ReplacedRoute(POST, "/_security/oauth2/token", POST, "/_xpack/security/oauth2/token")
+        return List.of(
+            new Route(POST, "/_security/oauth2/token")
+                .replaces(POST, "/_xpack/security/oauth2/token")
         );
     }
 

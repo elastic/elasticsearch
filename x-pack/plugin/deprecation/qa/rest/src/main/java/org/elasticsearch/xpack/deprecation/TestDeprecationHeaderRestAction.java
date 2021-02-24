@@ -82,7 +82,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new DeprecatedRoute(GET, "/_test_cluster/deprecated_settings", DEPRECATED_ENDPOINT));
+        return List.of(new Route(GET, "/_test_cluster/deprecated_settings").deprecated(DEPRECATED_ENDPOINT));
     }
 
     @SuppressWarnings("unchecked") // List<String> casts

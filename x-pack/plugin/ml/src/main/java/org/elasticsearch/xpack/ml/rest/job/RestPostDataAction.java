@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -27,10 +26,11 @@ public class RestPostDataAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
-            new DeprecatedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_data",
-            "Posting data directly to anomaly detection jobs is deprecated, " +
-                "in a future major version it will be compulsory to use a datafeed"));
+        return List.of(
+            new Route(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_data")
+                .deprecated("Posting data directly to anomaly detection jobs is deprecated, " +
+                    "in a future major version it will be compulsory to use a datafeed")
+        );
     }
 
     @Override

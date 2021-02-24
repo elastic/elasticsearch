@@ -25,8 +25,9 @@ public class RestDeleteTransformActionDeprecated extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new DeprecatedRoute(DELETE, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED,
-                TransformMessages.REST_DEPRECATED_ENDPOINT));
+            new Route(DELETE, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED)
+                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT)
+        );
     }
 
     @Override

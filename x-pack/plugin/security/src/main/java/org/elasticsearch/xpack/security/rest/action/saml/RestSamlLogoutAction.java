@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutResponse;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -50,9 +49,9 @@ public class RestSamlLogoutAction extends SamlBaseRestHandler {
     @Override
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.singletonList(
-            new ReplacedRoute(POST, "/_security/saml/logout",
-                POST, "/_xpack/security/saml/logout")
+        return List.of(
+            new Route(POST, "/_security/saml/logout")
+                .replaces(POST, "/_xpack/security/saml/logout")
         );
     }
 

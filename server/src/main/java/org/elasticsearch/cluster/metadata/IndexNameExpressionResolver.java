@@ -125,6 +125,11 @@ public class IndexNameExpressionResolver {
         return concreteIndexNames(context, request.indices());
     }
 
+    public String[] concreteIndexNamesWithSystemIndexAccess(ClusterState state, IndicesOptions options, String... indexExpressions) {
+        Context context = new Context(state, options, true);
+        return concreteIndexNames(context, indexExpressions);
+    }
+
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
         // Allow system index access - they'll be filtered out below as there's no such thing (yet) as system data streams
         Context context = new Context(state, options, false, false, true, true, true);

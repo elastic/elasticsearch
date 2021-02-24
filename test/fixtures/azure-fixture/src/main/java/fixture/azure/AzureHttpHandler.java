@@ -22,9 +22,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,11 +29,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.repositories.azure.AzureFixtureHelper.assertValidBlockId;
 
 /**
  * Minimal HTTP handler that acts as an Azure compliant server
@@ -64,9 +62,10 @@ public class AzureHttpHandler implements HttpHandler {
             if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*blockid=*", request)) {
                 // Put Block (https://docs.microsoft.com/en-us/rest/api/storageservices/put-block)
                 final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
 
                 final String blockId = params.get("blockid");
+                assert assertValidBlockId(blockId);
                 blobs.put(blockId, Streams.readFully(exchange.getRequestBody()));
                 exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
 

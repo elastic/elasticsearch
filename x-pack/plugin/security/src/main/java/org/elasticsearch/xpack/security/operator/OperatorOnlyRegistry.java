@@ -33,7 +33,12 @@ public class OperatorOnlyRegistry {
         "cluster:admin/autoscaling/put_autoscaling_policy",
         "cluster:admin/autoscaling/delete_autoscaling_policy",
         "cluster:admin/autoscaling/get_autoscaling_policy",
-        "cluster:admin/autoscaling/get_autoscaling_capacity");
+        "cluster:admin/autoscaling/get_autoscaling_capacity",
+        // Repository analysis actions are not mentioned in core, literal strings are needed.
+        "cluster:admin/repository/analyze",
+        "cluster:admin/repository/analyze/blob",
+        "cluster:admin/repository/analyze/blob/read"
+        );
 
     private final ClusterSettings clusterSettings;
 

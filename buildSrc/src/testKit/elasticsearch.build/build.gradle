@@ -58,7 +58,7 @@ tasks.named("test").configure {enabled = false }
 // we don't have tests for now
 tasks.named("forbiddenApisMain").configure {enabled = false }
 // TODO: shouldn't be part of BuildPlugin, should be tested separately
-tasks.named("validateNebulaPom").configure {enabled = false }
+tasks.named("validateElasticPom").configure {enabled = false }
 // requires further classpath
 tasks.named("loggerUsageCheck").configure {enabled = false }
 tasks.register("hello") {

@@ -16,6 +16,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -67,10 +68,12 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
@@ -105,7 +108,13 @@ import static org.hamcrest.Matchers.notNullValue;
 public abstract class ESRestTestCase extends ESTestCase {
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
+
     public static final String CERTIFICATE_AUTHORITIES = "certificate_authorities";
+
+    public static final String CLIENT_CERT_PATH = "client.cert.path";
+    public static final String CLIENT_KEY_PATH = "client.key.path";
+    public static final String CLIENT_KEY_PASSWORD = "client.key.password";
+
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
 
@@ -993,29 +1002,30 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
+        String truststorePath = settings.get(TRUSTSTORE_PATH);
         String certificateAuthorities = settings.get(CERTIFICATE_AUTHORITIES);
-        String keystorePath = settings.get(TRUSTSTORE_PATH);
+        String clientCertificatePath = settings.get(CLIENT_CERT_PATH);
 
-        if (certificateAuthorities != null && keystorePath != null) {
+        if (certificateAuthorities != null && truststorePath != null) {
             throw new IllegalStateException("Cannot set both " + CERTIFICATE_AUTHORITIES + " and " + TRUSTSTORE_PATH
                 + ". Please configure one of these.");
 
         }
-        if (keystorePath != null) {
+        if (truststorePath != null) {
             if (inFipsJvm()) {
-                throw new IllegalStateException("Keystore " + keystorePath + "cannot be used in FIPS 140 mode. Please configure "
+                throw new IllegalStateException("Keystore " + truststorePath + "cannot be used in FIPS 140 mode. Please configure "
                     + CERTIFICATE_AUTHORITIES + " with a PEM encoded trusted CA/certificate instead");
             }
             final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
             if (keystorePass == null) {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is provided but not " + TRUSTSTORE_PASSWORD);
             }
-            Path path = PathUtils.get(keystorePath);
+            Path path = PathUtils.get(truststorePath);
             if (Files.exists(path) == false) {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
             }
             try {
-                final String keyStoreType = keystorePath.endsWith(".p12") ? "PKCS12" : "jks";
+                final String keyStoreType = truststorePath.endsWith(".p12") ? "PKCS12" : "jks";
                 KeyStore keyStore = KeyStore.getInstance(keyStoreType);
                 try (InputStream is = Files.newInputStream(path)) {
                     keyStore.load(is, keystorePass.toCharArray());
@@ -1028,21 +1038,34 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
         }
         if (certificateAuthorities != null) {
-            Path path = PathUtils.get(certificateAuthorities);
-            if (Files.exists(path) == false) {
+            Path caPath = PathUtils.get(certificateAuthorities);
+            if (Files.exists(caPath) == false) {
                 throw new IllegalStateException(CERTIFICATE_AUTHORITIES + " is set but points to a non-existing file");
             }
             try {
                 KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
                 keyStore.load(null, null);
-                Certificate cert = PemUtils.readCertificates(List.of(path)).get(0);
-                keyStore.setCertificateEntry(cert.toString(), cert);
-                SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
+                Certificate caCert = PemUtils.readCertificates(List.of(caPath)).get(0);
+                keyStore.setCertificateEntry(caCert.toString(), caCert);
+                final SSLContextBuilder sslContextBuilder = SSLContexts.custom();
+                if (clientCertificatePath != null) {
+                    final Path certPath = PathUtils.get(clientCertificatePath);
+                    final Path keyPath = PathUtils.get(Objects.requireNonNull(settings.get(CLIENT_KEY_PATH), "No key provided"));
+                    final String password = settings.get(CLIENT_KEY_PASSWORD);
+                    final char[] passwordChars = password == null ? null : password.toCharArray();
+                    final PrivateKey key = PemUtils.readPrivateKey(keyPath, () -> passwordChars);
+                    final Certificate[] clientCertChain = PemUtils.readCertificates(List.of(certPath)).toArray(Certificate[]::new);
+                    keyStore.setKeyEntry("client", key, passwordChars, clientCertChain);
+                    sslContextBuilder.loadKeyMaterial(keyStore, passwordChars);
+                }
+                SSLContext sslcontext = sslContextBuilder.loadTrustMaterial(keyStore, null).build();
                 SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslcontext);
                 builder.setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy));
-            } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException | CertificateException e) {
+            } catch (GeneralSecurityException e) {
                 throw new RuntimeException("Error setting up ssl", e);
             }
+        } else if (clientCertificatePath != null) {
+            throw new IllegalStateException("Client certificates are currently only supported when using a custom CA");
         }
         Map<String, String> headers = ThreadContext.buildDefaultHeaders(settings);
         Header[] defaultHeaders = new Header[headers.size()];

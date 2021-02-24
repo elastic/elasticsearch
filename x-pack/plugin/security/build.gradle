@@ -1,6 +1,8 @@
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
 esplugin {
   name 'x-pack-security'
   description 'Elasticsearch Expanded Pack Plugin - Security'
@@ -21,9 +23,8 @@ dependencies {
   testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('sql:sql-action'))
 
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
   api 'com.unboundid:unboundid-ldapsdk:4.0.8'
 
   // the following are all SAML dependencies - might as well download the whole internet
@@ -147,19 +148,9 @@ tasks.named("processTestResources").configure {
   from(project(xpackModule('core')).file('src/test/resources'))
 }
 
-
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
-def testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
 artifacts {
   // normal es plugins do not publish the jar but we need to since users need it for extensions
   archives tasks.named("jar")
-  testArtifacts testJar
 }
 
 tasks.named("dependencyLicenses").configure {

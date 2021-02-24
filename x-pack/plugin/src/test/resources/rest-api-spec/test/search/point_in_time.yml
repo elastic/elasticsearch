@@ -61,7 +61,8 @@ setup:
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
   - match: {hits.hits.0._id: "172" }
-  - match: {hits.hits.0.sort: [24, 172] }
+  - match: {hits.hits.0.sort.0: 24}
+  - match: {hits.hits.0.sort.1: 172}
 
   - do:
       index:
@@ -89,7 +90,8 @@ setup:
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
   - match: {hits.hits.0._id: "42" }
-  - match: {hits.hits.0.sort: [18, 42] }
+  - match: {hits.hits.0.sort.0: 18}
+  - match: {hits.hits.0.sort.1: 42}
 
   - do:
       search:
@@ -107,7 +109,8 @@ setup:
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
   - match: {hits.hits.0._id: "1" }
-  - match: {hits.hits.0.sort: [18, 1] }
+  - match: {hits.hits.0.sort.0: 18}
+  - match: {hits.hits.0.sort.1: 1}
 
   - do:
       search:

@@ -24,6 +24,8 @@ import java.io.StringReader;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -34,7 +36,8 @@ public class MappingLookupTests extends ESTestCase {
                                                      List<ObjectMapper> objectMappers,
                                                      List<RuntimeFieldType> runtimeFields) {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
-        runtimeFields.forEach(builder::addRuntime);
+        Map<String, RuntimeFieldType> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(MappedFieldType::name, r -> r));
+        builder.setRuntime(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
         return new MappingLookup(mapping, fieldMappers, objectMappers, emptyList(), null, null, null);
     }

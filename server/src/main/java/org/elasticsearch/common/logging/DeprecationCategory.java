@@ -20,6 +20,7 @@ public enum DeprecationCategory {
     AGGREGATIONS,
     ANALYSIS,
     API,
+    COMPATIBLE_API,
     INDICES,
     MAPPINGS,
     OTHER,

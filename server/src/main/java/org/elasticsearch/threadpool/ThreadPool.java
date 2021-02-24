@@ -436,7 +436,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return ((allocatedProcessors * 3) / 2) + 1;
     }
 
-    class ThreadedRunnable implements Runnable {
+    static class ThreadedRunnable implements Runnable {
 
         private final Runnable runnable;
 

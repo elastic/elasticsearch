@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -130,11 +129,6 @@ public class DocumentMapper {
         final BytesRef byteRef = new BytesRef(reason);
         parsedDoc.rootDoc().add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
         return parsedDoc;
-    }
-
-    public DocumentMapper merge(Mapping mapping, MergeReason reason) {
-        Mapping merged = this.mapping().merge(mapping, reason);
-        return new DocumentMapper(mappingLookup.getIndexSettings(), mappingLookup.getIndexAnalyzers(), documentParser, merged);
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {

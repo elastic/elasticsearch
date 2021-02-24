@@ -49,6 +49,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.lease.Releasable;
@@ -96,7 +97,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
@@ -660,14 +660,17 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             final Path shardSnapshotDir = createTempDir();
             for (int i = 0; i < nbRandomFiles; i++) {
                 final String fileName = "file_" + randomAlphaOfLength(10);
-                final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
+
+                final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 100_000));
+                final byte[] input = bytes.v2();
+                final String checksum = bytes.v1();
                 final String blobName = randomAlphaOfLength(15);
-                Files.write(shardSnapshotDir.resolve(blobName), fileContent, StandardOpenOption.CREATE_NEW);
+                Files.write(shardSnapshotDir.resolve(blobName), input, StandardOpenOption.CREATE_NEW);
                 randomFiles.add(
                     new BlobStoreIndexShardSnapshot.FileInfo(
                         blobName,
-                        new StoreFileMetadata(fileName, fileContent.length, "_check", Version.CURRENT.luceneVersion),
-                        new ByteSizeValue(fileContent.length)
+                        new StoreFileMetadata(fileName, input.length, checksum, Version.CURRENT.luceneVersion),
+                        new ByteSizeValue(input.length)
                     )
                 );
             }

@@ -10,6 +10,7 @@ package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParseException;
@@ -46,16 +47,17 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     private final NamedXContentRegistry xContentRegistry;
     private final DeprecationHandler deprecationHandler;
-    private final boolean useCompatibility;
+    private final RestApiCompatibleVersion restApiCompatibleVersion;
 
-    public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, boolean useCompatibility) {
+    public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
+                                  RestApiCompatibleVersion restApiCompatibleVersion) {
         this.xContentRegistry = xContentRegistry;
         this.deprecationHandler = deprecationHandler;
-        this.useCompatibility = useCompatibility;
+        this.restApiCompatibleVersion = restApiCompatibleVersion;
     }
 
     public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler) {
-        this(xContentRegistry, deprecationHandler, false);
+        this(xContentRegistry, deprecationHandler, RestApiCompatibleVersion.currentVersion());
     }
 
     // The 3rd party parsers we rely on are known to silently truncate fractions: see
@@ -413,8 +415,8 @@ public abstract class AbstractXContentParser implements XContentParser {
     public abstract boolean isClosed();
 
     @Override
-    public boolean useCompatibility() {
-        return useCompatibility;
+    public RestApiCompatibleVersion getRestApiCompatibleVersion() {
+        return restApiCompatibleVersion;
     }
 
     @Override

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -20,7 +20,7 @@ import java.util.Set;
 final class MethodHandlers {
 
     private final String path;
-    private final Map<RestRequest.Method, Map<Version, RestHandler>> methodHandlers;
+    private final Map<RestRequest.Method, Map<RestApiCompatibleVersion, RestHandler>> methodHandlers;
 
     MethodHandlers(String path, RestHandler handler, RestRequest.Method... methods) {
         this.path = path;
@@ -54,13 +54,13 @@ final class MethodHandlers {
      * (as opposed to non-compatible/breaking)
      * or {@code null} if none exists.
      */
-    RestHandler getHandler(RestRequest.Method method, Version version) {
-        Map<Version, RestHandler> versionToHandlers = methodHandlers.get(method);
+    RestHandler getHandler(RestRequest.Method method, RestApiCompatibleVersion version) {
+        Map<RestApiCompatibleVersion, RestHandler> versionToHandlers = methodHandlers.get(method);
         if (versionToHandlers == null) {
             return null; //method not found
         }
         final RestHandler handler = versionToHandlers.get(version);
-        return handler == null ? versionToHandlers.get(Version.CURRENT) : handler;
+        return handler == null ? versionToHandlers.get(RestApiCompatibleVersion.currentVersion()) : handler;
 
     }
 

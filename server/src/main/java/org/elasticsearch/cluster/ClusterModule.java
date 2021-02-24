@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
-import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
@@ -95,6 +94,7 @@ public class ClusterModule extends AbstractModule {
     private final AllocationDeciders allocationDeciders;
     private final AllocationService allocationService;
     private final List<ClusterPlugin> clusterPlugins;
+    private final MetadataDeleteIndexService metadataDeleteIndexService;
     // pkg private for tests
     final Collection<AllocationDecider> deciderList;
     final ShardsAllocator shardsAllocator;
@@ -108,6 +108,7 @@ public class ClusterModule extends AbstractModule {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext);
         this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
+        this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -248,13 +249,17 @@ public class ClusterModule extends AbstractModule {
         return allocationService;
     }
 
+    public MetadataDeleteIndexService getMetadataDeleteIndexService() {
+        return metadataDeleteIndexService;
+    }
+
     @Override
     protected void configure() {
         bind(GatewayAllocator.class).asEagerSingleton();
         bind(AllocationService.class).toInstance(allocationService);
         bind(ClusterService.class).toInstance(clusterService);
         bind(NodeConnectionsService.class).asEagerSingleton();
-        bind(MetadataDeleteIndexService.class).asEagerSingleton();
+        bind(MetadataDeleteIndexService.class).toInstance(metadataDeleteIndexService);
         bind(MetadataIndexStateService.class).asEagerSingleton();
         bind(MetadataMappingService.class).asEagerSingleton();
         bind(MetadataIndexAliasesService.class).asEagerSingleton();
@@ -263,7 +268,6 @@ public class ClusterModule extends AbstractModule {
         bind(IndexNameExpressionResolver.class).toInstance(indexNameExpressionResolver);
         bind(DelayedAllocationService.class).asEagerSingleton();
         bind(ShardStateAction.class).asEagerSingleton();
-        bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
         bind(TaskResultsService.class).asEagerSingleton();
         bind(AllocationDeciders.class).toInstance(allocationDeciders);

@@ -55,7 +55,7 @@ public class EsQueryExec extends LeafExec {
     public SearchSourceBuilder source(EqlSession session) {
         EqlConfiguration cfg = session.configuration();
         // by default use the configuration size
-        return SourceGenerator.sourceBuilder(queryContainer, cfg.filter());
+        return SourceGenerator.sourceBuilder(queryContainer, cfg.filter(), cfg.fetchFields());
     }
 
     @Override

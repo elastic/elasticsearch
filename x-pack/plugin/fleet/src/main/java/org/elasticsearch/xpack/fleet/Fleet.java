@@ -31,4 +31,14 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             new SystemIndexDescriptor(".fleet-actions*", "Fleet actions")
         );
     }
+
+    @Override
+    public String getFeatureName() {
+        return "fleet";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages configuration for Fleet";
+    }
 }

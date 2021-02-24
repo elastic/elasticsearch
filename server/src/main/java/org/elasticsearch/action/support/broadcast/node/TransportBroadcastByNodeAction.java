@@ -32,7 +32,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -176,9 +179,10 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      *
      * @param request      the node-level request
      * @param shardRouting the shard on which to execute the operation
+     * @param task         the task for this node-level request
      * @return the result of the shard-level operation for the shard
      */
-    protected abstract ShardOperationResult shardOperation(Request request, ShardRouting shardRouting) throws IOException;
+    protected abstract ShardOperationResult shardOperation(Request request, ShardRouting shardRouting, Task task) throws IOException;
 
     /**
      * Determines the shards on which this operation will be executed on. The operation is executed once per shard.
@@ -367,6 +371,11 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
 
         protected void onCompletion() {
+            if (task instanceof CancellableTask && ((CancellableTask)task).isCancelled()) {
+                listener.onFailure(new TaskCancelledException("task cancelled"));
+                return;
+            }
+
             Response response = null;
             try {
                 response = newResponse(request, responses, unavailableShardExceptions, nodeIds, clusterState);
@@ -396,8 +405,11 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
             int shardIndex = -1;
             for (final ShardRouting shardRouting : shards) {
+                if (task instanceof CancellableTask && ((CancellableTask)task).isCancelled()) {
+                    throw new TaskCancelledException("task cancelled");
+                }
                 shardIndex++;
-                onShardOperation(request, shardResultOrExceptions, shardIndex, shardRouting);
+                onShardOperation(request, shardResultOrExceptions, shardIndex, shardRouting, task);
             }
 
             List<BroadcastShardOperationFailedException> accumulatedExceptions = new ArrayList<>();
@@ -414,12 +426,12 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
 
         private void onShardOperation(final NodeRequest request, final Object[] shardResults, final int shardIndex,
-                                      final ShardRouting shardRouting) {
+                                      final ShardRouting shardRouting, final Task task) {
             try {
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}]  executing operation for shard [{}]", actionName, shardRouting.shortSummary());
                 }
-                ShardOperationResult result = shardOperation(request.indicesLevelRequest, shardRouting);
+                ShardOperationResult result = shardOperation(request.indicesLevelRequest, shardRouting, task);
                 shardResults[shardIndex] = result;
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}]  completed operation for shard [{}]", actionName, shardRouting.shortSummary());
@@ -489,6 +501,11 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             out.writeList(shards);
             out.writeString(nodeId);
         }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return indicesLevelRequest.createTask(id, type, action, parentTaskId, headers);
+        }
     }
 
     class NodeResponse extends TransportResponse {
@@ -551,7 +568,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
     }
 
     /**
-     * Can be used for implementations of {@link #shardOperation(BroadcastRequest, ShardRouting) shardOperation} for
+     * Can be used for implementations of {@link #shardOperation(BroadcastRequest, ShardRouting, Task) shardOperation} for
      * which there is no shard-level return value.
      */
     public static final class EmptyResult implements Writeable {

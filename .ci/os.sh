@@ -48,6 +48,7 @@ else
 fi
 
 sudo bash -c 'cat > /etc/sudoers.d/elasticsearch_vars'  << SUDOERS_VARS
+    Defaults   env_keep += "ES_JAVA_HOME"
     Defaults   env_keep += "JAVA_HOME"
     Defaults   env_keep += "SYSTEM_JAVA_HOME"
 SUDOERS_VARS
@@ -63,6 +64,7 @@ sudo mkdir -p /elasticsearch/qa/ && sudo chown jenkins /elasticsearch/qa/ && ln 
 sudo -E env \
   PATH=$BUILD_JAVA_HOME/bin:`sudo bash -c 'echo -n $PATH'` \
   RUNTIME_JAVA_HOME=`readlink -f -n $RUNTIME_JAVA_HOME` \
+  --unset=ES_JAVA_HOME \
   --unset=JAVA_HOME \
   SYSTEM_JAVA_HOME=`readlink -f -n $RUNTIME_JAVA_HOME` \
   ./gradlew -g $HOME/.gradle --scan --parallel --continue $@

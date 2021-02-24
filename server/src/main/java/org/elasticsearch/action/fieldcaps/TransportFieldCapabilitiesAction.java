@@ -101,7 +101,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             };
             for (String index : concreteIndices) {
                 client.executeLocally(TransportFieldCapabilitiesIndexAction.TYPE, new FieldCapabilitiesIndexRequest(request.fields(),
-                    index, localIndices, request.indexFilter(), nowInMillis), innerListener);
+                    index, localIndices, request.indexFilter(), nowInMillis, request.runtimeFields()), innerListener);
             }
 
             // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead

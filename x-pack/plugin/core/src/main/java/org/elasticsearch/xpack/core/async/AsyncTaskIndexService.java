@@ -20,6 +20,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -33,14 +34,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
+import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
@@ -49,10 +48,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -67,13 +67,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public static final String HEADERS_FIELD = "headers";
     public static final String RESPONSE_HEADERS_FIELD = "response_headers";
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
-    public static final String EXPIRATION_TIME_SCRIPT =
-        " if (ctx._source.expiration_time < params.expiration_time) { " +
-        "     ctx._source.expiration_time = params.expiration_time; " +
-        " } else { " +
-        "     ctx.op = \"noop\"; " +
-        " }";
-
     public static final String RESULT_FIELD = "result";
 
     // Usually the settings, mappings and system index descriptor below
@@ -222,15 +215,16 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     /**
-     * Extends the expiration time of the provided <code>docId</code> if the place-holder document is still present (update).
+     * Updates the expiration time of the provided <code>docId</code> if the place-holder
+     * document is still present (update).
      */
-    public void extendExpirationTime(String docId, long expirationTimeMillis, ActionListener<UpdateResponse> listener) {
-        Script script = new Script(ScriptType.INLINE, "painless", EXPIRATION_TIME_SCRIPT,
-            Map.of(EXPIRATION_TIME_FIELD, expirationTimeMillis));
-        UpdateRequest request = new UpdateRequest()
-            .index(index)
+    public void updateExpirationTime(String docId,
+                              long expirationTimeMillis,
+                              ActionListener<UpdateResponse> listener) {
+        Map<String, Object> source = Collections.singletonMap(EXPIRATION_TIME_FIELD, expirationTimeMillis);
+        UpdateRequest request = new UpdateRequest().index(index)
             .id(docId)
-            .script(script)
+            .doc(source, XContentType.JSON)
             .retryOnConflict(5);
         clientWithOrigin.update(request, listener);
     }
@@ -343,18 +337,55 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         ));
     }
 
+    /**
+     * Retrieve the status of the async search or async or stored eql search.
+     * Retrieve from the task if the task is still available or from the index.
+     */
+     public <T extends AsyncTask, SR extends SearchStatusResponse> void retrieveStatus(
+            GetAsyncStatusRequest request,
+            TaskManager taskManager,
+            Class<T> tClass,
+            Function<T, SR> statusProducerFromTask,
+            TriFunction<R, Long, String, SR> statusProducerFromIndex,
+            ActionListener<SR> listener) {
+        AsyncExecutionId asyncExecutionId = AsyncExecutionId.decode(request.getId());
+        try {
+            T asyncTask = getTask(taskManager, asyncExecutionId, tClass);
+            if (asyncTask != null) { // get status response from task
+                SR response = statusProducerFromTask.apply(asyncTask);
+                sendFinalStatusResponse(request, response, listener);
+            } else { // get status response from index
+                getStatusResponseFromIndex(asyncExecutionId, statusProducerFromIndex,
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(SR searchStatusResponse) {
+                            sendFinalStatusResponse(request, searchStatusResponse, listener);
+                        }
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }
+                );
+            }
+        } catch (Exception exc) {
+            listener.onFailure(exc);
+        }
+    }
 
     /**
-     * Gets the status response of the async search from the index
-     * @param asyncExecutionId – id of the async search
-     * @param statusProducer – a producer of the status from the stored async search response and expirationTime
+     * Gets the status response of the stored search from the index
+     * @param asyncExecutionId – id of the stored search (async search or stored eql search)
+     * @param statusProducer – a producer of a status from the stored search, expirationTime and async search id
      * @param listener – listener to report result to
      */
-    public void getStatusResponse(AsyncExecutionId asyncExecutionId,
-                                  BiFunction<R, Long, AsyncStatusResponse> statusProducer,
-                                  ActionListener<AsyncStatusResponse> listener) {
+    private <SR extends SearchStatusResponse> void getStatusResponseFromIndex(
+        AsyncExecutionId asyncExecutionId,
+        TriFunction<R, Long, String, SR> statusProducer,
+        ActionListener<SR> listener) {
+        String asyncId = asyncExecutionId.getEncoded();
         GetRequest internalGet = new GetRequest(index)
-            .preference(asyncExecutionId.getEncoded())
+            .preference(asyncId)
             .id(asyncExecutionId.getDocId());
         clientWithOrigin.get(internalGet, ActionListener.wrap(
             get -> {
@@ -365,13 +396,24 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 String encoded = (String) get.getSource().get(RESULT_FIELD);
                 if (encoded != null) {
                     Long expirationTime = (Long) get.getSource().get(EXPIRATION_TIME_FIELD);
-                    listener.onResponse(statusProducer.apply(decodeResponse(encoded), expirationTime));
+                    listener.onResponse(statusProducer.apply(decodeResponse(encoded), expirationTime, asyncId));
                 } else {
                     listener.onResponse(null);
                 }
             },
             listener::onFailure
         ));
+    }
+
+    private static <SR extends SearchStatusResponse> void sendFinalStatusResponse(
+        GetAsyncStatusRequest request,
+        SR response,
+        ActionListener<SR> listener) {
+        if (response.getExpirationTime() < System.currentTimeMillis()) { // check if the result has expired
+            listener.onFailure(new ResourceNotFoundException(request.getId()));
+        } else {
+            listener.onResponse(response);
+        }
     }
 
     /**

@@ -148,6 +148,9 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_LOGSTASH_PIPELINES = new ActionClusterPrivilege("manage_logstash_pipelines",
         Set.of("cluster:admin/logstash/pipeline/*"));
 
+    public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task",
+        Set.of("cluster:admin/tasks/cancel"));
+
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(List.of(
         NONE,
         ALL,
@@ -187,7 +190,8 @@ public class ClusterPrivilegeResolver {
         DELEGATE_PKI,
         MANAGE_OWN_API_KEY,
         MANAGE_ENRICH,
-        MANAGE_LOGSTASH_PIPELINES));
+        MANAGE_LOGSTASH_PIPELINES,
+        CANCEL_TASK));
 
     /**
      * Resolves a {@link NamedClusterPrivilege} from a given name if it exists.

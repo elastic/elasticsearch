@@ -42,7 +42,7 @@ public class SearchableSnapshotShardStatsTests extends AbstractWireSerializingTe
     }
 
     private CacheIndexInputStats randomCacheIndexInputStats() {
-        return new CacheIndexInputStats(randomAlphaOfLength(10), randomNonNegativeLong(),
+        return new CacheIndexInputStats(randomAlphaOfLength(10), randomNonNegativeLong(), randomNonNegativeLong(),
             randomNonNegativeLong(), randomNonNegativeLong(),
             randomCounter(), randomCounter(),
             randomCounter(), randomCounter(),

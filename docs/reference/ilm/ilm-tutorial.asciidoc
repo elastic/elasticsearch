@@ -314,7 +314,7 @@ when the rollover action is triggered for an index.
 
 You can use the {kib} Create template wizard to add the template. To access the
 wizard, open the menu and go to *Stack Management > Index Management*. In the
-the *Index Templates* tab, click *Create template*.
+*Index Templates* tab, click *Create template*.
 
 [role="screenshot"]
 image:images/ilm/create-template-wizard.png[Create template page]

@@ -509,20 +509,20 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
                 do {
                     long moveBackward = -1L * randomLongBetween(1L, input.getFilePointer());
+                    long moveBackwardAbs = Math.abs(moveBackward);
                     input.seek(input.getFilePointer() + moveBackward);
 
                     if (inputStats.isLargeSeek(moveBackward)) {
-                        minLargeSeeks = (moveBackward < minLargeSeeks) ? moveBackward : minLargeSeeks;
-                        maxLargeSeeks = (moveBackward > maxLargeSeeks) ? moveBackward : maxLargeSeeks;
-                        totalLargeSeeks += moveBackward;
+                        minLargeSeeks = (moveBackwardAbs < minLargeSeeks) ? moveBackwardAbs : minLargeSeeks;
+                        maxLargeSeeks = (moveBackwardAbs > maxLargeSeeks) ? moveBackwardAbs : maxLargeSeeks;
+                        totalLargeSeeks += moveBackwardAbs;
                         countLargeSeeks += 1;
 
                         assertCounter(backwardLargeSeeks, totalLargeSeeks, countLargeSeeks, minLargeSeeks, maxLargeSeeks);
-
                     } else {
-                        minSmallSeeks = (moveBackward < minSmallSeeks) ? moveBackward : minSmallSeeks;
-                        maxSmallSeeks = (moveBackward > maxSmallSeeks) ? moveBackward : maxSmallSeeks;
-                        totalSmallSeeks += moveBackward;
+                        minSmallSeeks = (moveBackwardAbs < minSmallSeeks) ? moveBackwardAbs : minSmallSeeks;
+                        maxSmallSeeks = (moveBackwardAbs > maxSmallSeeks) ? moveBackwardAbs : maxSmallSeeks;
+                        totalSmallSeeks += moveBackwardAbs;
                         countSmallSeeks += 1;
 
                         assertCounter(backwardSmallSeeks, totalSmallSeeks, countSmallSeeks, minSmallSeeks, maxSmallSeeks);
@@ -615,9 +615,14 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
         final Long seekingThreshold = randomBoolean() ? randomLongBetween(1L, fileContent.length) : null;
 
+        // Passing a wrong checksum here disables the BaseSearchableSnapshotIndexInput#maybeReadChecksumFromFileInfo(ByteBuffer)
+        // optimisation which, if it was enabled, would makes the stats tests much more complicated in order to accommodate for
+        // potential footer checksum reads.
+        final String fileChecksum = "_checksum";
+
         final String blobName = randomUnicodeOfLength(10);
         final BlobContainer blobContainer = singleBlobContainer(blobName, fileContent);
-        final StoreFileMetadata metadata = new StoreFileMetadata(fileName, fileContent.length, "_checksum", Version.CURRENT.luceneVersion);
+        final StoreFileMetadata metadata = new StoreFileMetadata(fileName, fileContent.length, fileChecksum, Version.CURRENT.luceneVersion);
         final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, new ByteSizeValue(fileContent.length)));
         final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
         final Path shardDir = randomShardPath(shardId);
@@ -644,11 +649,11 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 frozenCacheService
             ) {
                 @Override
-                protected IndexInputStats createIndexInputStats(long fileLength) {
+                protected IndexInputStats createIndexInputStats(final int numFiles, final long totalSize) {
                     if (seekingThreshold == null) {
-                        return super.createIndexInputStats(fileLength);
+                        return super.createIndexInputStats(numFiles, totalSize);
                     }
-                    return new IndexInputStats(fileLength, seekingThreshold, statsCurrentTimeNanos);
+                    return new IndexInputStats(numFiles, totalSize, seekingThreshold, statsCurrentTimeNanos);
                 }
             }
         ) {

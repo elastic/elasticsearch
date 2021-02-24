@@ -133,8 +133,11 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     }
 
     @Override
-    protected DataStreamsStatsAction.DataStreamShardStats shardOperation(DataStreamsStatsAction.Request request, ShardRouting shardRouting)
-        throws IOException {
+    protected DataStreamsStatsAction.DataStreamShardStats shardOperation(
+        DataStreamsStatsAction.Request request,
+        ShardRouting shardRouting,
+        Task task
+    ) throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
         // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet

@@ -61,7 +61,6 @@ public class RollupActionIT extends ESRestTestCase {
         assertBusy(() -> assertTrue(indexExists(index)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68609")
     public void testRollupIndexAndSetNewRollupPolicy() throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));

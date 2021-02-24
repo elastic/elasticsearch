@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -16,7 +17,6 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
@@ -26,7 +26,7 @@ import static java.util.Collections.emptyList;
 public final class DocValueFetcher implements ValueFetcher {
     private final DocValueFormat format;
     private final IndexFieldData<?> ifd;
-    private Leaf leaf;
+    private FormattedDocValues formattedDocValues;
 
     public DocValueFetcher(DocValueFormat format, IndexFieldData<?> ifd) {
         this.format = format;
@@ -35,36 +35,19 @@ public final class DocValueFetcher implements ValueFetcher {
 
     @Override
     public void setNextReader(LeafReaderContext context) {
-        leaf = ifd.load(context).getLeafValueFetcher(format);
+        formattedDocValues = ifd.load(context).getFormattedValues(format);
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup, Set<String> ignoredFields) throws IOException {
-        if (false == leaf.advanceExact(lookup.docId())) {
+    public List<Object> fetchValues(SourceLookup lookup) throws IOException {
+        if (false == formattedDocValues.advanceExact(lookup.docId())) {
             return emptyList();
         }
-        List<Object> result = new ArrayList<Object>(leaf.docValueCount());
-        for (int i = 0, count = leaf.docValueCount(); i < count; ++i) {
-            result.add(leaf.nextValue());
+        List<Object> result = new ArrayList<>(formattedDocValues.docValueCount());
+        for (int i = 0, count = formattedDocValues.docValueCount(); i < count; ++i) {
+            result.add(formattedDocValues.nextValue());
         }
         return result;
     }
 
-    public interface Leaf {
-        /**
-         * Advance the doc values reader to the provided doc.
-         * @return false if there are no values for this document, true otherwise
-         */
-        boolean advanceExact(int docId) throws IOException;
-
-        /**
-         * A count of the number of values at this document.
-         */
-        int docValueCount() throws IOException;
-
-        /**
-         * Load and format the next value.
-         */
-        Object nextValue() throws IOException;
-    }
 }

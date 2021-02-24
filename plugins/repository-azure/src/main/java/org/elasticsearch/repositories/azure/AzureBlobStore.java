@@ -60,6 +60,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -447,11 +448,13 @@ public class AzureBlobStore implements BlobStore {
             assert blobSize == (((nbParts - 1) * partSize) + lastPartSize) : "blobSize does not match multipart sizes";
 
             final List<String> blockIds = new ArrayList<>(nbParts);
+            final Base64.Encoder base64Encoder = Base64.getEncoder().withoutPadding();
+            final Base64.Decoder base64UrlDecoder = Base64.getUrlDecoder();
             for (int i = 0; i < nbParts; i++) {
                 final long length = i < nbParts - 1 ? partSize : lastPartSize;
                 Flux<ByteBuffer> byteBufferFlux = convertStreamToByteBuffer(inputStream, length, DEFAULT_UPLOAD_BUFFERS_SIZE);
 
-                final String blockId = UUIDs.base64UUID();
+                final String blockId = base64Encoder.encodeToString(base64UrlDecoder.decode(UUIDs.base64UUID()));
                 blockBlobAsyncClient.stageBlock(blockId, byteBufferFlux, length).block();
                 blockIds.add(blockId);
             }

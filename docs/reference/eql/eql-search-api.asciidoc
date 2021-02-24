@@ -186,8 +186,8 @@ returned.
 A greater `fetch_size` value often increases search speed but uses more memory.
 
 `filter`::
-(Optional, <<query-dsl,query DSL object>>)
-Query, written in query DSL, used to filter the events on which the EQL query
+(Optional, <<query-dsl,Query DSL object>>)
+Query, written in Query DSL, used to filter the events on which the EQL query
 runs.
 
 `keep_alive`::
@@ -338,7 +338,9 @@ This search ID is only provided if one of the following conditions is met:
   parameter is `true`.
 
 You can use this ID with the <<get-async-eql-search-api,get async EQL search
-API>> to get the current status and available results for the search.
+API>> to get the current status and available results for the search or
+<<get-async-eql-status-api,get async EQL status API>> to get only
+the current status.
 --
 
 `is_partial`::

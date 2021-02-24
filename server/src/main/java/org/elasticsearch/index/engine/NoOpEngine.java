@@ -43,7 +43,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
     private final DocsStats docsStats;
 
     public NoOpEngine(EngineConfig config) {
-        super(config, null, null, true, Function.identity(), true);
+        super(config, null, null, true, Function.identity(), true, true);
         this.segmentsStats = new SegmentsStats();
         Directory directory = store.directory();
         try (DirectoryReader reader = openDirectory(directory)) {

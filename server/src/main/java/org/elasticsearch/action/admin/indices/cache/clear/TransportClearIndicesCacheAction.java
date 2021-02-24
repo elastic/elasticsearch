@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -63,7 +64,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
     }
 
     @Override
-    protected EmptyResult shardOperation(ClearIndicesCacheRequest request, ShardRouting shardRouting) {
+    protected EmptyResult shardOperation(ClearIndicesCacheRequest request, ShardRouting shardRouting, Task task) {
         indicesService.clearIndexShardCache(shardRouting.shardId(), request.queryCache(), request.fieldDataCache(), request.requestCache(),
             request.fields());
         return EmptyResult.INSTANCE;

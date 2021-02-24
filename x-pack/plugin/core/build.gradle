@@ -1,13 +1,13 @@
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.info.BuildParams
 
-import java.nio.file.Files
 import java.nio.file.Paths
 
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 archivesBaseName = 'x-pack-core'
 
@@ -121,23 +121,6 @@ tasks.named("test").configure {
    * other if we allow them to set the number of available processors as it's set-once in Netty.
    */
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
-// TODO: don't publish test artifacts just to run messy tests, fix the tests!
-// https://github.com/elastic/x-plugins/issues/724
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
-def testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-
-artifacts {
-  // normal es plugins do not publish the jar but we need to since users need it for extensions
-  archives tasks.named("jar")
-  testArtifacts testJar
 }
 
 tasks.named("thirdPartyAudit").configure {

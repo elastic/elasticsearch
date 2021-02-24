@@ -227,7 +227,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         } else {
             settings = new SettingsConfig();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_12_0
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
             retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
         } else {
             retentionPolicyConfig = null;
@@ -366,7 +366,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             settings.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_12_0
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeOptionalNamedWriteable(retentionPolicyConfig);
         }
     }

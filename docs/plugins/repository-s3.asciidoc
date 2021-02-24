@@ -270,10 +270,9 @@ bucket naming rules].
 
 `base_path`::
 
-    Specifies the path within bucket to repository data. Defaults to value of
-    `repositories.s3.base_path` or to root directory if not set.  Previously,
-    the base_path could take a leading `/` (forward slash).  However, this has
-    been deprecated and setting the base_path now should omit the leading `/`.
+    Specifies the path to the repository data within its bucket. Defaults to an
+    empty string, meaning that the repository is at the root of the bucket. The
+    value of this setting should not start or end with a `/`.
 
 `chunk_size`::
 

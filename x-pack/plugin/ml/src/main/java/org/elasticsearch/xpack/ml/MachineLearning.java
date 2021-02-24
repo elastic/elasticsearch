@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
@@ -1220,7 +1221,13 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     @Override
     public Collection<String> getAssociatedIndexPatterns() {
-        return List.of(RESULTS_INDEX_PREFIX + "*", STATE_INDEX_PREFIX + "*", ".ml-notifications*", ".ml-annotations*");
+        return List.of(
+            RESULTS_INDEX_PREFIX + "*",
+            STATE_INDEX_PREFIX + "*",
+            MlStatsIndex.indexPattern(),
+            ".ml-notifications*",
+            ".ml-annotations*"
+        );
     }
 
     @Override

@@ -188,5 +188,12 @@ public class HttpURLBlobContainer extends URLBlobContainer {
                 delegate = getInputStream(blobName, Math.addExact(initialOffset, totalBytesRead), end);
             }
         }
+
+        @Override
+        public void close() throws IOException {
+            if (delegate != null) {
+                delegate.close();
+            }
+        }
     }
 }

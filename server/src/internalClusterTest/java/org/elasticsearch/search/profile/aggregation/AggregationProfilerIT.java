@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -641,7 +642,8 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             List<?> filtersDebug = (List<?>) delegateDebug.get("filters");
             assertThat(filtersDebug, hasSize(1));
             Map<?, ?> queryDebug = (Map<?, ?>) filtersDebug.get(0);
-            assertThat(queryDebug, hasEntry("type", "query"));
+            assertThat(queryDebug, hasKey("scorers_prepared_while_estimating_cost"));
+            assertThat((int) queryDebug.get("scorers_prepared_while_estimating_cost"), greaterThan(0));
             assertThat(queryDebug, hasEntry("query", "ConstantScore(DocValuesFieldExistsQuery [field=date])"));
         }
     }

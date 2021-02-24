@@ -142,6 +142,13 @@ public class QueryToFilterAdapter<Q extends Query> {
      * Note: This method rewrites the query against the {@link IndexSearcher}.
      */
     QueryToFilterAdapter<?> union(Query extraQuery) throws IOException {
+        /*
+         * It'd be *wonderful* if Lucene could do fancy optimizations
+         * when merging queries but it doesn't at the moment. Admittedly,
+         * we have a much more limited problem. We don't care about score
+         * here at all. We know which queries its worth spending time to
+         * optimize because we know which aggs rewrite into this one.
+         */
         extraQuery = searcher().rewrite(extraQuery);
         if (extraQuery instanceof MatchAllDocsQuery) {
             return this;

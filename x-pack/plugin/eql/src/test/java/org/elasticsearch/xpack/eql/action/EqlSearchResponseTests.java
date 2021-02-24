@@ -102,7 +102,8 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             for (int i = 0; i < size; i++) {
                 BytesReference bytes = new RandomSource(() -> randomAlphaOfLength(10)).toBytes(xType);
                 Map<String, DocumentField> fetchFields = new HashMap<>();
-                for (int j = 0; j < randomIntBetween(0, 5); j++) {
+                int fieldsCount = randomIntBetween(0, 5);
+                for (int j = 0; j < fieldsCount; j++) {
                     fetchFields.put(randomAlphaOfLength(10), randomDocumentField(xType).v1());
                 }
                 if (fetchFields.isEmpty() && randomBoolean()) {
@@ -241,11 +242,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
         }
         List<Event> mutatedEvents = new ArrayList<>(original.size());
         for(Event e : original) {
-            if (version.onOrAfter(Version.V_7_13_0)) {
-                mutatedEvents.add(new Event(e.index(), e.id(), e.source(), e.fetchFields()));
-            } else {
-                mutatedEvents.add(new Event(e.index(), e.id(), e.source(), null));
-            }
+            mutatedEvents.add(new Event(e.index(), e.id(), e.source(), version.onOrAfter(Version.V_7_13_0) ? e.fetchFields() : null));
         }
         return mutatedEvents;
     }

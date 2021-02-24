@@ -90,7 +90,8 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
             for (int i = 0; i < size; i++) {
                 BytesReference bytes = new RandomSource(() -> randomAlphaOfLength(10)).toBytes(xType);
                 Map<String, DocumentField> fetchFields = new HashMap<>();
-                for (int j = 0; j < randomIntBetween(0, 5); j++) {
+                int fieldsCount = randomIntBetween(0, 5);
+                for (int j = 0; j < fieldsCount; j++) {
                     fetchFields.put(randomAlphaOfLength(10), randomDocumentField(xType).v1());
                 }
                 if (fetchFields.isEmpty() && randomBoolean()) {

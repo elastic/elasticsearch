@@ -8,10 +8,10 @@
 
 package org.elasticsearch.gradle;
 
+import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-
 import java.nio.file.Path;
 
 /**
@@ -32,9 +32,16 @@ public class ReaperPlugin implements Plugin<Project> {
             .resolve(".gradle")
             .resolve("reaper")
             .resolve("build-" + ProcessHandle.current().pid());
-        ReaperService service = project.getExtensions()
-            .create("reaper", ReaperService.class, project, project.getBuildDir().toPath(), inputDir);
 
-        project.getGradle().buildFinished(result -> service.shutdown());
+        var reaperServiceProvider = project.getGradle().getSharedServices().registerIfAbsent("reaper", ReaperService.class, spec -> {
+            // Provide some parameters
+            spec.getParameters().getInputDir().set(inputDir);
+            spec.getParameters().getBuildDir().set(project.getBuildDir().toPath());
+            spec.getParameters().getInternal().set(BuildParams.isInternal());
+            spec.getParameters().getLogger().set(project.getLogger());
+        });
+
+        project.getExtensions().create("reaper", ReaperExtension.class, reaperServiceProvider);
     }
+
 }

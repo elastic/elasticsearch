@@ -46,6 +46,24 @@ Use `exclude_generated` instead.
 ====
 
 [discrete]
+[[breaking_711_rest_changes]]
+==== REST API changes
+
+.REST APIs that do not use a request body now return an error if a body is provided.
+[%collapsible]
+====
+*Details* +
+Several {es} REST APIs do not use a request body. In previous versions, you
+could provide a request body when calling these APIs, and {es} would ignore the
+body. These APIs now return an error if you provide a request body, even if
+empty.
+
+*Impact* +
+Update your application or workflow to avoid sending unneeded request bodies
+in REST API requests.
+====
+
+[discrete]
 [[breaking_711_search_changes]]
 ==== Search changes
 

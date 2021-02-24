@@ -192,7 +192,8 @@ public class UserAgentProcessorTests extends ESTestCase {
     public void testTablet() throws Exception {
         Map<String, Object> document = new HashMap<>();
         document.put("source_field",
-            "Mozilla/5.0 (iPad; CPU OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1 Mobile/15E148 Safari/604.1");
+            "Mozilla/5.0 (iPad; CPU OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) " +
+                "Version/12.1 Mobile/15E148 Safari/604.1");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         processor.execute(ingestDocument);

@@ -7,9 +7,13 @@
  */
 
 package org.elasticsearch.ingest.useragent;
-
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -24,7 +28,7 @@ import static org.elasticsearch.ingest.useragent.UserAgentParser.VersionedName;
 
 
 import static org.elasticsearch.ingest.useragent.UserAgentParser.readParserConfigurations;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
 
 public class DeviceTypeParserTests extends ESTestCase {
 
@@ -128,8 +132,8 @@ public class DeviceTypeParserTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testRobotAgentString() throws Exception {
 
-        String deviceType = deviceTypeParser.findDeviceType("Mozilla/5.0 (Windows NT 6.1; WOW64; rv:63.0.247) Gecko/20100101 Firefox/63.0.247 Site24x7",
-            null, null, null);
+        String deviceType = deviceTypeParser.findDeviceType(
+            "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:63.0.247) Gecko/20100101 Firefox/63.0.247 Site24x7", null, null, null);
 
         assertThat(deviceType, is("Robot"));
     }

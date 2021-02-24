@@ -106,7 +106,7 @@ class GeoIpDownloader extends AllocatedPersistentTask {
 
     @SuppressWarnings("unchecked")
     private <T> List<T> fetchDatabasesOverview() throws IOException {
-        byte[] data = httpClient.getBytes(endpoint + "?key=11111111-1111-1111-1111-111111111111");
+        byte[] data = httpClient.getBytes(endpoint + "?key=11111111-1111-1111-1111-111111111111&elastic_geoip_service_tos=agree");
         try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
             DeprecationHandler.THROW_UNSUPPORTED_OPERATION, data)) {
             return (List<T>) parser.list();

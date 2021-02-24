@@ -73,7 +73,7 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
         }
 
         if (readTimeout != null) {
-            settings.put("repositories.uri.http.socket_timeout", readTimeout.millis());
+            settings.put("repositories.uri.http.socket_timeout", readTimeout);
         }
 
         try {

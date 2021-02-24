@@ -29,6 +29,10 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptor.Type;
+import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.SystemIndices.Feature;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 
@@ -38,6 +42,7 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -45,12 +50,14 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SystemIndexAccessLevel.NONE;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -1901,6 +1908,106 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
     }
 
+    public void testExternalSystemIndexAccess() {
+        final ClusterState prev = systemIndexTestClusterState();
+        ClusterState state = ClusterState.builder(prev)
+            .metadata(Metadata.builder(prev.metadata())
+                .put(indexBuilder(".external-sys-idx", Settings.EMPTY).state(State.OPEN).system(true)))
+            .build();
+        SystemIndices systemIndices = new SystemIndices(
+            Map.of(
+                "ml",
+                new Feature(
+                    "ml indices",
+                    List.of(new SystemIndexDescriptor(".ml-meta", "ml meta"), new SystemIndexDescriptor(".ml-stuff", "other ml"))
+                ),
+                "watcher",
+                new Feature("watcher indices", List.of(new SystemIndexDescriptor(".watches", "watches index"))),
+                "stack-component",
+                new Feature("stack component",
+                    List.of(
+                        new SystemIndexDescriptor(
+                            ".external-sys-idx",
+                            "external",
+                            Type.EXTERNAL_UNMANAGED,
+                            List.of("stack-component", "other")
+                        )
+                    )
+                )
+            )
+        );
+        indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+
+        {
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
+                SearchRequest request = new SearchRequest(".external-*");
+
+                List<String> indexNames = resolveConcreteIndexNameList(state, request);
+                assertThat(indexNames, contains(".external-sys-idx"));
+                assertWarnings("this request accesses system indices: [.external-sys-idx], but in a future major version, direct access " +
+                    "to system indices will be prevented by default");
+            }
+        }
+        {
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
+                SearchRequest request = new SearchRequest(".external-sys-idx");
+
+                List<String> indexNames = resolveConcreteIndexNameList(state, request);
+                assertThat(indexNames, contains(".external-sys-idx"));
+                assertWarnings("this request accesses system indices: [.external-sys-idx], but in a future major version, direct access " +
+                    "to system indices will be prevented by default");
+            }
+        }
+        // product origin = stack-component
+        {
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
+                threadContext.putHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "stack-component");
+                SearchRequest request = new SearchRequest(".external-*");
+
+                List<String> indexNames = resolveConcreteIndexNameList(state, request);
+                assertThat(indexNames, contains(".external-sys-idx"));
+                assertWarnings();
+            }
+        }
+        {
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
+                threadContext.putHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "stack-component");
+                SearchRequest request = new SearchRequest(".external-sys-idx");
+
+                List<String> indexNames = resolveConcreteIndexNameList(state, request);
+                assertThat(indexNames, contains(".external-sys-idx"));
+                assertWarnings();
+            }
+        }
+        // product origin = other
+        {
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
+                threadContext.putHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "other");
+                SearchRequest request = new SearchRequest(".external-*");
+
+                List<String> indexNames = resolveConcreteIndexNameList(state, request);
+                assertThat(indexNames, contains(".external-sys-idx"));
+                assertWarnings();
+            }
+        }
+        {
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
+                threadContext.putHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "other");
+                SearchRequest request = new SearchRequest(".external-sys-idx");
+
+                List<String> indexNames = resolveConcreteIndexNameList(state, request);
+                assertThat(indexNames, contains(".external-sys-idx"));
+                assertWarnings();
+            }
+        }
+    }
+
     public void testConcreteIndicesPreservesOrdering() {
         epochMillis = 1582761600L; // set to a date known to fail without #65027
         final String dataStreamName = "my-data-stream";
@@ -2188,13 +2295,23 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder(".watches", settings).state(State.OPEN).system(true))
             .put(indexBuilder(".ml-stuff", settings).state(State.OPEN).system(true))
             .put(indexBuilder("some-other-index").state(State.OPEN));
+        SystemIndices systemIndices = new SystemIndices(
+            Map.of("ml",
+                new Feature("ml indices",
+                    List.of(new SystemIndexDescriptor(".ml-meta", "ml meta"), new SystemIndexDescriptor(".ml-stuff", "other ml"))
+                ),
+                "watcher",
+                new Feature("watcher indices", List.of(new SystemIndexDescriptor(".watches", "watches index")))
+            )
+        );
+        indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
         return ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
     }
 
     private List<String> resolveConcreteIndexNameList(ClusterState state, SearchRequest request) {
         return Arrays
             .stream(indexNameExpressionResolver.concreteIndices(state, request))
-            .map(i -> i.getName())
+            .map(Index::getName)
             .collect(Collectors.toList());
     }
 }

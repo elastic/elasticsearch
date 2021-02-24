@@ -69,6 +69,8 @@ public interface ShardSearchRequest {
 
     Boolean requestCache();
 
+    void requestCache(Boolean requestCache);
+
     Boolean allowPartialSearchResults();
 
     Scroll scroll();

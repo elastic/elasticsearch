@@ -171,6 +171,11 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
+    public void requestCache(Boolean requestCache) {
+        this.requestCache = requestCache;
+    }
+
+    @Override
     public Boolean allowPartialSearchResults() {
         return allowPartialSearchResults;
     }

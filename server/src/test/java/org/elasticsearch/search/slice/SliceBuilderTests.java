@@ -163,6 +163,10 @@ public class SliceBuilderTests extends ESTestCase {
         }
 
         @Override
+        public void requestCache(Boolean requestCache) {
+        }
+
+        @Override
         public Boolean allowPartialSearchResults() {
             return null;
         }

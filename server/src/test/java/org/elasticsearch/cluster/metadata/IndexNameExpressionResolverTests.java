@@ -2186,9 +2186,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     public void testMathExpressionSupport() {
 
         Instant instant = LocalDate.of(2021, 01, 11).atStartOfDay().toInstant(ZoneOffset.UTC);
-        String resolved = this.indexNameExpressionResolver.resolveDateMathExpression("<test-name-{now/M{yyyy-MM}}>", instant.toEpochMilli());
+        String resolved = this.indexNameExpressionResolver.resolveDateMathExpression("<a-name-{now/M{yyyy-MM}}>", instant.toEpochMilli());
 
-        assertEquals(resolved, "test-name-2021-01");
+        assertEquals(resolved, "a-name-2021-01");
     }
 
     public void testMathExpressionSupportWithOlderDate() {

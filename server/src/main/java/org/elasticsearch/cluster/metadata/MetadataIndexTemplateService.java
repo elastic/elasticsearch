@@ -1077,7 +1077,6 @@ public class MetadataIndexTemplateService {
                                                   final ComposableIndexTemplate template,
                                                   final IndicesService indicesService,
                                                   final NamedXContentRegistry xContentRegistry) throws Exception {
-
         final ClusterState stateWithTemplate = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata()).put(templateName, template))
             .build();
@@ -1108,7 +1107,6 @@ public class MetadataIndexTemplateService {
                 .build())
             .build();
         final IndexMetadata tmpIndexMetadata = stateWithIndex.metadata().index(temporaryIndexName);
-
         indicesService.withTempIndexService(tmpIndexMetadata,
             tempIndexService -> {
                 // Validate aliases
@@ -1309,7 +1307,6 @@ public class MetadataIndexTemplateService {
             validationException.addValidationErrors(validationErrors);
             throw new InvalidIndexTemplateException(name, validationException.getMessage());
         }
-
 
         for (Alias alias : aliases) {
             // we validate the alias only partially, as we don't know yet to which index it'll get applied to

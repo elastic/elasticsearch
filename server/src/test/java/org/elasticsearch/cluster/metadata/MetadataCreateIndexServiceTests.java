@@ -599,8 +599,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         request.aliases(Set.of(new Alias(aliasName)));
 
-        List<AliasMetadata> aliasMetadata = resolveAndValidateAliases(request.index(), request.aliases(), List.of(), Metadata.builder().build(),
-            aliasValidator, xContentRegistry(), searchExecutionContext, indexNameExpressionResolver::resolveDateMathExpression);
+        List<AliasMetadata> aliasMetadata = resolveAndValidateAliases(request.index(), request.aliases(), List.of(),
+            Metadata.builder().build(), aliasValidator, xContentRegistry(), searchExecutionContext,
+            indexNameExpressionResolver::resolveDateMathExpression);
 
         assertEquals("date-math-based-2021-01-01", aliasMetadata.get(0).alias() );
     }
@@ -623,7 +624,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             List.of(templateMetadata.mappings()), xContentRegistry());
         List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
             MetadataIndexTemplateService.resolveAliases(List.of(templateMetadata)),
-            Metadata.builder().build(), aliasValidator, xContentRegistry(), searchExecutionContext, indexNameExpressionResolver::resolveDateMathExpression);
+            Metadata.builder().build(), aliasValidator, xContentRegistry(), searchExecutionContext,
+            indexNameExpressionResolver::resolveDateMathExpression);
 
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, templateMetadata.settings(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
@@ -678,7 +680,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(), Collections.emptySet());
         List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
             MetadataIndexTemplateService.resolveAliases(templates),
-            Metadata.builder().build(), aliasValidator, xContentRegistry(), searchExecutionContext, indexNameExpressionResolver::resolveDateMathExpression);
+            Metadata.builder().build(), aliasValidator, xContentRegistry(), searchExecutionContext,
+            indexNameExpressionResolver::resolveDateMathExpression);
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("12"));
         AliasMetadata alias = resolvedAliases.get(0);
@@ -707,7 +710,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
             MetadataIndexTemplateService.resolveAliases(templates),
-            Metadata.builder().build(), aliasValidator, xContentRegistry(), searchExecutionContext, indexNameExpressionResolver::resolveDateMathExpression);
+            Metadata.builder().build(), aliasValidator, xContentRegistry(), searchExecutionContext,
+            indexNameExpressionResolver::resolveDateMathExpression);
 
         assertThat(resolvedAliases.get(0).alias(), equalTo("jan-2021-01-01"));
         assertThat(resolvedAliases.get(1).alias(), equalTo("feb-2021-02-01"));

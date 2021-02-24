@@ -121,6 +121,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 addInferenceIngestUsage(response, inferenceUsage);
                 GetTrainedModelsAction.Request getModelsRequest = new GetTrainedModelsAction.Request("*", Collections.emptyList(),
                     Collections.emptySet());
+                getModelsRequest.setPageParams(new PageParams(0, 10_000));
                 client.execute(GetTrainedModelsAction.INSTANCE, getModelsRequest, trainedModelsListener);
             },
             listener::onFailure
@@ -142,8 +143,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         ActionListener<GetDataFrameAnalyticsStatsAction.Response> dataframeAnalyticsStatsListener = ActionListener.wrap(
             response -> {
                 addDataFrameAnalyticsStatsUsage(response, analyticsUsage);
-                GetDataFrameAnalyticsAction.Request getDfaRequest = new GetDataFrameAnalyticsAction.Request(
-                    AbstractTransportGetResourcesAction.ALL);
+                GetDataFrameAnalyticsAction.Request getDfaRequest = new GetDataFrameAnalyticsAction.Request(Metadata.ALL);
                 getDfaRequest.setPageParams(new PageParams(0, 10_000));
                 client.execute(GetDataFrameAnalyticsAction.INSTANCE, getDfaRequest, dataframeAnalyticsListener);
             },
@@ -155,7 +155,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             ActionListener.wrap(response -> {
                 addDatafeedsUsage(response, datafeedsUsage);
                 GetDataFrameAnalyticsStatsAction.Request dataframeAnalyticsStatsRequest =
-                    new GetDataFrameAnalyticsStatsAction.Request(GetDatafeedsStatsAction.ALL);
+                    new GetDataFrameAnalyticsStatsAction.Request(Metadata.ALL);
                 dataframeAnalyticsStatsRequest.setPageParams(new PageParams(0, 10_000));
                 client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener);
             },
@@ -167,8 +167,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             response -> {
                 jobManagerHolder.getJobManager().expandJobs(Metadata.ALL, true, ActionListener.wrap(jobs -> {
                     addJobsUsage(response, jobs.results(), jobsUsage);
-                    GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(
-                        GetDatafeedsStatsAction.ALL);
+                    GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(Metadata.ALL);
                     client.execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest, datafeedStatsListener);
                 }, listener::onFailure));
             }, listener::onFailure);

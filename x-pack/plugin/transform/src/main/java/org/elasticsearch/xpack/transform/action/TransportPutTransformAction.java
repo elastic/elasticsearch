@@ -211,7 +211,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
             config.getDestination().getPipeline(),
-            request.isDeferValidation() ? SourceDestValidations.NON_DEFERABLE_VALIDATIONS : SourceDestValidations.ALL_VALIDATIONS,
+            SourceDestValidations.getValidations(request.isDeferValidation(), config.getAdditionalValidations()),
             ActionListener.wrap(
                 validationResponse -> {
                     // Early check to verify that the user can create the destination index and can read from the source

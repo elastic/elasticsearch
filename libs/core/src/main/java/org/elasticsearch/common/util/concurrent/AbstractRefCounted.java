@@ -30,12 +30,8 @@ public abstract class AbstractRefCounted implements RefCounted {
         }
     }
 
-    protected void track() {
-    }
-
     @Override
     public final boolean tryIncRef() {
-        track();
         do {
             int i = refCount.get();
             if (i > 0) {

@@ -4,10 +4,10 @@
 [partintro]
 --
 With scripting, you can evaluate custom expressions in {es}. For example, you
-could use a script to return "script fields" as part of a search request or
+could use a script to return fields as part of a search request or
 evaluate a custom score for a query.
 
-The default scripting language is <<modules-scripting-painless, `Painless`>>.
+The default scripting language is <<modules-scripting-painless,Painless>>.
 Additional `lang` plugins enable you to run scripts written in other languages.
 Everywhere a script can be used, you can include a `lang` parameter
 to specify the language of the script.
@@ -71,13 +71,13 @@ sandboxed languages can be a security issue, please read
 =================================================
 --
 
+include::scripting/painless.asciidoc[]
+
 include::scripting/using.asciidoc[]
 
 include::scripting/fields.asciidoc[]
 
 include::scripting/security.asciidoc[]
-
-include::scripting/painless.asciidoc[]
 
 include::scripting/expression.asciidoc[]
 

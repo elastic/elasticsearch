@@ -1,8 +1,8 @@
 [[modules-scripting-using]]
 == How to write scripts
 
-Wherever scripting is supported in the Elasticsearch API, the syntax follows
-the same pattern:
+Wherever scripting is supported in the {es} APIs, the syntax follows the same
+pattern:
 
 [source,js]
 -------------------------------------
@@ -30,7 +30,15 @@ the same pattern:
 [discrete]
 [[hello-world-script]]
 === Write your first script
-The <<painless-execute-api, painless execute API>> provides the ability to
+<<modules-scripting-painless,Painless>> is the default scripting language
+for {es}. It is secure, performant, and provides a natural syntax for anyone
+with a little coding experience.
+
+A Painless script is structured as one or more statements and optionally
+has one or more user-defined functions at the beginning. A script must always
+have at least one statement.
+
+The {painless}/painless-execute-api.html[Painless execute API] provides the ability to
 test a script with simple user-defined parameters and receive a result. Let's
 start with a simple script and review its constituent parts.
 
@@ -47,8 +55,8 @@ POST /_scripts/painless/_execute <1>
 <2> `script` object
 <3> `script` source
 
-The request URL partially determines what script contexts are available.
-Contexts control how scripts are executed, what variables are available when
+The request URL partially determines what script _contexts_ are available.
+Contexts control how scripts run, what variables are available when
 the script runs, and what the return type is.
 
 We're using the Painless execute API without any URL parameters, which uses
@@ -85,9 +93,9 @@ POST /_scripts/painless/_execute
   }
 }
 ----
-<1> `Map` of user-defined parameters
+<1> Script `source`
 <2> Language declaration
-<3> Parameter definition
+<3> `Map` of user-defined parameters
 
 Our script now contains a `Map` of user-defined parameters. The `get` method
 accesses a value using the `String` key of the `hello_world` parameter.
@@ -104,9 +112,8 @@ the example script.
 [discrete]
 [[script-shorten-syntax]]
 === Shorten your script
-Using syntactic sugar that is native to Painless, you can reduce verbosity in
-your scripts and make them shorter. In the shortened form, `script` is
-represented by a string that contains the script source instead of an object.
+Using syntactic abilities that are native to Painless, you can reduce verbosity
+in your scripts and make them shorter.
 
 [source,console]
 ----
@@ -121,178 +128,191 @@ POST /_scripts/painless/_execute
 }
 ----
 
-This script removes several components to achieve greater brevity:
+This version of the script removes several components:
 
-. The `return` keyword. Painless automatically uses the final statement in a
+* The `return` keyword. Painless automatically uses the final statement in a
 script (when possible) to produce a return value in a script context that
 requires one.
-. The semicolon at the end of the `source` statement. Painless does not
+* The semicolon at the end of the `source` statement. Painless does not
 require semicolons for the final statement of a block. However, it does require
 them in other cases to remove ambiguity.
-. The `get` method, which is replaced with brackets `[]`. Painless
+* The `get` method, which is replaced with brackets `[]`. Painless
 uses a shortcut specifically for the `Map` type that allows us to use brackets
 instead of the lengthier `get` method.
 
-For example, the following script is used in a search request to return a
-<<script-fields, scripted field>>:
+[discrete]
+[[script-whats-next]]
+=== What's next
+Now that you've learned the basic syntax of a Painless script, we'll dig more
+into the language itself. Understanding the building blocks of the language
+will help you to construct more complex and powerful scripts.
+
+<<script-spec-types,Learn about types>>
+
+[[script-spec-types]]
+=== Types
+A type is a classification of data used to define the properties of a value.
+These properties specify what data a value represents and the rules for how a
+value is evaluated during an operation. Each type belongs to one of the
+following categories: primitive, reference, or dynamic.
+
+[discrete]
+[[script-type-primitive]]
+==== Primitive types
+A primitive type represents basic data built natively into the JVM and is
+allocated to non-heap memory. Examples of
+<<available-primitive-types,available primitive types>> are `byte`, `int`, and
+`long`.
+
+A primitive type value is copied during an assignment or as an argument for a
+method or function call. Each primitive type has a corresponding reference type
+(or boxed type) as shown in the following list. For example, the reference type
+for `byte` is `Byte`.
+
+You can declare a primitive type <<script-spec-variables,variable>> or access a
+primitive type member field from a reference type instance, and assign it a
+primitive type value for evaluation during later operations.
+
+Use the field access operator or method call operator on a primitive type value
+to force evaluation as its corresponding reference type value.
+
+Let's take our shortened script and incorporate some primitive types:
 
 [source,console]
--------------------------------------
-PUT my-index-000001/_doc/1
-{
-  "my_field": 5
-}
-
-GET my-index-000001/_search
-{
-  "script_fields": {
-    "my_doubled_field": {
-      "script": {
-        "lang":   "expression",
-        "source": "doc['my_field'] * multiplier",
-        "params": {
-          "multiplier": 2
-        }
-      }
-    }
-  }
-}
--------------------------------------
-
-[discrete]
-[[modules-scripting-short-script-form]]
-=== Short script form
-A short script form can be used for brevity. In the short form, `script` is represented
-by a string instead of an object. This string contains the source of the script.
-
-Short form:
-
-[source,js]
-----------------------
-  "script": "ctx._source.my-int++"
-----------------------
-// NOTCONSOLE
-
-The same script in the normal form:
-
-[source,js]
-----------------------
-  "script": {
-    "source": "ctx._source.my-int++"
-  }
-----------------------
-// NOTCONSOLE
-
-[discrete]
-[[modules-scripting-stored-scripts]]
-=== Stored scripts
-
-Scripts may be stored in and retrieved from the cluster state using the
-`_scripts` end-point.
-
-If the {es} {security-features} are enabled, you must have the following
-privileges to create, retrieve, and delete stored scripts:
-
-* cluster: `all` or `manage`
-
-For more information, see <<security-privileges>>.
-
-
-[discrete]
-==== Request examples
-
-The following are examples of using a stored script that lives at
-`/_scripts/{id}`.
-
-First, create the script called `calculate-score` in the cluster state:
-
-[source,console]
------------------------------------
-POST _scripts/calculate-score
+----
+POST /_scripts/painless/_execute
 {
   "script": {
-    "lang": "painless",
-    "source": "Math.log(_score * 2) + params.my_modifier"
+    "source": """
+        int my_int; <1>
+        my_int = 1; <2>
+        double my_double = 2.0; <3>
+    """
   }
 }
------------------------------------
-// TEST[setup:my_index]
+----
+<1> Primitive `int` type declaration
+<2> Primitive `int` type assignment with an `int` constant
+<3> Primitive `double` type declaration with assignment of a `double` constant
 
-You may also specify a context as part of the url path to compile a
-stored script against that specific context in the form of
-`/_scripts/{id}/{context}`:
+[[available-primitive-types]]
+.**Available primitive types**
+[%collapsible]
+====
+`byte` (`Byte`)::
+    8-bit, signed, two's complement integer. Range: [`-128`, `127`]. Default: `0`.
+
+`short` (`Short`)::
+    16-bit, signed, two's complement integer. Range: [`-32768`, `32767`]. Default: `0`.
+
+`char` (`Character`)::
+    16-bit, unsigned, Unicode character. Range: [`0`, `65535`]. Default: `0` or `\u0000`.
+
+`int` (`Integer`)::
+    32-bit, signed, two's complement integer. Range: [`-2^31`, `2^31-1`]. Default: `0`.
+
+`long` (`Long`)::
+    64-bit, signed, two's complement integer. Range: [`-2^63`, `2^63-1`]. Default: `0`.
+
+`float (`Float`)`::
+    32-bit, signed, single-precision, IEEE 754 floating point number. Default `0.0`.
+
+`double` (`Double`)::
+    64-bit, signed, double-precision, IEEE 754 floating point number. Default: `0.0`.
+
+`boolean` (`Boolean`)::
+    logical quantity with two possible values of `true` and `false`. Default: `false`.
+====
+
+[discrete]
+[[script-type-reference]]
+==== Reference types
+A reference type is an object that potentially represents multiple pieces of
+data and logic to manipulate that data, defined as part of the API for scripts.
 
 [source,console]
------------------------------------
-POST _scripts/calculate-score/score
+----
+POST /_scripts/painless/_execute
 {
   "script": {
-    "lang": "painless",
-    "source": "Math.log(_score * 2) + params.my_modifier"
+    "source": """
+        int my_int;
+        my_int = 1;
+        double my_double = 2.0;
+        Map my_map; <1>
+        my_map = new HashMap(); <2>
+        my_map.put("my_int", my_int); <3>
+        my_double.put("my_double", my_double);
+        return my_map;
+    """
   }
 }
------------------------------------
-// TEST[setup:my_index]
+----
+<1> Reference `Map` type declaration
+<2> Reference `Map` type assignment with a new instance of a `HashMap`
+<3> Reference types are complex types that have method and fields available to
+modify internal state
 
-This same script can be retrieved with:
-
-[source,console]
------------------------------------
-GET _scripts/calculate-score
------------------------------------
-// TEST[continued]
-
-Stored scripts can be used by specifying the `id` parameters as follows:
-
-[source,console]
---------------------------------------------------
-GET my-index-000001/_search
-{
-  "query": {
-    "script_score": {
-      "query": {
-        "match": {
-            "message": "some message"
-        }
-      },
-      "script": {
-        "id": "calculate-score",
-        "params": {
-          "my_modifier": 2
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-// TEST[continued]
-
-And deleted with:
-
-[source,console]
------------------------------------
-DELETE _scripts/calculate-score
------------------------------------
-// TEST[continued]
 
 [discrete]
-[[modules-scripting-search-templates]]
-=== Search templates
-You can also use the `_scripts` API to store **search templates**. Search
-templates save specific <<search-search,search requests>> with placeholder
-values, called template parameters.
+[[script-type-dynamic]]
+==== Dynamic types
 
-You can use stored search templates to run searches without writing out the
-entire query. Just provide the stored template's ID and the template parameters.
-This is useful when you want to run a commonly used query quickly and without
-mistakes.
-
-Search templates use the https://mustache.github.io/mustache.5.html[mustache
-templating language]. See <<search-template>> for more information and examples.
 
 [discrete]
+[[types-whats-next]]
+==== What's next
+These types are the most basic structures in Painless, and there are other
+types that you can learn about when writing scripts. Now that you've learned
+about types, you can start declaring variables and assigning types to them.
+
+<<script-spec-variables,Learn about variables>>
+
+[[script-spec-variables]]
+=== Variables
+A variable loads and stores a value for evaluation during operations. A
+variable not immediately assigned a value will have a default value assigned
+implicitly based on the type.
+
+When using variables, you declare the variable, specify a type, and assign
+values to the variable. The following example declares a variable `i` of type
+`int`, and assigns it a value of `10`:
+
+[source,Painless]
+----
+int i;  <1>
+i = 10; <2>
+----
+<1> Declare `int i` and store default `int 0` to `i`
+<2> Store `int 10` to `i`
+
+When declaring a variable, specify the type followed by an identifier. After
+declaring variables, you can use them in scripts by referring to their
+identifier.
+
+Use the assignment operator `'='` to store a value in a variable for use in
+subsequent operations. Any operation that produces a value can be assigned to
+any variable as long as the types are the same, or the resultant type can be
+implicitly cast to the variable type.
+
+[[script-spec-operators]]
+=== Operators
+An operator is the most basic action that can be taken to evaluate values in a
+script. An expression is one-to-many consecutive operations. Precedence is the
+order in which an operator will be evaluated relative to another operator.
+Associativity is the direction within an expression in which a specific
+operator is evaluated.
+
+[[script-spec-statements]]
+=== Statements
+
+
+[[script-spec-functions]]
+=== Functions
+
+
 [[modules-scripting-using-caching]]
-=== Script caching
+=== Modify script caching
 
 All scripts are cached by default so that they only need to be recompiled
 when updates occur. By default, scripts do not have a time-based expiration, but
@@ -316,163 +336,8 @@ If you often use scripts to transform indexed data, you can speed up search by
 making these changes during ingest instead. However, that often means slower
 index speeds.
 
-.*Example*
-[%collapsible]
-=====
-An index, `my_test_scores`, contains two `long` fields:
+[[modules-scripting-stored-scripts]]
+=== Stored scripts
 
-* `math_score`
-* `verbal_score`
-
-When running searches, users often use a script to sort results by the sum of
-these two field's values.
-
-[source,console]
-----
-GET /my_test_scores/_search
-{
-  "query": {
-    "term": {
-      "grad_year": "2099"
-    }
-  },
-  "sort": [
-    {
-      "_script": {
-        "type": "number",
-        "script": {
-          "source": "doc['math_score'].value + doc['verbal_score'].value"
-        },
-        "order": "desc"
-      }
-    }
-  ]
-}
-----
-// TEST[s/^/PUT my_test_scores\n/]
-
-To speed up search, you can perform this calculation during ingest and index the
-sum to a field instead.
-
-First, <<indices-put-mapping,add a new field>>, `total_score`, to the index. The
-`total_score` field will contain sum of the `math_score` and `verbal_score`
-field values.
-
-[source,console]
-----
-PUT /my_test_scores/_mapping
-{
-  "properties": {
-    "total_score": {
-      "type": "long"
-    }
-  }
-}
-----
-// TEST[continued]
-
-Next, use an <<ingest,ingest pipeline>> containing the
-<<script-processor,`script`>> processor to calculate the sum of `math_score` and
-`verbal_score` and index it in the `total_score` field.
-
-[source,console]
-----
-PUT _ingest/pipeline/my_test_scores_pipeline
-{
-  "description": "Calculates the total test score",
-  "processors": [
-    {
-      "script": {
-        "source": "ctx.total_score = (ctx.math_score + ctx.verbal_score)"
-      }
-    }
-  ]
-}
-----
-// TEST[continued]
-
-To update existing data, use this pipeline to <<docs-reindex,reindex>> any
-documents from `my_test_scores` to a new index, `my_test_scores_2`.
-
-[source,console]
-----
-POST /_reindex
-{
-  "source": {
-    "index": "my_test_scores"
-  },
-  "dest": {
-    "index": "my_test_scores_2",
-    "pipeline": "my_test_scores_pipeline"
-  }
-}
-----
-// TEST[continued]
-
-Continue using the pipeline to index any new documents to `my_test_scores_2`.
-
-[source,console]
-----
-POST /my_test_scores_2/_doc/?pipeline=my_test_scores_pipeline
-{
-  "student": "kimchy",
-  "grad_year": "2099",
-  "math_score": 800,
-  "verbal_score": 800
-}
-----
-// TEST[continued]
-
-These changes may slow indexing but allow for faster searches. Users can now
-sort searches made on `my_test_scores_2` using the `total_score` field instead
-of using a script.
-
-[source,console]
-----
-GET /my_test_scores_2/_search
-{
-  "query": {
-    "term": {
-      "grad_year": "2099"
-    }
-  },
-  "sort": [
-    {
-      "total_score": {
-        "order": "desc"
-      }
-    }
-  ]
-}
-----
-// TEST[continued]
-
-////
-[source,console]
-----
-DELETE /_ingest/pipeline/my_test_scores_pipeline
-----
-// TEST[continued]
-
-[source,console-result]
-----
-{
-"acknowledged": true
-}
-----
-////
-=====
-
-We recommend testing and benchmarking any indexing changes before deploying them
-in production.
-
-[discrete]
-[[modules-scripting-errors]]
-=== Script errors
-Elasticsearch returns error details when there is a compliation or runtime
-exception.  The contents of this response are useful for tracking down the
-problem.
-
-experimental[]
-
-The contents of `position` are experimental and subject to change.
+Scripts may be stored in and retrieved from the cluster state using the
+`_scripts` end-point.

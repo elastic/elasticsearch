@@ -206,8 +206,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 bulkRequest.incRef();
                 Releasable releaseBytes = Releasables.releaseOnce(bulkRequest::decRef);
                 boolean success = false;
+                ActionListener<BulkResponse> wrappedListener = ActionListener.runAfter(listener, releaseBytes::close);
                 try {
-                    ActionListener<BulkResponse> wrappedListener = ActionListener.runAfter(listener, releaseBytes::close);
                     if (clusterService.localNode().isIngestNode()) {
                         processBulkIndexIngestRequest(task, bulkRequest, executorName, wrappedListener);
                     } else {
@@ -559,7 +559,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                     private void finishHim() {
                         listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]),
-                                buildTookInMillis(startTimeNanos)));
+                            buildTookInMillis(startTimeNanos)));
                     }
                 });
             }

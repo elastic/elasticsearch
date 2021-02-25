@@ -44,12 +44,10 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            Route.replaces(
-                PUT, "/_security/privilege/",
-                PUT, "/_xpack/security/privilege/", RestApiCompatibleVersion.V_7),
-            Route.replaces(
-                POST, "/_security/privilege/",
-                POST, "/_xpack/security/privilege/", RestApiCompatibleVersion.V_7)
+            Route.builder(PUT, "/_security/privilege/")
+                .replaces(PUT, "/_xpack/security/privilege/", RestApiCompatibleVersion.V_7).build(),
+            Route.builder(POST, "/_security/privilege/")
+                .replaces(POST, "/_xpack/security/privilege/", RestApiCompatibleVersion.V_7).build()
         );
     }
 

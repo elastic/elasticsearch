@@ -49,18 +49,14 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            Route.replaces(
-                PUT, "/_security/user/{username}/_password",
-                PUT, "/_xpack/security/user/{username}/_password", RestApiCompatibleVersion.V_7),
-            Route.replaces(
-                POST, "/_security/user/{username}/_password",
-                POST, "/_xpack/security/user/{username}/_password", RestApiCompatibleVersion.V_7),
-            Route.replaces(
-                PUT, "/_security/user/_password",
-                PUT, "/_xpack/security/user/_password", RestApiCompatibleVersion.V_7),
-            Route.replaces(
-                POST, "/_security/user/_password",
-                POST, "/_xpack/security/user/_password", RestApiCompatibleVersion.V_7)
+            Route.builder(PUT, "/_security/user/{username}/_password")
+                .replaces(PUT, "/_xpack/security/user/{username}/_password", RestApiCompatibleVersion.V_7).build(),
+            Route.builder(POST, "/_security/user/{username}/_password")
+                .replaces(POST, "/_xpack/security/user/{username}/_password", RestApiCompatibleVersion.V_7).build(),
+            Route.builder(PUT, "/_security/user/_password")
+                .replaces(PUT, "/_xpack/security/user/_password", RestApiCompatibleVersion.V_7).build(),
+            Route.builder(POST, "/_security/user/_password")
+                .replaces(POST, "/_xpack/security/user/_password", RestApiCompatibleVersion.V_7).build()
         );
     }
 

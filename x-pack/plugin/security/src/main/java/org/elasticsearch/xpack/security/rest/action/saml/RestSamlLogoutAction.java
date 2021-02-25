@@ -51,9 +51,8 @@ public class RestSamlLogoutAction extends SamlBaseRestHandler {
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            Route.replaces(
-                POST, "/_security/saml/logout",
-                POST, "/_xpack/security/saml/logout", RestApiCompatibleVersion.V_7)
+            Route.builder(POST, "/_security/saml/logout")
+                .replaces(POST, "/_xpack/security/saml/logout", RestApiCompatibleVersion.V_7).build()
         );
     }
 

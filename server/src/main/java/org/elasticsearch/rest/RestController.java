@@ -173,8 +173,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
     public void registerHandler(final RestHandler restHandler) {
         restHandler.routes().forEach(route -> {
             if (route.isReplacement()) {
+                RestHandler.Route replaced = route.getReplacedRoute();
                 registerWithDeprecatedHandler(route.getMethod(), route.getPath(), restHandler,
-                    route.getReplacedMethod(), route.getReplacedPath());
+                    replaced.getMethod(), replaced.getPath());
             } else if (route.isDeprecated()) {
                 registerAsDeprecatedHandler(route.getMethod(), route.getPath(), restHandler,
                     route.getDeprecationMessage());

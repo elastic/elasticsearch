@@ -28,8 +28,8 @@ public class RestUpdateTransformActionDeprecated extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.deprecated(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_update", RestApiCompatibleVersion.V_7,
-                TransformMessages.REST_DEPRECATED_ENDPOINT)
+            Route.builder(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_update")
+                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiCompatibleVersion.V_7).build()
         );
     }
 

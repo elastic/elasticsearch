@@ -40,18 +40,14 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            Route.replaces(
-                POST, "/_security/user/{username}/_enable",
-                POST, "/_xpack/security/user/{username}/_enable", RestApiCompatibleVersion.V_7),
-            Route.replaces(
-                PUT, "/_security/user/{username}/_enable",
-                PUT, "/_xpack/security/user/{username}/_enable", RestApiCompatibleVersion.V_7),
-            Route.replaces(
-                POST, "/_security/user/{username}/_disable",
-                POST, "/_xpack/security/user/{username}/_disable", RestApiCompatibleVersion.V_7),
-            Route.replaces(
-                PUT, "/_security/user/{username}/_disable",
-                PUT, "/_xpack/security/user/{username}/_disable", RestApiCompatibleVersion.V_7)
+            Route.builder(POST, "/_security/user/{username}/_enable")
+                .replaces(POST, "/_xpack/security/user/{username}/_enable", RestApiCompatibleVersion.V_7).build(),
+            Route.builder(PUT, "/_security/user/{username}/_enable")
+                .replaces(PUT, "/_xpack/security/user/{username}/_enable", RestApiCompatibleVersion.V_7).build(),
+            Route.builder(POST, "/_security/user/{username}/_disable")
+                .replaces(POST, "/_xpack/security/user/{username}/_disable", RestApiCompatibleVersion.V_7).build(),
+            Route.builder(PUT, "/_security/user/{username}/_disable")
+                .replaces(PUT, "/_xpack/security/user/{username}/_disable", RestApiCompatibleVersion.V_7).build()
         );
     }
 

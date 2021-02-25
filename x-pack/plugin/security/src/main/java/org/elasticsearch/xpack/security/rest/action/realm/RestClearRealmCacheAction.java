@@ -30,9 +30,8 @@ public final class RestClearRealmCacheAction extends SecurityBaseRestHandler {
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            Route.replaces(
-                POST, "/_security/realm/{realms}/_clear_cache",
-                POST, "/_xpack/security/realm/{realms}/_clear_cache", RestApiCompatibleVersion.V_7)
+            Route.builder(POST, "/_security/realm/{realms}/_clear_cache")
+                .replaces(POST, "/_xpack/security/realm/{realms}/_clear_cache", RestApiCompatibleVersion.V_7).build()
         );
     }
 

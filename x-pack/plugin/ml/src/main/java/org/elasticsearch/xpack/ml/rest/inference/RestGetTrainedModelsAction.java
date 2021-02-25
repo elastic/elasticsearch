@@ -24,7 +24,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -37,7 +36,9 @@ import java.util.Set;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
+import static org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig.MODEL_ID;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetTrainedModelsAction extends BaseRestHandler {
 
@@ -46,13 +47,10 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.replaces(
-                GET, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
-                GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
-                RestApiCompatibleVersion.V_7),
-            Route.replaces(
-                GET, MachineLearning.BASE_PATH + "trained_models",
-                GET, MachineLearning.BASE_PATH + "inference", RestApiCompatibleVersion.V_7)
+            Route.builder(GET, BASE_PATH + "trained_models/{" + MODEL_ID.getPreferredName() + "}")
+                .replaces(GET, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}", RestApiCompatibleVersion.V_7).build(),
+            Route.builder(GET, BASE_PATH + "trained_models")
+                .replaces(GET, BASE_PATH + "inference", RestApiCompatibleVersion.V_7).build()
         );
     }
 
@@ -66,7 +64,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String modelId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
+        String modelId = restRequest.param(MODEL_ID.getPreferredName());
         if (Strings.isNullOrEmpty(modelId)) {
             modelId = Metadata.ALL;
         }

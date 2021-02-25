@@ -41,9 +41,8 @@ public class RestAuthenticateAction extends SecurityBaseRestHandler {
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            Route.replaces(
-                GET, "/_security/_authenticate",
-                GET, "/_xpack/security/_authenticate", RestApiCompatibleVersion.V_7)
+            Route.builder(GET, "/_security/_authenticate")
+                .replaces(GET, "/_xpack/security/_authenticate", RestApiCompatibleVersion.V_7).build()
         );
     }
 

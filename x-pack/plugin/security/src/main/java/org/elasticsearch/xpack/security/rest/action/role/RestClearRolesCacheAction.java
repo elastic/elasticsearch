@@ -30,9 +30,8 @@ public final class RestClearRolesCacheAction extends SecurityBaseRestHandler {
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            Route.replaces(
-                POST, "/_security/role/{name}/_clear_cache",
-                POST, "/_xpack/security/role/{name}/_clear_cache", RestApiCompatibleVersion.V_7)
+            Route.builder(POST, "/_security/role/{name}/_clear_cache")
+                .replaces(POST, "/_xpack/security/role/{name}/_clear_cache", RestApiCompatibleVersion.V_7).build()
         );
     }
 

@@ -119,26 +119,55 @@ public interface RestHandler {
                 null, null, null, null);
         }
 
-        // deprecated without replacement
-        public static Route deprecated(Method method, String path,
-                                       RestApiCompatibleVersion restApiCompatibleVersion, String deprecationMessage) {
-            return new Route(method, path,
-                Objects.requireNonNull(restApiCompatibleVersion), Objects.requireNonNull(deprecationMessage), null, null);
+        public static class RouteBuilder {
+
+            private final Method method;
+            private final String path;
+
+            private RestApiCompatibleVersion restApiCompatibleVersion;
+            private String deprecationMessage;
+            private Method replacedMethod;
+            private String replacedPath;
+
+
+            private RouteBuilder(Method method, String path) {
+                this.method = Objects.requireNonNull(method);
+                this.path = Objects.requireNonNull(path);
+            }
+
+            public RouteBuilder deprecated(String deprecationMessage, RestApiCompatibleVersion restApiCompatibleVersion) {
+                assert this.restApiCompatibleVersion == null;
+                this.restApiCompatibleVersion = Objects.requireNonNull(restApiCompatibleVersion);
+                this.deprecationMessage = Objects.requireNonNull(deprecationMessage);
+                return this;
+            }
+
+            public RouteBuilder replaces(Method method, String path, RestApiCompatibleVersion restApiCompatibleVersion) {
+                assert this.restApiCompatibleVersion == null;
+                this.restApiCompatibleVersion = Objects.requireNonNull(restApiCompatibleVersion);
+                this.replacedMethod = Objects.requireNonNull(method);
+                this.replacedPath = Objects.requireNonNull(path);
+                return this;
+            }
+
+            public Route build() {
+                if (replacedMethod != null || replacedPath != null) {
+                    return new Route(method, path,
+                        restApiCompatibleVersion, null,
+                        replacedMethod, replacedPath);
+                } else if (deprecationMessage != null) {
+                    return new Route(method, path,
+                        restApiCompatibleVersion, deprecationMessage,
+                        null, null);
+                } else {
+                    // this is silly, but legal
+                    return Route.of(method, path);
+                }
+            }
         }
 
-        // a route that is only available via compatibility
-        public static Route of(Method method, String path,
-                               RestApiCompatibleVersion restApiCompatibleVersion) {
-            return new Route(method, path,
-                Objects.requireNonNull(restApiCompatibleVersion), null, null, null);
-        }
-
-        // a replacement route where the replaced route is still available via compatibility
-        public static Route replaces(Method method, String path,
-                                     Method replacedMethod, String replacedPath, RestApiCompatibleVersion restApiCompatibleVersion) {
-            return new Route(method, path,
-                Objects.requireNonNull(restApiCompatibleVersion), null,
-                Objects.requireNonNull(replacedMethod), Objects.requireNonNull(replacedPath));
+        public static RouteBuilder builder(Method method, String path) {
+            return new RouteBuilder(method, path);
         }
 
         public String getPath() {
@@ -161,12 +190,8 @@ public interface RestHandler {
             return deprecationMessage != null;
         }
 
-        public String getReplacedPath() {
-            return replacedPath;
-        }
-
-        public Method getReplacedMethod() {
-            return replacedMethod;
+        public Route getReplacedRoute() {
+            return Route.of(replacedMethod, replacedPath);
         }
 
         public boolean isReplacement() {

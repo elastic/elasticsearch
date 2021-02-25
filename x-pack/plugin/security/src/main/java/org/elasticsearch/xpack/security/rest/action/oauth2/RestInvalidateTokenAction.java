@@ -71,9 +71,8 @@ public final class RestInvalidateTokenAction extends TokenBaseRestHandler implem
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            Route.replaces(
-                DELETE, "/_security/oauth2/token",
-                DELETE, "/_xpack/security/oauth2/token", RestApiCompatibleVersion.V_7)
+            Route.builder(DELETE, "/_security/oauth2/token")
+                .replaces(DELETE, "/_xpack/security/oauth2/token", RestApiCompatibleVersion.V_7).build()
         );
     }
 

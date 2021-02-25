@@ -325,6 +325,7 @@ tasks.named("yamlRestCompatTest").configure {
     'search.aggregation/280_geohash_grid/Basic test',
     'search.aggregation/290_geotile_grid/Basic test',
     'search.aggregation/51_filter_with_types/Filter aggs with terms lookup and ensure it\'s cached',
+    'search.aggregation/370_doc_count_field/Test filters agg with doc_count',
     'search.inner_hits/10_basic/Nested doc version and seqIDs',
     'search.inner_hits/10_basic/Nested inner hits',
     'search/100_stored_fields/Stored fields',

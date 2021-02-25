@@ -471,11 +471,11 @@ Which will look like:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"/]
 
-This is a little slower in this case because the runtime field has
-to access two fields instead of one and because there are some
-optimizations that we can on non-runtime `keyword` fields that we
-have to give up for the flexibility runtime fields provide. If you
-need the speed, you can index the `normalized_genre` field.
+This is a little slower because the runtime field has to access two fields
+instead of one and because there are some optimizations that work on
+non-runtime `keyword` fields that we have to give up for for runtime
+`keyword` fields. If you need the speed, you can index the
+`normalized_genre` field.
 
 # TODO when we have calculated fields we can link to them here.
 

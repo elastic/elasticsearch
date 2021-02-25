@@ -29,7 +29,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import java.io.ByteArrayInputStream;
 import java.net.HttpURLConnection;
 import java.util.Collection;
-import java.util.concurrent.Executor;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -122,9 +121,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         final BlobStoreRepository repo = getRepository();
         // The configured threshold for this test suite is 1mb
         final int blobSize = ByteSizeUnit.MB.toIntBytes(2);
-        final Executor executor = repo.threadPool().generic();
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        executor.execute(ActionRunnable.run(future, () -> {
+        repo.threadPool().generic().execute(ActionRunnable.run(future, () -> {
             final BlobContainer blobContainer = repo.blobStore().blobContainer(repo.basePath().add("large_write"));
             blobContainer.writeBlob(UUIDs.base64UUID(),
                 new ByteArrayInputStream(randomByteArrayOfLength(blobSize)), blobSize, false);

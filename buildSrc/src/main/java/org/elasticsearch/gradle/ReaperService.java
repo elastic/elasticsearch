@@ -12,7 +12,6 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
-import org.gradle.api.provider.Property;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.internal.jvm.Jvm;
@@ -29,14 +28,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public abstract class ReaperService implements BuildService<ReaperService.Params>, AutoCloseable {
-
-    interface Params extends BuildServiceParameters {
-        Property<Boolean> getInternal();
-
-        DirectoryProperty getBuildDir();
-
-        DirectoryProperty getInputDir();
-    }
 
     private static final String REAPER_CLASS = "org/elasticsearch/gradle/reaper/Reaper.class";
     private static final Pattern REAPER_JAR_PATH_PATTERN = Pattern.compile("file:(.*)!/" + REAPER_CLASS);
@@ -133,7 +124,7 @@ public abstract class ReaperService implements BuildService<ReaperService.Params
     }
 
     private Path locateReaperJar() {
-        if (getParameters().getInternal().get()) {
+        if (getParameters().getInternal()) {
             // when running inside the Elasticsearch build just pull find the jar in the runtime classpath
             URL main = this.getClass().getClassLoader().getResource(REAPER_CLASS);
             String mainPath = main.getFile();
@@ -177,5 +168,15 @@ public abstract class ReaperService implements BuildService<ReaperService.Params
     @Override
     public void close() throws Exception {
         shutdown();
+    }
+
+    interface Params extends BuildServiceParameters {
+        Boolean getInternal();
+
+        void setInternal(Boolean internal);
+
+        DirectoryProperty getBuildDir();
+
+        DirectoryProperty getInputDir();
     }
 }

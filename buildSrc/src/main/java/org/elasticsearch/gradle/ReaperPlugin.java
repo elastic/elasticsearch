@@ -20,29 +20,26 @@ import java.io.File;
  */
 public class ReaperPlugin implements Plugin<Project> {
 
+    public static final String REAPER_SERVICE_NAME = "reaper";
+
     @Override
     public void apply(Project project) {
         if (project != project.getRootProject()) {
             throw new IllegalArgumentException("ReaperPlugin can only be applied to the root project of a build");
         }
-
         project.getPlugins().apply(GlobalBuildInfoPlugin.class);
-
         File inputDir = project.getRootDir()
             .toPath()
             .resolve(".gradle")
             .resolve("reaper")
             .resolve("build-" + ProcessHandle.current().pid())
             .toFile();
-
-        var reaperServiceProvider = project.getGradle().getSharedServices().registerIfAbsent("reaper", ReaperService.class, spec -> {
+        project.getGradle().getSharedServices().registerIfAbsent(REAPER_SERVICE_NAME, ReaperService.class, spec -> {
             // Provide some parameters
             spec.getParameters().getInputDir().set(inputDir);
             spec.getParameters().getBuildDir().set(project.getBuildDir());
-            spec.getParameters().getInternal().set(BuildParams.isInternal());
+            spec.getParameters().setInternal(BuildParams.isInternal());
         });
-
-        project.getExtensions().create("reaper", ReaperExtension.class, reaperServiceProvider);
     }
 
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
-import org.elasticsearch.gradle.ReaperExtension;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.info.BuildParams;
@@ -64,11 +63,11 @@ public class TestClustersPlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         BuildParams.withInternalBuild(() -> project.getPlugins().apply(InternalDistributionDownloadPlugin.class))
             .orElse(() -> project.getPlugins().apply(DistributionDownloadPlugin.class));
-
         project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
-
-        var reaperServiceProvider = project.getRootProject().getExtensions().getByType(ReaperExtension.class).getReaperService();
-
+        Provider<ReaperService> reaperServiceProvider = GradleUtils.getBuildService(
+            project.getGradle().getSharedServices(),
+            ReaperPlugin.REAPER_SERVICE_NAME
+        );
         // enable the DSL to describe clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project, reaperServiceProvider);
 

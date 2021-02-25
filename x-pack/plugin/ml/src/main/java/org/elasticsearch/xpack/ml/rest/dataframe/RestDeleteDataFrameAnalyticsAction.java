@@ -24,7 +24,7 @@ public class RestDeleteDataFrameAnalyticsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(DELETE, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}")
+            new Route(DELETE, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}")
         );
     }
 

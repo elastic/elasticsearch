@@ -23,8 +23,8 @@ public class RestSearchableSnapshotsStatsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(RestRequest.Method.GET, "/_searchable_snapshots/stats"),
-            Route.of(RestRequest.Method.GET, "/{index}/_searchable_snapshots/stats")
+            new Route(RestRequest.Method.GET, "/_searchable_snapshots/stats"),
+            new Route(RestRequest.Method.GET, "/{index}/_searchable_snapshots/stats")
         );
     }
 

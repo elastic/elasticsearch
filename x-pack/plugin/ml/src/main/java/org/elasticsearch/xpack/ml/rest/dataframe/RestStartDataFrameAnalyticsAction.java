@@ -25,7 +25,7 @@ public class RestStartDataFrameAnalyticsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(POST, BASE_PATH + "data_frame/analytics/{" + ID.getPreferredName() + "}/_start")
+            new Route(POST, BASE_PATH + "data_frame/analytics/{" + ID.getPreferredName() + "}/_start")
         );
     }
 

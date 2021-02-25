@@ -34,7 +34,7 @@ public class RestPluginsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_cat/plugins"));
+        return List.of(new Route(GET, "/_cat/plugins"));
     }
 
     @Override

@@ -35,10 +35,10 @@ public class RestMultiGetAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/_mget"),
-            Route.of(POST, "/_mget"),
-            Route.of(GET, "/{index}/_mget"),
-            Route.of(POST, "/{index}/_mget")
+            new Route(GET, "/_mget"),
+            new Route(POST, "/_mget"),
+            new Route(GET, "/{index}/_mget"),
+            new Route(POST, "/{index}/_mget")
         );
     }
 

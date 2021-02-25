@@ -22,7 +22,7 @@ public class RestGetBasicStatus extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_license/basic_status"));
+        return List.of(new Route(GET, "/_license/basic_status"));
     }
 
     @Override

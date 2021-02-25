@@ -37,8 +37,8 @@ public class RestSegmentsAction extends AbstractCatAction {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/_cat/segments"),
-            Route.of(GET, "/_cat/segments/{index}")
+            new Route(GET, "/_cat/segments"),
+            new Route(GET, "/_cat/segments/{index}")
         );
     }
 

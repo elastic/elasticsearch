@@ -22,7 +22,7 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_scripts/{id}"));
+        return List.of(new Route(GET, "/_scripts/{id}"));
     }
 
     @Override

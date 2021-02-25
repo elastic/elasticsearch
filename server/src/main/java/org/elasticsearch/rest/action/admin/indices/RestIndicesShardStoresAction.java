@@ -35,8 +35,8 @@ public class RestIndicesShardStoresAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/_shard_stores"),
-            Route.of(GET, "/{index}/_shard_stores")
+            new Route(GET, "/_shard_stores"),
+            new Route(GET, "/{index}/_shard_stores")
         );
     }
 

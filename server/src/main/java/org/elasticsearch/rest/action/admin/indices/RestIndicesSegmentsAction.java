@@ -34,8 +34,8 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/_segments"),
-            Route.of(GET, "/{index}/_segments")
+            new Route(GET, "/_segments"),
+            new Route(GET, "/{index}/_segments")
         );
     }
 

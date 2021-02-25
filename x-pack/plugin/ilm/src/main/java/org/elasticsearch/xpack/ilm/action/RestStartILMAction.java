@@ -22,7 +22,7 @@ public class RestStartILMAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/_ilm/start"));
+        return List.of(new Route(POST, "/_ilm/start"));
     }
 
     @Override

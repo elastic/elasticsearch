@@ -25,8 +25,8 @@ public final class RestFreezeIndexAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(POST, "/{index}/_freeze"),
-            Route.of(POST, "/{index}/_unfreeze")
+            new Route(POST, "/{index}/_freeze"),
+            new Route(POST, "/{index}/_unfreeze")
         );
     }
 

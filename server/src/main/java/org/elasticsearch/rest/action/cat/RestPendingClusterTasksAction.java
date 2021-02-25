@@ -25,7 +25,7 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_cat/pending_tasks"));
+        return List.of(new Route(GET, "/_cat/pending_tasks"));
     }
 
     @Override

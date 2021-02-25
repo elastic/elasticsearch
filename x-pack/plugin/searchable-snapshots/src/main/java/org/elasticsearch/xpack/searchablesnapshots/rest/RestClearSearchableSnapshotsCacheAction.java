@@ -22,8 +22,8 @@ public class RestClearSearchableSnapshotsCacheAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(RestRequest.Method.POST, "/_searchable_snapshots/cache/clear"),
-            Route.of(RestRequest.Method.POST, "/{index}/_searchable_snapshots/cache/clear")
+            new Route(RestRequest.Method.POST, "/_searchable_snapshots/cache/clear"),
+            new Route(RestRequest.Method.POST, "/{index}/_searchable_snapshots/cache/clear")
         );
     }
 

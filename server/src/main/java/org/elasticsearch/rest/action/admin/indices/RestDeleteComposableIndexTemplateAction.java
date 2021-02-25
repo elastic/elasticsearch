@@ -23,7 +23,7 @@ public class RestDeleteComposableIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(DELETE, "/_index_template/{name}"));
+        return List.of(new Route(DELETE, "/_index_template/{name}"));
     }
 
     @Override

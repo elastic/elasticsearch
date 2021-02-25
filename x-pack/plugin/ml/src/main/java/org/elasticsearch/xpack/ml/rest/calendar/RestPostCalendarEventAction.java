@@ -24,7 +24,7 @@ public class RestPostCalendarEventAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events"));
+        return List.of(new Route(POST, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events"));
     }
 
     @Override

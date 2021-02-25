@@ -29,7 +29,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/_aliases"));
+        return List.of(new Route(POST, "/_aliases"));
     }
 
     @Override

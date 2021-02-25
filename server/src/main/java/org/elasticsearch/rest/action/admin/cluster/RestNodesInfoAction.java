@@ -36,12 +36,12 @@ public class RestNodesInfoAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/_nodes"),
+            new Route(GET, "/_nodes"),
             // this endpoint is used for metrics, not for node IDs, like /_nodes/fs
-            Route.of(GET, "/_nodes/{nodeId}"),
-            Route.of(GET, "/_nodes/{nodeId}/{metrics}"),
+            new Route(GET, "/_nodes/{nodeId}"),
+            new Route(GET, "/_nodes/{nodeId}/{metrics}"),
             // added this endpoint to be aligned with stats
-            Route.of(GET, "/_nodes/{nodeId}/info/{metrics}")
+            new Route(GET, "/_nodes/{nodeId}/info/{metrics}")
         );
     }
 

@@ -29,10 +29,10 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/_field_caps"),
-            Route.of(POST, "/_field_caps"),
-            Route.of(GET, "/{index}/_field_caps"),
-            Route.of(POST, "/{index}/_field_caps")
+            new Route(GET, "/_field_caps"),
+            new Route(POST, "/_field_caps"),
+            new Route(GET, "/{index}/_field_caps"),
+            new Route(POST, "/{index}/_field_caps")
         );
     }
 

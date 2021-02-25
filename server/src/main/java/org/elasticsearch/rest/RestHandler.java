@@ -114,9 +114,8 @@ public interface RestHandler {
         }
 
         // bog standard
-        public static Route of(Method method, String path) {
-            return new Route(method, path,
-                null, null, null, null);
+        public Route (Method method, String path) {
+            this(method, path, null, null, null, null);
         }
 
         public static class RouteBuilder {
@@ -128,7 +127,6 @@ public interface RestHandler {
             private String deprecationMessage;
             private Method replacedMethod;
             private String replacedPath;
-
 
             private RouteBuilder(Method method, String path) {
                 this.method = Objects.requireNonNull(method);
@@ -161,7 +159,7 @@ public interface RestHandler {
                         null, null);
                 } else {
                     // this is silly, but legal
-                    return Route.of(method, path);
+                    return new Route(method, path);
                 }
             }
         }
@@ -191,7 +189,7 @@ public interface RestHandler {
         }
 
         public Route getReplacedRoute() {
-            return Route.of(replacedMethod, replacedPath);
+            return new Route(replacedMethod, replacedPath);
         }
 
         public boolean isReplacement() {

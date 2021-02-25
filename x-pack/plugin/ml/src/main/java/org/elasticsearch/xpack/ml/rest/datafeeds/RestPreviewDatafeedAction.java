@@ -25,7 +25,7 @@ public class RestPreviewDatafeedAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            Route.of(GET, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_preview")
+            new Route(GET, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_preview")
         );
     }
 

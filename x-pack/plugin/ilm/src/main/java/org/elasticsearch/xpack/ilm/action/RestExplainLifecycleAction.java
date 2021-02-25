@@ -24,7 +24,7 @@ public class RestExplainLifecycleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/{index}/_ilm/explain"));
+        return List.of(new Route(GET, "/{index}/_ilm/explain"));
     }
 
     @Override

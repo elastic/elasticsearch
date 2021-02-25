@@ -29,13 +29,13 @@ public class RestGetBucketsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+            new Route(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                     + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}"),
-            Route.of(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+            new Route(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                     + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}"),
-            Route.of(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+            new Route(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                     + "}/results/buckets"),
-            Route.of(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+            new Route(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                     + "}/results/buckets")
         );
     }

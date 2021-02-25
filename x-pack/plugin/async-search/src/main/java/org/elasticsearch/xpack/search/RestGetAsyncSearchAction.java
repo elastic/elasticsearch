@@ -22,7 +22,7 @@ import static org.elasticsearch.xpack.search.RestSubmitAsyncSearchAction.RESPONS
 public class RestGetAsyncSearchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_async_search/{id}"));
+        return List.of(new Route(GET, "/_async_search/{id}"));
     }
 
     @Override

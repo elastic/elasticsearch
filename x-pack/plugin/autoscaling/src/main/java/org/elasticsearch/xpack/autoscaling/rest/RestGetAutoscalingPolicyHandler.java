@@ -21,7 +21,7 @@ public class RestGetAutoscalingPolicyHandler extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_autoscaling/policy/{name}"));
+        return List.of(new Route(GET, "/_autoscaling/policy/{name}"));
     }
 
     @Override

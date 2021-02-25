@@ -26,7 +26,7 @@ public class RestDeleteDanglingIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(DELETE, "/_dangling/{index_uuid}"));
+        return List.of(new Route(DELETE, "/_dangling/{index_uuid}"));
     }
 
     @Override

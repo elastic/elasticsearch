@@ -28,8 +28,8 @@ public class RestGetTransformAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, TransformField.REST_BASE_PATH_TRANSFORMS),
-            Route.of(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID)
+            new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS),
+            new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID)
         );
     }
 

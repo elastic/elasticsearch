@@ -47,7 +47,7 @@ public final class RestDelegatePkiAuthenticationAction extends SecurityBaseRestH
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/_security/delegate_pki"));
+        return List.of(new Route(POST, "/_security/delegate_pki"));
     }
 
     @Override

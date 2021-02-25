@@ -37,10 +37,10 @@ public class RestNoopBulkAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(POST, "/_noop_bulk"),
-            Route.of(PUT, "/_noop_bulk"),
-            Route.of(POST, "/{index}/_noop_bulk"),
-            Route.of(PUT, "/{index}/_noop_bulk")
+            new Route(POST, "/_noop_bulk"),
+            new Route(PUT, "/_noop_bulk"),
+            new Route(POST, "/{index}/_noop_bulk"),
+            new Route(PUT, "/{index}/_noop_bulk")
         );
     }
 

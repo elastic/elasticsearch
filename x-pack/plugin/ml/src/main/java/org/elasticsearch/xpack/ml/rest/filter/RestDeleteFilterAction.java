@@ -25,7 +25,7 @@ public class RestDeleteFilterAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            Route.of(DELETE, MachineLearning.BASE_PATH + "filters/{" + Request.FILTER_ID.getPreferredName() + "}")
+            new Route(DELETE, MachineLearning.BASE_PATH + "filters/{" + Request.FILTER_ID.getPreferredName() + "}")
         );
     }
 

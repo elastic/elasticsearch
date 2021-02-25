@@ -36,10 +36,10 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/_stats"),
-            Route.of(GET, "/_stats/{metric}"),
-            Route.of(GET, "/{index}/_stats"),
-            Route.of(GET, "/{index}/_stats/{metric}")
+            new Route(GET, "/_stats"),
+            new Route(GET, "/_stats/{metric}"),
+            new Route(GET, "/{index}/_stats"),
+            new Route(GET, "/{index}/_stats/{metric}")
         );
     }
 

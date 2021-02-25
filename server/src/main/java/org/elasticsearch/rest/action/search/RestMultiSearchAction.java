@@ -58,10 +58,10 @@ public class RestMultiSearchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/_msearch"),
-            Route.of(POST, "/_msearch"),
-            Route.of(GET, "/{index}/_msearch"),
-            Route.of(POST, "/{index}/_msearch")
+            new Route(GET, "/_msearch"),
+            new Route(POST, "/_msearch"),
+            new Route(GET, "/{index}/_msearch"),
+            new Route(POST, "/{index}/_msearch")
         );
     }
 

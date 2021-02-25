@@ -28,10 +28,10 @@ public class RestRollupSearchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "_rollup_search"),
-            Route.of(POST, "_rollup_search"),
-            Route.of(GET, "{index}/_rollup_search"),
-            Route.of(POST, "{index}/_rollup_search")
+            new Route(GET, "_rollup_search"),
+            new Route(POST, "_rollup_search"),
+            new Route(GET, "{index}/_rollup_search"),
+            new Route(POST, "{index}/_rollup_search")
         );
     }
 

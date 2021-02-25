@@ -21,7 +21,7 @@ public class RestGetSLMStatusAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_slm/status"));
+        return List.of(new Route(GET, "/_slm/status"));
     }
 
     @Override

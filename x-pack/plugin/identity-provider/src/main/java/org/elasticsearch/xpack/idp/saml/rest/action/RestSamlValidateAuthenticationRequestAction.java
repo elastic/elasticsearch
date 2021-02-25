@@ -46,7 +46,7 @@ public class RestSamlValidateAuthenticationRequestAction extends IdpBaseRestHand
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/_idp/saml/validate"));
+        return List.of(new Route(POST, "/_idp/saml/validate"));
     }
 
     @Override

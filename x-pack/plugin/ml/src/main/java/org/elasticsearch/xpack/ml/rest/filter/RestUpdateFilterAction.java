@@ -26,7 +26,7 @@ public class RestUpdateFilterAction extends BaseRestHandler {
    @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            Route.of(POST, MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}/_update")
+            new Route(POST, MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}/_update")
         );
     }
 

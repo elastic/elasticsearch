@@ -20,7 +20,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetAsyncStatusAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_async_search/status/{id}"));
+        return List.of(new Route(GET, "/_async_search/status/{id}"));
     }
 
     @Override

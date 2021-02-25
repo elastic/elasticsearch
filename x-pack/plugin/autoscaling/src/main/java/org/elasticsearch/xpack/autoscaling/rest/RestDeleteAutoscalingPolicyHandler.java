@@ -21,7 +21,7 @@ public class RestDeleteAutoscalingPolicyHandler extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(DELETE, "/_autoscaling/policy/{name}"));
+        return List.of(new Route(DELETE, "/_autoscaling/policy/{name}"));
     }
 
     @Override

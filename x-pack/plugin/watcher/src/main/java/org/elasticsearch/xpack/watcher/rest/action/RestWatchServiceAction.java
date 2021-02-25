@@ -22,7 +22,7 @@ public class RestWatchServiceAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/_watcher/_start"));
+        return List.of(new Route(POST, "/_watcher/_start"));
     }
 
     @Override
@@ -40,7 +40,7 @@ public class RestWatchServiceAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(Route.of(POST, "/_watcher/_stop"));
+            return List.of(new Route(POST, "/_watcher/_stop"));
         }
 
         @Override

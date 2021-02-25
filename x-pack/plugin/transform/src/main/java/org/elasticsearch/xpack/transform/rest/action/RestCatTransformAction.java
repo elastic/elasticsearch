@@ -42,8 +42,8 @@ public class RestCatTransformAction extends AbstractCatAction {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "_cat/transforms"),
-            Route.of(GET, "_cat/transforms/{" + TransformField.TRANSFORM_ID + "}")
+            new Route(GET, "_cat/transforms"),
+            new Route(GET, "_cat/transforms/{" + TransformField.TRANSFORM_ID + "}")
         );
     }
 

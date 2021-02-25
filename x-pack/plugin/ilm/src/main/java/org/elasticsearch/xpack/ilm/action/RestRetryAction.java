@@ -24,7 +24,7 @@ public class RestRetryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/{index}/_ilm/retry"));
+        return List.of(new Route(POST, "/{index}/_ilm/retry"));
     }
 
     @Override

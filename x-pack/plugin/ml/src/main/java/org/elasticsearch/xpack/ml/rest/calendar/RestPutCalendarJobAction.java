@@ -25,7 +25,7 @@ public class RestPutCalendarJobAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(PUT,
+            new Route(PUT,
                     MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/jobs/{" + Job.ID.getPreferredName() +
                         "}")
         );

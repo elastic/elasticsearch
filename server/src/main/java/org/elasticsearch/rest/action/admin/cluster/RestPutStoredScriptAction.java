@@ -27,10 +27,10 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(POST, "/_scripts/{id}"),
-            Route.of(PUT, "/_scripts/{id}"),
-            Route.of(POST, "/_scripts/{id}/{context}"),
-            Route.of(PUT, "/_scripts/{id}/{context}")
+            new Route(POST, "/_scripts/{id}"),
+            new Route(PUT, "/_scripts/{id}"),
+            new Route(POST, "/_scripts/{id}/{context}"),
+            new Route(PUT, "/_scripts/{id}/{context}")
         );
     }
 

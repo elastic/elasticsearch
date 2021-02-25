@@ -29,12 +29,12 @@ public class RestGetCategoriesAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() +
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() +
                 "}/results/categories/{" + CATEGORY_ID.getPreferredName() + "}"),
-            Route.of(POST, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() +
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() +
                 "}/results/categories/{" + CATEGORY_ID.getPreferredName() + "}"),
-            Route.of(GET, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() + "}/results/categories"),
-            Route.of(POST, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() + "}/results/categories")
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() + "}/results/categories"),
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() + "}/results/categories")
         );
     }
 

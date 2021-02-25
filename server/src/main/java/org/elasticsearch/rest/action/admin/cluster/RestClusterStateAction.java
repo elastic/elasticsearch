@@ -59,9 +59,9 @@ public class RestClusterStateAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/_cluster/state"),
-            Route.of(GET, "/_cluster/state/{metric}"),
-            Route.of(GET, "/_cluster/state/{metric}/{indices}")
+            new Route(GET, "/_cluster/state"),
+            new Route(GET, "/_cluster/state/{metric}"),
+            new Route(GET, "/_cluster/state/{metric}/{indices}")
         );
     }
 

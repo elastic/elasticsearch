@@ -35,10 +35,10 @@ public class RestTermVectorsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/{index}/_termvectors"),
-            Route.of(POST, "/{index}/_termvectors"),
-            Route.of(GET, "/{index}/_termvectors/{id}"),
-            Route.of(POST, "/{index}/_termvectors/{id}")
+            new Route(GET, "/{index}/_termvectors"),
+            new Route(POST, "/{index}/_termvectors"),
+            new Route(GET, "/{index}/_termvectors/{id}"),
+            new Route(POST, "/{index}/_termvectors/{id}")
         );
     }
 

@@ -43,7 +43,7 @@ public class RestListTasksAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_tasks"));
+        return List.of(new Route(GET, "/_tasks"));
     }
 
     @Override

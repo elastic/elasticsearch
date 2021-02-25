@@ -22,7 +22,7 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(DELETE, "/_scripts/{id}"));
+        return List.of(new Route(DELETE, "/_scripts/{id}"));
     }
 
     @Override

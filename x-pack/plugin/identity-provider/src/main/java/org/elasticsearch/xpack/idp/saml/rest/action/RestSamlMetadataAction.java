@@ -36,7 +36,7 @@ public class RestSamlMetadataAction extends IdpBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_idp/saml/metadata/{sp_entity_id}"));
+        return List.of(new Route(GET, "/_idp/saml/metadata/{sp_entity_id}"));
     }
 
     @Override

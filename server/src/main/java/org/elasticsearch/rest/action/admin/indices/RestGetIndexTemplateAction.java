@@ -35,9 +35,9 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/_template"),
-            Route.of(GET, "/_template/{name}"),
-            Route.of(HEAD, "/_template/{name}")
+            new Route(GET, "/_template"),
+            new Route(GET, "/_template/{name}"),
+            new Route(HEAD, "/_template/{name}")
         );
     }
 

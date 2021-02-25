@@ -22,7 +22,7 @@ public class RestFollowInfoAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/{index}/_ccr/info"));
+        return List.of(new Route(GET, "/{index}/_ccr/info"));
     }
 
     @Override

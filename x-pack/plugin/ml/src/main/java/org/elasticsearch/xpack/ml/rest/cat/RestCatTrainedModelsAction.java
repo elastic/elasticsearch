@@ -47,8 +47,8 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "_cat/ml/trained_models"),
-            Route.of(GET, "_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}")
+            new Route(GET, "_cat/ml/trained_models"),
+            new Route(GET, "_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}")
         );
     }
 

@@ -21,7 +21,7 @@ public class RestGetAutoscalingCapacityHandler extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_autoscaling/capacity"));
+        return List.of(new Route(GET, "/_autoscaling/capacity"));
     }
 
     @Override

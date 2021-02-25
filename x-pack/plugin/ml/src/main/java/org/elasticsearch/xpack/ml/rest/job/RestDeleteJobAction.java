@@ -31,7 +31,7 @@ public class RestDeleteJobAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            Route.of(DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}")
+            new Route(DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}")
         );
     }
 

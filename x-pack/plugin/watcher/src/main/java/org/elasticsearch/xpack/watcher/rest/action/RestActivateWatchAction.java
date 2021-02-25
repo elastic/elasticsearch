@@ -34,8 +34,8 @@ public class RestActivateWatchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(POST, "/_watcher/watch/{id}/_activate"),
-            Route.of(PUT, "/_watcher/watch/{id}/_activate")
+            new Route(POST, "/_watcher/watch/{id}/_activate"),
+            new Route(PUT, "/_watcher/watch/{id}/_activate")
         );
     }
 
@@ -64,8 +64,8 @@ public class RestActivateWatchAction extends BaseRestHandler {
         @Override
         public List<Route> routes() {
             return List.of(
-               Route.of(POST, "/_watcher/watch/{id}/_deactivate"),
-               Route.of(PUT, "/_watcher/watch/{id}/_deactivate")
+               new Route(POST, "/_watcher/watch/{id}/_deactivate"),
+               new Route(PUT, "/_watcher/watch/{id}/_deactivate")
             );
         }
 

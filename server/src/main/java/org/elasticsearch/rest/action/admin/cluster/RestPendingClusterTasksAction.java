@@ -23,7 +23,7 @@ public class RestPendingClusterTasksAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_cluster/pending_tasks"));
+        return List.of(new Route(GET, "/_cluster/pending_tasks"));
     }
 
     @Override

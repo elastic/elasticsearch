@@ -31,10 +31,10 @@ public class RestPutMappingAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(POST, "/{index}/_mapping/"),
-            Route.of(PUT, "/{index}/_mapping/"),
-            Route.of(POST, "/{index}/_mappings/"),
-            Route.of(PUT, "/{index}/_mappings/")
+            new Route(POST, "/{index}/_mapping/"),
+            new Route(PUT, "/{index}/_mapping/"),
+            new Route(POST, "/{index}/_mappings/"),
+            new Route(PUT, "/{index}/_mappings/")
         );
     }
 

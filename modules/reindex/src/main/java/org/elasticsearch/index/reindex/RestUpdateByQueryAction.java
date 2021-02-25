@@ -29,7 +29,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/{index}/_update_by_query"));
+        return List.of(new Route(POST, "/{index}/_update_by_query"));
     }
 
     @Override

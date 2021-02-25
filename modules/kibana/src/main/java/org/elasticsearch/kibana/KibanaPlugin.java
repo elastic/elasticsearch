@@ -140,7 +140,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         @Override
         public List<Route> routes() {
             return super.routes().stream()
-                .map(route -> Route.of(route.getMethod(), "/_kibana" + route.getPath()))
+                .map(route -> new Route(route.getMethod(), "/_kibana" + route.getPath()))
                 .collect(Collectors.toUnmodifiableList());
         }
     }

@@ -31,7 +31,7 @@ public class RestOpenJobAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            Route.of(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_open")
+            new Route(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_open")
         );
     }
 

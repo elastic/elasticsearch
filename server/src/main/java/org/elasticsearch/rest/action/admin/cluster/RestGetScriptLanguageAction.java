@@ -24,7 +24,7 @@ public class RestGetScriptLanguageAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_script_language"));
+        return List.of(new Route(GET, "/_script_language"));
     }
 
     @Override public String getName() {

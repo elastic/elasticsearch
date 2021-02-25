@@ -28,7 +28,7 @@ public class RestDeleteSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(DELETE, "/_snapshot/{repository}/{snapshot}"));
+        return List.of(new Route(DELETE, "/_snapshot/{repository}/{snapshot}"));
     }
 
     @Override

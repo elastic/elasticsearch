@@ -30,9 +30,9 @@ public class RestRethrottleAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(POST, "/_update_by_query/{taskId}/_rethrottle"),
-            Route.of(POST, "/_delete_by_query/{taskId}/_rethrottle"),
-            Route.of(POST, "/_reindex/{taskId}/_rethrottle")
+            new Route(POST, "/_update_by_query/{taskId}/_rethrottle"),
+            new Route(POST, "/_delete_by_query/{taskId}/_rethrottle"),
+            new Route(POST, "/_reindex/{taskId}/_rethrottle")
         );
     }
 

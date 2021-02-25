@@ -21,7 +21,7 @@ public class RestCcrStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_ccr/stats"));
+        return List.of(new Route(GET, "/_ccr/stats"));
     }
 
     @Override

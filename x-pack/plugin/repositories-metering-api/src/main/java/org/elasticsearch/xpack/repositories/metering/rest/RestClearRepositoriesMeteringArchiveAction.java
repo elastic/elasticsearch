@@ -25,7 +25,7 @@ public class RestClearRepositoriesMeteringArchiveAction extends BaseRestHandler 
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(RestRequest.Method.DELETE, "/_nodes/{nodeId}/_repositories_metering/{maxVersionToClear}"));
+        return List.of(new Route(RestRequest.Method.DELETE, "/_nodes/{nodeId}/_repositories_metering/{maxVersionToClear}"));
     }
 
     @Override

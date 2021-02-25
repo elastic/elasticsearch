@@ -37,8 +37,8 @@ public class RestCatDataFrameAnalyticsAction extends AbstractCatAction {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "_cat/ml/data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}"),
-            Route.of(GET, "_cat/ml/data_frame/analytics")
+            new Route(GET, "_cat/ml/data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}"),
+            new Route(GET, "_cat/ml/data_frame/analytics")
         );
     }
 

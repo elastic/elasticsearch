@@ -28,7 +28,7 @@ public class RestMountSearchableSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/_snapshot/{repository}/{snapshot}/_mount"));
+        return List.of(new Route(POST, "/_snapshot/{repository}/{snapshot}/_mount"));
     }
 
     @Override

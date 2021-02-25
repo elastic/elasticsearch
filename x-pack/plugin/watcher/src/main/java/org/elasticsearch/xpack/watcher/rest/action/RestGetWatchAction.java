@@ -29,7 +29,7 @@ public class RestGetWatchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_watcher/watch/{id}"));
+        return List.of(new Route(GET, "/_watcher/watch/{id}"));
     }
 
     @Override

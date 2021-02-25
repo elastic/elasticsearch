@@ -22,7 +22,7 @@ public class RestFollowStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/{index}/_ccr/stats"));
+        return List.of(new Route(GET, "/{index}/_ccr/stats"));
     }
 
     @Override

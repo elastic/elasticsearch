@@ -29,7 +29,7 @@ public class RestResolveIndexAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(RestRequest.Method.GET, "/_resolve/index/{name}")
+            new Route(RestRequest.Method.GET, "/_resolve/index/{name}")
         );
     }
 

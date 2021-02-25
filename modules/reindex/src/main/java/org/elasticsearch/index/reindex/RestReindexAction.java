@@ -33,7 +33,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/_reindex"));
+        return List.of(new Route(POST, "/_reindex"));
     }
 
     @Override

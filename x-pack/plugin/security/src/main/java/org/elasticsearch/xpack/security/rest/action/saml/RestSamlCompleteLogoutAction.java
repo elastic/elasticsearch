@@ -64,7 +64,7 @@ public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler{
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/_security/saml/complete_logout"));
+        return List.of(new Route(POST, "/_security/saml/complete_logout"));
     }
 
     @Override

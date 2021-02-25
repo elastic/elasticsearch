@@ -34,7 +34,7 @@ public class RestClearPrivilegesCacheAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/_security/privilege/{application}/_clear_cache"));
+        return List.of(new Route(POST, "/_security/privilege/{application}/_clear_cache"));
     }
 
     @Override

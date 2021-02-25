@@ -46,7 +46,7 @@ public class RestTasksAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_cat/tasks"));
+        return List.of(new Route(GET, "/_cat/tasks"));
     }
 
     @Override

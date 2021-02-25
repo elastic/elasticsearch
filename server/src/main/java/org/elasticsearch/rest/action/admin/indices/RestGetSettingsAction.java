@@ -26,11 +26,11 @@ public class RestGetSettingsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/_settings"),
-            Route.of(GET, "/_settings/{name}"),
-            Route.of(GET, "/{index}/_settings"),
-            Route.of(GET, "/{index}/_settings/{name}"),
-            Route.of(GET, "/{index}/_setting/{name}")
+            new Route(GET, "/_settings"),
+            new Route(GET, "/_settings/{name}"),
+            new Route(GET, "/{index}/_settings"),
+            new Route(GET, "/{index}/_settings/{name}"),
+            new Route(GET, "/{index}/_setting/{name}")
         );
     }
 

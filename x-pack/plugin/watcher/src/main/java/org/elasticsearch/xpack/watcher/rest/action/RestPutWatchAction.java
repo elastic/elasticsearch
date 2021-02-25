@@ -36,8 +36,8 @@ public class RestPutWatchAction extends BaseRestHandler implements RestRequestFi
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(POST, "/_watcher/watch/{id}"),
-            Route.of(PUT, "/_watcher/watch/{id}")
+            new Route(POST, "/_watcher/watch/{id}"),
+            new Route(PUT, "/_watcher/watch/{id}")
         );
     }
 

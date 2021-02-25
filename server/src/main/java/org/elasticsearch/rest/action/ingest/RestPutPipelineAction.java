@@ -27,7 +27,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(PUT, "/_ingest/pipeline/{id}"));
+        return List.of(new Route(PUT, "/_ingest/pipeline/{id}"));
     }
 
     @Override

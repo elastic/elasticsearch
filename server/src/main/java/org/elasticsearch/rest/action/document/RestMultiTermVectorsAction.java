@@ -27,10 +27,10 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/_mtermvectors"),
-            Route.of(POST, "/_mtermvectors"),
-            Route.of(GET, "/{index}/_mtermvectors"),
-            Route.of(POST, "/{index}/_mtermvectors")
+            new Route(GET, "/_mtermvectors"),
+            new Route(POST, "/_mtermvectors"),
+            new Route(GET, "/{index}/_mtermvectors"),
+            new Route(POST, "/{index}/_mtermvectors")
         );
     }
 

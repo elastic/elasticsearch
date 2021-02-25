@@ -33,7 +33,7 @@ public class RestSamlSpMetadataAction extends SamlBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_security/saml/metadata/{realm}"));
+        return List.of(new Route(GET, "/_security/saml/metadata/{realm}"));
     }
 
     @Override

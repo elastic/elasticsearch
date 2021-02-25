@@ -39,8 +39,8 @@ public class RestPutSamlServiceProviderAction extends IdpBaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(Method.PUT, "/_idp/saml/sp/{sp_entity_id}"),
-            Route.of(Method.POST, "/_idp/saml/sp/{sp_entity_id}")
+            new Route(Method.PUT, "/_idp/saml/sp/{sp_entity_id}"),
+            new Route(Method.POST, "/_idp/saml/sp/{sp_entity_id}")
         );
     }
 

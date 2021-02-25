@@ -47,7 +47,7 @@ public class RestOpenIdConnectLogoutAction extends OpenIdConnectBaseRestHandler 
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/_security/oidc/logout"));
+        return List.of(new Route(POST, "/_security/oidc/logout"));
     }
 
     @Override

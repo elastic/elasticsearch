@@ -153,7 +153,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
 
             @Override
             public List<Route> routes() {
-                return List.of(Route.of(RestRequest.Method.POST, "/_sys_index_test/add_doc/{id}"));
+                return List.of(new Route(RestRequest.Method.POST, "/_sys_index_test/add_doc/{id}"));
             }
 
             @Override

@@ -32,7 +32,7 @@ public class RestDeletePipelineAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(Method.DELETE, "/_logstash/pipeline/{id}"));
+        return List.of(new Route(Method.DELETE, "/_logstash/pipeline/{id}"));
     }
 
     @Override

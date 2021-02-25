@@ -30,7 +30,7 @@ public class RestCloneSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(PUT, "/_snapshot/{repository}/{snapshot}/_clone/{target_snapshot}"));
+        return List.of(new Route(PUT, "/_snapshot/{repository}/{snapshot}/_clone/{target_snapshot}"));
     }
 
     @Override

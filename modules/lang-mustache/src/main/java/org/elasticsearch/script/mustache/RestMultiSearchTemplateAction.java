@@ -47,10 +47,10 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/_msearch/template"),
-            Route.of(POST, "/_msearch/template"),
-            Route.of(GET, "/{index}/_msearch/template"),
-            Route.of(POST, "/{index}/_msearch/template")
+            new Route(GET, "/_msearch/template"),
+            new Route(POST, "/_msearch/template"),
+            new Route(GET, "/{index}/_msearch/template"),
+            new Route(POST, "/{index}/_msearch/template")
         );
     }
 

@@ -33,10 +33,10 @@ public class RestNodesUsageAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/_nodes/usage"),
-            Route.of(GET, "/_nodes/{nodeId}/usage"),
-            Route.of(GET, "/_nodes/usage/{metric}"),
-            Route.of(GET, "/_nodes/{nodeId}/usage/{metric}")
+            new Route(GET, "/_nodes/usage"),
+            new Route(GET, "/_nodes/{nodeId}/usage"),
+            new Route(GET, "/_nodes/usage/{metric}"),
+            new Route(GET, "/_nodes/{nodeId}/usage/{metric}")
         );
     }
 

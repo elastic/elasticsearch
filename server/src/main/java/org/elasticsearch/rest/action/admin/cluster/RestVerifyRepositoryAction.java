@@ -24,7 +24,7 @@ public class RestVerifyRepositoryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/_snapshot/{repository}/_verify"));
+        return List.of(new Route(POST, "/_snapshot/{repository}/_verify"));
     }
 
     @Override

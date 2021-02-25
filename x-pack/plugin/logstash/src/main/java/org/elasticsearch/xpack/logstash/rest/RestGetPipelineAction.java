@@ -30,7 +30,7 @@ public class RestGetPipelineAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(Method.GET, "/_logstash/pipeline"), Route.of(Method.GET, "/_logstash/pipeline/{id}"));
+        return List.of(new Route(Method.GET, "/_logstash/pipeline"), new Route(Method.GET, "/_logstash/pipeline/{id}"));
     }
 
     @Override

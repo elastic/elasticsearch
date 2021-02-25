@@ -26,7 +26,7 @@ public final class RestGetRepositoriesMeteringAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(RestRequest.Method.GET, "/_nodes/{nodeId}/_repositories_metering"));
+        return List.of(new Route(RestRequest.Method.GET, "/_nodes/{nodeId}/_repositories_metering"));
     }
 
     @Override

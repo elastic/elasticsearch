@@ -29,8 +29,8 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
      @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}"),
-            Route.of(GET, MachineLearning.BASE_PATH + "datafeeds")
+            new Route(GET, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}"),
+            new Route(GET, MachineLearning.BASE_PATH + "datafeeds")
         );
     }
 

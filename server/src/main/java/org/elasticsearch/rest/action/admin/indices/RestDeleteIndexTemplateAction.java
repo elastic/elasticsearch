@@ -22,7 +22,7 @@ public class RestDeleteIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(DELETE, "/_template/{name}"));
+        return List.of(new Route(DELETE, "/_template/{name}"));
     }
 
     @Override

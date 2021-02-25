@@ -35,10 +35,10 @@ public class RestSearchScrollAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/_search/scroll"),
-            Route.of(POST, "/_search/scroll"),
-            Route.of(GET, "/_search/scroll/{scroll_id}"),
-            Route.of(POST, "/_search/scroll/{scroll_id}")
+            new Route(GET, "/_search/scroll"),
+            new Route(POST, "/_search/scroll"),
+            new Route(GET, "/_search/scroll/{scroll_id}"),
+            new Route(POST, "/_search/scroll/{scroll_id}")
         );
     }
 

@@ -27,8 +27,8 @@ public class RestGetInfluencersAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() + "}/results/influencers"),
-            Route.of(POST, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() + "}/results/influencers")
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() + "}/results/influencers"),
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() + "}/results/influencers")
         );
     }
 

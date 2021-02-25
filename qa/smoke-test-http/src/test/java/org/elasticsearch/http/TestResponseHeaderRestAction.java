@@ -22,7 +22,7 @@ public class TestResponseHeaderRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_protected"));
+        return List.of(new Route(GET, "/_protected"));
     }
 
     @Override

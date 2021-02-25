@@ -38,13 +38,13 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+            new Route(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{"
                     + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}"),
-            Route.of(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+            new Route(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
                     + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}"),
-            Route.of(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+            new Route(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{"
                     + Job.ID.getPreferredName() + "}/model_snapshots"),
-            Route.of(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+            new Route(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
                     + Job.ID.getPreferredName() + "}/model_snapshots")
         );
     }

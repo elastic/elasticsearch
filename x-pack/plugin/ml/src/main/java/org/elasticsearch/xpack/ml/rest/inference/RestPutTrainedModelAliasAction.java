@@ -25,7 +25,7 @@ public class RestPutTrainedModelAliasAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(PUT, BASE_PATH + "trained_models/{" + MODEL_ID.getPreferredName() + "}/model_aliases/{" + MODEL_ALIAS + "}")
+            new Route(PUT, BASE_PATH + "trained_models/{" + MODEL_ID.getPreferredName() + "}/model_aliases/{" + MODEL_ALIAS + "}")
         );
     }
 

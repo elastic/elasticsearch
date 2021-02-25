@@ -31,8 +31,8 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(POST, "/_async_search"),
-            Route.of(POST, "/{index}/_async_search")
+            new Route(POST, "/_async_search"),
+            new Route(POST, "/{index}/_async_search")
         );
     }
 

@@ -22,7 +22,7 @@ public class RestEstimateModelMemoryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, MachineLearning.BASE_PATH + "anomaly_detectors/_estimate_model_memory"));
+        return List.of(new Route(POST, MachineLearning.BASE_PATH + "anomaly_detectors/_estimate_model_memory"));
     }
 
     @Override

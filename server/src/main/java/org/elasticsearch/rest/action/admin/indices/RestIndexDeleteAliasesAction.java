@@ -25,8 +25,8 @@ public class RestIndexDeleteAliasesAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(DELETE, "/{index}/_alias/{name}"),
-            Route.of(DELETE, "/{index}/_aliases/{name}")
+            new Route(DELETE, "/{index}/_alias/{name}"),
+            new Route(DELETE, "/{index}/_aliases/{name}")
         );
     }
 

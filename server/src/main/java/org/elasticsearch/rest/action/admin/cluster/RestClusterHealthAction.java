@@ -33,8 +33,8 @@ public class RestClusterHealthAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/_cluster/health"),
-            Route.of(GET, "/_cluster/health/{index}")
+            new Route(GET, "/_cluster/health"),
+            new Route(GET, "/_cluster/health/{index}")
         );
     }
 

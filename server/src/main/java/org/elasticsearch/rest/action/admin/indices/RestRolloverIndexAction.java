@@ -25,8 +25,8 @@ public class RestRolloverIndexAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(POST, "/{index}/_rollover"),
-            Route.of(POST, "/{index}/_rollover/{new_index}")
+            new Route(POST, "/{index}/_rollover"),
+            new Route(POST, "/{index}/_rollover/{new_index}")
         );
     }
 

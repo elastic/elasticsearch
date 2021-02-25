@@ -29,8 +29,8 @@ public class RestGetDataFrameAnalyticsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, MachineLearning.BASE_PATH + "data_frame/analytics"),
-            Route.of(GET, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}")
+            new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics"),
+            new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}")
         );
     }
 

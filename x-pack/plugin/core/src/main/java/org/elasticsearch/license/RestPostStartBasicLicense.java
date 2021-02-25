@@ -23,7 +23,7 @@ public class RestPostStartBasicLicense extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/_license/start_basic"));
+        return List.of(new Route(POST, "/_license/start_basic"));
     }
 
     @Override

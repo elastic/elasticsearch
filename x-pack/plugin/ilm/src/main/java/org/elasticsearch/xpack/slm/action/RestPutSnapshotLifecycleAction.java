@@ -23,7 +23,7 @@ public class RestPutSnapshotLifecycleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(PUT, "/_slm/policy/{name}"));
+        return List.of(new Route(PUT, "/_slm/policy/{name}"));
     }
 
     @Override

@@ -39,8 +39,8 @@ public class RestCancelTasksAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(POST, "/_tasks/_cancel"),
-            Route.of(POST, "/_tasks/{task_id}/_cancel")
+            new Route(POST, "/_tasks/_cancel"),
+            new Route(POST, "/_tasks/{task_id}/_cancel")
         );
     }
 

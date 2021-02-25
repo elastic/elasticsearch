@@ -54,7 +54,7 @@ public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(DELETE, "/_security/api_key"));
+        return List.of(new Route(DELETE, "/_security/api_key"));
     }
 
     @Override

@@ -28,7 +28,7 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(POST, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() +
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() +
                 "}/model_snapshots/{" + SNAPSHOT_ID.getPreferredName() + "}/_revert")
         );
     }

@@ -24,7 +24,7 @@ public class RestGetRollupJobsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_rollup/job/{id}"));
+        return List.of(new Route(GET, "/_rollup/job/{id}"));
     }
 
     @Override

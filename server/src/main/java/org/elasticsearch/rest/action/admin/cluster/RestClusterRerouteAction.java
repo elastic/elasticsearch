@@ -51,7 +51,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/_cluster/reroute"));
+        return List.of(new Route(POST, "/_cluster/reroute"));
     }
 
     @Override

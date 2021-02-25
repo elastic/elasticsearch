@@ -19,7 +19,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestEqlGetAsyncResultAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_eql/search/{id}"));
+        return List.of(new Route(GET, "/_eql/search/{id}"));
     }
 
     @Override

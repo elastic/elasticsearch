@@ -24,7 +24,7 @@ public class RestSetUpgradeModeAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            Route.of(POST, MachineLearning.BASE_PATH + "set_upgrade_mode")
+            new Route(POST, MachineLearning.BASE_PATH + "set_upgrade_mode")
         );
     }
 

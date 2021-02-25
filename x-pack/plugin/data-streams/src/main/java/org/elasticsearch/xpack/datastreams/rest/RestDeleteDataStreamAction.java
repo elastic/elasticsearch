@@ -25,7 +25,7 @@ public class RestDeleteDataStreamAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(RestRequest.Method.DELETE, "/_data_stream/{name}"));
+        return List.of(new Route(RestRequest.Method.DELETE, "/_data_stream/{name}"));
     }
 
     @Override

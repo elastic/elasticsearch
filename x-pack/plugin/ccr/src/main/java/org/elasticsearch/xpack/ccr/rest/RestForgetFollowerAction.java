@@ -24,7 +24,7 @@ public class RestForgetFollowerAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/{index}/_ccr/forget_follower"));
+        return List.of(new Route(POST, "/{index}/_ccr/forget_follower"));
     }
 
     @Override

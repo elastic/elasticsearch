@@ -28,8 +28,8 @@ public class RestGetDataFrameAnalyticsStatsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, BASE_PATH + "data_frame/analytics/_stats"),
-            Route.of(GET, BASE_PATH + "data_frame/analytics/{" + ID.getPreferredName() + "}/_stats")
+            new Route(GET, BASE_PATH + "data_frame/analytics/_stats"),
+            new Route(GET, BASE_PATH + "data_frame/analytics/{" + ID.getPreferredName() + "}/_stats")
         );
     }
 

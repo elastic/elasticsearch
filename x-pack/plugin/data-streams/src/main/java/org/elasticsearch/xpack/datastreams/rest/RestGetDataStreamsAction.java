@@ -25,7 +25,7 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(RestRequest.Method.GET, "/_data_stream"), Route.of(RestRequest.Method.GET, "/_data_stream/{name}"));
+        return List.of(new Route(RestRequest.Method.GET, "/_data_stream"), new Route(RestRequest.Method.GET, "/_data_stream/{name}"));
     }
 
     @Override

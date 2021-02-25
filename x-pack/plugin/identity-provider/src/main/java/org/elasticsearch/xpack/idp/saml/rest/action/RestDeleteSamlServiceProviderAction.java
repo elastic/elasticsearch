@@ -40,7 +40,7 @@ public class RestDeleteSamlServiceProviderAction extends IdpBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(Method.DELETE, "/_idp/saml/sp/{sp_entity_id}"));
+        return List.of(new Route(Method.DELETE, "/_idp/saml/sp/{sp_entity_id}"));
     }
 
     @Override

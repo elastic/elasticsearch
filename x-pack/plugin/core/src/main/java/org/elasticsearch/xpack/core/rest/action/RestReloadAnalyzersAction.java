@@ -26,8 +26,8 @@ public class RestReloadAnalyzersAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, "/{index}/_reload_search_analyzers"),
-            Route.of(POST, "/{index}/_reload_search_analyzers")
+            new Route(GET, "/{index}/_reload_search_analyzers"),
+            new Route(POST, "/{index}/_reload_search_analyzers")
         );
     }
 

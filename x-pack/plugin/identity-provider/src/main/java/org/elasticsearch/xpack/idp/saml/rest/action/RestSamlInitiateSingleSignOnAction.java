@@ -47,7 +47,7 @@ public class RestSamlInitiateSingleSignOnAction extends IdpBaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            Route.of(POST, "/_idp/saml/init")
+            new Route(POST, "/_idp/saml/init")
         );
     }
 

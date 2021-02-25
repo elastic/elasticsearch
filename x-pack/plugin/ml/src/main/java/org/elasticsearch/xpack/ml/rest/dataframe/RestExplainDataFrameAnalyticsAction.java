@@ -32,10 +32,10 @@ public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, BASE_PATH + "data_frame/analytics/_explain"),
-            Route.of(POST, BASE_PATH + "data_frame/analytics/_explain"),
-            Route.of(GET, BASE_PATH + "data_frame/analytics/{" + ID.getPreferredName() + "}/_explain"),
-            Route.of(POST, BASE_PATH + "data_frame/analytics/{" + ID.getPreferredName() + "}/_explain")
+            new Route(GET, BASE_PATH + "data_frame/analytics/_explain"),
+            new Route(POST, BASE_PATH + "data_frame/analytics/_explain"),
+            new Route(GET, BASE_PATH + "data_frame/analytics/{" + ID.getPreferredName() + "}/_explain"),
+            new Route(POST, BASE_PATH + "data_frame/analytics/{" + ID.getPreferredName() + "}/_explain")
         );
     }
 

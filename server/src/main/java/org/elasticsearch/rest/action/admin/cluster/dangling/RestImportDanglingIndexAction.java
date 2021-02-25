@@ -25,7 +25,7 @@ import static org.elasticsearch.rest.RestStatus.ACCEPTED;
 public class RestImportDanglingIndexAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(POST, "/_dangling/{index_uuid}"));
+        return List.of(new Route(POST, "/_dangling/{index_uuid}"));
     }
 
     @Override

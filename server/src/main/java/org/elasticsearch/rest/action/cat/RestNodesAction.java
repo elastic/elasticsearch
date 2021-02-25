@@ -61,7 +61,7 @@ public class RestNodesAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.of(GET, "/_cat/nodes"));
+        return List.of(new Route(GET, "/_cat/nodes"));
     }
 
     @Override

@@ -68,7 +68,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         if (false == valuesSourceConfig.alignesWithSearchIndex()) {
             return null;
         }
-        if (false == FiltersAggregator.canUseFilterByFilter(parent, factories, null)) {
+        if (false == FiltersAggregator.canUseFilterByFilter(parent, null)) {
             return null;
         }
         List<QueryToFilterAdapter<?>> filters = new ArrayList<>();

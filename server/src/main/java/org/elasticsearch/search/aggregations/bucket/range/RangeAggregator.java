@@ -350,7 +350,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             // We don't generate sensible Queries for nanoseconds.
             return null;
         }
-        if (false == FiltersAggregator.canUseFilterByFilter(parent, factories, null)) {
+        if (false == FiltersAggregator.canUseFilterByFilter(parent, null)) {
             return null;
         }
         boolean wholeNumbersOnly = false == ((ValuesSource.Numeric) valuesSourceConfig.getValuesSource()).isFloatingPoint();

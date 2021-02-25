@@ -172,7 +172,7 @@ public class ClusterStatsRestCancellationIT extends HttpSmokeTestCase {
         final Semaphore statsBlock = new Semaphore(1);
 
         StatsBlockingEngine(EngineConfig config) {
-            super(config, null, new TranslogStats(), true, Function.identity(), true);
+            super(config, null, new TranslogStats(), true, Function.identity(), true, false);
         }
 
         @Override

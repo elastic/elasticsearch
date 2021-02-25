@@ -219,7 +219,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     private void assertRemapTermsDebugInfo(ProfileResult termsAggResult) {
-        assertThat(termsAggResult.getDebugInfo(), hasEntry(COLLECTION_STRAT, "remap"));
+        assertThat(termsAggResult.getDebugInfo(), hasEntry(COLLECTION_STRAT, "remap using many bucket ords"));
         assertThat(termsAggResult.getDebugInfo(), hasEntry(RESULT_STRAT, "terms"));
         assertThat(termsAggResult.getDebugInfo(), hasEntry(HAS_FILTER, false));
         // TODO we only index single valued docs but the ordinals ends up with multi valued sometimes

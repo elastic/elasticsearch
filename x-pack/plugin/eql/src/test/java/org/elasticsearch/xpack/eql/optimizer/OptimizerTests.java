@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.optimizer;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -50,7 +52,6 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -94,7 +95,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testIsNull() {
-        List<String> tests = Arrays.asList(
+        List<String> tests = asList(
             "foo where command_line == null",
             "foo where null == command_line"
         );
@@ -113,7 +114,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testIsNotNull() {
-        List<String> tests = Arrays.asList(
+        List<String> tests = asList(
             "foo where command_line != null",
             "foo where null != command_line"
         );
@@ -132,29 +133,44 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testEqualsWildcardOnRight() {
-        List<String> tests = Arrays.asList(
-            "foo where command_line : \"* bar *\""
-        );
+        String q = "foo where command_line : \"* bar *\"";
 
-        for (String q : tests) {
-            LogicalPlan plan = defaultPipes(accept(q));
-            assertTrue(plan instanceof Filter);
+        LogicalPlan plan = defaultPipes(accept(q));
+        assertTrue(plan instanceof Filter);
 
-            Filter filter = (Filter) plan;
-            And condition = (And) filter.condition();
-            assertTrue(condition.right() instanceof Like);
+        Filter filter = (Filter) plan;
+        And condition = (And) filter.condition();
+        assertTrue(condition.right() instanceof Like);
 
-            Like like = (Like) condition.right();
-            assertEquals(((FieldAttribute) like.field()).name(), "command_line");
-            assertEquals(like.pattern().asJavaRegex(), "^.* bar .*$");
-            assertEquals(like.pattern().asLuceneWildcard(), "* bar *");
-            assertEquals(like.pattern().asIndexNameWildcard(), "* bar *");
-        }
+        Like like = (Like) condition.right();
+        assertEquals(((FieldAttribute) like.field()).name(), "command_line");
+        assertEquals(like.pattern().asJavaRegex(), "^.* bar .*$");
+        assertEquals(like.pattern().asLuceneWildcard(), "* bar *");
+        assertEquals(like.pattern().asIndexNameWildcard(), "* bar *");
+    }
+
+    public void testEqualsWildcardQuestionmarkOnRight() {
+        String q = "foo where command_line : \"? bar ?\"";
+
+        LogicalPlan plan = defaultPipes(accept(q));
+        assertTrue(plan instanceof Filter);
+
+        Filter filter = (Filter) plan;
+        And condition = (And) filter.condition();
+        assertTrue(condition.right() instanceof Like);
+
+        Like like = (Like) condition.right();
+        assertEquals("command_line", ((FieldAttribute) like.field()).name());
+        assertEquals( "^. bar .$", like.pattern().asJavaRegex());
+        assertEquals("? bar ?", like.pattern().asLuceneWildcard());
+        assertEquals( "* bar *", like.pattern().asIndexNameWildcard());
     }
 
     public void testEqualsWildcardWithLiteralsOnLeft() {
-        List<String> tests = Arrays.asList(
-            "foo where \"abc\": \"*b*\""
+        List<String> tests = asList(
+            "foo where \"abc\": \"*b*\"",
+            "foo where \"abc\": \"ab*\"",
+            "foo where \"abc\": \"*bc\""
         );
 
         for (String q : tests) {
@@ -169,10 +185,14 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testEqualsWildcardIgnoredOnLeftLiteral() {
-        List<String> tests = Arrays.asList(
+        List<String> tests = asList(
             "foo where \"*b*\" : \"abc\"",
             "foo where \"*b\" : \"abc\"",
-            "foo where \"b*\" : \"abc\""
+            "foo where \"b*\" : \"abc\"",
+            "foo where \"b*?\" : \"abc\"",
+            "foo where \"b?\" : \"abc\"",
+            "foo where \"?b\" : \"abc\"",
+            "foo where \"?b*\" : \"abc\""
         );
 
         // string comparison that evaluates to false
@@ -183,9 +203,11 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testEqualsWildcardWithLiteralsOnLeftAndPatternOnRightNotMatching() {
-        List<String> tests = Arrays.asList(
+        List<String> tests = asList(
             "foo where \"abc\": \"*b\"",
-            "foo where \"abc\": \"b*\""
+            "foo where \"abc\": \"b*\"",
+            "foo where \"abc\": \"b?\"",
+            "foo where \"abc\": \"?b\""
         );
 
         // string comparison that evaluates to false
@@ -643,6 +665,28 @@ public class OptimizerTests extends ESTestCase {
 
         assertEquals(keyRuleBCondition, filterCondition(child2));
         assertEquals(filter, filterCondition(child2.children().get(0)));
+    }
+
+    // ((a + 1) - 3) * 4 >= 16 -> a >= 6.
+    public void testReduceBinaryComparisons() {
+        LogicalPlan plan = accept("foo where ((pid + 1) - 3) * 4 >= 16");
+        assertNotNull(plan);
+        List<LogicalPlan> filters = plan.collectFirstChildren(x -> x instanceof Filter);
+        assertNotNull(filters);
+        assertEquals(1, filters.size());
+        assertTrue(filters.get(0) instanceof Filter);
+        Filter filter = (Filter) filters.get(0);
+
+        assertTrue(filter.condition() instanceof And);
+        And and = (And) filter.condition();
+        assertTrue(and.right() instanceof GreaterThanOrEqual);
+        GreaterThanOrEqual gte = (GreaterThanOrEqual) and.right();
+
+        assertTrue(gte.left() instanceof FieldAttribute);
+        assertEquals("pid", ((FieldAttribute) gte.left()).name());
+
+        assertTrue(gte.right() instanceof Literal);
+        assertEquals(6, ((Literal) gte.right()).value());
     }
 
     private static Attribute timestamp() {

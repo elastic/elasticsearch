@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.functionscore;
@@ -473,7 +462,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
             QueryRescorerBuilder innerRescoreQuery = new QueryRescorerBuilder(matchQuery("field1", "the quick brown").boost(4.0f))
                     .setQueryWeight(0.5f).setRescoreQueryWeight(0.4f);
 
-            if (!"".equals(scoreModes[innerMode])) {
+            if ("".equals(scoreModes[innerMode]) == false) {
                 innerRescoreQuery.setScoreMode(QueryRescoreMode.fromString(scoreModes[innerMode]));
             }
 
@@ -495,7 +484,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 QueryRescorerBuilder outerRescoreQuery = new QueryRescorerBuilder(matchQuery("field1", "the quick brown").boost(4.0f))
                         .setQueryWeight(0.5f).setRescoreQueryWeight(0.4f);
 
-                if (!"".equals(scoreModes[outerMode])) {
+                if ("".equals(scoreModes[outerMode]) == false) {
                     outerRescoreQuery.setScoreMode(QueryRescoreMode.fromString(scoreModes[outerMode]));
                 }
 
@@ -542,7 +531,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[3]), weightFactorFunction(0.0f)).boostMode(REPLACE)));
                 rescoreQuery.setQueryWeight(primaryWeight).setRescoreQueryWeight(secondaryWeight);
 
-                if (!"".equals(scoreMode)) {
+                if ("".equals(scoreMode) == false) {
                     rescoreQuery.setScoreMode(QueryRescoreMode.fromString(scoreMode));
                 }
 

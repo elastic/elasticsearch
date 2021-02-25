@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
@@ -22,6 +11,7 @@ package org.elasticsearch.indices;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.common.ParseField;
@@ -61,6 +51,13 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.runtimefields.mapper.BooleanScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.DateScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.DoubleScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.GeoPointScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.IpScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.KeywordScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.LongScriptFieldType;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -84,9 +81,11 @@ public class IndicesModule extends AbstractModule {
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
-                new NamedWriteableRegistry.Entry(Condition.class, MaxAgeCondition.NAME, MaxAgeCondition::new),
-                new NamedWriteableRegistry.Entry(Condition.class, MaxDocsCondition.NAME, MaxDocsCondition::new),
-                new NamedWriteableRegistry.Entry(Condition.class, MaxSizeCondition.NAME, MaxSizeCondition::new));
+            new NamedWriteableRegistry.Entry(Condition.class, MaxAgeCondition.NAME, MaxAgeCondition::new),
+            new NamedWriteableRegistry.Entry(Condition.class, MaxDocsCondition.NAME, MaxDocsCondition::new),
+            new NamedWriteableRegistry.Entry(Condition.class, MaxSizeCondition.NAME, MaxSizeCondition::new),
+            new NamedWriteableRegistry.Entry(Condition.class, MaxPrimaryShardSizeCondition.NAME, MaxPrimaryShardSizeCondition::new)
+        );
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContents() {
@@ -96,7 +95,9 @@ public class IndicesModule extends AbstractModule {
             new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxDocsCondition.NAME), (p, c) ->
                 MaxDocsCondition.fromXContent(p)),
             new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxSizeCondition.NAME), (p, c) ->
-                MaxSizeCondition.fromXContent(p))
+                MaxSizeCondition.fromXContent(p)),
+            new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxPrimaryShardSizeCondition.NAME), (p, c) ->
+                MaxPrimaryShardSizeCondition.fromXContent(p))
         );
     }
 
@@ -137,6 +138,14 @@ public class IndicesModule extends AbstractModule {
 
     private static Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes(List<MapperPlugin> mapperPlugins) {
         Map<String, RuntimeFieldType.Parser> runtimeParsers = new LinkedHashMap<>();
+        runtimeParsers.put(BooleanFieldMapper.CONTENT_TYPE, BooleanScriptFieldType.PARSER);
+        runtimeParsers.put(NumberFieldMapper.NumberType.LONG.typeName(), LongScriptFieldType.PARSER);
+        runtimeParsers.put(NumberFieldMapper.NumberType.DOUBLE.typeName(), DoubleScriptFieldType.PARSER);
+        runtimeParsers.put(IpFieldMapper.CONTENT_TYPE, IpScriptFieldType.PARSER);
+        runtimeParsers.put(DateFieldMapper.CONTENT_TYPE, DateScriptFieldType.PARSER);
+        runtimeParsers.put(KeywordFieldMapper.CONTENT_TYPE, KeywordScriptFieldType.PARSER);
+        runtimeParsers.put(GeoPointFieldMapper.CONTENT_TYPE, GeoPointScriptFieldType.PARSER);
+
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             for (Map.Entry<String, RuntimeFieldType.Parser> entry : mapperPlugin.getRuntimeFieldTypes().entrySet()) {
                 if (runtimeParsers.put(entry.getKey(), entry.getValue()) != null) {

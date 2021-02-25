@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -30,6 +20,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -46,11 +37,13 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -62,9 +55,14 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.BucketedSort.ExtraData;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -75,6 +73,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -103,6 +102,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        return createIndexAnalyzers();
+    }
+
+    protected static IndexAnalyzers createIndexAnalyzers() {
         return new IndexAnalyzers(
             Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             Map.of(),
@@ -172,16 +175,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     protected final MapperService createMapperService(Version version,
                                                       Settings settings,
                                                       BooleanSupplier idFieldDataEnabled) {
-        settings = Settings.builder()
-            .put("index.number_of_replicas", 0)
-            .put("index.number_of_shards", 1)
-            .put(settings)
-            .put("index.version.created", version)
-            .build();
-        IndexMetadata meta = IndexMetadata.builder("index")
-            .settings(settings)
-            .build();
-        IndexSettings indexSettings = new IndexSettings(meta, settings);
+        IndexSettings indexSettings = createIndexSettings(version, settings);
         MapperRegistry mapperRegistry = new IndicesModule(
             getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
         ).getMapperRegistry();
@@ -203,14 +197,28 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         );
     }
 
+    protected static IndexSettings createIndexSettings(Version version, Settings settings) {
+        settings = Settings.builder()
+            .put("index.number_of_replicas", 0)
+            .put("index.number_of_shards", 1)
+            .put(settings)
+            .put("index.version.created", version)
+            .build();
+        IndexMetadata meta = IndexMetadata.builder("index")
+            .settings(settings)
+            .build();
+        return new IndexSettings(meta, settings);
+    }
+
     protected final void withLuceneIndex(
         MapperService mapperService,
         CheckedConsumer<RandomIndexWriter, IOException> builder,
         CheckedConsumer<IndexReader, IOException> test
     ) throws IOException {
+        IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService));
         try (
             Directory dir = newDirectory();
-            RandomIndexWriter iw = new RandomIndexWriter(random(), dir, new IndexWriterConfig(mapperService.indexAnalyzer()))
+            RandomIndexWriter iw = new RandomIndexWriter(random(), dir,iwc)
         ) {
             builder.accept(iw);
             try (IndexReader reader = iw.getReader()) {
@@ -309,9 +317,22 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         Query query
     ) {
         return new AggregationContext() {
+            private final CircuitBreaker breaker = mock(CircuitBreaker.class);
+            private final MultiBucketConsumer multiBucketConsumer = new MultiBucketConsumer(Integer.MAX_VALUE, breaker);
+
             @Override
             public IndexSearcher searcher() {
                 return searcher;
+            }
+
+            @Override
+            public Aggregator profileIfEnabled(Aggregator agg) throws IOException {
+                return agg;
+            }
+
+            @Override
+            public boolean profiling() {
+                return false;
             }
 
             @Override
@@ -383,6 +404,66 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             public NestedScope nestedScope() {
                 throw new UnsupportedOperationException();
             }
+
+            @Override
+            public SubSearchContext subSearchContext() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void addReleasable(Aggregator aggregator) {
+                // TODO we'll have to handle this in the tests eventually
+            }
+
+            @Override
+            public MultiBucketConsumer multiBucketConsumer() {
+                return multiBucketConsumer;
+            }
+
+            @Override
+            public BitsetFilterCache bitsetFilterCache() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public BucketedSort buildBucketedSort(SortBuilder<?> sort, int size, ExtraData values) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int shardRandomSeed() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long getRelativeTimeInMillis() {
+                return 0;
+            }
+
+            @Override
+            public boolean isCancelled() {
+                return false;
+            }
+
+            @Override
+            public CircuitBreaker breaker() {
+                return breaker;
+            }
+
+            @Override
+            public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean isCacheable() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void close() {
+                throw new UnsupportedOperationException();
+            }
         };
     }
 
@@ -412,22 +493,22 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         );
     }
 
-    protected QueryShardContext createQueryShardContext(MapperService mapperService) {
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.getFieldType(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
-        when(queryShardContext.isFieldMapped(anyString()))
+    protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService) {
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.getFieldType(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
+        when(searchExecutionContext.isFieldMapped(anyString()))
             .thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()) != null);
-        when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
-        when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
-        when(queryShardContext.getObjectMapper(anyString())).thenAnswer(
-            inv -> mapperService.getObjectMapper(inv.getArguments()[0].toString()));
-        when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
+        when(searchExecutionContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
+        when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
+        when(searchExecutionContext.getObjectMapper(anyString())).thenAnswer(
+            inv -> mapperService.mappingLookup().objectMappers().get(inv.getArguments()[0].toString()));
+        when(searchExecutionContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );
-        when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
-        when(queryShardContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
+        when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
+        when(searchExecutionContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
             throw new UnsupportedOperationException("search lookup not available");
         }));
-        return queryShardContext;
+        return searchExecutionContext;
     }
 }

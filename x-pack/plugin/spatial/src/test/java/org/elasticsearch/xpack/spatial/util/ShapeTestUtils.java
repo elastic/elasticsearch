@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial.util;
 
@@ -74,19 +75,19 @@ public class ShapeTestUtils {
                 XYPolygon poly = luceneHoles[i];
                 holes.add(linearRing(floatsToDoubles(poly.getPolyX()), floatsToDoubles(poly.getPolyY()), hasAlt));
             }
-            return new Polygon(linearRing(floatsToDoubles(lucenePolygon.getPolyX()), floatsToDoubles(lucenePolygon.getPolyY()), hasAlt), 
+            return new Polygon(linearRing(floatsToDoubles(lucenePolygon.getPolyX()), floatsToDoubles(lucenePolygon.getPolyY()), hasAlt),
                     holes);
         }
         return new Polygon(linearRing(floatsToDoubles(lucenePolygon.getPolyX()), floatsToDoubles(lucenePolygon.getPolyY()), hasAlt));
     }
-    
+
     static double[] floatsToDoubles(float[] f) {
         double[] d = new double[f.length];
         for (int i = 0; i < f.length; i++) {
           d[i] = f[i];
         }
         return d;
-      }    
+      }
 
 
     public static Rectangle randomRectangle() {

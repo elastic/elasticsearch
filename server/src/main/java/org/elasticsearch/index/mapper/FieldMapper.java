@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -23,6 +12,7 @@ import org.apache.lucene.document.Field;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -187,10 +177,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     protected final void createFieldNamesField(ParseContext context) {
         assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
-        FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();
-        if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
-            for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
-                context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, FieldNamesFieldMapper.Defaults.FIELD_TYPE));
+        FieldNamesFieldMapper fieldNamesFieldMapper = (FieldNamesFieldMapper) context.getMetadataMapper(FieldNamesFieldMapper.NAME);
+        if (fieldNamesFieldMapper != null) {
+            FieldNamesFieldType fieldNamesFieldType = fieldNamesFieldMapper.fieldType();
+            if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
+                for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
+                    context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, FieldNamesFieldMapper.Defaults.FIELD_TYPE));
+                }
             }
         }
     }
@@ -403,7 +396,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (!mappers.isEmpty()) {
+            if (mappers.isEmpty() == false) {
                 // sort the mappers so we get consistent serialization format
                 List<FieldMapper> sortedMappers = new ArrayList<>(mappers.values());
                 sortedMappers.sort(Comparator.comparing(FieldMapper::name));
@@ -435,7 +428,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (!copyToFields.isEmpty()) {
+            if (copyToFields.isEmpty() == false) {
                 builder.startArray("copy_to");
                 for (String field : copyToFields) {
                     builder.value(field);
@@ -485,7 +478,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Check on whether or not a parameter should be serialized
      */
-    protected interface SerializerCheck<T> {
+    public interface SerializerCheck<T> {
         /**
          * Check on whether or not a parameter should be serialized
          * @param includeDefaults   if defaults have been requested
@@ -962,6 +955,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (Objects.equals("boost", propName)) {
                     if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
                         deprecationLogger.deprecate(
+                            DeprecationCategory.API,
                             "boost",
                             "Parameter [boost] on field [{}] is deprecated and has no effect",
                             name);
@@ -973,23 +967,36 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 Parameter<?> parameter = deprecatedParamsMap.get(propName);
                 if (parameter != null) {
-                    deprecationLogger.deprecate(propName, "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
+                    deprecationLogger.deprecate(DeprecationCategory.API, propName, "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
                         propName, name, parameter.name);
                 } else {
                     parameter = paramsMap.get(propName);
                 }
                 if (parameter == null) {
                     if (isDeprecatedParameter(propName, parserContext.indexVersionCreated())) {
-                        deprecationLogger.deprecate(propName,
+                        deprecationLogger.deprecate(DeprecationCategory.API, propName,
                             "Parameter [{}] has no effect on type [{}] and will be removed in future", propName, type);
                         iterator.remove();
                         continue;
                     }
-                    throw new MapperParsingException("unknown parameter [" + propName
-                        + "] on mapper [" + name + "] of type [" + type + "]");
+                    if (parserContext.isFromDynamicTemplate() && parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
+                        // The parameter is unknown, but this mapping is from a dynamic template.
+                        // Until 7.x it was possible to use unknown parameters there, so for bwc we need to ignore it
+                        deprecationLogger.deprecate(DeprecationCategory.API, propName,
+                            "Parameter [{}] is used in a dynamic template mapping and has no effect on type [{}]. "
+                            + "Usage will result in an error in future major versions and should be removed.",
+                            propName,
+                            type
+                        );
+                        iterator.remove();
+                        continue;
+                    }
+                    throw new MapperParsingException(
+                        "unknown parameter [" + propName + "] on mapper [" + name + "] of type [" + type + "]"
+                    );
                 }
                 if (parameter.deprecated) {
-                    deprecationLogger.deprecate(propName,
+                    deprecationLogger.deprecate(DeprecationCategory.API, propName,
                         "Parameter [{}] is deprecated and will be removed in a future version",
                         propName);
                 }

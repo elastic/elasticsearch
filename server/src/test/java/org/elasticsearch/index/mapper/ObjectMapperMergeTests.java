@@ -1,28 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.AfterClass;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,19 +21,12 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ObjectMapperMergeTests extends ESTestCase {
 
-    private static FieldMapper barFieldMapper = createTextFieldMapper("bar");
-    private static FieldMapper bazFieldMapper = createTextFieldMapper("baz");
+    private final FieldMapper barFieldMapper = createTextFieldMapper("bar");
+    private final FieldMapper bazFieldMapper = createTextFieldMapper("baz");
 
-    private static RootObjectMapper rootObjectMapper = createMapping(false, true, true, false);
+    private final RootObjectMapper rootObjectMapper = createMapping(false, true, true, false);
 
-    @AfterClass
-    public static void cleanupReferences() {
-        barFieldMapper = null;
-        bazFieldMapper = null;
-        rootObjectMapper = null;
-    }
-
-    private static RootObjectMapper createMapping(boolean disabledFieldEnabled, boolean fooFieldEnabled,
+    private RootObjectMapper createMapping(boolean disabledFieldEnabled, boolean fooFieldEnabled,
                                                   boolean includeBarField, boolean includeBazField) {
         Map<String, Mapper> mappers = new HashMap<>();
         mappers.put("disabled", createObjectMapper("disabled", disabledFieldEnabled, emptyMap()));
@@ -84,6 +64,17 @@ public class ObjectMapperMergeTests extends ESTestCase {
         assertEquals("the [enabled] parameter can't be updated for the object mapping [foo]", e.getMessage());
     }
 
+    public void testMergeDisabledField() {
+        // GIVEN a mapping with "foo" field disabled
+        Map<String, Mapper> mappers = new HashMap<>();
+        //the field is disabled, and we are not trying to re-enable it, hence merge should work
+        mappers.put("disabled", new ObjectMapper.Builder("disabled", Version.CURRENT).build(new ContentPath()));
+        RootObjectMapper mergeWith = createRootObjectMapper("type1", true, Collections.unmodifiableMap(mappers));
+
+        RootObjectMapper merged = (RootObjectMapper)rootObjectMapper.merge(mergeWith);
+        assertFalse(((ObjectMapper)merged.getMapper("disabled")).isEnabled());
+    }
+
     public void testMergeEnabled() {
         ObjectMapper mergeWith = createMapping(true, true, true, false);
 
@@ -104,6 +95,21 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
         ObjectMapper result = firstMapper.merge(secondMapper, MapperService.MergeReason.INDEX_TEMPLATE);
         assertFalse(result.isEnabled());
+    }
+
+    public void testMergeDisabledRootMapper() {
+        String type = MapperService.SINGLE_MAPPING_NAME;
+        final RootObjectMapper rootObjectMapper =
+            (RootObjectMapper) new RootObjectMapper.Builder(type, Version.CURRENT).enabled(false).build(new ContentPath());
+        //the root is disabled, and we are not trying to re-enable it, but we do want to be able to add runtime fields
+        final RootObjectMapper mergeWith =
+            new RootObjectMapper.Builder(type, Version.CURRENT).setRuntime(
+                Collections.singletonMap("test", new TestRuntimeField("test", "long"))).build(new ContentPath());
+
+        RootObjectMapper merged = (RootObjectMapper) rootObjectMapper.merge(mergeWith);
+        assertFalse(merged.isEnabled());
+        assertEquals(1, merged.runtimeFieldTypes().size());
+        assertEquals("test", merged.runtimeFieldTypes().iterator().next().name());
     }
 
     public void testMergeNested() {
@@ -144,7 +150,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
             .build(new ContentPath());
     }
 
-    private static TextFieldMapper createTextFieldMapper(String name) {
-        return new TextFieldMapper.Builder(name, () -> Lucene.STANDARD_ANALYZER).build(new ContentPath());
+    private TextFieldMapper createTextFieldMapper(String name) {
+        return new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers()).build(new ContentPath());
     }
 }

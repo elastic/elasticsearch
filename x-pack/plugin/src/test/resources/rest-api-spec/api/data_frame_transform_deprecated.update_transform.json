@@ -5,6 +5,11 @@
       "description":"Updates certain properties of a transform."
     },
     "stability":"beta",
+    "visibility":"public",
+    "headers":{
+      "accept":[ "application/json"],
+      "content_type":["application/json"]
+    },
     "url":{
       "paths":[
         {

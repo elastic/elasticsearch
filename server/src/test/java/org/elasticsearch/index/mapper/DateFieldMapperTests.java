@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -24,6 +13,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.search.DocValueFormat;
@@ -36,6 +26,10 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DateFieldMapperTests extends MapperTestCase {
@@ -332,5 +326,34 @@ public class DateFieldMapperTests extends MapperTestCase {
         String date = "2020-05-15T21:33:02.123456789Z";
         assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
         assertEquals(List.of("2020-05-15T21:33:02.123Z"), fetchFromDocValues(mapperService, ft, format, 1589578382123L));
+    }
+
+    public void testResolutionRounding() {
+        final long millis = randomLong();
+        assertThat(DateFieldMapper.Resolution.MILLISECONDS.roundDownToMillis(millis), equalTo(millis));
+        assertThat(DateFieldMapper.Resolution.MILLISECONDS.roundUpToMillis(millis), equalTo(millis));
+
+        final long nanos = randomNonNegativeLong();
+        final long down = DateFieldMapper.Resolution.NANOSECONDS.roundDownToMillis(nanos);
+        assertThat(DateUtils.toNanoSeconds(down), lessThanOrEqualTo(nanos));
+        try {
+            assertThat(DateUtils.toNanoSeconds(down + 1), greaterThan(nanos));
+        } catch (IllegalArgumentException e) {
+            // ok, down+1 was out of range
+        }
+
+        final long up = DateFieldMapper.Resolution.NANOSECONDS.roundUpToMillis(nanos);
+        try {
+            assertThat(DateUtils.toNanoSeconds(up), greaterThanOrEqualTo(nanos));
+        } catch (IllegalArgumentException e) {
+            // ok, up may be out of range by 1; we check that up-1 is in range below (as long as it's >0)
+            assertThat(up, greaterThan(0L));
+        }
+
+        if (up > 0) {
+            assertThat(DateUtils.toNanoSeconds(up - 1), lessThan(nanos));
+        } else {
+            assertThat(up, equalTo(0L));
+        }
     }
 }

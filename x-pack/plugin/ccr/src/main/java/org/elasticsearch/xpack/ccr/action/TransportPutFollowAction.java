@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action;
@@ -183,10 +184,8 @@ public final class TransportPutFollowAction
 
             @Override
             protected void doRun() {
-                ActionListener<RestoreService.RestoreCompletionResponse> delegatelistener = ActionListener.delegateFailure(
-                    listener,
-                    (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)
-                );
+                ActionListener<RestoreService.RestoreCompletionResponse> delegatelistener = listener.delegateFailure(
+                        (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response));
                 if (remoteDataStream == null) {
                     restoreService.restoreSnapshot(restoreRequest, delegatelistener);
                 } else {
@@ -227,8 +226,8 @@ public final class TransportPutFollowAction
             listener = originalListener;
         }
 
-        RestoreClusterStateListener.createAndRegisterListener(clusterService, response,
-            ActionListener.delegateFailure(listener, (delegatedListener, restoreSnapshotResponse) -> {
+        RestoreClusterStateListener.createAndRegisterListener(clusterService, response, listener.delegateFailure(
+            (delegatedListener, restoreSnapshotResponse) -> {
                 RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
                 if (restoreInfo == null) {
                     // If restoreInfo is null then it is possible there was a master failure during the
@@ -268,8 +267,14 @@ public final class TransportPutFollowAction
             // The data stream and the backing indices have been created and validated in the remote cluster,
             // just copying the data stream is in this case safe.
             return new DataStream(remoteDataStream.getName(), remoteDataStream.getTimeStampField(),
-                List.of(backingIndexToFollow), remoteDataStream.getGeneration(), remoteDataStream.getMetadata());
+                List.of(backingIndexToFollow), remoteDataStream.getGeneration(), remoteDataStream.getMetadata(),
+                remoteDataStream.isHidden(), true);
         } else {
+            if (localDataStream.isReplicated() == false) {
+                throw new IllegalArgumentException("cannot follow backing index [" + backingIndexToFollow.getName() +
+                    "], because local data stream [" + localDataStream.getName() + "] is no longer marked as replicated");
+            }
+
             List<Index> backingIndices = new ArrayList<>(localDataStream.getIndices());
             backingIndices.add(backingIndexToFollow);
 
@@ -280,7 +285,8 @@ public final class TransportPutFollowAction
             backingIndices.sort(Comparator.comparing(Index::getName));
 
             return new DataStream(localDataStream.getName(), localDataStream.getTimeStampField(), backingIndices,
-                remoteDataStream.getGeneration(), remoteDataStream.getMetadata());
+                remoteDataStream.getGeneration(), remoteDataStream.getMetadata(), localDataStream.isHidden(),
+                localDataStream.isReplicated());
         }
     }
 

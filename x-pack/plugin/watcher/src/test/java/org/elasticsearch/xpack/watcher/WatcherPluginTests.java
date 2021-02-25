@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher;
 
@@ -23,7 +24,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -32,33 +32,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class WatcherPluginTests extends ESTestCase {
-
-    public void testValidAutoCreateIndex() {
-        Watcher.validAutoCreateIndex(Settings.EMPTY, logger);
-        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", true).build(), logger);
-
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build(), logger));
-        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches]"));
-
-        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index",
-                ".watches,.triggered_watches,.watcher-history*").build(), logger);
-        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", "*w*").build(), logger);
-        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".w*,.t*").build(), logger);
-
-        exception = expectThrows(IllegalArgumentException.class,
-                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watches").build(), logger));
-        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches]"));
-
-        exception = expectThrows(IllegalArgumentException.class,
-                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".triggered_watch").build(), logger));
-        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches]"));
-
-        exception = expectThrows(IllegalArgumentException.class,
-                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watcher-history-*").build(),
-                        logger));
-        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches]"));
-    }
 
     public void testWatcherDisabledTests() throws Exception {
         Settings settings = Settings.builder()

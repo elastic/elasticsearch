@@ -4,8 +4,9 @@
 <titleabbrev>Geotile grid</titleabbrev>
 ++++
 
-A multi-bucket aggregation that works on `geo_point` fields and groups points into
-buckets that represent cells in a grid. The resulting grid can be sparse and only
+A multi-bucket aggregation that groups <<geo-point,`geo_point`>> and
+<<geo-shape,`geo_shape`>> values into buckets that represent a grid.
+The resulting grid can be sparse and only
 contains cells that have matching data. Each cell corresponds to a
 {wikipedia}/Tiled_web_map[map tile] as used by many online map
 sites. Each cell is labeled using a "{zoom}/{x}/{y}" format, where zoom is equal
@@ -26,9 +27,9 @@ costly in terms of RAM and result sizes. Please see the example below on how
 to first filter the aggregation to a smaller geographic area before requesting
 high-levels of detail.
 
-The specified field must be of type `geo_point` (which can only be set
-explicitly in the mappings) and it can also hold an array of `geo_point`
-fields, in which case all points will be taken into account during aggregation.
+You can only use `geotile_grid` to aggregate an explicitly mapped `geo_point` or
+`geo_shape` field. If the `geo_point` field contains an array, `geotile_grid`
+aggregates all the array values.
 
 
 ==== Simple low-precision request

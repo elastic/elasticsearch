@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.index.mapper;
@@ -163,7 +164,7 @@ public class FlattenedFieldLookupTests extends ESTestCase {
             }
             return null;
         }, fieldDataSupplier);
-        LeafDocLookup docLookup = searchLookup.doc().getLeafDocLookup(null);
+        LeafDocLookup docLookup = searchLookup.getLeafSearchLookup(null).doc();
 
         assertEquals(docValues1, docLookup.get("json.key1"));
         assertEquals(docValues2, docLookup.get("json.key2"));

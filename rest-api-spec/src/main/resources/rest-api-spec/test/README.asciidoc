@@ -128,6 +128,9 @@ temporarily skip it, and avoid having lots of test failures in the meantime.
 Once all runners have implemented the feature, it can be declared supported
 by default, thus the related skip sections can be removed from the tests.
 
+The skip section can also be used to selectively mute tests in certain
+cases where they would otherwise fail, see `default_shards` and `fips_140`.
+
 ....
     "Parent":
      - skip:
@@ -138,7 +141,34 @@ by default, thus the related skip sections can be removed from the tests.
 ....
 
 The `features` field can either be a string or an array of strings.
-The skip section requires to specify either a `version` or a `features` list.
+
+The skip section can also be used to mute tests for certain operating systems.
+This way it is not necessary to mute the whole test if a operating system
+specific problem appears.
+
+The operating system is taken from the pretty name that elasticsearch reports
+using the `GET /_nodes` API. To obtain the name from a CI build grep the logs
+for:
+
+`initializing client, minimum es version`
+
+When muting by operating system, a reason is mandatory and features must contain
+skip_os:
+
+....
+    "Parent":
+     - skip:
+          features: skip_os
+          os:       debian-8
+          reason:   memory accounting problems on debian 8, see gh#xyz
+
+     - do:
+       ... test definitions ...
+....
+
+The `os` field can either be a string or an array of strings.
+
+The skip section requires to specify either a `version`, `features` or `os` list.
 
 === Available Features
 
@@ -242,6 +272,10 @@ Allows you to stash an arbitrary key from a returned map e.g:
 ....
 
 This means: Stash any of the keys returned under `nodes` as `$node_id`
+
+=== `fips_140`
+
+This test should not be run when the test cluster is set in FIPS 140 mode.
 
 Required operators:
 -------------------

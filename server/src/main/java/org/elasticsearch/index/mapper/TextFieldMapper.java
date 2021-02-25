@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -64,12 +53,13 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 import org.elasticsearch.index.query.IntervalBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -177,7 +167,7 @@ public class TextFieldMapper extends FieldMapper {
             Defaults.INDEX_PREFIX_MIN_CHARS);
         int maxChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("max_chars"),
             Defaults.INDEX_PREFIX_MAX_CHARS);
-        DocumentMapperParser.checkNoRemainingFields(propName, indexPrefix, parserContext.indexVersionCreated());
+        MappingParser.checkNoRemainingFields(propName, indexPrefix);
         return new PrefixConfig(minChars, maxChars);
     }
 
@@ -232,7 +222,7 @@ public class TextFieldMapper extends FieldMapper {
         double minFrequency = XContentMapValues.nodeDoubleValue(frequencyFilter.remove("min"), 0);
         double maxFrequency = XContentMapValues.nodeDoubleValue(frequencyFilter.remove("max"), Integer.MAX_VALUE);
         int minSegmentSize = XContentMapValues.nodeIntegerValue(frequencyFilter.remove("min_segment_size"), 0);
-        DocumentMapperParser.checkNoRemainingFields(name, frequencyFilter, parserContext.indexVersionCreated());
+        MappingParser.checkNoRemainingFields(name, frequencyFilter);
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
@@ -266,14 +256,14 @@ public class TextFieldMapper extends FieldMapper {
 
         final TextParams.Analyzers analyzers;
 
-        public Builder(String name, Supplier<NamedAnalyzer> defaultAnalyzer) {
-            this(name, Version.CURRENT, defaultAnalyzer);
+        public Builder(String name, IndexAnalyzers indexAnalyzers) {
+            this(name, Version.CURRENT, indexAnalyzers);
         }
 
-        public Builder(String name, Version indexCreatedVersion, Supplier<NamedAnalyzer> defaultAnalyzer) {
+        public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
-            this.analyzers = new TextParams.Analyzers(defaultAnalyzer, m -> builder(m).analyzers);
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers, m -> builder(m).analyzers);
         }
 
         public Builder index(boolean index) {
@@ -421,7 +411,7 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER
-        = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), () -> c.getIndexAnalyzers().getDefaultIndexAnalyzer()));
+        = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
 
     private static class PhraseWrappedAnalyzer extends AnalyzerWrapper {
 
@@ -496,7 +486,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -505,7 +495,8 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
+                                 SearchExecutionContext context) {
             if (value.length() >= minChars) {
                 if (caseInsensitive) {
                     return super.termQueryCaseInsensitive(value, context);
@@ -556,7 +547,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             throw new UnsupportedOperationException();
         }
     }
@@ -642,12 +633,13 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.toString(name(), context, format);
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
+                                 SearchExecutionContext context) {
             if (prefixFieldType == null || prefixFieldType.accept(value.length()) == false) {
                 return super.prefixQuery(value, method, caseInsensitive,context);
             }
@@ -660,7 +652,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
+        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
             failIfNotIndexed();
             if (prefixFieldType != null
                     && value.length() >= prefixFieldType.minChars
@@ -776,7 +768,7 @@ public class TextFieldMapper extends FieldMapper {
                 filter.minFreq,
                 filter.maxFreq,
                 filter.minSegmentSize,
-                CoreValuesSourceType.BYTES
+                CoreValuesSourceType.KEYWORD
             );
         }
 
@@ -807,7 +799,7 @@ public class TextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzer::getDefaultValue).init(this);
+        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
     }
 
     @Override

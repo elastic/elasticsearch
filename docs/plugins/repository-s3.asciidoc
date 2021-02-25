@@ -27,7 +27,7 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "bucket": "my_bucket"
+    "bucket": "my-bucket"
   }
 }
 ----
@@ -48,8 +48,8 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "bucket": "my_bucket",
-    "client": "my_alternate_client"
+    "bucket": "my-bucket",
+    "client": "my-alternate-client"
   }
 }
 ----
@@ -222,12 +222,17 @@ Note that some storage systems claim to be S3-compatible without correctly
 supporting the full S3 API. The `repository-s3` plugin requires full
 compatibility with S3. In particular it must support the same set of API
 endpoints, return the same errors in case of failures, and offer a consistency
-model no weaker than S3's when accessed concurrently by multiple nodes. If you
-wish to use another storage system with the `repository-s3` plugin then you
-will need to work with the supplier of the storage system to address any
-incompatibilities you encounter. Incompatible error codes and consistency
-models may be particularly hard to track down since errors and consistency
-failures are usually rare and hard to reproduce.
+model no weaker than S3's when accessed concurrently by multiple nodes.
+Incompatible error codes and consistency models may be particularly hard to
+track down since errors and consistency failures are usually rare and hard to
+reproduce.
+
+You can perform some basic checks of the suitability of your storage system
+using the {ref}/repo-analysis-api.html[repository analysis API]. If this API
+does not complete successfully, or indicates poor performance, then your
+storage system is not fully compatible with AWS S3 and therefore unsuitable for
+use as a snapshot repository. You will need to work with the supplier of your
+storage system to address any incompatibilities you encounter.
 
 [[repository-s3-repository]]
 ==== Repository Settings
@@ -241,8 +246,8 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "bucket": "my_bucket_name",
-    "another_setting": "setting_value"
+    "bucket": "my-bucket",
+    "another_setting": "setting-value"
   }
 }
 ----
@@ -251,8 +256,12 @@ PUT _snapshot/my_s3_repository
 The following settings are supported:
 
 `bucket`::
-
-    The name of the bucket to be used for snapshots. (Mandatory)
+(Required)
+Name of the S3 bucket to use for snapshots.
++
+The bucket name must adhere to Amazon's
+https://docs.aws.amazon.com/AmazonS3/latest/dev/BucketRestrictions.html#bucketnamingrules[S3
+bucket naming rules].
 
 `client`::
 
@@ -261,10 +270,9 @@ The following settings are supported:
 
 `base_path`::
 
-    Specifies the path within bucket to repository data. Defaults to value of
-    `repositories.s3.base_path` or to root directory if not set.  Previously,
-    the base_path could take a leading `/` (forward slash).  However, this has
-    been deprecated and setting the base_path now should omit the leading `/`.
+    Specifies the path to the repository data within its bucket. Defaults to an
+    empty string, meaning that the repository is at the root of the bucket. The
+    value of this setting should not start or end with a `/`.
 
 `chunk_size`::
 
@@ -340,8 +348,8 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "client": "my_client_name",
-    "bucket": "my_bucket_name",
+    "client": "my-client",
+    "bucket": "my-bucket",
     "endpoint": "my.s3.endpoint"
   }
 }

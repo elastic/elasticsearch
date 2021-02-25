@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger;
 
@@ -54,9 +55,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     @Override
     public synchronized void start(Collection<Watch> jobs) {
         logger.info("starting scheduler");
-        Map<String, Watch> newWatches = new ConcurrentHashMap<>();
-        jobs.forEach((watch) -> newWatches.put(watch.id(), watch));
-        watches.set(newWatches);
+        jobs.forEach((watch) -> watches.get().put(watch.id(), watch));
         paused.set(false);
     }
 
@@ -75,6 +74,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     @Override
     public void pauseExecution() {
         paused.set(true);
+        watches.get().clear();
     }
 
     @Override

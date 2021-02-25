@@ -226,19 +226,6 @@ teardown:
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
-      security.invalidate_api_key:
-        body:  >
-            {
-              "id": "${api_key_id_1}"
-            }
-  - length: { "invalidated_api_keys" : 1 }
-  - match: { "invalidated_api_keys.0" : "${api_key_id_1}" }
-  - length: { "previously_invalidated_api_keys" : 0 }
-  - match: { "error_count" : 0 }
-
-  - do:
-      headers:
-        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
       security.create_api_key:
         body:  >
           {
@@ -278,9 +265,10 @@ teardown:
           {
             "ids": [ "${api_key_id_1}", "${api_key_id_2}", "${api_key_id_3}" ]
           }
-  - length: { "invalidated_api_keys" : 2 }
-  - match: { "invalidated_api_keys.0" : "/^(${api_key_id_2}|${api_key_id_3})$/" }
-  - match: { "invalidated_api_keys.1" : "/^(${api_key_id_2}|${api_key_id_3})$/" }
+  - length: { "invalidated_api_keys" : 3 }
+  - match: { "invalidated_api_keys.0" : "/^(${api_key_id_1}|${api_key_id_2}|${api_key_id_3})$/" }
+  - match: { "invalidated_api_keys.1" : "/^(${api_key_id_1}|${api_key_id_2}|${api_key_id_3})$/" }
+  - match: { "invalidated_api_keys.2" : "/^(${api_key_id_1}|${api_key_id_2}|${api_key_id_3})$/" }
   - length: { "previously_invalidated_api_keys" : 0 }
   - match: { "error_count" : 0 }
 

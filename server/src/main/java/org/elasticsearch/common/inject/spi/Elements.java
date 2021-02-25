@@ -129,7 +129,7 @@ public final class Elements {
          */
         private RecordingBinder(
                 RecordingBinder prototype, Object source, SourceProvider sourceProvider) {
-            if (!(source == null ^ sourceProvider == null)) {
+            if ((source == null ^ sourceProvider == null) == false) {
                 throw new IllegalArgumentException();
             }
 
@@ -211,7 +211,7 @@ public final class Elements {
                     throw e;
                 } catch (RuntimeException e) {
                     Collection<Message> messages = Errors.getMessagesFromThrowable(e);
-                    if (!messages.isEmpty()) {
+                    if (messages.isEmpty() == false) {
                         elements.addAll(messages);
                     } else {
                         addError(e);

@@ -102,6 +102,11 @@ tag::checkpointing-changes-last-detected-at[]
 The timestamp when changes were last detected in the source indices.
 end::checkpointing-changes-last-detected-at[]
 
+tag::checkpointing-last-search-time[]
+The timestamp of the last search in the source indices. This field is only
+shown if the transform is running.
+end::checkpointing-last-search-time[]
+
 tag::cluster-health-status[]
 (string)
 Health status of the cluster, based on the state of its primary and replica
@@ -137,6 +142,10 @@ Comma-separated list or wildcard expressions of fields
 to include in `fielddata` and `suggest` statistics.
 end::completion-fields[]
 
+tag::delete-time-ms[]
+The amount of time spent deleting, in milliseconds.
+end::delete-time-ms[]
+
 tag::default_operator[]
 `default_operator`::
 (Optional, string) The default operator for query string query: AND or OR.
@@ -148,10 +157,10 @@ The destination for the {transform}.
 end::dest[]
 
 tag::dest-index[]
-The _destination index_ for the {transform}. The mappings of the destination 
-index are deduced based on the source fields when possible. If alternate 
-mappings are required, use the 
-https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API] 
+The _destination index_ for the {transform}. The mappings of the destination
+index are deduced based on the source fields when possible. If alternate
+mappings are required, use the
+https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API]
 prior to starting the {transform}.
 end::dest-index[]
 
@@ -190,6 +199,11 @@ Also, {es} creates extra deleted documents to internally track the recent
 history of operations on a shard.
 end::docs-deleted[]
 
+tag::docs-deleted-transform[]
+The number of documents that have been deleted from the destination index due to
+the retention policy for this {transform}.
+end::docs-deleted-transform[]
+
 tag::docs-indexed[]
 The number of documents that have been indexed into the destination index
 for the {transform}.
@@ -205,26 +219,48 @@ Enrich policy name
 used to limit the request.
 end::enrich-policy[]
 
+tag::ds-expand-wildcards[]
+`expand_wildcards`::
++
+--
+(Optional, string)
+Type of data stream that wildcard expressions can match. Supports
+comma-separated values, such as `open,hidden`. Valid values are:
+
+`all`, `hidden`::
+Match any data stream, including <<hidden-indices,hidden>> ones.
+
+`open`, `closed`::
+Matches any non-hidden data stream. Data streams cannot be closed.
+
+`none`::
+Wildcard expressions are not accepted.
+--
+end::ds-expand-wildcards[]
+
 tag::expand-wildcards[]
 `expand_wildcards`::
 +
 --
-(Optional, string) Controls what kind of indices that wildcard expressions can
-expand to. Multiple values are accepted when separated by a comma, as in
-`open,hidden`. Valid values are:
+(Optional, string)
+Type of index that wildcard expressions can match. If the request can target
+data streams, this argument determines whether wildcard expressions match
+hidden data streams. Supports comma-separated values, such as `open,hidden`.
+Valid values are:
 
 `all`::
-Expand to open and closed indices, including <<hidden-indices,hidden indices>>.
+Match any data stream or index, including <<hidden-indices,hidden>> ones.
 
 `open`::
-Expand only to open indices.
+Match open, non-hidden indices. Also matches any non-hidden data stream.
 
 `closed`::
-Expand only to closed indices.
+Match closed, non-hidden indices. Also matches any non-hidden data stream. Data
+streams cannot be closed.
 
 `hidden`::
-Expansion of wildcards will include hidden indices.
-Must be combined with `open`, `closed`, or both.
+Match hidden data streams and hidden indices. Must be combined with `open`,
+`closed`, or both.
 
 `none`::
 Wildcard expressions are not accepted.
@@ -580,10 +616,18 @@ such as `1264`.
 A value of `-1` indicates {es} was unable to compute this number.
 end::memory[]
 
+tag::bulk-require-alias[]
+`require_alias`::
+(Optional, Boolean)
+If `true`, the action must target an <<indices-aliases,index alias>>. Defaults
+to `false`.
+end::bulk-require-alias[]
+
 tag::require-alias[]
 `require_alias`::
-(Optional, Boolean) When true, this requires the destination to be an alias.
-Defaults to false.
+(Optional, Boolean)
+If `true`, the destination must be an <<indices-aliases,index alias>>. Defaults to
+`false`.
 end::require-alias[]
 
 tag::node-filter[]
@@ -643,13 +687,13 @@ processed in batches instead of individually.
 end::pages-processed[]
 
 tag::pivot[]
-The method for transforming the data. These objects define the pivot function
-`group by` fields and the aggregation to reduce the data.
+The `pivot` method transforms the data by aggregating and grouping it. These
+objects define the `group by` fields and the aggregation to reduce the data.
 end::pivot[]
 
 tag::pivot-aggs[]
 Defines how to aggregate the grouped data. The following aggregations are
-supported:
+currently supported:
 +
 --
 * <<search-aggregations-metrics-avg-aggregation,Average>>
@@ -659,6 +703,7 @@ supported:
 * <<search-aggregations-bucket-filter-aggregation,Filter>>
 * <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
+* <<search-aggregations-metrics-geo-line,Geo line>>
 * <<search-aggregations-metrics-max-aggregation,Max>>
 * <<search-aggregations-metrics-median-absolute-deviation-aggregation,Median absolute deviation>>
 * <<search-aggregations-metrics-min-aggregation,Min>>
@@ -671,16 +716,12 @@ supported:
 * <<search-aggregations-metrics-valuecount-aggregation,Value count>>
 * <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 
-
-IMPORTANT: {transforms-cap} support a subset of the functionality in
-aggregations. See <<transform-limitations>>.
-
 --
 end::pivot-aggs[]
 
 tag::pivot-group-by[]
-Defines how to group the data. More than one grouping can be defined
-  per pivot. The following groupings are supported:
+Defines how to group the data. More than one grouping can be defined per pivot.
+The following groupings are currently supported:
 +
 --
 * <<_date_histogram,Date histogram>>
@@ -785,13 +826,6 @@ end::search-failures[]
 tag::search-time-ms[]
 The amount of time spent searching, in milliseconds.
 end::search-time-ms[]
-
-tag::search_timeout[]
-`timeout`::
-(Optional, <<time-units, time units>>)
-Explicit timeout for each search request.
-Defaults to no timeout.
-end::search_timeout[]
 
 tag::search-total[]
 The number of search operations on the source index for the {transform}.
@@ -898,6 +932,10 @@ A query clause that retrieves a subset of data from the source index. See
 <<query-dsl>>.
 end::source-query-transforms[]
 
+tag::source-runtime-mappings-transforms[]
+Definitions of search-time runtime fields that can be used by the transform.
+end::source-runtime-mappings-transforms[]
+
 tag::state-transform[]
 The status of the {transform}, which can be one of the following values:
 +
@@ -948,9 +986,39 @@ The time delay between the current time and the latest input data time. The
 default value is `60s`.
 end::sync-time-delay[]
 
+tag::transform-latest[]
+The `latest` method transforms the data by finding the latest document for each
+unique key.
+end::transform-latest[]
+
+tag::transform-retention[]
+Defines a retention policy for the {transform}. Data that meets the defined 
+criteria is deleted from the destination index.
+end::transform-retention[]
+
+tag::transform-retention-time[]
+Specifies that the {transform} uses a time field to set the retention policy.
+end::transform-retention-time[]
+
+tag::transform-retention-time-field[]
+The date field that is used to calculate the age of the document.
+end::transform-retention-time-field[]
+
+tag::transform-retention-time-max-age[]
+Specifies the maximum age of a document in the destination index. Documents that 
+are older than the configured value are removed from the destination index.
+end::transform-retention-time-max-age[]
+
 tag::transform-settings[]
 Defines optional {transform} settings.
 end::transform-settings[]
+
+tag::transform-settings-dates-as-epoch-milli[]
+Defines if dates in the ouput should be written as ISO formatted string (default)
+or as millis since epoch. `epoch_millis` has been the default for transforms created
+before version `7.11`. For compatible output set this to `true`.
+The default value is `false`.
+end::transform-settings-dates-as-epoch-milli[]
 
 tag::transform-settings-docs-per-second[]
 Specifies a limit on the number of input documents per second. This setting
@@ -964,6 +1032,14 @@ checkpoint. If circuit breaker exceptions occur, the page size is dynamically
 adjusted to a lower value. The minimum value is `10` and the maximum is `10,000`.
 The default value is `500`.
 end::transform-settings-max-page-search-size[]
+
+tag::transform-sort[]
+Specifies the date field that is used to identify the latest documents.
+end::transform-sort[]
+
+tag::transform-unique-key[]
+Specifies an array of one or more fields that are used to group the data.
+end::transform-unique-key[]
 
 tag::target-index[]
 `<target-index>`::
@@ -1001,19 +1077,19 @@ Unit used to display time values.
 end::time[]
 
 tag::timeoutparms[]
-
-tag::timeout[]
 tag::master-timeout[]
 `master_timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a connection to the master node. If no response is received before the timeout
-expires, the request fails and returns an error. Defaults to `30s`.
+(Optional, <<time-units, time units>>)
+Period to wait for a connection to the master node. If no response is received
+before the timeout expires, the request fails and returns an error. Defaults to
+`30s`.
 end::master-timeout[]
 
+tag::timeout[]
 `timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a response. If no response is received before the timeout expires, the request
-fails and returns an error. Defaults to `30s`.
+(Optional, <<time-units, time units>>)
+Period to wait for a response. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
 end::timeout[]
 end::timeoutparms[]
 
@@ -1076,9 +1152,3 @@ Default: 1, the primary shard.
 See <<index-wait-for-active-shards>>.
 --
 end::wait_for_active_shards[]
-
-tag::wait_for_completion[]
-`wait_for_completion`::
-(Optional, Boolean) If `true`, the request blocks until the operation is complete.
-Defaults to `true`.
-end::wait_for_completion[]

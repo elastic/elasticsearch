@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest;
 
@@ -12,6 +13,8 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.MediaTypeRegistry;
@@ -22,16 +25,15 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestRequestFilter;
-
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 
 import java.io.IOException;
-
 import java.util.List;
+import java.util.Map;
 
 public class SecurityRestFilter implements RestHandler {
 
@@ -100,6 +102,14 @@ public class SecurityRestFilter implements RestHandler {
                 @Override
                 protected boolean skipStackTrace() { return restStatus == RestStatus.UNAUTHORIZED; }
 
+                @Override
+                public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
+                    if (headers.containsKey("Warning")) {
+                        return Maps.copyMapWithRemovedEntry(headers, "Warning");
+                    }
+                    return headers;
+                }
+
             });
         } catch (Exception inner) {
             inner.addSuppressed(e);
@@ -148,5 +158,10 @@ public class SecurityRestFilter implements RestHandler {
     @Override
     public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
         return restHandler.validAcceptMediaTypes();
+    }
+
+    @Override
+    public RestApiCompatibleVersion compatibleWithVersion() {
+        return restHandler.compatibleWithVersion();
     }
 }

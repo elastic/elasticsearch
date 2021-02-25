@@ -56,6 +56,11 @@ setup:
                     }
                   params:
                     min_v: 5.0
+              message.keyword:
+                type: keyword
+                script:
+                  source: |
+                    emit("hello world")
 
             properties:
               timestamp:
@@ -134,9 +139,10 @@ setup:
   - do:
       field_caps:
         index: sensor*
-        fields: [day_of_week, voltage_*, tomorrow, ip, over_v]
+        fields: [day_of_week, voltage_*, tomorrow, ip, over_v, message.keyword]
 
   - match: {indices: [sensor1, sensor2]}
+  - length: {fields: 7}
   - match: {fields.day_of_week.keyword.searchable: true}
   - match: {fields.day_of_week.keyword.aggregatable: true}
   - is_false: fields.day_of_week.keyword.indices
@@ -155,6 +161,10 @@ setup:
   - match: {fields.over_v.boolean.searchable: true}
   - match: {fields.over_v.boolean.aggregatable: true}
   - is_false: fields.over_v.boolean.indices
+  - match: {fields.message\.keyword.keyword.searchable: true}
+  - match: {fields.message\.keyword.keyword.aggregatable: true}
+  - is_false: fields.message\.keyword.keyword.indices
+  - is_false: fields.message
 
 ---
 "terms agg - keyword":

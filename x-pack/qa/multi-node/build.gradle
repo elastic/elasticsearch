@@ -6,7 +6,7 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
   setting 'xpack.security.enabled', 'true'

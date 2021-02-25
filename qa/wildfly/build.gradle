@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 import org.elasticsearch.gradle.Architecture
@@ -57,7 +46,7 @@ elasticsearch_distributions {
   docker {
     type = 'docker'
     architecture = Architecture.current()
-    flavor = System.getProperty('tests.distribution', 'default')
+    flavor = System.getProperty('tests.distribution', 'oss')
     version = VersionProperties.getElasticsearch()
     failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
   }
@@ -68,7 +57,7 @@ tasks.named("preProcessFixture").configure {
 }
 
 dockerCompose {
-  if ('default'.equalsIgnoreCase(System.getProperty('tests.distribution', 'default'))) {
+  if ('default'.equalsIgnoreCase(System.getProperty('tests.distribution', 'oss'))) {
     useComposeFiles = ['docker-compose.yml']
   } else {
     useComposeFiles = ['docker-compose-oss.yml']
@@ -79,6 +68,7 @@ tasks.register("integTest", Test) {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
   maxParallelForks = '1'
   include '**/*IT.class'
+  systemProperty 'tests.security.manager', 'false'
 }
 
 tasks.named("check").configure {

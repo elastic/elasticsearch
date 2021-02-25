@@ -12,6 +12,11 @@ Returns cluster-level changes that have not yet been executed.
 
 `GET /_cluster/pending_tasks`
 
+[[cluster-pending-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cluster-pending-api-desc]]
 ==== {api-description-title}

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
@@ -2720,6 +2709,34 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 equalTo("<em>some text</em>"));
     }
 
+    public void testCopyToFields() throws Exception {
+        XContentBuilder b = jsonBuilder().startObject().startObject("properties");
+        b.startObject("foo");
+        {
+            b.field("type", "text");
+            b.field("copy_to", "foo_copy");
+        }
+        b.endObject();
+        b.startObject("foo_copy").field("type", "text").endObject();
+        b.endObject().endObject();
+        prepareCreate("test").setMapping(b).get();
+
+        client().prepareIndex("test").setId("1")
+            .setSource(jsonBuilder().startObject().field("foo", "how now brown cow").endObject())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        SearchResponse response = client().prepareSearch()
+            .setQuery(matchQuery("foo_copy", "brown"))
+            .highlighter(new HighlightBuilder().field(new Field("foo_copy")))
+            .get();
+
+        assertHitCount(response, 1);
+        HighlightField field = response.getHits().getAt(0).getHighlightFields().get("foo_copy");
+        assertThat(field.getFragments().length, equalTo(1));
+        assertThat(field.getFragments()[0].string(), equalTo("how now <em>brown</em> cow"));
+    }
+
     public void testACopyFieldWithNestedQuery() throws Exception {
         String mapping = Strings.toString(jsonBuilder().startObject().startObject("properties")
                     .startObject("foo")
@@ -2931,7 +2948,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             assertHitCount(searchResponse, 1);
             HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("keyword");
             assertThat(field.getFragments().length, equalTo(1));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>Hello World</em>"));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>hello world</em>"));
         }
     }
 

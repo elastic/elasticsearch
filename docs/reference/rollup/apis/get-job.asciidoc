@@ -1,3 +1,20 @@
+ifdef::permanently-unreleased-branch[]
+
+[role="xpack"]
+[testenv="basic"]
+[[rollup-get-job]]
+=== Get legacy {rollup-jobs} API
+++++
+<titleabbrev>Get legacy job</titleabbrev>
+++++
+
+include::put-job.asciidoc[tag=legacy-rollup-admon]
+
+Gets the configuration, stats, and status of legacy {rollup-jobs}.
+
+endif::[]
+ifndef::permanently-unreleased-branch[]
+
 [role="xpack"]
 [testenv="basic"]
 [[rollup-get-job]]
@@ -9,6 +26,8 @@
 Retrieves the configuration, stats, and status of {rollup-jobs}.
 
 experimental[]
+
+endif::[]
 
 [[rollup-get-job-request]]
 ==== {api-request-title}

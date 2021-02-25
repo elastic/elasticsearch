@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
@@ -64,23 +53,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class AggregatorFactoriesTests extends ESTestCase {
-    private String[] currentTypes;
-
     private NamedXContentRegistry xContentRegistry;
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        // we have to prefer CURRENT since with the range of versions we support
-        // it's rather unlikely to get the current actually.
         Settings settings = Settings.builder().put("node.name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        // create some random type with some default field, those types will
-        // stick around for all of the subclasses
-        currentTypes = new String[randomIntBetween(0, 5)];
-        for (int i = 0; i < currentTypes.length; i++) {
-            String type = randomAlphaOfLengthBetween(1, 10);
-            currentTypes[i] = type;
-        }
         xContentRegistry = new NamedXContentRegistry(new SearchModule(settings, emptyList()).getNamedXContents());
     }
 
@@ -133,7 +112,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
                 word[i] = (char) rand.nextInt(127);
             }
             name = String.valueOf(word);
-            if (!matcher.reset(name).matches()) {
+            if (matcher.reset(name).matches() == false) {
                 break;
             }
         }

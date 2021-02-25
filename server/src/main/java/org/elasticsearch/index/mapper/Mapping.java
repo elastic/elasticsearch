@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -31,11 +20,11 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
 /**
@@ -44,16 +33,18 @@ import static java.util.Collections.unmodifiableMap;
  */
 public final class Mapping implements ToXContentFragment {
 
-    final Version indexCreated;
+    public static final Mapping EMPTY = new Mapping(
+        new RootObjectMapper.Builder("_doc", Version.CURRENT).build(new ContentPath()),
+        new MetadataFieldMapper[0],
+        Collections.emptyMap());
+
     final RootObjectMapper root;
     final MetadataFieldMapper[] metadataMappers;
     final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     final Map<String, MetadataFieldMapper> metadataMappersByName;
     final Map<String, Object> meta;
 
-    public Mapping(Version indexCreated, RootObjectMapper rootObjectMapper,
-                   MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
-        this.indexCreated = indexCreated;
+    public Mapping(RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.metadataMappers = metadataMappers;
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap = new HashMap<>();
         Map<String, MetadataFieldMapper> metadataMappersByName = new HashMap<>();
@@ -75,11 +66,11 @@ public final class Mapping implements ToXContentFragment {
     }
 
     /** Return the root object mapper. */
-    public RootObjectMapper root() {
+    RootObjectMapper root() {
         return root;
     }
 
-    public void validate(MappingLookup mappers) {
+    void validate(MappingLookup mappers) {
         for (MetadataFieldMapper metadataFieldMapper : metadataMappers) {
             metadataFieldMapper.validate(mappers);
         }
@@ -89,13 +80,13 @@ public final class Mapping implements ToXContentFragment {
     /**
      * Generate a mapping update for the given root object mapper.
      */
-    public Mapping mappingUpdate(Mapper rootObjectMapper) {
-        return new Mapping(indexCreated, (RootObjectMapper) rootObjectMapper, metadataMappers, meta);
+    Mapping mappingUpdate(RootObjectMapper rootObjectMapper) {
+        return new Mapping(rootObjectMapper, metadataMappers, meta);
     }
 
     /** Get the root mapper with the given class. */
     @SuppressWarnings("unchecked")
-    public <T extends MetadataFieldMapper> T metadataMapper(Class<T> clazz) {
+    <T extends MetadataFieldMapper> T metadataMapper(Class<T> clazz) {
         return (T) metadataMappersMap.get(clazz);
     }
 
@@ -106,7 +97,7 @@ public final class Mapping implements ToXContentFragment {
      * @param reason the reason this merge was initiated.
      * @return the resulting merged mapping.
      */
-    public Mapping merge(Mapping mergeWith, MergeReason reason) {
+    Mapping merge(Mapping mergeWith, MergeReason reason) {
         RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason);
 
         // When merging metadata fields as part of applying an index template, new field definitions
@@ -137,26 +128,23 @@ public final class Mapping implements ToXContentFragment {
             XContentHelper.mergeDefaults(mergedMeta, meta);
         }
 
-        return new Mapping(indexCreated, mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
+        return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
     }
 
-    public MetadataFieldMapper getMetadataMapper(String mapperName) {
+    MetadataFieldMapper getMetadataMapper(String mapperName) {
         return metadataMappersByName.get(mapperName);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        root.toXContent(builder, params, new ToXContent() {
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                if (meta != null) {
-                    builder.field("_meta", meta);
-                }
-                for (Mapper mapper : metadataMappers) {
-                    mapper.toXContent(builder, params);
-                }
-                return builder;
+        root.toXContent(builder, params, (b, params1) -> {
+            if (meta != null) {
+                b.field("_meta", meta);
             }
+            for (Mapper mapper : metadataMappers) {
+                mapper.toXContent(b, params1);
+            }
+            return b;
         });
         return builder;
     }
@@ -165,7 +153,7 @@ public final class Mapping implements ToXContentFragment {
     public String toString() {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            toXContent(builder, new ToXContent.MapParams(emptyMap()));
+            toXContent(builder, ToXContent.EMPTY_PARAMS);
             return Strings.toString(builder.endObject());
         } catch (IOException bogus) {
             throw new UncheckedIOException(bogus);

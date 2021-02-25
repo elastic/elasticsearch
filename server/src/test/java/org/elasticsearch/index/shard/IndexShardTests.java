@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
@@ -76,6 +65,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
@@ -125,7 +115,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Assert;
@@ -300,9 +289,9 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(meta.hashCode(),
             new ShardStateMetadata(meta.primary, meta.indexUUID, meta.allocationId).hashCode());
 
-        assertFalse(meta.equals(new ShardStateMetadata(!meta.primary, meta.indexUUID, meta.allocationId)));
-        assertFalse(meta.equals(new ShardStateMetadata(!meta.primary, meta.indexUUID + "foo", meta.allocationId)));
-        assertFalse(meta.equals(new ShardStateMetadata(!meta.primary, meta.indexUUID + "foo", randomAllocationId())));
+        assertFalse(meta.equals(new ShardStateMetadata(meta.primary == false, meta.indexUUID, meta.allocationId)));
+        assertFalse(meta.equals(new ShardStateMetadata(meta.primary == false, meta.indexUUID + "foo", meta.allocationId)));
+        assertFalse(meta.equals(new ShardStateMetadata(meta.primary == false, meta.indexUUID + "foo", randomAllocationId())));
         Set<Integer> hashCodes = new HashSet<>();
         for (int i = 0; i < 30; i++) { // just a sanity check that we impl hashcode
             allocationId = randomBoolean() ? null : randomAllocationId();
@@ -398,7 +387,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard indexShard = newShard(false);
         expectThrows(IndexShardNotStartedException.class, () ->
             randomReplicaOperationPermitAcquisition(indexShard, indexShard.getPendingPrimaryTerm() + randomIntBetween(1, 100),
-                UNASSIGNED_SEQ_NO, randomNonNegativeLong(), null, ""));
+                UNASSIGNED_SEQ_NO, randomNonNegativeLong(), PlainActionFuture.newFuture(), ""));
         closeShards(indexShard);
     }
 
@@ -1427,28 +1416,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testMinimumCompatVersion() throws IOException {
-        Version versionCreated = VersionUtils.randomVersion(random());
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, versionCreated.id)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(settings)
-            .primaryTerm(0, 1).build();
-        IndexShard test = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
-        recoverShardFromStore(test);
-
-        indexDoc(test, "_doc", "test");
-        assertEquals(versionCreated.luceneVersion, test.minimumCompatibleVersion());
-        indexDoc(test, "_doc", "test");
-        assertEquals(versionCreated.luceneVersion, test.minimumCompatibleVersion());
-        test.getEngine().flush();
-        assertEquals(Version.CURRENT.luceneVersion, test.minimumCompatibleVersion());
-
-        closeShards(test);
-    }
-
     public void testShardStats() throws IOException {
 
         IndexShard shard = newStartedShard();
@@ -1557,7 +1524,7 @@ public class IndexShardTests extends IndexShardTestCase {
             ElasticsearchException e = expectThrows(ElasticsearchException.class, shard::storeStats);
             assertTrue(failureCallbackTriggered.get());
 
-            if (corruptIndexException && !throwWhenMarkingStoreCorrupted.get()) {
+            if (corruptIndexException && throwWhenMarkingStoreCorrupted.get() == false) {
                 assertTrue(store.isMarkedCorrupted());
             }
         }
@@ -2903,7 +2870,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertTrue(searcher.getIndexReader().numDocs() <= docsStats.getCount());
                 }
                 assertThat(docsStats.getDeleted(), equalTo(0L));
-                assertThat(docsStats.getAverageSizeInBytes(), greaterThan(0L));
+                assertThat(docsStats.getTotalSizeInBytes(), greaterThan(0L));
             }
 
             final List<Integer> ids = randomSubsetOf(
@@ -2963,7 +2930,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 final DocsStats docStats = indexShard.docStats();
                 assertThat(docStats.getCount(), equalTo(numDocs));
                 assertThat(docStats.getDeleted(), equalTo(0L));
-                assertThat(docStats.getAverageSizeInBytes(), greaterThan(0L));
+                assertThat(docStats.getTotalSizeInBytes(), greaterThan(0L));
             }
         } finally {
             closeShards(indexShard);
@@ -3290,7 +3257,7 @@ public class IndexShardTests extends IndexShardTestCase {
         boolean gap = false;
         Set<String> ids = new HashSet<>();
         for (int i = offset + 1; i < operations; i++) {
-            if (!rarely() || i == operations - 1) { // last operation can't be a gap as it's not a gap anymore
+            if (rarely() == false || i == operations - 1) { // last operation can't be a gap as it's not a gap anymore
                 final String id = ids.isEmpty() || randomBoolean() ? Integer.toString(i) : randomFrom(ids);
                 if (ids.add(id) == false) { // this is an update
                     indexShard.advanceMaxSeqNoOfUpdatesOrDeletes(i);
@@ -3299,7 +3266,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         new BytesArray("{}"), XContentType.JSON);
                 indexShard.applyIndexOperationOnReplica(i, indexShard.getOperationPrimaryTerm(), 1,
                     IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
-                if (!gap && i == localCheckpoint + 1) {
+                if (gap == false && i == localCheckpoint + 1) {
                     localCheckpoint++;
                 }
                 max = i;
@@ -3312,7 +3279,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         indexShard.sync(); // advance local checkpoint
         assert localCheckpoint == indexShard.getLocalCheckpoint();
-        assert !gap || (localCheckpoint != max);
+        assert gap == false || (localCheckpoint != max);
         return new Result(localCheckpoint, max);
     }
 
@@ -4061,7 +4028,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardRouting readonlyShardRouting = newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), true,
             ShardRoutingState.INITIALIZING, RecoverySource.ExistingStoreRecoverySource.INSTANCE);
         final IndexShard readonlyShard = reinitShard(shard, readonlyShardRouting, shard.indexSettings.getIndexMetadata(),
-            engineConfig -> new ReadOnlyEngine(engineConfig, null, null, true, Function.identity(), true) {
+            engineConfig -> new ReadOnlyEngine(engineConfig, null, null, true, Function.identity(), true, randomBoolean()) {
                 @Override
                 protected void ensureMaxSeqNoEqualsToGlobalCheckpoint(SeqNoStats seqNoStats) {
                     // just like a following shard, we need to skip this check for now.
@@ -4094,7 +4061,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier());
+                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier(), IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
             return new InternalEngine(configWithWarmer);
         });
         Thread recoveryThread = new Thread(() -> expectThrows(AlreadyClosedException.class, () -> recoverShardFromStore(shard)));

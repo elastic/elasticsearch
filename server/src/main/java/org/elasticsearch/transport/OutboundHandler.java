@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
@@ -34,6 +23,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -50,6 +40,9 @@ final class OutboundHandler {
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
+
+    private volatile long slowLogThresholdMs = Long.MAX_VALUE;
+
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
     OutboundHandler(String nodeName, Version version, StatsTracker statsTracker, ThreadPool threadPool, BigArrays bigArrays) {
@@ -58,6 +51,10 @@ final class OutboundHandler {
         this.statsTracker = statsTracker;
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
+    }
+
+    void setSlowLogThreshold(TimeValue slowLogThreshold) {
+        this.slowLogThresholdMs = slowLogThreshold.getMillis();
     }
 
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
@@ -125,6 +122,7 @@ final class OutboundHandler {
         BytesReference reference = sendContext.get();
         // stash thread context so that channel event loop is not polluted by thread context
         try (ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {
+            sendContext.startTime = threadPool.relativeTimeInMillis();
             channel.sendMessage(reference, sendContext);
         } catch (RuntimeException ex) {
             sendContext.onFailure(ex);
@@ -162,6 +160,11 @@ final class OutboundHandler {
         public void close() {
             IOUtils.closeWhileHandlingException(bytesStreamOutput);
         }
+
+        @Override
+        public String toString() {
+            return "MessageSerializer{" + message + "}";
+        }
     }
 
     private class SendContext extends NotifyOnceListener<Void> implements CheckedSupplier<BytesReference, IOException> {
@@ -171,6 +174,7 @@ final class OutboundHandler {
         private final ActionListener<Void> listener;
         private final Releasable optionalReleasable;
         private long messageSize = -1;
+        private long startTime;
 
         private SendContext(TcpChannel channel, CheckedSupplier<BytesReference, IOException> messageSupplier,
                             ActionListener<Void> listener) {
@@ -198,6 +202,15 @@ final class OutboundHandler {
             }
         }
 
+        private void maybeLogSlowMessage() {
+            final long took = threadPool.relativeTimeInMillis() - startTime;
+            final long logThreshold = slowLogThresholdMs;
+            if (logThreshold > 0 && took > logThreshold) {
+                logger.warn("sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                        messageSupplier, messageSize, channel, took, logThreshold);
+            }
+        }
+
         @Override
         protected void innerOnResponse(Void v) {
             assert messageSize != -1 : "If onResponse is being called, the message should have been serialized";
@@ -216,7 +229,7 @@ final class OutboundHandler {
         }
 
         private void closeAndCallback(Runnable runnable) {
-            Releasables.close(optionalReleasable, runnable::run);
+            Releasables.close(optionalReleasable, runnable::run, this::maybeLogSlowMessage);
         }
     }
 }

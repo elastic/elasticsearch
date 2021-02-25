@@ -1,27 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.env.Environment;
 
+import java.io.IOException;
 import java.nio.file.Path;
 
 /**
@@ -53,7 +44,7 @@ final class Natives {
     }
 
     static void tryMlockall() {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot mlockall because JNA is not available");
             return;
         }
@@ -61,7 +52,7 @@ final class Natives {
     }
 
     static boolean definitelyRunningAsRoot() {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot check if running as root because JNA is not available");
             return false;
         }
@@ -69,7 +60,7 @@ final class Natives {
     }
 
     static void tryVirtualLock() {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot virtual lock because JNA is not available");
             return;
         }
@@ -83,7 +74,7 @@ final class Natives {
      * @return the short path name (or the original path if getting the short path name fails for any reason)
      */
     static String getShortPathName(final String path) {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot obtain short path for [{}] because JNA is not available", path);
             return path;
         }
@@ -91,7 +82,7 @@ final class Natives {
     }
 
     static void addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot register console handler because JNA is not available");
             return;
         }
@@ -99,14 +90,14 @@ final class Natives {
     }
 
     static boolean isMemoryLocked() {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             return false;
         }
         return JNANatives.LOCAL_MLOCKALL;
     }
 
     static void tryInstallSystemCallFilter(Path tmpFile) {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot install system call filter because JNA is not available");
             return;
         }
@@ -114,7 +105,7 @@ final class Natives {
     }
 
     static void trySetMaxNumberOfThreads() {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot getrlimit RLIMIT_NPROC because JNA is not available");
             return;
         }
@@ -122,7 +113,7 @@ final class Natives {
     }
 
     static void trySetMaxSizeVirtualMemory() {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot getrlimit RLIMIT_AS because JNA is not available");
             return;
         }
@@ -130,7 +121,7 @@ final class Natives {
     }
 
     static void trySetMaxFileSize() {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot getrlimit RLIMIT_FSIZE because JNA is not available");
             return;
         }
@@ -138,9 +129,25 @@ final class Natives {
     }
 
     static boolean isSystemCallFilterInstalled() {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             return false;
         }
         return JNANatives.LOCAL_SYSTEM_CALL_FILTER;
     }
+
+    /**
+     * On Linux, this method tries to create the searchable snapshot frozen cache file using fallocate if JNA is available. This enables
+     * a much faster creation of the file than the fallback mechanism in the searchable snapshots plugin that will pre-allocate the cache
+     * file by writing zeros to the file.
+     *
+     * @throws IOException on failure to determine free disk space for a data path
+     */
+    public static void tryCreateCacheFile(Environment environment, long fileSize) throws IOException {
+        if (JNA_AVAILABLE == false) {
+            logger.warn("cannot use fallocate to create cache file because JNA is not available");
+            return;
+        }
+        JNANatives.fallocateSnapshotCacheFile(environment, fileSize);
+    }
+
 }

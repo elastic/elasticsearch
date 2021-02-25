@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
@@ -144,7 +133,7 @@ final class BootstrapChecks {
         for (final BootstrapCheck check : checks) {
             final BootstrapCheck.BootstrapCheckResult result = check.check(context);
             if (result.isFailure()) {
-                if (!(enforceLimits || enforceBootstrapChecks) && !check.alwaysEnforce()) {
+                if (enforceLimits == false && enforceBootstrapChecks == false && check.alwaysEnforce() == false) {
                     ignoredErrors.add(result.getMessage());
                 } else {
                     errors.add(result.getMessage());
@@ -152,15 +141,16 @@ final class BootstrapChecks {
             }
         }
 
-        if (!ignoredErrors.isEmpty()) {
+        if (ignoredErrors.isEmpty() == false) {
             ignoredErrors.forEach(error -> log(logger, error));
         }
 
-        if (!errors.isEmpty()) {
+        if (errors.isEmpty() == false) {
             final List<String> messages = new ArrayList<>(1 + errors.size());
-            messages.add("[" + errors.size() + "] bootstrap checks failed");
+            messages.add("[" + errors.size() + "] bootstrap checks failed. You must address the points described in the following ["
+                    + errors.size() + "] lines before starting Elasticsearch.");
             for (int i = 0; i < errors.size(); i++) {
-                messages.add("[" + (i + 1) + "]: " + errors.get(i));
+                messages.add("bootstrap check failure [" + (i + 1) + "] of [" + errors.size() + "]: " + errors.get(i));
             }
             final NodeValidationException ne = new NodeValidationException(String.join("\n", messages));
             errors.stream().map(IllegalStateException::new).forEach(ne::addSuppressed);
@@ -182,9 +172,9 @@ final class BootstrapChecks {
     static boolean enforceLimits(final BoundTransportAddress boundTransportAddress, final String discoveryType) {
         final Predicate<TransportAddress> isLoopbackAddress = t -> t.address().getAddress().isLoopbackAddress();
         final boolean bound =
-                !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackAddress) &&
-                isLoopbackAddress.test(boundTransportAddress.publishAddress()));
-        return bound && !"single-node".equals(discoveryType);
+                (Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackAddress) &&
+                isLoopbackAddress.test(boundTransportAddress.publishAddress())) == false;
+        return bound && "single-node".equals(discoveryType) == false;
     }
 
     // the list of checks to execute
@@ -316,7 +306,7 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            if (BootstrapSettings.MEMORY_LOCK_SETTING.get(context.settings()) && !isMemoryLocked()) {
+            if (BootstrapSettings.MEMORY_LOCK_SETTING.get(context.settings()) && isMemoryLocked() == false) {
                 return BootstrapCheckResult.failure("memory locking requested for elasticsearch process but memory is not locked");
             } else {
                 return BootstrapCheckResult.success();
@@ -539,7 +529,7 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            if (BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(context.settings()) && !isSystemCallFilterInstalled()) {
+            if (BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(context.settings()) && isSystemCallFilterInstalled() == false) {
                 final String message =  "system call filters failed to install; " +
                         "check the logs and fix your configuration or disable system call filters at your own risk";
                 return BootstrapCheckResult.failure(message);
@@ -588,7 +578,7 @@ final class BootstrapChecks {
         @Override
         boolean mightFork() {
             final String onError = onError();
-            return onError != null && !onError.equals("");
+            return onError != null && onError.isEmpty() == false;
         }
 
         // visible for testing
@@ -613,7 +603,7 @@ final class BootstrapChecks {
         @Override
         boolean mightFork() {
             final String onOutOfMemoryError = onOutOfMemoryError();
-            return onOutOfMemoryError != null && !onOutOfMemoryError.equals("");
+            return onOutOfMemoryError != null && onOutOfMemoryError.isEmpty() == false;
         }
 
         // visible for testing

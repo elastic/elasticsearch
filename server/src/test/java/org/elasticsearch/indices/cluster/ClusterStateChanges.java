@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.cluster;
@@ -65,7 +54,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateServiceUtils;
-import org.elasticsearch.cluster.metadata.MetadataIndexUpgradeService;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -91,6 +80,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndices;
@@ -157,6 +147,7 @@ public class ClusterStateChanges {
             = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null, logger);
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        SystemIndices systemIndices = new SystemIndices(Map.of());
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);
         Environment environment = TestEnvironment.newEnvironment(SETTINGS);
         Transport transport = mock(Transport.class); // it's not used
@@ -195,17 +186,16 @@ public class ClusterStateChanges {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(SETTINGS, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), clusterSettings,
             Collections.emptySet());
-        MetadataIndexUpgradeService metadataIndexUpgradeService = new MetadataIndexUpgradeService(
+        IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
             SETTINGS,
             xContentRegistry,
-            null,
             null,
             null,
             null
         ) {
             // metadata upgrader should do nothing
             @Override
-            public IndexMetadata upgradeIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
+            public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
                 return indexMetadata;
             }
         };
@@ -213,11 +203,12 @@ public class ClusterStateChanges {
         Map<ActionType, TransportAction> actions = new HashMap<>();
         actions.put(TransportVerifyShardBeforeCloseAction.TYPE, new TransportVerifyShardBeforeCloseAction(SETTINGS,
             transportService, clusterService, indicesService, threadPool, null, actionFilters));
-        client.initialize(actions, transportService.getTaskManager(), null, null, new NamedWriteableRegistry(List.of()));
+        client.initialize(actions, transportService.getTaskManager(), null, transportService.getLocalNodeConnection(),
+            null, new NamedWriteableRegistry(List.of()));
 
         ShardLimitValidator shardLimitValidator = new ShardLimitValidator(SETTINGS, clusterService);
         MetadataIndexStateService indexStateService = new MetadataIndexStateService(clusterService, allocationService,
-            metadataIndexUpgradeService, indicesService, shardLimitValidator, client, threadPool);
+            indexMetadataVerifier, indicesService, shardLimitValidator, client, threadPool);
         MetadataDeleteIndexService deleteIndexService = new MetadataDeleteIndexService(SETTINGS, clusterService, allocationService);
         MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(clusterService,
             allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, shardLimitValidator, threadPool);
@@ -232,11 +223,12 @@ public class ClusterStateChanges {
         transportDeleteIndexAction = new TransportDeleteIndexAction(transportService,
             clusterService, threadPool, deleteIndexService, actionFilters, indexNameExpressionResolver, destructiveOperations);
         transportUpdateSettingsAction = new TransportUpdateSettingsAction(
-            transportService, clusterService, threadPool, metadataUpdateSettingsService, actionFilters, indexNameExpressionResolver);
+            transportService, clusterService, threadPool, metadataUpdateSettingsService, actionFilters, indexNameExpressionResolver,
+            systemIndices);
         transportClusterRerouteAction = new TransportClusterRerouteAction(
             transportService, clusterService, threadPool, allocationService, actionFilters, indexNameExpressionResolver);
         transportCreateIndexAction = new TransportCreateIndexAction(
-            transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver);
+            transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver, systemIndices);
 
         nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, (s, p, r) -> {});
@@ -313,7 +305,12 @@ public class ClusterStateChanges {
 
     public ClusterState applyStartedShards(ClusterState clusterState, Map<ShardRouting, Long> startedShards) {
         return runTasks(shardStartedClusterStateTaskExecutor, clusterState, startedShards.entrySet().stream()
-            .map(e -> new StartedShardEntry(e.getKey().shardId(), e.getKey().allocationId().getId(), e.getValue(), "shard started"))
+            .map(e -> new StartedShardEntry(
+                    e.getKey().shardId(),
+                    e.getKey().allocationId().getId(),
+                    e.getValue(),
+                    "shard started",
+                    ShardLongFieldRange.UNKNOWN))
             .collect(Collectors.toList()));
     }
 

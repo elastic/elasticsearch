@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.replication;
@@ -143,7 +132,7 @@ public class TransportWriteActionTests extends ESTestCase {
         testAction.dispatchedShardOperationOnPrimary(request, indexShard,
             ActionTestUtils.assertNoFailureListener(result -> {
                 CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
-                result.runPostReplicationActions(ActionListener.map(listener, ignore -> result.finalResponseIfSuccessful));
+                result.runPostReplicationActions(listener.map(ignore -> result.finalResponseIfSuccessful));
                 assertNotNull(listener.response);
                 assertNull(listener.failure);
                 verify(indexShard, never()).refresh(any());
@@ -159,7 +148,7 @@ public class TransportWriteActionTests extends ESTestCase {
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
-        result.runPostReplicaActions(ActionListener.map(listener, ignore -> TransportResponse.Empty.INSTANCE));
+        result.runPostReplicaActions(listener.map(ignore -> TransportResponse.Empty.INSTANCE));
         assertNotNull(listener.response);
         assertNull(listener.failure);
         verify(indexShard, never()).refresh(any());
@@ -173,7 +162,7 @@ public class TransportWriteActionTests extends ESTestCase {
         testAction.dispatchedShardOperationOnPrimary(request, indexShard,
             ActionTestUtils.assertNoFailureListener(result -> {
                 CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
-                result.runPostReplicationActions(ActionListener.map(listener, ignore -> result.finalResponseIfSuccessful));
+                result.runPostReplicationActions(listener.map(ignore -> result.finalResponseIfSuccessful));
                 assertNotNull(listener.response);
                 assertNull(listener.failure);
                 assertTrue(listener.response.forcedRefresh);
@@ -190,7 +179,7 @@ public class TransportWriteActionTests extends ESTestCase {
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
-        result.runPostReplicaActions(ActionListener.map(listener, ignore -> TransportResponse.Empty.INSTANCE));
+        result.runPostReplicaActions(listener.map(ignore -> TransportResponse.Empty.INSTANCE));
         assertNotNull(listener.response);
         assertNull(listener.failure);
         verify(indexShard).refresh("refresh_flag_index");
@@ -205,7 +194,7 @@ public class TransportWriteActionTests extends ESTestCase {
         testAction.dispatchedShardOperationOnPrimary(request, indexShard,
             ActionTestUtils.assertNoFailureListener(result -> {
                 CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
-                result.runPostReplicationActions(ActionListener.map(listener, ignore -> result.finalResponseIfSuccessful));
+                result.runPostReplicationActions(listener.map(ignore -> result.finalResponseIfSuccessful));
                 assertNull(listener.response); // Haven't really responded yet
 
                 @SuppressWarnings({"unchecked", "rawtypes"})
@@ -230,7 +219,7 @@ public class TransportWriteActionTests extends ESTestCase {
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
-        result.runPostReplicaActions(ActionListener.map(listener, ignore -> TransportResponse.Empty.INSTANCE));
+        result.runPostReplicaActions(listener.map(ignore -> TransportResponse.Empty.INSTANCE));
         assertNull(listener.response); // Haven't responded yet
         @SuppressWarnings({ "unchecked", "rawtypes" })
         ArgumentCaptor<Consumer<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) Consumer.class);
@@ -250,7 +239,7 @@ public class TransportWriteActionTests extends ESTestCase {
         testAction.dispatchedShardOperationOnPrimary(request, indexShard,
             ActionTestUtils.assertNoFailureListener(result -> {
                 CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
-                result.runPostReplicationActions(ActionListener.map(listener, ignore -> result.finalResponseIfSuccessful));
+                result.runPostReplicationActions(listener.map(ignore -> result.finalResponseIfSuccessful));
                 assertNull(listener.response);
                 assertNotNull(listener.failure);
             }));
@@ -263,7 +252,7 @@ public class TransportWriteActionTests extends ESTestCase {
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
-        result.runPostReplicaActions(ActionListener.map(listener, ignore -> TransportResponse.Empty.INSTANCE));
+        result.runPostReplicaActions(listener.map(ignore -> TransportResponse.Empty.INSTANCE));
         assertNull(listener.response);
         assertNotNull(listener.failure);
     }

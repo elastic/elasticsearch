@@ -20,7 +20,7 @@ analyzer for indexing and search. It also lets you quickly see which analyzer
 applies to which field using the <<indices-get-mapping,get mapping API>>.
 
 If you don't typically create mappings for your indices, you can use
-<<indices-templates,index templates>> to achieve a similar effect.
+<<index-templates,index templates>> to achieve a similar effect.
 ====
 
 [[specify-index-time-analyzer]]

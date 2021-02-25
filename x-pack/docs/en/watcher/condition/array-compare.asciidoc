@@ -1,6 +1,9 @@
 [role="xpack"]
 [[condition-array-compare]]
-=== Array compare condition
+=== {watcher} array compare condition
+++++
+<titleabbrev>Array compare condition</titleabbrev>
+++++
 
 Use `array_compare` to compare an array of values in the execution context to a 
 given value. See <<condition-compare-operators>>

@@ -15,6 +15,12 @@ POST /_dangling/<index-uuid>?accept_data_loss=true
 --------------------------------------------------
 // TEST[skip:Difficult to set up]
 
+[[dangling-index-import-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[dangling-index-import-api-desc]]
 ==== {api-description-title}
 
@@ -42,7 +48,7 @@ cannot know where the dangling index data came from or determine which shard
 copies are fresh and which are stale, it cannot guarantee that the imported data
 represents the latest state of the index when it was last in the cluster.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[dangling-index-import-api-example]]
 ==== {api-examples-title}

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.builder;
@@ -542,7 +531,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Gets the bytes representing the sort builders for this request.
+     * Sets the sort builders for this request.
+     */
+    public SearchSourceBuilder sort(List<SortBuilder<?>> sorts) {
+        this.sorts = sorts;
+        return this;
+    }
+
+    /**
+     * Gets the sort builders for this request.
      */
     public List<SortBuilder<?>> sorts() {
         return sorts;
@@ -868,19 +865,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Adds a field to load and return as part of the search request.
      */
     public SearchSourceBuilder fetchField(String name) {
-        return fetchField(name, null);
+        return fetchField(new FieldAndFormat(name, null, null));
     }
 
     /**
      * Adds a field to load and return as part of the search request.
-     * @param name the field name.
-     * @param format an optional format string used when formatting values, for example a date format.
+     * @param fetchField defining the field name, optional format and optional inclusion of unmapped fields
      */
-    public SearchSourceBuilder fetchField(String name, @Nullable String format) {
+    public SearchSourceBuilder fetchField(FieldAndFormat fetchField) {
         if (fetchFields == null) {
             fetchFields = new ArrayList<>();
         }
-        fetchFields.add(new FieldAndFormat(name, format));
+        fetchFields.add(fetchField);
         return this;
     }
 
@@ -1271,7 +1267,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(SIZE_FIELD.getPreferredName(), size);
         }
 
-        if (timeout != null && !timeout.equals(TimeValue.MINUS_ONE)) {
+        if (timeout != null && timeout.equals(TimeValue.MINUS_ONE) == false) {
             builder.field(TIMEOUT_FIELD.getPreferredName(), timeout.getStringRep());
         }
 
@@ -1363,7 +1359,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(SLICE.getPreferredName(), sliceBuilder);
         }
 
-        if (!indexBoosts.isEmpty()) {
+        if (indexBoosts.isEmpty() == false) {
             builder.startArray(INDICES_BOOST_FIELD.getPreferredName());
             for (IndexBoost ib : indexBoosts) {
                 builder.startObject();

@@ -31,9 +31,8 @@ setup:
 ---
 "Test numeric terms agg with doc_count":
   - skip:
-      version: " - 7.99.99"
-      reason: "Doc count fields are only implemented in 8.0"
-
+      version: " - 7.10.99"
+      reason: "doc_count field has been added in 7.11"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -52,8 +51,8 @@ setup:
 ---
 "Test keyword terms agg with doc_count":
   - skip:
-      version: " - 7.99.99"
-      reason: "Doc count fields are only implemented in 8.0"
+      version: " - 7.10.99"
+      reason: "doc_count field has been added in 7.11"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -72,8 +71,8 @@ setup:
 
 "Test unmapped string terms agg with doc_count":
   - skip:
-      version: " - 7.99.99"
-      reason: "Doc count fields are only implemented in 8.0"
+      version: " - 7.10.99"
+      reason: "doc_count field has been added in 7.11"
   - do:
       bulk:
         index: test_2
@@ -97,8 +96,8 @@ setup:
 ---
 "Test composite str_terms agg with doc_count":
   - skip:
-      version: " - 7.99.99"
-      reason: "Doc count fields are only implemented in 8.0"
+      version: " - 7.10.99"
+      reason: "doc_count field has been added in 7.11"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -124,8 +123,8 @@ setup:
 ---
 "Test composite num_terms agg with doc_count":
   - skip:
-      version: " - 7.99.99"
-      reason: "Doc count fields are only implemented in 8.0"
+      version: " - 7.10.99"
+      reason: "doc_count field has been added in 7.11"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -148,3 +147,35 @@ setup:
   - match: { aggregations.composite_agg.buckets.2.key.num_terms: 500 }
   - match: { aggregations.composite_agg.buckets.2.doc_count: 11 }
 
+---
+"Test filters agg with doc_count":
+  - skip:
+      version: " - 7.11.1"
+      features: default_shards
+      reason: "fixed in 7.11.2"
+  - do:
+      search:
+        body:
+          profile: true
+          size: 0
+          aggs:
+            f:
+              filters:
+                filters:
+                  abc:
+                    match:
+                      str: abc
+                  foo:
+                    match:
+                      str: foo
+                  xyz:
+                    match:
+                      str: xyz
+
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.f.buckets: 3 }
+  - match: { aggregations.f.buckets.abc.doc_count: 11 }
+  - match: { aggregations.f.buckets.foo.doc_count: 8 }
+  - match: { aggregations.f.buckets.xyz.doc_count: 5 }
+  - match: { profile.shards.0.aggregations.0.type: FiltersAggregator.FilterByFilter }
+  - gte: { profile.shards.0.aggregations.0.debug.segments_with_doc_count: 1 }

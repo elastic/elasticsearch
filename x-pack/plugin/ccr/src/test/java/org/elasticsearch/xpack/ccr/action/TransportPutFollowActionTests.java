@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action;
@@ -22,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class TransportPutFollowActionTests extends ESTestCase {
 
     public void testCreateNewLocalDataStream() {
-        DataStream remoteDataStream = generateDataSteam("logs-foobar", 3);
+        DataStream remoteDataStream = generateDataSteam("logs-foobar", 3, false);
         Index backingIndexToFollow = remoteDataStream.getIndices().get(remoteDataStream.getIndices().size() - 1);
         DataStream result = TransportPutFollowAction.updateLocalDataStream(backingIndexToFollow, null, remoteDataStream);
         assertThat(result.getName(), equalTo(remoteDataStream.getName()));
@@ -33,8 +34,8 @@ public class TransportPutFollowActionTests extends ESTestCase {
     }
 
     public void testUpdateLocalDataStream_followNewBackingIndex() {
-        DataStream remoteDataStream = generateDataSteam("logs-foobar", 3);
-        DataStream localDataStream = generateDataSteam("logs-foobar", 2);
+        DataStream remoteDataStream = generateDataSteam("logs-foobar", 3, false);
+        DataStream localDataStream = generateDataSteam("logs-foobar", 2, true);
         Index backingIndexToFollow = remoteDataStream.getIndices().get(remoteDataStream.getIndices().size() - 1);
         DataStream result = TransportPutFollowAction.updateLocalDataStream(backingIndexToFollow, localDataStream, remoteDataStream);
         assertThat(result.getName(), equalTo(remoteDataStream.getName()));
@@ -48,8 +49,8 @@ public class TransportPutFollowActionTests extends ESTestCase {
 
     public void testUpdateLocalDataStream_followOlderBackingIndex() {
         // follow first backing index:
-        DataStream remoteDataStream = generateDataSteam("logs-foobar", 5);
-        DataStream localDataStream = generateDataSteam("logs-foobar", 5, DataStream.getDefaultBackingIndexName("logs-foobar", 5));
+        DataStream remoteDataStream = generateDataSteam("logs-foobar", 5, false);
+        DataStream localDataStream = generateDataSteam("logs-foobar", 5, true, DataStream.getDefaultBackingIndexName("logs-foobar", 5));
         Index backingIndexToFollow = remoteDataStream.getIndices().get(0);
         DataStream result = TransportPutFollowAction.updateLocalDataStream(backingIndexToFollow, localDataStream, remoteDataStream);
         assertThat(result.getName(), equalTo(remoteDataStream.getName()));
@@ -72,19 +73,19 @@ public class TransportPutFollowActionTests extends ESTestCase {
         assertThat(result.getIndices().get(2).getName(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 5)));
     }
 
-    static DataStream generateDataSteam(String name, int numBackingIndices) {
+    static DataStream generateDataSteam(String name, int numBackingIndices, boolean replicate) {
         List<Index> backingIndices = IntStream.range(1, numBackingIndices + 1)
             .mapToObj(value -> DataStream.getDefaultBackingIndexName(name, value))
             .map(value -> new Index(value, "uuid"))
             .collect(Collectors.toList());
-        return new DataStream(name, new TimestampField("@timestamp"), backingIndices);
+        return new DataStream(name, new TimestampField("@timestamp"), backingIndices, backingIndices.size(), Map.of(), false, replicate);
     }
 
-    static DataStream generateDataSteam(String name, int generation, String... backingIndexNames) {
+    static DataStream generateDataSteam(String name, int generation, boolean replicate, String... backingIndexNames) {
         List<Index> backingIndices = Arrays.stream(backingIndexNames)
             .map(value -> new Index(value, "uuid"))
             .collect(Collectors.toList());
-        return new DataStream(name, new TimestampField("@timestamp"), backingIndices, generation, Map.of());
+        return new DataStream(name, new TimestampField("@timestamp"), backingIndices, generation, Map.of(), false, replicate);
     }
 
 }

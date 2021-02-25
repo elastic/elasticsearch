@@ -62,6 +62,7 @@ A successful call returns an object with "cluster" and "index" fields.
 {
   "cluster" : [
     "all",
+    "cancel_task",
     "create_snapshot",
     "delegate_pki",
     "grant_api_key",
@@ -91,11 +92,13 @@ A successful call returns an object with "cluster" and "index" fields.
     "monitor_ml",
     "monitor_rollup",
     "monitor_snapshot",
+    "monitor_text_structure",
     "monitor_transform",
     "monitor_watcher",
     "none",
     "read_ccr",
     "read_ilm",
+    "read_pipeline",
     "read_slm",
     "transport_client"
   ],

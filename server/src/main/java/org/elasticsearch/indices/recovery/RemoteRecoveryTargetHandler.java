@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.recovery;
@@ -30,7 +19,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
@@ -107,8 +96,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         final RecoveryPrepareForTranslogOperationsRequest request =
             new RecoveryPrepareForTranslogOperationsRequest(recoveryId, requestSeqNo, shardId, totalTranslogOps);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
-        final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-        executeRetryableAction(action, request, standardTimeoutRequestOptions, responseListener, reader);
+        executeRetryableAction(action, request, standardTimeoutRequestOptions, listener.map(r -> null), reader);
     }
 
     @Override
@@ -118,9 +106,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         final RecoveryFinalizeRecoveryRequest request =
             new RecoveryFinalizeRecoveryRequest(recoveryId, requestSeqNo, shardId, globalCheckpoint, trimAboveSeqNo);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
-        final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
         executeRetryableAction(action, request, TransportRequestOptions.timeout(recoverySettings.internalActionLongTimeout()),
-                responseListener, reader);
+                listener.map(r -> null), reader);
     }
 
     @Override
@@ -129,7 +116,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             targetNode, PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT,
             new RecoveryHandoffPrimaryContextRequest(recoveryId, shardId, primaryContext),
             standardTimeoutRequestOptions,
-            new ActionListenerResponseHandler<>(ActionListener.map(listener, r -> null), in -> TransportResponse.Empty.INSTANCE,
+            new ActionListenerResponseHandler<>(listener.map(r -> null), in -> TransportResponse.Empty.INSTANCE,
                     ThreadPool.Names.GENERIC));
     }
 
@@ -155,8 +142,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                 retentionLeases,
                 mappingVersionOnPrimary);
         final Writeable.Reader<RecoveryTranslogOperationsResponse> reader = RecoveryTranslogOperationsResponse::new;
-        final ActionListener<RecoveryTranslogOperationsResponse> responseListener = ActionListener.map(listener, r -> r.localCheckpoint);
-        executeRetryableAction(action, request, translogOpsRequestOptions, responseListener, reader);
+        executeRetryableAction(action, request, translogOpsRequestOptions, listener.map(r -> r.localCheckpoint), reader);
     }
 
     @Override
@@ -167,8 +153,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         RecoveryFilesInfoRequest request = new RecoveryFilesInfoRequest(recoveryId, requestSeqNo, shardId, phase1FileNames, phase1FileSizes,
             phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
-        final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-        executeRetryableAction(action, request, standardTimeoutRequestOptions, responseListener, reader);
+        executeRetryableAction(action, request, standardTimeoutRequestOptions, listener.map(r -> null), reader);
     }
 
     @Override
@@ -179,12 +164,12 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         final RecoveryCleanFilesRequest request =
             new RecoveryCleanFilesRequest(recoveryId, requestSeqNo, shardId, sourceMetadata, totalTranslogOps, globalCheckpoint);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
-        final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-        executeRetryableAction(action, request, standardTimeoutRequestOptions, responseListener, reader);
+        final ActionListener<TransportResponse.Empty> responseListener = listener.map(r -> null);
+        executeRetryableAction(action, request, TransportRequestOptions.EMPTY, responseListener, reader);
     }
 
     @Override
-    public void writeFileChunk(StoreFileMetadata fileMetadata, long position, BytesReference content,
+    public void writeFileChunk(StoreFileMetadata fileMetadata, long position, ReleasableBytesReference content,
                                boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
         // Pause using the rate limiter, if desired, to throttle the recovery
         final long throttleTimeInNanos;
@@ -217,7 +202,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         final RecoveryFileChunkRequest request = new RecoveryFileChunkRequest(
             recoveryId, requestSeqNo, shardId, fileMetadata, position, content, lastChunk, totalTranslogOps, throttleTimeInNanos);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
-        executeRetryableAction(action, request, fileChunkRequestOptions, ActionListener.map(listener, r -> null), reader);
+        executeRetryableAction(action, request, fileChunkRequestOptions, listener.map(r -> null), reader);
     }
 
     @Override

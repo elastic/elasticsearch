@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 
@@ -55,7 +56,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
     public void testSparseVectorWith8xIndex() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .build();
 
         IndexService indexService = createIndex("index", settings);
@@ -79,7 +80,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
     public void testSparseVectorWith7xIndex() throws Exception {
         Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .build();
 
         IndexService indexService = createIndex("index", settings);

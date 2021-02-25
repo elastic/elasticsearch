@@ -1,6 +1,9 @@
 [role="xpack"]
 [[schedule-hourly]]
-==== Hourly schedule
+==== {watcher} hourly schedule
+++++
+<titleabbrev>Hourly schedule</titleabbrev>
+++++
 
 A <<trigger-schedule,`schedule`>> that triggers at a particular minute every
 hour of the day. To use the `hourly` schedule, you specify the minute (or minutes)

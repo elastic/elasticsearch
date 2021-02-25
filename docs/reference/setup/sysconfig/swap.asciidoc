@@ -87,10 +87,15 @@ Elasticsearch doesn't have permission to lock memory.  This can be granted as
 follows:
 
 `.zip` and `.tar.gz`::
-
-  Set <<ulimit,`ulimit -l unlimited`>> as root before starting Elasticsearch,
-  or set `memlock` to `unlimited` in
-  <<limits.conf,`/etc/security/limits.conf`>>.
+Set <<ulimit,`ulimit -l unlimited`>> as root before starting {es}.
+Alternatively, set `memlock` to `unlimited` in `/etc/security/limits.conf`:
++
+[source,sh]
+----
+# allow user 'elasticsearch' mlockall
+elasticsearch soft memlock unlimited
+elasticsearch hard memlock unlimited
+----
 
 RPM and Debian::
 

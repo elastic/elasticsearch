@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security;
 
@@ -17,6 +18,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -38,6 +40,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
@@ -104,9 +107,9 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappin
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
+import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
-import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
@@ -171,9 +174,9 @@ import org.elasticsearch.xpack.security.action.rolemapping.TransportDeleteRoleMa
 import org.elasticsearch.xpack.security.action.rolemapping.TransportGetRoleMappingsAction;
 import org.elasticsearch.xpack.security.action.rolemapping.TransportPutRoleMappingAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlAuthenticateAction;
+import org.elasticsearch.xpack.security.action.saml.TransportSamlCompleteLogoutAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlInvalidateSessionAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlLogoutAction;
-import org.elasticsearch.xpack.security.action.saml.TransportSamlCompleteLogoutAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlSpMetadataAction;
 import org.elasticsearch.xpack.security.action.token.TransportCreateTokenAction;
@@ -214,10 +217,14 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
+import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
+import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
-import org.elasticsearch.xpack.security.rest.action.apikey.RestClearApiKeyCacheAction;
 import org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestClearApiKeyCacheAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestCreateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestGrantApiKeyAction;
@@ -241,9 +248,9 @@ import org.elasticsearch.xpack.security.rest.action.rolemapping.RestDeleteRoleMa
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestGetRoleMappingsAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestPutRoleMappingAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlAuthenticateAction;
+import org.elasticsearch.xpack.security.rest.action.saml.RestSamlCompleteLogoutAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlInvalidateSessionAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlLogoutAction;
-import org.elasticsearch.xpack.security.rest.action.saml.RestSamlCompleteLogoutAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlSpMetadataAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordAction;
@@ -253,8 +260,8 @@ import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
-import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
+import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityStatusChangeListener;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
@@ -265,6 +272,8 @@ import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTra
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioHttpServerTransport;
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -287,10 +296,16 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7;
+import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_TOKENS_INDEX_FORMAT;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
 
 public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
@@ -298,6 +313,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
 
     private static final Logger logger = LogManager.getLogger(Security.class);
+
+    public static final SystemIndexDescriptor SECURITY_MAIN_INDEX_DESCRIPTOR = getSecurityMainIndexDescriptor();
+    public static final SystemIndexDescriptor SECURITY_TOKEN_INDEX_DESCRIPTOR = getSecurityTokenIndexDescriptor();
 
     private final Settings settings;
     private final boolean enabled;
@@ -404,10 +422,18 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
-        securityIndex.set(SecurityIndexManager.buildSecurityMainIndexManager(client, clusterService));
+        securityIndex.set(SecurityIndexManager.buildSecurityIndexManager(client, clusterService, SECURITY_MAIN_INDEX_DESCRIPTOR));
 
-        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, getLicenseState(), securityContext.get(),
-            securityIndex.get(), SecurityIndexManager.buildSecurityTokensIndexManager(client, clusterService), clusterService);
+        final TokenService tokenService = new TokenService(
+            settings,
+            Clock.systemUTC(),
+            client,
+            getLicenseState(),
+            securityContext.get(),
+            securityIndex.get(),
+            SecurityIndexManager.buildSecurityIndexManager(client, clusterService, SECURITY_TOKEN_INDEX_DESCRIPTOR),
+            clusterService
+        );
         this.tokenService.set(tokenService);
         components.add(tokenService);
 
@@ -473,8 +499,17 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         getLicenseState().addListener(new SecurityStatusChangeListener(getLicenseState()));
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
+        final OperatorPrivilegesService operatorPrivilegesService;
+        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings);
+        if (operatorPrivilegesEnabled) {
+            operatorPrivilegesService = new OperatorPrivileges.DefaultOperatorPrivilegesService(getLicenseState(),
+                new FileOperatorUsersStore(environment, resourceWatcherService),
+                new OperatorOnlyRegistry(clusterService.getClusterSettings()));
+        } else {
+            operatorPrivilegesService = OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
+        }
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
-                anonymousUser, tokenService, apiKeyService));
+                anonymousUser, tokenService, apiKeyService, operatorPrivilegesService));
         components.add(authcService.get());
         securityIndex.get().addIndexStateListener(authcService.get()::onSecurityIndexStateChange);
 
@@ -492,7 +527,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
             auditTrailService, failureHandler, threadPool, anonymousUser, getAuthorizationEngine(), requestInterceptors,
-            getLicenseState(), expressionResolver);
+            getLicenseState(), expressionResolver, operatorPrivilegesService);
 
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions
@@ -509,7 +544,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(),
                 authzService, getLicenseState(), getSslService(), securityContext.get(), destructiveOperations, clusterService));
 
-        securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, getLicenseState(),
+        securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, auditTrailService, getLicenseState(),
             threadPool, securityContext.get(), destructiveOperations));
 
         components.add(new SecurityUsageServices(realms, allRolesStore, nativeRoleMappingStore, ipFilter.get()));
@@ -673,6 +708,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         settingsList.add(ApiKeyService.DOC_CACHE_TTL_SETTING);
         settingsList.add(NativePrivilegeStore.CACHE_MAX_APPLICATIONS_SETTING);
         settingsList.add(NativePrivilegeStore.CACHE_TTL_SETTING);
+        settingsList.add(OPERATOR_PRIVILEGES_ENABLED);
 
         // hide settings
         settingsList.add(Setting.listSetting(SecurityField.setting("hide_settings"), Collections.emptyList(), Function.identity(),
@@ -716,7 +752,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 assert dlsBitsetCache.get() != null;
                 module.setReaderWrapper(indexService ->
                         new SecurityIndexReaderWrapper(
-                                shardId -> indexService.newQueryShardContext(shardId.id(),
+                                shardId -> indexService.newSearchExecutionContext(shardId.id(),
+                                0,
                                 // we pass a null index reader, which is legal and will disable rewrite optimizations
                                 // based on index statistics, which is probably safer...
                                 null,
@@ -1050,7 +1087,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return templates -> {
             // .security index is not managed by using templates anymore
-            templates.remove(SECURITY_MAIN_TEMPLATE_7);
             templates.remove("security_audit_log");
             return templates;
         };
@@ -1143,15 +1179,607 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         }
      }
 
+     private static SystemIndexDescriptor getSecurityMainIndexDescriptor() {
+         return SystemIndexDescriptor.builder()
+             // This can't just be `.security-*` because that would overlap with the tokens index pattern
+             .setIndexPattern(".security-[0-9]+")
+             .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
+             .setDescription("Contains Security configuration")
+             .setMappings(getIndexMappings())
+             .setSettings(getIndexSettings())
+             .setAliasName(SECURITY_MAIN_ALIAS)
+             .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
+             .setVersionMetaKey("security-version")
+             .setOrigin(SECURITY_ORIGIN)
+             .build();
+     }
+
+     private static SystemIndexDescriptor getSecurityTokenIndexDescriptor() {
+         return SystemIndexDescriptor.builder()
+             .setIndexPattern(".security-tokens-[0-9]+")
+             .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7)
+             .setDescription("Contains auth token data")
+             .setMappings(getTokenIndexMappings())
+             .setSettings(getTokenIndexSettings())
+             .setAliasName(SECURITY_TOKENS_ALIAS)
+             .setIndexFormat(INTERNAL_TOKENS_INDEX_FORMAT)
+             .setVersionMetaKey(SECURITY_VERSION_STRING)
+             .setOrigin(SECURITY_ORIGIN)
+             .build();
+     }
+
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return List.of(
-            new SystemIndexDescriptor(SECURITY_MAIN_ALIAS, "Contains Security configuration"),
-            new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, "Contains Security configuration"),
-            new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7, "Contains Security configuration"),
+        return List.of(SECURITY_MAIN_INDEX_DESCRIPTOR, SECURITY_TOKEN_INDEX_DESCRIPTOR);
+    }
 
-            new SystemIndexDescriptor(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, "Contains auth token data"),
-            new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7, "Contains auth token data")
-        );
+    private static Settings getIndexSettings() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            .put(IndexMetadata.SETTING_PRIORITY, 1000)
+            .put("index.refresh_interval", "1s")
+            .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT)
+            .put("analysis.filter.email.type", "pattern_capture")
+            .put("analysis.filter.email.preserve_original", true)
+            .putList("analysis.filter.email.patterns", List.of("([^@]+)", "(\\p{L}+)", "(\\d+)", "@(.+)"))
+            .put("analysis.analyzer.email.tokenizer", "uax_url_email")
+            .putList("analysis.analyzer.email.filter", List.of("email", "lowercase", "unique"))
+            .build();
+    }
+
+    private static XContentBuilder getIndexMappings() {
+        try {
+            final XContentBuilder builder = jsonBuilder();
+            builder.startObject();
+            {
+                builder.startObject("_meta");
+                builder.field(SECURITY_VERSION_STRING, Version.CURRENT.toString());
+                builder.endObject();
+
+                builder.field("dynamic", "strict");
+                builder.startObject("properties");
+                {
+                    builder.startObject("username");
+                    builder.field("type", "keyword");
+                    builder.endObject();
+
+                    builder.startObject("roles");
+                    builder.field("type", "keyword");
+                    builder.endObject();
+
+                    builder.startObject("role_templates");
+                    {
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("template");
+                            builder.field("type", "text");
+                            builder.endObject();
+
+                            builder.startObject("format");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
+                    builder.startObject("password");
+                    builder.field("type", "keyword");
+                    builder.field("index", false);
+                    builder.field("doc_values", false);
+                    builder.endObject();
+
+                    builder.startObject("full_name");
+                    builder.field("type", "text");
+                    builder.endObject();
+
+                    builder.startObject("email");
+                    builder.field("type", "text");
+                    builder.field("analyzer", "email");
+                    builder.endObject();
+
+                    builder.startObject("metadata");
+                    builder.field("type", "object");
+                    builder.field("dynamic", false);
+                    builder.endObject();
+
+                    builder.startObject("enabled");
+                    builder.field("type", "boolean");
+                    builder.endObject();
+
+                    builder.startObject("cluster");
+                    builder.field("type", "keyword");
+                    builder.endObject();
+
+                    builder.startObject("indices");
+                    {
+                        builder.field("type", "object");
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("field_security");
+                            {
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("grant");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+
+                                    builder.startObject("except");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+
+                            builder.startObject("names");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("privileges");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("query");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("allow_restricted_indices");
+                            builder.field("type", "boolean");
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
+                    builder.startObject("applications");
+                    {
+                        builder.field("type", "object");
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("application");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("privileges");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("resources");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
+                    builder.startObject("application");
+                    builder.field("type", "keyword");
+                    builder.endObject();
+
+                    builder.startObject("global");
+                    {
+                        builder.field("type", "object");
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("application");
+                            {
+                                builder.field("type", "object");
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("manage");
+                                    {
+                                        builder.field("type", "object");
+                                        builder.startObject("properties");
+                                        {
+                                            builder.startObject("applications");
+                                            builder.field("type", "keyword");
+                                            builder.endObject();
+                                        }
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
+                    builder.startObject("name");
+                    builder.field("type", "keyword");
+                    builder.endObject();
+
+                    builder.startObject("run_as");
+                    builder.field("type", "keyword");
+                    builder.endObject();
+
+                    builder.startObject("doc_type");
+                    builder.field("type", "keyword");
+                    builder.endObject();
+
+                    builder.startObject("type");
+                    builder.field("type", "keyword");
+                    builder.endObject();
+
+                    builder.startObject("actions");
+                    builder.field("type", "keyword");
+                    builder.endObject();
+
+                    builder.startObject("expiration_time");
+                    builder.field("type", "date");
+                    builder.field("format", "epoch_millis");
+                    builder.endObject();
+
+                    builder.startObject("creation_time");
+                    builder.field("type", "date");
+                    builder.field("format", "epoch_millis");
+                    builder.endObject();
+
+                    builder.startObject("api_key_hash");
+                    builder.field("type", "keyword");
+                    builder.field("index", false);
+                    builder.field("doc_values", false);
+                    builder.endObject();
+
+                    builder.startObject("api_key_invalidated");
+                    builder.field("type", "boolean");
+                    builder.endObject();
+
+                    builder.startObject("role_descriptors");
+                    builder.field("type", "object");
+                    builder.field("enabled", false);
+                    builder.endObject();
+
+                    builder.startObject("limited_by_role_descriptors");
+                    builder.field("type", "object");
+                    builder.field("enabled", false);
+                    builder.endObject();
+
+                    builder.startObject("version");
+                    builder.field("type", "integer");
+                    builder.endObject();
+
+                    builder.startObject("creator");
+                    {
+                        builder.field("type", "object");
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("principal");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("full_name");
+                            builder.field("type", "text");
+                            builder.endObject();
+
+                            builder.startObject("email");
+                            builder.field("type", "text");
+                            builder.field("analyzer", "email");
+                            builder.endObject();
+
+                            builder.startObject("metadata");
+                            builder.field("type", "object");
+                            builder.field("dynamic", false);
+                            builder.endObject();
+
+                            builder.startObject("realm");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("realm_type");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
+                    builder.startObject("rules");
+                    builder.field("type", "object");
+                    builder.field("dynamic", false);
+                    builder.endObject();
+
+                    builder.startObject("refresh_token");
+                    {
+                        builder.field("type", "object");
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("token");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("refreshed");
+                            builder.field("type", "boolean");
+                            builder.endObject();
+
+                            builder.startObject("refresh_time");
+                            builder.field("type", "date");
+                            builder.field("format", "epoch_millis");
+                            builder.endObject();
+
+                            builder.startObject("superseding");
+                            {
+                                builder.field("type", "object");
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("encrypted_tokens");
+                                    builder.field("type", "binary");
+                                    builder.endObject();
+
+                                    builder.startObject("encryption_iv");
+                                    builder.field("type", "binary");
+                                    builder.endObject();
+
+                                    builder.startObject("encryption_salt");
+                                    builder.field("type", "binary");
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+
+                            builder.startObject("invalidated");
+                            builder.field("type", "boolean");
+                            builder.endObject();
+
+                            builder.startObject("client");
+                            {
+                                builder.field("type", "object");
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("type");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+
+                                    builder.startObject("user");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+
+                                    builder.startObject("realm");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
+                    builder.startObject("access_token");
+                    {
+                        builder.field("type", "object");
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("user_token");
+                            {
+                                builder.field("type", "object");
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("id");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+
+                                    builder.startObject("expiration_time");
+                                    builder.field("type", "date");
+                                    builder.field("format", "epoch_millis");
+                                    builder.endObject();
+
+                                    builder.startObject("version");
+                                    builder.field("type", "integer");
+                                    builder.endObject();
+
+                                    builder.startObject("metadata");
+                                    builder.field("type", "object");
+                                    builder.field("dynamic", false);
+                                    builder.endObject();
+
+                                    builder.startObject("authentication");
+                                    builder.field("type", "binary");
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+
+                            builder.startObject("invalidated");
+                            builder.field("type", "boolean");
+                            builder.endObject();
+
+                            builder.startObject("realm");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+
+            return builder;
+        } catch (IOException e) {
+            logger.fatal("Failed to build " + RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7 + " index mappings", e);
+            throw new UncheckedIOException(
+                "Failed to build " + RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7 + " index mappings", e);
+        }
+    }
+
+    private static Settings getTokenIndexSettings() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            .put(IndexMetadata.SETTING_PRIORITY, 1000)
+            .put("index.refresh_interval", "1s")
+            .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_TOKENS_INDEX_FORMAT)
+            .build();
+    }
+
+
+    private static XContentBuilder getTokenIndexMappings() {
+        try {
+            final XContentBuilder builder = jsonBuilder();
+
+            builder.startObject();
+            {
+                builder.startObject("_meta");
+                builder.field(SECURITY_VERSION_STRING, Version.CURRENT);
+                builder.endObject();
+
+                builder.field("dynamic", "strict");
+                builder.startObject("properties");
+                {
+                    builder.startObject("doc_type");
+                    builder.field("type", "keyword");
+                    builder.endObject();
+
+                    builder.startObject("creation_time");
+                    builder.field("type", "date");
+                    builder.field("format", "epoch_millis");
+                    builder.endObject();
+
+                    builder.startObject("refresh_token");
+                    {
+                        builder.field("type", "object");
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("token");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("refreshed");
+                            builder.field("type", "boolean");
+                            builder.endObject();
+
+                            builder.startObject("refresh_time");
+                            builder.field("type", "date");
+                            builder.field("format", "epoch_millis");
+                            builder.endObject();
+
+                            builder.startObject("superseding");
+                            {
+                                builder.field("type", "object");
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("encrypted_tokens");
+                                    builder.field("type", "binary");
+                                    builder.endObject();
+
+                                    builder.startObject("encryption_iv");
+                                    builder.field("type", "binary");
+                                    builder.endObject();
+
+                                    builder.startObject("encryption_salt");
+                                    builder.field("type", "binary");
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+
+                            builder.startObject("invalidated");
+                            builder.field("type", "boolean");
+                            builder.endObject();
+
+                            builder.startObject("client");
+                            {
+                                builder.field("type", "object");
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("type");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+
+                                    builder.startObject("user");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+
+                                    builder.startObject("realm");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
+                    builder.startObject("access_token");
+                    {
+                        builder.field("type", "object");
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("user_token");
+                            {
+                                builder.field("type", "object");
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("id");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+
+                                    builder.startObject("expiration_time");
+                                    builder.field("type", "date");
+                                    builder.field("format", "epoch_millis");
+                                    builder.endObject();
+
+                                    builder.startObject("version");
+                                    builder.field("type", "integer");
+                                    builder.endObject();
+
+                                    builder.startObject("metadata");
+                                    builder.field("type", "object");
+                                    builder.field("dynamic", false);
+                                    builder.endObject();
+
+                                    builder.startObject("authentication");
+                                    builder.field("type", "binary");
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+
+                            builder.startObject("invalidated");
+                            builder.field("type", "boolean");
+                            builder.endObject();
+
+                            builder.startObject("realm");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+
+            builder.endObject();
+            return builder;
+        } catch (IOException e) {
+            throw new UncheckedIOException(
+                "Failed to build " + RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7 + " index mappings", e);
+        }
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "security";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages configuration for Security features, such as users and roles";
     }
 }

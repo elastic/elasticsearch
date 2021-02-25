@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.datastreams.rest;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -33,6 +35,7 @@ public class RestDataStreamsStatsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         DataStreamsStatsAction.Request dataStreamsStatsRequest = new DataStreamsStatsAction.Request();
         dataStreamsStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("name")));
+        dataStreamsStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, dataStreamsStatsRequest.indicesOptions()));
         return channel -> client.execute(DataStreamsStatsAction.INSTANCE, dataStreamsStatsRequest, new RestToXContentListener<>(channel));
     }
 }

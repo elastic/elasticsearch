@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.search.action;
@@ -61,6 +62,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         TransportActionProxy.registerProxyAction(
             transportService,
             OPEN_SHARD_READER_CONTEXT_NAME,
+            false,
             TransportOpenPointInTimeAction.ShardOpenReaderResponse::new
         );
     }
@@ -92,7 +94,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     new ActionListenerResponseHandler<SearchPhaseResult>(phaseListener, ShardOpenReaderResponse::new)
                 );
             },
-            ActionListener.map(listener, r -> {
+            listener.map(r -> {
                 assert r.pointInTimeId() != null : r;
                 return new OpenPointInTimeResponse(r.pointInTimeId());
             })
@@ -162,10 +164,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             searchService.openReaderContext(
                 request.getShardId(),
                 request.keepAlive,
-                ActionListener.map(
-                    new ChannelActionListener<>(channel, OPEN_SHARD_READER_CONTEXT_NAME, request),
-                    ShardOpenReaderResponse::new
-                )
+                new ChannelActionListener<>(channel, OPEN_SHARD_READER_CONTEXT_NAME, request).map(ShardOpenReaderResponse::new)
             );
         }
     }

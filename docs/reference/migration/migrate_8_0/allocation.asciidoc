@@ -1,6 +1,6 @@
 [discrete]
 [[breaking_80_allocation_changes]]
-=== Allocation changes
+==== Allocation changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide

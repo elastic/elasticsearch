@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -48,7 +37,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.MapStringTermsAggregat
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -106,8 +94,8 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
+    protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection.
@@ -131,7 +119,9 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             context.lookup().source(),
             context.bigArrays(),
             fieldType,
-            searchContext.getQueryShardContext().getIndexAnalyzer(),
+            context.getIndexAnalyzer(f -> {
+                throw new IllegalArgumentException("No analyzer configured for field " + f);
+            }),
             sourceFieldNames,
             filterDuplicateText
         );
@@ -145,7 +135,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             DocValueFormat.RAW,
             bucketCountThresholds,
             incExcFilter,
-            searchContext,
+            context,
             parent,
             SubAggCollectionMode.BREADTH_FIRST,
             false,

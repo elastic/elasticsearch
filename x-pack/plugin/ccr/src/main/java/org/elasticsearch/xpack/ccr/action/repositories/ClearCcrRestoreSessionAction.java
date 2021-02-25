@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action.repositories;
@@ -36,7 +37,7 @@ public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empt
         public TransportDeleteCcrRestoreSessionAction(ActionFilters actionFilters, TransportService transportService,
                                                       CcrRestoreSourceService ccrRestoreService) {
             super(NAME, transportService, actionFilters, ClearCcrRestoreSessionRequest::new, ThreadPool.Names.GENERIC);
-            TransportActionProxy.registerProxyAction(transportService, NAME, in -> ActionResponse.Empty.INSTANCE);
+            TransportActionProxy.registerProxyAction(transportService, NAME, false, in -> ActionResponse.Empty.INSTANCE);
             this.ccrRestoreService = ccrRestoreService;
         }
 

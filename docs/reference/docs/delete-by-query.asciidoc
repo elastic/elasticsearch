@@ -49,6 +49,16 @@ POST /my-index-000001/_delete_by_query
 
 `POST /<target>/_delete_by_query`
 
+[[docs-delete-by-query-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the following
+<<privileges-list-indices,index privileges>> for the target data stream, index,
+or index alias:
+
+** `read`
+** `delete` or `write`
+
 [[docs-delete-by-query-api-desc]]
 ==== {api-description-title}
 
@@ -213,7 +223,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll_size]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_timeout]
+`search_timeout`::
+(Optional, <<time-units, time units>>)
+Explicit timeout for each search request.
+Defaults to no timeout.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=slices]
 
@@ -229,7 +242,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=stats]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period each deletion request <<index-wait-for-active-shards,waits for active
+shards>>. Defaults to `1m` (one minute).
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version]
 
@@ -558,7 +574,7 @@ sub-request proportionally.
 portion of the documents. All documents will be addressed, but some slices may
 be larger than others. Expect larger slices to have a more even distribution.
 * Parameters like `requests_per_second` and `max_docs` on a request with
-slices` are distributed proportionally to each sub-request. Combine that with
+`slices` are distributed proportionally to each sub-request. Combine that with
 the point above about distribution being uneven and you should conclude that
 using `max_docs` with `slices` might not result in exactly `max_docs` documents
 being deleted.

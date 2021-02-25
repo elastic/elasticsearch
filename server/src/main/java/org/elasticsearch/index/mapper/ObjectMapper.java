@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -24,6 +13,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -50,13 +40,27 @@ public class ObjectMapper extends Mapper implements Cloneable {
     public static class Defaults {
         public static final boolean ENABLED = true;
         public static final Nested NESTED = Nested.NO;
-        public static final Dynamic DYNAMIC = null; // not set, inherited from root
     }
 
     public enum Dynamic {
-        TRUE,
+        TRUE {
+            @Override
+            DynamicFieldsBuilder getDynamicFieldsBuilder() {
+                return DynamicFieldsBuilder.DYNAMIC_TRUE;
+            }
+        },
         FALSE,
-        STRICT
+        STRICT,
+        RUNTIME {
+            @Override
+            DynamicFieldsBuilder getDynamicFieldsBuilder() {
+                return DynamicFieldsBuilder.DYNAMIC_RUNTIME;
+            }
+        };
+
+        DynamicFieldsBuilder getDynamicFieldsBuilder() {
+            throw new UnsupportedOperationException("Cannot create dynamic fields when dynamic is set to [" + this + "]");
+        };
     }
 
     public static class Nested {
@@ -83,7 +87,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         public void merge(Nested mergeWith, MergeReason reason) {
             if (isNested()) {
-                if (!mergeWith.isNested()) {
+                if (mergeWith.isNested() == false) {
                     throw new IllegalArgumentException("cannot change object mapping from nested to non-nested");
                 }
             } else {
@@ -136,7 +140,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         protected Nested nested = Defaults.NESTED;
 
-        protected Dynamic dynamic = Defaults.DYNAMIC;
+        protected Dynamic dynamic;
 
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
         protected final Version indexCreatedVersion;
@@ -193,7 +197,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        @SuppressWarnings("rawtypes")
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ObjectMapper.Builder builder = new Builder(name, parserContext.indexVersionCreated());
             parseNested(name, node, builder);
@@ -215,6 +218,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 String value = fieldNode.toString();
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
+                }  else if (value.equalsIgnoreCase("runtime")) {
+                    builder.dynamic(Dynamic.RUNTIME);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
                     builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);
@@ -226,21 +231,20 @@ public class ObjectMapper extends Mapper implements Cloneable {
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
                     // nothing to do here, empty (to support "properties: []" case)
-                } else if (!(fieldNode instanceof Map)) {
+                } else if ((fieldNode instanceof Map) == false) {
                     throw new ElasticsearchParseException("properties must be a map type");
                 } else {
                     parseProperties(builder, (Map<String, Object>) fieldNode, parserContext);
                 }
                 return true;
             } else if (fieldName.equals("include_in_all")) {
-                deprecationLogger.deprecate("include_in_all",
+                deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "include_in_all",
                     "[include_in_all] is deprecated, the _all field have been removed in this version");
                 return true;
             }
             return false;
         }
 
-        @SuppressWarnings("rawtypes")
         protected static void parseNested(String name, Map<String, Object> node, ObjectMapper.Builder builder) {
             boolean nested = false;
             Explicit<Boolean> nestedIncludeInParent = new Explicit<>(false, false);
@@ -274,7 +278,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
         }
 
-        @SuppressWarnings("rawtypes")
         protected static void parseProperties(ObjectMapper.Builder objBuilder, Map<String, Object> propsNode, ParserContext parserContext) {
             Iterator<Map.Entry<String, Object>> iterator = propsNode.entrySet().iterator();
             while (iterator.hasNext()) {
@@ -321,7 +324,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
                     objBuilder.add(fieldBuilder);
                     propNode.remove("type");
-                    DocumentMapperParser.checkNoRemainingFields(fieldName, propNode, parserContext.indexVersionCreated());
+                    MappingParser.checkNoRemainingFields(fieldName, propNode);
                     iterator.remove();
                 } else if (isEmptyList) {
                     iterator.remove();
@@ -331,11 +334,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
             }
 
-            DocumentMapperParser.checkNoRemainingFields(propsNode, parserContext.indexVersionCreated(),
-                    "DocType mapping definition has unsupported parameters: ");
-
+            MappingParser.checkNoRemainingFields(propsNode, "DocType mapping definition has unsupported parameters: ");
         }
-
     }
 
     private final String fullPath;
@@ -386,13 +386,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return clone;
     }
 
+    ObjectMapper copyAndReset() {
+        ObjectMapper copy = clone();
+        // reset the sub mappers
+        copy.mappers = new CopyOnWriteHashMap<>();
+        return copy;
+    }
+
     /**
      * Build a mapping update with the provided sub mapping update.
      */
-    public ObjectMapper mappingUpdate(Mapper mapper) {
-        ObjectMapper mappingUpdate = clone();
-        // reset the sub mappers
-        mappingUpdate.mappers = new CopyOnWriteHashMap<>();
+    final ObjectMapper mappingUpdate(Mapper mapper) {
+        ObjectMapper mappingUpdate = copyAndReset();
         mappingUpdate.putMapper(mapper);
         return mappingUpdate;
     }
@@ -457,7 +462,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     public ObjectMapper merge(Mapper mergeWith, MergeReason reason) {
-        if (!(mergeWith instanceof ObjectMapper)) {
+        if ((mergeWith instanceof ObjectMapper) == false) {
             throw new IllegalArgumentException("can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping");
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
@@ -473,12 +478,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
             this.dynamic = mergeWith.dynamic;
         }
 
-        if (reason == MergeReason.INDEX_TEMPLATE) {
-            if (mergeWith.enabled.explicit()) {
+        if (mergeWith.enabled.explicit()) {
+            if (reason == MergeReason.INDEX_TEMPLATE) {
                 this.enabled = mergeWith.enabled;
+            } else if (isEnabled() != mergeWith.isEnabled()){
+                throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
             }
-        } else if (isEnabled() != mergeWith.isEnabled()) {
-            throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
         }
 
         for (Mapper mergeWithMapper : mergeWith) {
@@ -515,7 +520,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return builder;
     }
 
-    public void toXContent(XContentBuilder builder, Params params, ToXContent custom) throws IOException {
+    void toXContent(XContentBuilder builder, Params params, ToXContent custom) throws IOException {
         builder.startObject(simpleName());
         if (nested.isNested()) {
             builder.field("type", NESTED_CONTENT_TYPE);
@@ -543,17 +548,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
         doXContent(builder, params);
 
         // sort the mappers so we get consistent serialization format
-        Mapper[] sortedMappers = mappers.values().stream().toArray(size -> new Mapper[size]);
-        Arrays.sort(sortedMappers, new Comparator<Mapper>() {
-            @Override
-            public int compare(Mapper o1, Mapper o2) {
-                return o1.name().compareTo(o2.name());
-            }
-        });
+        Mapper[] sortedMappers = mappers.values().toArray(Mapper[]::new);
+        Arrays.sort(sortedMappers, Comparator.comparing(Mapper::name));
 
         int count = 0;
         for (Mapper mapper : sortedMappers) {
-            if (!(mapper instanceof MetadataFieldMapper)) {
+            if ((mapper instanceof MetadataFieldMapper) == false) {
                 if (count++ == 0) {
                     builder.startObject("properties");
                 }
@@ -569,5 +569,4 @@ public class ObjectMapper extends Mapper implements Cloneable {
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
     }
-
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.inference.aggs;
@@ -200,7 +201,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
         SetOnce<LocalModel> loadedModel = new SetOnce<>();
         BiConsumer<Client, ActionListener<?>> modelLoadAction = (client, listener) ->
-            modelLoadingService.get().getModelForSearch(modelId, ActionListener.delegateFailure(listener, (delegate, model) -> {
+            modelLoadingService.get().getModelForSearch(modelId, listener.delegateFailure((delegate, model) -> {
                 loadedModel.set(model);
 
                 boolean isLicensed = licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) ||

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.plugin;
 
@@ -87,6 +88,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
             new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
             new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
             new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultAction.class),
+            new ActionHandler<>(EqlAsyncGetStatusAction.INSTANCE, TransportEqlAsyncGetStatusAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
         );
@@ -105,6 +107,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
             new RestEqlSearchAction(),
             new RestEqlStatsAction(),
             new RestEqlGetAsyncResultAction(),
+            new RestEqlGetAsyncStatusAction(),
             new RestEqlDeleteAsyncResultAction()
         );
     }

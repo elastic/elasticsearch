@@ -178,3 +178,27 @@ setup:
   - match: {hits.hits.3._source.location.lat: -63.24 }
   - match: {hits.hits.3._source.location.lon: 31.0 }
 
+---
+"distance_feature query":
+  - do:
+      search:
+        index: locations
+        body:
+          query:
+            bool:
+              should:
+                distance_feature:
+                  field: "location"
+                  pivot: "1000km"
+                  origin: [0.0, 0.0]
+
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0._source.location.lat: 0.0 }
+  - match: {hits.hits.0._source.location.lon: 0.0 }
+  - match: {hits.hits.1._source.location.lat: 13.5 }
+  - match: {hits.hits.1._source.location.lon: 34.89 }
+  - match: {hits.hits.2._source.location.lat: 32.45 }
+  - match: {hits.hits.2._source.location.lon: 45.6 }
+  - match: {hits.hits.3._source.location.lat: -63.24 }
+  - match: {hits.hits.3._source.location.lon: 31.0 }
+

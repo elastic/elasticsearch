@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.search.aggregations.support;
@@ -9,7 +10,6 @@ package org.elasticsearch.xpack.spatial.search.aggregations.support;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -20,7 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class GeoLineMultiValuesSource extends MultiValuesSource<ValuesSource> {
-    public GeoLineMultiValuesSource(Map<String, ValuesSourceConfig> valuesSourceConfigs, QueryShardContext context) {
+    public GeoLineMultiValuesSource(Map<String, ValuesSourceConfig> valuesSourceConfigs) {
         values = new HashMap<>(valuesSourceConfigs.size());
         for (Map.Entry<String, ValuesSourceConfig> entry : valuesSourceConfigs.entrySet()) {
             final ValuesSource valuesSource = entry.getValue().getValuesSource();

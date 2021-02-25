@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -48,8 +37,9 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
@@ -61,7 +51,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType.hasGaps;
 
@@ -93,7 +82,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER
-        = new TypeParser((n, c) -> new Builder(n, () -> c.getIndexAnalyzers().getDefaultIndexAnalyzer()));
+        = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
 
     private static Builder builder(FieldMapper in) {
         return ((SearchAsYouTypeFieldMapper)in).builder;
@@ -134,9 +123,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name, Supplier<NamedAnalyzer> defaultAnalyzer) {
+        public Builder(String name, IndexAnalyzers indexAnalyzers) {
             super(name);
-            this.analyzers = new TextParams.Analyzers(defaultAnalyzer, m -> builder(m).analyzers);
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers, m -> builder(m).analyzers);
         }
 
         @Override
@@ -166,8 +155,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             indexAnalyzers.put(ft.name(), indexAnalyzer);
 
             // set up the prefix field
-            FieldType prefixft = new FieldType(fieldType);
-            prefixft.setStoreTermVectors(false);
+            FieldType prefixft = new FieldType();
+            prefixft.setIndexOptions(fieldType.indexOptions());
             prefixft.setOmitNorms(true);
             prefixft.setStored(false);
             final String fullName = buildFullName(contentPath);
@@ -179,10 +168,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), maxShingleSize.getValue()));
             // don't wrap the root field's search quote analyzer as prefix field doesn't support phrase queries
             TextSearchInfo prefixSearchInfo = new TextSearchInfo(prefixft, similarity.getValue(), prefixSearchWrapper, searchAnalyzer);
-            final PrefixFieldType prefixFieldType
-                = new PrefixFieldType(fullName, prefixSearchInfo, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
-            final NamedAnalyzer prefixAnalyzer
-                = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper);
+            final PrefixFieldType prefixFieldType = new PrefixFieldType(fullName, prefixSearchInfo, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
+            final NamedAnalyzer prefixAnalyzer = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper);
             final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixft, prefixFieldType);
             indexAnalyzers.put(prefixFieldType.name(), prefixAnalyzer);
 
@@ -206,8 +193,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 final ShingleFieldType shingleFieldType = new ShingleFieldType(fieldName, shingleSize, textSearchInfo);
                 shingleFieldType.setPrefixFieldType(prefixFieldType);
                 shingleFieldTypes[i] = shingleFieldType;
-                NamedAnalyzer shingleAnalyzer
-                    = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, shingleIndexWrapper);
+                NamedAnalyzer shingleAnalyzer = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, shingleIndexWrapper);
                 shingleFieldMappers[i] = new ShingleFieldMapper(shingleft, shingleFieldType);
                 indexAnalyzers.put(shingleFieldType.name(), shingleAnalyzer);
             }
@@ -267,12 +253,13 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.toString(name(), context, format);
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
+                                 SearchExecutionContext context) {
             if (prefixField == null || prefixField.termLengthWithinBounds(value.length()) == false) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             } else {
@@ -322,7 +309,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
+        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
             if (prefixField != null && prefixField.termLengthWithinBounds(value.length())) {
                 return new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixField.name(), indexedValueForSearch(value))), name());
             } else {
@@ -356,7 +343,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
+                                 SearchExecutionContext context) {
             if (value.length() >= minChars) {
                 if(caseInsensitive) {
                     return super.termQueryCaseInsensitive(value, context);
@@ -378,7 +366,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
             // parent field in _source. So we don't need to use the parent field name here.
             return SourceValueFetcher.toString(name(), context, format);
@@ -485,7 +473,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
             // parent field in _source. So we don't need to use the parent field name here.
             return SourceValueFetcher.toString(name(), context, format);
@@ -497,7 +485,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
+                                 SearchExecutionContext context) {
             if (prefixFieldType == null || prefixFieldType.termLengthWithinBounds(value.length()) == false) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             } else {
@@ -532,7 +521,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
+        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
             if (prefixFieldType != null && prefixFieldType.termLengthWithinBounds(value.length())) {
                 return new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixFieldType.name(), indexedValueForSearch(value))), name());
             } else {
@@ -592,7 +581,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.analyzers.indexAnalyzer::getDefaultValue).init(this);
+        return new Builder(simpleName(), builder.analyzers.indexAnalyzers).init(this);
     }
 
     public static String getShingleFieldName(String parentField, int shingleSize) {

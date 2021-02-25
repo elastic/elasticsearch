@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -28,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,6 +58,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
+import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
@@ -126,7 +129,10 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(
             LocalStateMachineLearning.class,
+            DataStreamsPlugin.class,
+            IngestCommonPlugin.class,
             ReindexPlugin.class,
+            MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class);
     }
@@ -141,7 +147,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         renormalizer = mock(Renormalizer.class);
         process = mock(AutodetectProcess.class);
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
-        ThreadPool tp = mock(ThreadPool.class);
+        ThreadPool tp = mockThreadPool();
         Settings settings = Settings.builder().put("node.name", "InferenceProcessorFactoryTests_node").build();
         ClusterSettings clusterSettings = new ClusterSettings(settings,
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
@@ -151,9 +157,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
-
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
-        resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, settings);
+        resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, settings);
         resultProcessor = new AutodetectResultProcessor(
                 client(),
                 auditor,
@@ -758,7 +763,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<Optional<Quantiles>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobResultsProvider.getAutodetectParams(JobTests.buildJobBuilder(JOB_ID).build(), params -> {
+        jobResultsProvider.getAutodetectParams(JobTests.buildJobBuilder(JOB_ID).setModelSnapshotId("test_snapshot").build(), params -> {
             resultHolder.set(Optional.ofNullable(params.quantiles()));
             latch.countDown();
         }, e -> {

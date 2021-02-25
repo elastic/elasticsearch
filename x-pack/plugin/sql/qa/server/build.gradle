@@ -106,7 +106,7 @@ subprojects {
     apply plugin: 'elasticsearch.testclusters'
     apply plugin: 'elasticsearch.rest-test'
 
-    testClusters.integTest {
+    testClusters.matching { it.name == "integTest" }.configureEach {
       testDistribution = 'DEFAULT'
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'

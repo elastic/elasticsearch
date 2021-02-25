@@ -6,7 +6,7 @@ dependencies {
   testImplementation project(':test:framework')
 }
 
-project.forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.key'
 }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.persistence;
@@ -458,7 +459,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 if (requiredMatches.isOnlyExact()) {
                     foundIdsListener.onResponse(new Tuple<>((long) ids.size(), new ArrayList<>(ids)));
                 } else {
-                    foundIdsListener.onResponse(new Tuple<>(totalHits, new ArrayList<>(ids)));    
+                    foundIdsListener.onResponse(new Tuple<>(totalHits, new ArrayList<>(ids)));
                 }
             }, foundIdsListener::onFailure),
             client::search

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.util;
 
@@ -14,13 +15,13 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 public abstract class Check {
 
     public static void isTrue(boolean expression, String message, Object... values) {
-        if (!expression) {
+        if (expression == false) {
             throw new SqlIllegalArgumentException(message, values);
         }
     }
 
     public static void isTrue(boolean expression, String message) {
-        if (!expression) {
+        if (expression == false) {
             throw new SqlIllegalArgumentException(message);
         }
     }

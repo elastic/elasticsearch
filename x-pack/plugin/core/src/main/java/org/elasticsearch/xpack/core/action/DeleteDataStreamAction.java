@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.action;
 
@@ -68,7 +69,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             super(in);
             this.names = in.readStringArray();
             this.wildcardExpressionsOriginallySpecified = in.getVersion().onOrAfter(Version.V_7_10_0) && in.readBoolean();
-            if (in.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
+            if (in.getVersion().onOrAfter(DataStream.NEW_FEATURES_VERSION)) {
                 this.indicesOptions = IndicesOptions.readIndicesOptions(in);
             }
         }
@@ -80,7 +81,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
                 out.writeBoolean(wildcardExpressionsOriginallySpecified);
             }
-            if (out.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
+            if (out.getVersion().onOrAfter(DataStream.NEW_FEATURES_VERSION)) {
                 indicesOptions.writeIndicesOptions(out);
             }
         }

@@ -1,28 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.index.store.IndexInputStats;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
@@ -34,8 +38,8 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
+import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,7 +56,7 @@ import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertTrue;
@@ -61,20 +65,25 @@ import static org.mockito.Mockito.mock;
 public final class TestUtils {
     private TestUtils() {}
 
-    public static SortedSet<Tuple<Long, Long>> randomPopulateAndReads(final CacheFile cacheFile) {
-        final SortedSet<Tuple<Long, Long>> ranges = synchronizedNavigableSet(new TreeSet<>(Comparator.comparingLong(Tuple::v1)));
+    public static SortedSet<ByteRange> randomPopulateAndReads(final CacheFile cacheFile) {
+        return randomPopulateAndReads(cacheFile, (fileChannel, aLong, aLong2) -> {});
+    }
+
+    public static SortedSet<ByteRange> randomPopulateAndReads(CacheFile cacheFile, TriConsumer<FileChannel, Long, Long> consumer) {
+        final SortedSet<ByteRange> ranges = synchronizedNavigableSet(new TreeSet<>());
         final List<Future<Integer>> futures = new ArrayList<>();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
             builder().put(NODE_NAME_SETTING.getKey(), "_node").build(),
             random()
         );
         for (int i = 0; i < between(0, 10); i++) {
-            final long start = randomLongBetween(0L, cacheFile.getLength() - 1L);
-            final long end = randomLongBetween(start + 1L, cacheFile.getLength());
-            final Tuple<Long, Long> range = Tuple.tuple(start, end);
+            final long start = randomLongBetween(0L, Math.max(0L, cacheFile.getLength() - 1L));
+            final long end = randomLongBetween(Math.min(start + 1L, cacheFile.getLength()), cacheFile.getLength());
+            final ByteRange range = ByteRange.of(start, end);
             futures.add(
                 cacheFile.populateAndRead(range, range, channel -> Math.toIntExact(end - start), (channel, from, to, progressUpdater) -> {
-                    ranges.add(Tuple.tuple(from, to));
+                    consumer.apply(channel, from, to);
+                    ranges.add(ByteRange.of(from, to));
                     progressUpdater.accept(to);
                 }, deterministicTaskQueue.getThreadPool().generic())
             );
@@ -99,15 +108,28 @@ public final class TestUtils {
         return numberOfRanges;
     }
 
-    public static SortedSet<Tuple<Long, Long>> mergeContiguousRanges(final SortedSet<Tuple<Long, Long>> ranges) {
-        // Eclipse needs the TreeSet type to be explicit (see https://bugs.eclipse.org/bugs/show_bug.cgi?id=568600)
-        return ranges.stream().collect(() -> new TreeSet<Tuple<Long, Long>>(Comparator.comparingLong(Tuple::v1)), (gaps, gap) -> {
+    /**
+     * Generates a sorted set of non-empty and non-contiguous random ranges that could fit into a file of a given maximum length.
+     */
+    public static SortedSet<ByteRange> randomRanges(long length) {
+        final SortedSet<ByteRange> randomRanges = new TreeSet<>();
+        for (long i = 0L; i < length;) {
+            long start = randomLongBetween(i, Math.max(0L, length - 1L));
+            long end = randomLongBetween(start + 1L, length); // +1 for non empty ranges
+            randomRanges.add(ByteRange.of(start, end));
+            i = end + 1L + randomLongBetween(0L, Math.max(0L, length - end)); // +1 for non contiguous ranges
+        }
+        return randomRanges;
+    }
+
+    public static SortedSet<ByteRange> mergeContiguousRanges(final SortedSet<ByteRange> ranges) {
+        return ranges.stream().collect(TreeSet::new, (gaps, gap) -> {
             if (gaps.isEmpty()) {
                 gaps.add(gap);
             } else {
-                final Tuple<Long, Long> previous = gaps.pollLast();
-                if (previous.v2().equals(gap.v1())) {
-                    gaps.add(Tuple.tuple(previous.v1(), gap.v2()));
+                final ByteRange previous = gaps.pollLast();
+                if (previous.end() == gap.start()) {
+                    gaps.add(ByteRange.of(previous.start(), gap.end()));
                 } else {
                     gaps.add(previous);
                     gaps.add(gap);
@@ -115,10 +137,10 @@ public final class TestUtils {
             }
         }, (gaps1, gaps2) -> {
             if (gaps1.isEmpty() == false && gaps2.isEmpty() == false) {
-                final Tuple<Long, Long> last = gaps1.pollLast();
-                final Tuple<Long, Long> first = gaps2.pollFirst();
-                if (last.v2().equals(first.v1())) {
-                    gaps1.add(Tuple.tuple(last.v1(), first.v2()));
+                final ByteRange last = gaps1.pollLast();
+                final ByteRange first = gaps2.pollFirst();
+                if (last.end() == first.start()) {
+                    gaps1.add(ByteRange.of(last.start(), first.end()));
                 } else {
                     gaps1.add(last);
                     gaps2.add(first);
@@ -126,6 +148,13 @@ public final class TestUtils {
             }
             gaps1.addAll(gaps2);
         });
+    }
+
+    public static void assertCacheFileEquals(CacheFile expected, CacheFile actual) {
+        assertThat(actual.getLength(), equalTo(expected.getLength()));
+        assertThat(actual.getFile(), equalTo(expected.getFile()));
+        assertThat(actual.getCacheKey(), equalTo(expected.getCacheKey()));
+        assertThat(actual.getCompletedRanges(), equalTo(expected.getCompletedRanges()));
     }
 
     public static void assertCounter(IndexInputStats.Counter counter, long total, long count, long min, long max) {
@@ -145,6 +174,10 @@ public final class TestUtils {
     ) {
         assertCounter(timedCounter, total, count, min, max);
         assertThat(timedCounter.totalNanoseconds(), equalTo(totalNanoseconds));
+    }
+
+    public static long sumOfCompletedRangesLengths(CacheFile cacheFile) {
+        return cacheFile.getCompletedRanges().stream().mapToLong(ByteRange::length).sum();
     }
 
     /**
@@ -240,7 +273,7 @@ public final class TestUtils {
         }
 
         @Override
-        public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
+        public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
             throw unsupportedException();
         }
 
@@ -273,7 +306,7 @@ public final class TestUtils {
     public static class NoopBlobStoreCacheService extends BlobStoreCacheService {
 
         public NoopBlobStoreCacheService() {
-            super(null, null, mock(Client.class), null);
+            super(null, mock(Client.class), null);
         }
 
         @Override
@@ -290,6 +323,47 @@ public final class TestUtils {
             BytesReference content,
             ActionListener<Void> listener
         ) {
+            listener.onResponse(null);
+        }
+    }
+
+    public static class SimpleBlobStoreCacheService extends BlobStoreCacheService {
+
+        private final ConcurrentHashMap<String, CachedBlob> blobs = new ConcurrentHashMap<>();
+
+        public SimpleBlobStoreCacheService() {
+            super(null, mock(Client.class), null);
+        }
+
+        @Override
+        protected void getAsync(String repository, String name, String path, long offset, ActionListener<CachedBlob> listener) {
+            CachedBlob blob = blobs.get(CachedBlob.generateId(repository, name, path, offset));
+            if (blob != null) {
+                listener.onResponse(blob);
+            } else {
+                listener.onResponse(CachedBlob.CACHE_MISS);
+            }
+        }
+
+        @Override
+        public void putAsync(
+            String repository,
+            String name,
+            String path,
+            long offset,
+            BytesReference content,
+            ActionListener<Void> listener
+        ) {
+            final CachedBlob cachedBlob = new CachedBlob(
+                Instant.ofEpochMilli(0),
+                Version.CURRENT,
+                repository,
+                name,
+                path,
+                new BytesArray(content.toBytesRef(), true),
+                offset
+            );
+            blobs.put(cachedBlob.generatedId(), cachedBlob);
             listener.onResponse(null);
         }
     }
@@ -328,7 +402,7 @@ public final class TestUtils {
         @Override
         public FileChannel newFileChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
             final AtomicInteger counter = files.computeIfAbsent(path, p -> new AtomicInteger(0));
-            return new FilterFileChannel(delegate.newFileChannel(toDelegate(path), options, attrs)) {
+            return new FilterFileChannel(super.newFileChannel(path, options, attrs)) {
 
                 @Override
                 public void force(boolean metaData) throws IOException {

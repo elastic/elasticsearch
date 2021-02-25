@@ -11,7 +11,7 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "s3krit",
+              "password": "s3krit-password",
               "roles" : [ "admin_role" ]
             }
 
@@ -68,7 +68,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
       cluster.health: {}
   - match: { timed_out: false }
 

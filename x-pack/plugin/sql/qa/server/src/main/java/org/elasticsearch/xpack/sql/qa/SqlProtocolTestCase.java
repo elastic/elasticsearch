@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.qa;
@@ -71,35 +72,35 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             "CAST('2019-01-14T12:29:25.000Z' AS DATETIME)",
             "datetime",
             "2019-01-14T12:29:25.000Z",
-            29
+            34
         );
         assertQuery(
             "SELECT CAST(-26853765751000 AS DATETIME)",
             "CAST(-26853765751000 AS DATETIME)",
             "datetime",
             "1119-01-15T12:37:29.000Z",
-            29
+            34
         );
         assertQuery(
             "SELECT CAST(CAST('-26853765751000' AS BIGINT) AS DATETIME)",
             "CAST(CAST('-26853765751000' AS BIGINT) AS DATETIME)",
             "datetime",
             "1119-01-15T12:37:29.000Z",
-            29
+            34
         );
 
         assertQuery("SELECT CAST('2019-01-14' AS DATE)", "CAST('2019-01-14' AS DATE)", "date", "2019-01-14T00:00:00.000Z", 29);
         assertQuery("SELECT CAST(-26853765751000 AS DATE)", "CAST(-26853765751000 AS DATE)", "date", "1119-01-15T00:00:00.000Z", 29);
 
-        assertQuery("SELECT CAST('12:29:25.123Z' AS TIME)", "CAST('12:29:25.123Z' AS TIME)", "time", "12:29:25.123Z", 18);
+        assertQuery("SELECT CAST('12:29:25.123Z' AS TIME)", "CAST('12:29:25.123Z' AS TIME)", "time", "12:29:25.123Z", 24);
         assertQuery(
             "SELECT CAST('12:29:25.123456789+05:00' AS TIME)",
             "CAST('12:29:25.123456789+05:00' AS TIME)",
             "time",
             "12:29:25.123+05:00",
-            18
+            24
         );
-        assertQuery("SELECT CAST(-26853765751000 AS TIME)", "CAST(-26853765751000 AS TIME)", "time", "12:37:29.000Z", 18);
+        assertQuery("SELECT CAST(-26853765751000 AS TIME)", "CAST(-26853765751000 AS TIME)", "time", "12:37:29.000Z", 24);
     }
 
     public void testIPs() throws IOException {
@@ -288,7 +289,8 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     private Map<String, Object> runSql(Mode mode, String sql, boolean columnar) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         String requestContent = query(sql).mode(mode).toString();
-        String format = randomFrom(XContentType.values()).name().toLowerCase(Locale.ROOT);
+        String format = randomFrom(XContentType.JSON, XContentType.SMILE, XContentType.CBOR, XContentType.YAML).name()
+            .toLowerCase(Locale.ROOT);
 
         // add a client_id to the request
         if (randomBoolean()) {
@@ -302,7 +304,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         if (randomBoolean()) {
             request.addParameter("pretty", "true");
         }
-        if (!"json".equals(format) || randomBoolean()) {
+        if ("json".equals(format) == false || randomBoolean()) {
             // since we default to JSON if a format is not specified, randomize setting it or not, explicitly;
             // for any other format, just set the format explicitly
             request.addParameter("format", format);

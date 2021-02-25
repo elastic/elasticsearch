@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.logging;
@@ -89,7 +78,7 @@ public class JsonLoggerTests extends ESTestCase {
     public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
         final DeprecationLogger testLogger = DeprecationLogger.getLogger("test");
 
-        testLogger.deprecate("a key", "deprecated message1");
+        testLogger.deprecate(DeprecationCategory.OTHER, "a key", "deprecated message1");
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_deprecated.json");
@@ -100,31 +89,31 @@ public class JsonLoggerTests extends ESTestCase {
 
             assertThat(jsonLogs, contains(
                 allOf(
-                    hasEntry("type", "deprecation"),
+                    hasEntry("event.dataset", "elasticsearch.deprecation"),
                     hasEntry("log.level", "DEPRECATION"),
                     hasEntry("log.logger", "deprecation.test"),
-                    hasEntry("cluster.name", "elasticsearch"),
-                    hasEntry("node.name", "sample-name"),
+                    hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                    hasEntry("elasticsearch.node.name", "sample-name"),
                     hasEntry("message", "deprecated message1"),
                     hasEntry("data_stream.type", "logs"),
-                    hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
-                    hasEntry("data_stream.namespace", "default"),
+                    hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                     hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
-                    hasEntry("key", "a key"),
-                    not(hasKey("x-opaque-id"))
-                )
-                )
+                    hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "a key"),
+                    not(hasKey(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME)),
+                    hasEntry("elasticsearch.event.category", "other")
+                ))
             );
         }
 
         assertWarnings("deprecated message1");
     }
 
-    public void testDeprecatedMessage() throws Exception {
+    public void testCompatibleLog() throws Exception {
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
             final DeprecationLogger testLogger = DeprecationLogger.getLogger("test");
-            testLogger.deprecate("someKey", "deprecated message1");
+            testLogger.deprecate(DeprecationCategory.OTHER,"someKey", "deprecated message1")
+                .compatibleApiWarning("compatibleKey","compatible API message");
 
             final Path path = PathUtils.get(
                 System.getProperty("es.logs.base_path"),
@@ -138,18 +127,72 @@ public class JsonLoggerTests extends ESTestCase {
                     jsonLogs,
                     contains(
                         allOf(
-                            hasEntry("type", "deprecation"),
+                            hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.type", "logs"),
+                            hasEntry("log.logger", "deprecation.test"),
+                            hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
+                            hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                            hasEntry("elasticsearch.node.name", "sample-name"),
+                            hasEntry("message", "deprecated message1"),
+                            hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "someKey"),
+                            hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
+                            hasEntry("elasticsearch.event.category", "other")
+                        ),
+                        allOf(
+                            hasEntry("log.level", "DEPRECATION"),
+                            // event.dataset and data_stream.dataset have to be the same across the data stream
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.type", "logs"),
+                            hasEntry("log.logger", "deprecation.test"),
+                            hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
+                            hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                            hasEntry("elasticsearch.node.name", "sample-name"),
+                            hasEntry("message", "compatible API message"),
+                            hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "compatibleKey"),
+                            hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
+                            hasEntry("elasticsearch.event.category", "compatible_api")
+                        )
+                    )
+                );
+            }
+
+            assertWarnings("deprecated message1", "compatible API message");
+        });
+    }
+
+    public void testDeprecatedMessage() throws Exception {
+        withThreadContext(threadContext -> {
+            threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
+            final DeprecationLogger testLogger = DeprecationLogger.getLogger("test");
+            testLogger.deprecate(DeprecationCategory.OTHER, "someKey", "deprecated message1");
+
+            final Path path = PathUtils.get(
+                System.getProperty("es.logs.base_path"),
+                System.getProperty("es.logs.cluster_name") + "_deprecated.json"
+            );
+
+            try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+                List<Map<String, String>> jsonLogs = stream.collect(Collectors.toList());
+
+                assertThat(
+                    jsonLogs,
+                    contains(
+                        allOf(
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
                             hasEntry("log.level", "DEPRECATION"),
                             hasEntry("log.logger", "deprecation.test"),
-                            hasEntry("cluster.name", "elasticsearch"),
-                            hasEntry("node.name", "sample-name"),
+                            hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                            hasEntry("elasticsearch.node.name", "sample-name"),
                             hasEntry("message", "deprecated message1"),
                             hasEntry("data_stream.type", "logs"),
-                            hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
-                            hasEntry("data_stream.namespace", "default"),
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                             hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
-                            hasEntry("key", "someKey"),
-                            hasEntry("x-opaque-id", "someId")
+                            hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "someKey"),
+                            hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
+                            hasEntry("elasticsearch.event.category", "other")
                         )
                     )
                 );
@@ -175,11 +218,11 @@ public class JsonLoggerTests extends ESTestCase {
 
             assertThat(jsonLogs, contains(
                 allOf(
-                    hasEntry("type", "file"),
+                    hasEntry("event.dataset", "elasticsearch.file"),
                     hasEntry("log.level", "INFO"),
                     hasEntry("log.logger", "test"),
-                    hasEntry("cluster.name", "elasticsearch"),
-                    hasEntry("node.name", "sample-name"),
+                    hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                    hasEntry("elasticsearch.node.name", "sample-name"),
                     hasEntry("message", "some message value0 value1"),
                     hasEntry("key1", "value1"),
                     hasEntry("key2", "value2"))
@@ -203,11 +246,11 @@ public class JsonLoggerTests extends ESTestCase {
 
             assertThat(jsonLogs, contains(
                 allOf(
-                    hasEntry("type", "file"),
+                    hasEntry("event.dataset", "elasticsearch.file"),
                     hasEntry("log.level", "INFO"),
                     hasEntry("log.logger", "test"),
-                    hasEntry("cluster.name", "elasticsearch"),
-                    hasEntry("node.name", "sample-name"),
+                    hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                    hasEntry("elasticsearch.node.name", "sample-name"),
                     hasEntry("field1", "value1"),
                     hasEntry("field2", "value2"),
                     hasEntry("message", "some message"))
@@ -229,11 +272,11 @@ public class JsonLoggerTests extends ESTestCase {
             List<JsonLogLine> jsonLogs = collectLines(stream);
 
             assertThat(jsonLogs, contains(
-                logLine("file", Level.ERROR, "sample-name", "test", "This is an error message"),
-                logLine("file", Level.WARN, "sample-name", "test", "This is a warning message"),
-                logLine("file", Level.INFO, "sample-name", "test", "This is an info message"),
-                logLine("file", Level.DEBUG, "sample-name", "test", "This is a debug message"),
-                logLine("file", Level.TRACE, "sample-name", "test", "This is a trace message")
+                logLine("elasticsearch.file", Level.ERROR, "sample-name", "test", "This is an error message"),
+                logLine("elasticsearch.file", Level.WARN, "sample-name", "test", "This is a warning message"),
+                logLine("elasticsearch.file", Level.INFO, "sample-name", "test", "This is an info message"),
+                logLine("elasticsearch.file", Level.DEBUG, "sample-name", "test", "This is a debug message"),
+                logLine("elasticsearch.file", Level.TRACE, "sample-name", "test", "This is a trace message")
             ));
         }
     }
@@ -249,9 +292,9 @@ public class JsonLoggerTests extends ESTestCase {
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
             List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, contains(
-                logLine("file", Level.INFO, "sample-name", "prefix.shardIdLogger",
+                logLine("elasticsearch.file", Level.INFO, "sample-name", "prefix.shardIdLogger",
                     "This is an info message with a shardId", Map.of(JsonLogLine::getTags, List.of("[indexName][123]"))),
-                logLine("file", Level.INFO, "sample-name", "prefix.prefixLogger",
+                logLine("elasticsearch.file", Level.INFO, "sample-name", "prefix.prefixLogger",
                     "This is an info message with a prefix", Map.of(JsonLogLine::getTags, List.of("PREFIX")))
             ));
         }
@@ -276,7 +319,7 @@ public class JsonLoggerTests extends ESTestCase {
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
             List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, contains(
-                logLine("file", Level.INFO, "sample-name", "test", json)
+                logLine("elasticsearch.file", Level.INFO, "sample-name", "test", json)
             ));
         }
     }
@@ -290,7 +333,7 @@ public class JsonLoggerTests extends ESTestCase {
             List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, contains(
                 allOf(
-                    logLine("file", Level.ERROR, "sample-name", "test", "error message"),
+                    logLine("elasticsearch.file", Level.ERROR, "sample-name", "test", "error message"),
                     stacktraceMatches("java.lang.Exception: exception message.*Caused by: java.lang.RuntimeException: cause message.*")
                 )
             ));
@@ -320,7 +363,7 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     //message field will have a single line with json escaped
-                    logLine("file", Level.ERROR, "sample-name", "test", "error message " + json),
+                    logLine("elasticsearch.file", Level.ERROR, "sample-name", "test", "error message " + json),
 
                     //stacktrace message will be single line
                     stacktraceWith("java.lang.Exception: " + json)
@@ -336,8 +379,8 @@ public class JsonLoggerTests extends ESTestCase {
         // For the same key and X-Opaque-ID deprecation should be once
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
-            deprecationLogger.deprecate("key", "message1");
-            deprecationLogger.deprecate("key", "message2");
+            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message1");
+            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message2");
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
@@ -348,13 +391,14 @@ public class JsonLoggerTests extends ESTestCase {
 
                 assertThat(jsonLogs, contains(
                     allOf(
-                        hasEntry("type", "deprecation"),
+                        hasEntry("event.dataset", "elasticsearch.deprecation"),
                         hasEntry("log.level", "DEPRECATION"),
                         hasEntry("log.logger", "deprecation.test"),
-                        hasEntry("cluster.name", "elasticsearch"),
-                        hasEntry("node.name", "sample-name"),
+                        hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                        hasEntry("elasticsearch.node.name", "sample-name"),
                         hasEntry("message", "message1"),
-                        hasEntry("x-opaque-id", "ID1"))
+                        hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "ID1"),
+                        hasEntry("elasticsearch.event.category", "other"))
                     )
                 );
             }
@@ -364,8 +408,8 @@ public class JsonLoggerTests extends ESTestCase {
         //continuing with message1-ID1 in logs already, adding a new deprecation log line with message2-ID2
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
-            deprecationLogger.deprecate("key", "message1");
-            deprecationLogger.deprecate("key", "message2");
+            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message1");
+            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message2");
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(
@@ -379,22 +423,24 @@ public class JsonLoggerTests extends ESTestCase {
                     jsonLogs,
                     contains(
                         allOf(
-                            hasEntry("type", "deprecation"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
                             hasEntry("log.level", "DEPRECATION"),
                             hasEntry("log.logger", "deprecation.test"),
-                            hasEntry("cluster.name", "elasticsearch"),
-                            hasEntry("node.name", "sample-name"),
+                            hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                            hasEntry("elasticsearch.node.name", "sample-name"),
                             hasEntry("message", "message1"),
-                            hasEntry("x-opaque-id", "ID1")
+                            hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "ID1"),
+                            hasEntry("elasticsearch.event.category", "other")
                         ),
                         allOf(
-                            hasEntry("type", "deprecation"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
                             hasEntry("log.level", "DEPRECATION"),
                             hasEntry("log.logger", "deprecation.test"),
-                            hasEntry("cluster.name", "elasticsearch"),
-                            hasEntry("node.name", "sample-name"),
+                            hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                            hasEntry("elasticsearch.node.name", "sample-name"),
                             hasEntry("message", "message1"),
-                            hasEntry("x-opaque-id", "ID2")
+                            hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "ID2"),
+                            hasEntry("elasticsearch.event.category", "other")
                         )
                     )
                 );
@@ -434,7 +480,7 @@ public class JsonLoggerTests extends ESTestCase {
 
     private Map<Function<JsonLogLine, Object>, Object> mapOfParamsToCheck(
         String type, Level level, String nodeName, String component, String message) {
-        return Map.of(JsonLogLine::getType, type,
+        return Map.of(JsonLogLine::getDataset, type,
             JsonLogLine::getLevel, level.toString(),
             JsonLogLine::getNodeName, nodeName,
             JsonLogLine::getComponent, component,

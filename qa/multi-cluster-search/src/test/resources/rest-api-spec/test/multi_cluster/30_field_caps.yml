@@ -106,7 +106,7 @@
       field_caps:
         index: 'field_caps_index_4,my_remote_cluster:field_*'
         fields: [number]
-        body: { index_filter: { range: { created_at: { lt: 2018 } } } }
+        body: { index_filter: { range: { created_at: { lt: "2018" } } } }
 
   - match: {indices:                                    ["field_caps_index_4","my_remote_cluster:field_caps_index_1"]}
   - length: {fields.number:                             1}
@@ -117,7 +117,7 @@
       field_caps:
         index: 'field_caps_index_4,my_remote_cluster:field_*'
         fields: [number]
-        body: { index_filter: { range: { created_at: { gt: 2019 } } } }
+        body: { index_filter: { range: { created_at: { gt: "2019" } } } }
 
   - match: {indices:                                    ["my_remote_cluster:field_caps_index_3"]}
   - length: {fields.number:                             1}

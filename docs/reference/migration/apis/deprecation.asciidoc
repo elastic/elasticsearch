@@ -22,6 +22,12 @@ be removed or changed in the next major version.
 
 `GET /<target>/_migration/deprecations`
 
+[[migration-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[migration-api-path-params]]
 ==== {api-path-parms-title}
 

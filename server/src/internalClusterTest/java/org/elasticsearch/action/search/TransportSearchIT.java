@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -67,7 +56,7 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -132,9 +121,10 @@ public class TransportSearchIT extends ESIntegTestCase {
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
         IndexResponse indexResponse = client().index(indexRequest).actionGet();
         assertEquals(RestStatus.CREATED, indexResponse.status());
+        TaskId parentTaskId = new TaskId("node", randomNonNegativeLong());
 
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(), Strings.EMPTY_ARRAY,
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(parentTaskId, new SearchRequest(), Strings.EMPTY_ARRAY,
                 "local", nowInMillis, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
@@ -146,7 +136,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             assertEquals("1", hit.getId());
         }
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(), Strings.EMPTY_ARRAY,
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(parentTaskId, new SearchRequest(), Strings.EMPTY_ARRAY,
                 "", nowInMillis, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
@@ -160,6 +150,7 @@ public class TransportSearchIT extends ESIntegTestCase {
     }
 
     public void testAbsoluteStartMillis() {
+        TaskId parentTaskId = new TaskId("node", randomNonNegativeLong());
         {
             IndexRequest indexRequest = new IndexRequest("test-1970.01.01");
             indexRequest.id("1");
@@ -188,13 +179,13 @@ public class TransportSearchIT extends ESIntegTestCase {
             assertEquals(0, searchResponse.getTotalShards());
         }
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(),
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(parentTaskId, new SearchRequest(),
                 Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(2, searchResponse.getHits().getTotalHits().value);
         }
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(),
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(parentTaskId, new SearchRequest(),
                 Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             searchRequest.indices("<test-{now/d}>");
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
@@ -202,7 +193,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             assertEquals("test-1970.01.01", searchResponse.getHits().getHits()[0].getIndex());
         }
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(),
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(parentTaskId, new SearchRequest(),
                 Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
             RangeQueryBuilder rangeQuery = new RangeQueryBuilder("date");
@@ -218,6 +209,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
     public void testFinalReduce()  {
         long nowInMillis = randomLongBetween(0, Long.MAX_VALUE);
+        TaskId taskId = new TaskId("node", randomNonNegativeLong());
         {
             IndexRequest indexRequest = new IndexRequest("test");
             indexRequest.id("1");
@@ -244,7 +236,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         source.aggregation(terms);
 
         {
-            SearchRequest searchRequest = randomBoolean() ? originalRequest : SearchRequest.subSearchRequest(originalRequest,
+            SearchRequest searchRequest = randomBoolean() ? originalRequest : SearchRequest.subSearchRequest(taskId, originalRequest,
                 Strings.EMPTY_ARRAY, "remote", nowInMillis, true);
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(2, searchResponse.getHits().getTotalHits().value);
@@ -253,7 +245,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             assertEquals(1, longTerms.getBuckets().size());
         }
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(originalRequest,
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(taskId, originalRequest,
                 Strings.EMPTY_ARRAY, "remote", nowInMillis, false);
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(2, searchResponse.getHits().getTotalHits().value);
@@ -504,10 +496,8 @@ public class TransportSearchIT extends ESIntegTestCase {
                                             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
             return new AggregatorFactory(name, context, parent, subFactoriesBuilder, metadata) {
                 @Override
-                protected Aggregator createInternal(SearchContext searchContext,
-                                                    Aggregator parent,
-                                                    CardinalityUpperBound cardinality,
-                                                    Map<String, Object> metadata) throws IOException {
+                protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+                    throws IOException {
                     return new TestAggregator(name, parent);
                 }
             };
@@ -531,6 +521,11 @@ public class TransportSearchIT extends ESIntegTestCase {
         @Override
         public String getType() {
             return "test";
+        }
+
+        @Override
+        public long bytesToPreallocate() {
+            return 0;
         }
     }
 
@@ -566,13 +561,13 @@ public class TransportSearchIT extends ESIntegTestCase {
         @Override
         public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
             return new InternalAggregation[] {
-                new InternalMax(name(), Double.NaN, DocValueFormat.RAW, Collections.emptyMap())
+                buildEmptyAggregation()
             };
         }
 
         @Override
         public InternalAggregation buildEmptyAggregation() {
-            return new InternalMax(name(), Double.NaN, DocValueFormat.RAW, Collections.emptyMap());
+            return new InternalMax(name(), Double.NaN, DocValueFormat.RAW, null);
         }
 
         @Override
@@ -590,6 +585,9 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         @Override
         public void preCollection() throws IOException {}
+
+        @Override
+        public void postCollection() throws IOException {}
 
         @Override
         public Aggregator[] subAggregators() {

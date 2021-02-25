@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
@@ -180,7 +181,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     public AttributeMap<E> subtract(AttributeMap<E> other) {
         AttributeMap<E> diff = new AttributeMap<>();
         for (Entry<AttributeWrapper, E> entry : this.delegate.entrySet()) {
-            if (!other.delegate.containsKey(entry.getKey())) {
+            if (other.delegate.containsKey(entry.getKey()) == false) {
                 diff.delegate.put(entry.getKey(), entry.getValue());
             }
         }
@@ -207,7 +208,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
             return false;
         }
         for (AttributeWrapper aw : delegate.keySet()) {
-            if (!other.delegate.containsKey(aw)) {
+            if (other.delegate.containsKey(aw) == false) {
                 return false;
             }
         }

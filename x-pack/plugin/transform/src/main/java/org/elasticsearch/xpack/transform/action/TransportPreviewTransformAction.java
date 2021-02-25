@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.action;
@@ -29,14 +30,11 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
@@ -62,7 +60,6 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
     PreviewTransformAction.Response> {
 
     private static final int NUMBER_OF_PREVIEW_BUCKETS = 100;
-    private final XPackLicenseState licenseState;
     private final Client client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -74,7 +71,6 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
         ActionFilters actionFilters,
         Client client,
         ThreadPool threadPool,
-        XPackLicenseState licenseState,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         Settings settings,
@@ -86,7 +82,6 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
             actionFilters,
             client,
             threadPool,
-            licenseState,
             indexNameExpressionResolver,
             clusterService,
             settings,
@@ -100,14 +95,12 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
         ActionFilters actionFilters,
         Client client,
         ThreadPool threadPool,
-        XPackLicenseState licenseState,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         Settings settings,
         IngestService ingestService
     ) {
         super(name, transportService, actionFilters, PreviewTransformAction.Request::new);
-        this.licenseState = licenseState;
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -115,8 +108,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
             DiscoveryNode.isRemoteClusterClient(settings)
-                ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
-                : null,
+                /* transforms are BASIC so always allowed, no need to check license */
+                ? new RemoteClusterLicenseChecker(client, mode -> true) : null,
             ingestService,
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
@@ -125,21 +118,15 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
 
     @Override
     protected void doExecute(Task task, PreviewTransformAction.Request request, ActionListener<PreviewTransformAction.Response> listener) {
-        if (!licenseState.checkFeature(XPackLicenseState.Feature.TRANSFORM)) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
-            return;
-        }
-
         ClusterState clusterState = clusterService.state();
 
         final TransformConfig config = request.getConfig();
-
         sourceDestValidator.validate(
             clusterState,
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
             config.getDestination().getPipeline(),
-            SourceDestValidations.PREVIEW_VALIDATIONS,
+            SourceDestValidations.getValidationsForPreview(config.getAdditionalValidations()),
             ActionListener.wrap(r -> {
                 // create the function for validation
                 final Function function = FunctionFactory.create(config);
@@ -189,7 +176,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
             mappings.set(deducedMappings);
             function.preview(
                 client,
-                threadPool.getThreadContext().getHeaders(),
+                ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders()),
                 source,
                 deducedMappings,
                 NUMBER_OF_PREVIEW_BUCKETS,

@@ -65,7 +65,7 @@ public class ConstructionContext<T> {
         // the implementation type, I'll be able to get away with one proxy
         // instance (as opposed to one per caller).
 
-        if (!expectedType.isInterface()) {
+        if (expectedType.isInterface() == false) {
             throw errors.cannotSatisfyCircularDependency(expectedType).toException();
         }
 

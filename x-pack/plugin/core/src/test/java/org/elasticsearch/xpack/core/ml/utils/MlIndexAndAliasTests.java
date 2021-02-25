@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
@@ -138,11 +139,11 @@ public class MlIndexAndAliasTests extends ESTestCase {
     public void testInstallIndexTemplateIfRequired() {
         ClusterState clusterState = createClusterState(Collections.emptyMap());
 
-        IndexTemplateConfig inferenceTemplate = new IndexTemplateConfig(InferenceIndexConstants.LATEST_INDEX_NAME,
-            "/org/elasticsearch/xpack/core/ml/inference_index_template.json", Version.CURRENT.id, "xpack.ml.version",
+        IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(InferenceIndexConstants.LATEST_INDEX_NAME,
+            "/org/elasticsearch/xpack/core/ml/notifications_index_template.json", Version.CURRENT.id, "xpack.ml.version",
             Collections.singletonMap("xpack.ml.version.id", String.valueOf(Version.CURRENT.id)));
 
-        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, inferenceTemplate, listener);
+        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, notificationsTemplate, listener);
         InOrder inOrder = inOrder(indicesAdminClient, listener);
         inOrder.verify(indicesAdminClient).putTemplate(any(), any());
         inOrder.verify(listener).onResponse(true);
@@ -323,7 +324,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         IndexMetadata.Builder builder = IndexMetadata.builder(indexName)
             .settings(settings);

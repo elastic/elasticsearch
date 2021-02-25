@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
@@ -89,12 +90,12 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 }, e -> fail()
         );
 
-        DatafeedContext datafeedContext = new DatafeedContext(
-            datafeed.build(),
-            jobBuilder.build(),
-            new RestartTimeInfo(null, null, false),
-            new DatafeedTimingStats(jobBuilder.getId())
-        );
+        DatafeedContext datafeedContext = DatafeedContext.builder()
+            .setDatafeedConfig(datafeed.build())
+            .setJob(jobBuilder.build())
+            .setRestartTimeInfo(new RestartTimeInfo(null, null, false))
+            .setTimingStats(new DatafeedTimingStats(jobBuilder.getId()))
+            .build();
 
         TransportStartDatafeedAction.DatafeedTask datafeedTask = newDatafeedTask("datafeed1");
 
@@ -121,12 +122,12 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 }, e -> fail()
         );
 
-        DatafeedContext datafeedContext = new DatafeedContext(
-            datafeed.build(),
-            jobBuilder.build(),
-            new RestartTimeInfo(3_600_000L, 7_200_000L, false),
-            new DatafeedTimingStats(jobBuilder.getId())
-        );
+        DatafeedContext datafeedContext = DatafeedContext.builder()
+            .setDatafeedConfig(datafeed.build())
+            .setJob(jobBuilder.build())
+            .setRestartTimeInfo(new RestartTimeInfo(3_600_000L, 7_200_000L, false))
+            .setTimingStats(new DatafeedTimingStats(jobBuilder.getId()))
+            .build();
 
         TransportStartDatafeedAction.DatafeedTask datafeedTask = newDatafeedTask("datafeed1");
 
@@ -153,12 +154,12 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 }, e -> fail()
         );
 
-        DatafeedContext datafeedContext = new DatafeedContext(
-            datafeed.build(),
-            jobBuilder.build(),
-            new RestartTimeInfo(3_800_000L, 3_600_000L, false),
-            new DatafeedTimingStats(jobBuilder.getId())
-        );
+        DatafeedContext datafeedContext = DatafeedContext.builder()
+            .setDatafeedConfig(datafeed.build())
+            .setJob(jobBuilder.build())
+            .setRestartTimeInfo(new RestartTimeInfo(3_800_000L, 3_600_000L, false))
+            .setTimingStats(new DatafeedTimingStats(jobBuilder.getId()))
+            .build();
 
         TransportStartDatafeedAction.DatafeedTask datafeedTask = newDatafeedTask("datafeed1");
 
@@ -198,12 +199,12 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             }
         );
 
-        DatafeedContext datafeedContext = new DatafeedContext(
-            datafeed.build(),
-            jobBuilder.build(),
-            new RestartTimeInfo(null, null, false),
-            new DatafeedTimingStats(jobBuilder.getId())
-        );
+        DatafeedContext datafeedContext = DatafeedContext.builder()
+            .setDatafeedConfig(datafeed.build())
+            .setJob(jobBuilder.build())
+            .setRestartTimeInfo(new RestartTimeInfo(null, null, false))
+            .setTimingStats(new DatafeedTimingStats(jobBuilder.getId()))
+            .build();
 
         TransportStartDatafeedAction.DatafeedTask datafeedTask = newDatafeedTask("datafeed1");
 

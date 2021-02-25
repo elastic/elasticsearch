@@ -6,8 +6,6 @@
 <titleabbrev>Syntax reference</titleabbrev>
 ++++
 
-beta::[]
-
 [discrete]
 [[eql-basic-syntax]]
 === Basic syntax
@@ -30,7 +28,7 @@ process where process.name == "svchost.exe"
 
 [discrete]
 [[eql-syntax-event-categories]]
-==== Event categories
+=== Event categories
 
 An event category is a valid, indexed value of the
 <<eql-required-fields,event category field>>. You can set the event category
@@ -38,7 +36,7 @@ field using the `event_category_field` parameter of the EQL search API.
 
 [discrete]
 [[eql-syntax-match-any-event-category]]
-===== Match any event category
+=== Match any event category
 
 To match events of any category, use the `any` keyword. You can also use the
 `any` keyword to search for documents without a event category field.
@@ -53,7 +51,7 @@ any where network.protocol == "http"
 
 [discrete]
 [[eql-syntax-escape-an-event-category]]
-===== Escape an event category
+=== Escape an event category
 
 Use enclosing double quotes (`"`) or three enclosing double quotes (`"""`) to
 escape event categories that:
@@ -77,9 +75,9 @@ escape event categories that:
 
 [discrete]
 [[eql-syntax-escape-a-field-name]]
-===== Escape a field name
+=== Escape a field name
 
-Use enclosing enclosing backticks (+++`+++) to escape field names that:
+Use enclosing backticks (+++`+++) to escape field names that:
 
 * Contain a hyphen (`-`)
 * Contain a space
@@ -102,7 +100,7 @@ my`field -> `my``field`
 
 [discrete]
 [[eql-syntax-conditions]]
-==== Conditions
+=== Conditions
 
 A condition consists of one or more criteria an event must match.
 You can specify and combine these criteria using the following operators. Most
@@ -110,7 +108,7 @@ EQL operators are case-sensitive by default.
 
 [discrete]
 [[eql-syntax-comparison-operators]]
-===== Comparison operators
+=== Comparison operators
 
 [source,eql]
 ----
@@ -127,31 +125,17 @@ the value to the right. Otherwise returns `false`.
 
 `==` (equal, case-sensitive)::
 Returns `true` if the values to the left and right of the operator are equal.
-Otherwise returns `false`. For strings, matching is case-sensitive. Wildcards
-are not supported.
+Otherwise returns `false`. Wildcards are not supported.
 
 `:` (equal, case-insensitive)::
 Returns `true` if strings to the left and right of the operator are equal.
-Otherwise returns `false`. Matching is case-insensitive and can only be used to
-compare strings. <<eql-syntax-wildcards,Wildcards>> are supported.
-
-[IMPORTANT]
-====
-Avoid using the `==` or `:` operators to perform exact matching on
-<<text,`text`>> field values.
-
-By default, {es} changes the values of `text` fields as part of <<analysis,
-analysis>>. This can make finding exact matches for `text` field values
-difficult.
-
-To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
-DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
-====
+Otherwise returns `false`. Can only be used to compare strings. Supports
+<<eql-syntax-wildcards,wildcards>> and <<eql-syntax-lookup-operators,list
+lookups>>.
 
 `!=` (not equal, case-sensitive)::
 Returns `true` if the values to the left and right of the operator are not
-equal. Otherwise returns `false`. For strings, matching is case-sensitive.
-Wildcards are not supported.
+equal. Otherwise returns `false`. Wildcards are not supported.
 
 `>=` (greater than or equal) ::
 Returns `true` if the value to the left of the operator is greater than or equal
@@ -165,13 +149,42 @@ the operator uses a case-sensitive lexicographic order.
 
 NOTE: `=` is not supported as an equal operator. Use `==` or `:` instead.
 
-You cannot chain comparison operators. Instead, use a
+[discrete]
+[[eql-syntax-pattern-comparison-keywords]]
+=== Pattern comparison keywords
+
+[source,eql]
+----
+my_field like  "VALUE*"         // case-sensitive wildcard matching
+my_field like~ "value*"         // case-insensitive wildcard matching
+
+my_field regex  "VALUE[^Z].?"   // case-sensitive regex matching
+my_field regex~ "value[^z].?"   // case-insensitive regex matching
+----
+
+`like` (case-sensitive)::
+Returns `true` if the string to the left of the keyword matches a
+<<eql-syntax-wildcards,wildcard pattern>> to the right. Supports
+<<eql-syntax-lookup-operators,list lookups>>. Can only be used to compare
+strings. For case-insensitive matching, use `like~`.
+
+`regex` (case-sensitive)::
+Returns `true` if the string to the left of the keyword matches a regular
+expression to the right. For supported regular expression syntax, see
+<<regexp-syntax>>. Supports <<eql-syntax-lookup-operators,list lookups>>. Can
+only be used to compare strings. For case-insensitive matching, use `regex~`.
+
+[discrete]
+[[limitations-for-comparisons]]
+=== Limitations for comparisons
+
+You cannot chain comparisons. Instead, use a
 <<eql-syntax-logical-operators,logical operator>> between comparisons. For
 example, `foo < bar <= baz` is not supported. However, you can rewrite the
 expression as `foo < bar and bar <= baz`, which is supported.
 
-You also cannot use comparison operators to compare a field to another field.
-This applies even if the fields are changed using a <<eql-functions,function>>.
+You also cannot compare a field to another field, even if the fields are changed
+using a <<eql-functions,function>>.
 
 *Example* +
 The following EQL query compares the `process.parent_name` field
@@ -196,7 +209,7 @@ process where process.parent.name == "foo" and process.name == "foo"
 
 [discrete]
 [[eql-syntax-logical-operators]]
-===== Logical operators
+=== Logical operators
 
 [source,eql]
 ----
@@ -205,36 +218,62 @@ and  or  not
 
 `and`::
 Returns `true` only if the condition to the left and right _both_ return `true`.
-Otherwise returns `false.
+Otherwise returns `false`.
 
 `or`::
 Returns `true` if one of the conditions to the left or right `true`.
-Otherwise returns `false.
+Otherwise returns `false`.
 
 `not`::
 Returns `true` if the condition to the right is `false`.
 
 [discrete]
 [[eql-syntax-lookup-operators]]
-===== Lookup operators
+=== Lookup operators
 
 [source,eql]
 ----
-user.name in ("Administrator", "SYSTEM", "NETWORK SERVICE")
-user.name not in ("Administrator", "SYSTEM", "NETWORK SERVICE")
+my_field in ("Value-1", "VALUE2", "VAL3")                 // case-sensitive
+my_field in~ ("value-1", "value2", "val3")                // case-insensitive
+
+my_field not in ("Value-1", "VALUE2", "VAL3")             // case-sensitive
+my_field not in~ ("value-1", "value2", "val3")            // case-insensitive
+
+my_field : ("value-1", "value2", "val3")                  // case-insensitive
+
+my_field like  ("Value-*", "VALUE2", "VAL?")              // case-sensitive
+my_field like~ ("value-*", "value2", "val?")              // case-insensitive
+
+my_field regex  ("[vV]alue-[0-9]", "VALUE[^2].?", "VAL3") // case-sensitive
+my_field regex~  ("value-[0-9]", "value[^2].?", "val3")   // case-sensitive
 ----
 
 `in` (case-sensitive)::
-Returns `true` if the value is contained in the provided list. For strings,
-matching is case-sensitive.
+Returns `true` if the value is contained in the provided list. For
+case-insensitive matching, use `in~`.
 
 `not in` (case-sensitive)::
-Returns `true` if the value is not contained in the provided list. For strings,
-matching is case-sensitive.
+Returns `true` if the value is not contained in the provided list. For
+case-insensitive matching, use `not in~`.
+
+`:` (case-insensitive)::
+Returns `true` if the string is contained in the provided list. Can only be used
+to compare strings.
+
+`like` (case-sensitive)::
+Returns `true` if the string matches a <<eql-syntax-wildcards,wildcard pattern>>
+in the provided list. Can only be used to compare strings. For case-insensitive
+matching, use `like~`.
+
+`regex` (case-sensitive)::
+Returns `true` if the string matches a regular expression pattern in the
+provided list. For supported regular expression syntax, see <<regexp-syntax>>.
+Can only be used to compare strings. For case-insensitive matching, use
+`regex~`.
 
 [discrete]
 [[eql-syntax-math-operators]]
-===== Math operators
+=== Math operators
 
 [source,eql]
 ----
@@ -294,7 +333,7 @@ Divides the value to the left of the operator by the value to the right. Returns
 
 [discrete]
 [[eql-syntax-match-any-condition]]
-==== Match any condition
+=== Match any condition
 
 To match events solely on event category, use the `where true` condition.
 
@@ -315,7 +354,7 @@ any where true
 
 [discrete]
 [[eql-syntax-strings]]
-==== Strings
+=== Strings
 
 Strings are enclosed in double quotes (`"`).
 
@@ -328,7 +367,7 @@ Strings enclosed in single quotes (`'`) are not supported.
 
 [discrete]
 [[eql-syntax-escape-characters]]
-===== Escape characters in a string
+=== Escape characters in a string
 
 When used within a string, special characters, such as a carriage return or
 double quote (`"`), must be escaped with a preceding backslash (`\`).
@@ -354,7 +393,7 @@ double quote (`\"`) instead.
 
 [discrete]
 [[eql-syntax-raw-strings]]
-===== Raw strings
+=== Raw strings
 
 Raw strings treat special characters, such as backslashes (`\`), as literal
 characters. Raw strings are enclosed in three double quotes (`"""`).
@@ -374,16 +413,41 @@ use a regular string with the `\"` escape sequence.
 
 [discrete]
 [[eql-syntax-wildcards]]
-===== Wildcards
+=== Wildcards
 
-For string comparisons using the `:` operator, you can use wildcards (`*`) to
-match specific patterns:
+For string comparisons using the `:` operator or `like` keyword, you can use the
+`*` and `?` wildcards to match specific patterns. The `*` wildcard matches zero
+or more characters:
 
 [source,eql]
 ----
-field : "example*wildcard"
-field : "*example-wildcard"
-field : "example-wildcard*"
+my_field : "doc*"     // Matches "doc", "docs", or "document" but not "DOS"
+my_field : "*doc"     // Matches "adoc" or "asciidoc"
+my_field : "d*c"      // Matches "doc" or "disc"
+
+my_field like "DOC*"  // Matches "DOC", "DOCS", "DOCs", or "DOCUMENT" but not "DOS"
+my_field like "D*C"   // Matches "DOC", "DISC", or "DisC"
+----
+
+The `?` wildcard matches exactly one character:
+
+[source,eql]
+----
+my_field : "doc?"     // Matches "docs" but not "doc", "document", or "DOS"
+my_field : "?doc"     // Matches "adoc" but not "asciidoc"
+my_field : "d?c"      // Matches "doc" but not "disc"
+
+my_field like "DOC?"  // Matches "DOCS" or "DOCs" but not "DOC", "DOCUMENT", or "DOS"
+my_field like "D?c"   // Matches "DOC" but not "DISC"
+----
+
+The `:` operator and `like` keyword also support wildcards in
+<<eql-syntax-lookup-operators,list lookups>>:
+
+[source,eql]
+----
+my_field : ("doc*", "f*o", "ba?", "qux")
+my_field like ("Doc*", "F*O", "BA?", "QUX")
 ----
 
 [discrete]
@@ -423,7 +487,7 @@ sequence
 
 [discrete]
 [[eql-with-maxspan-keywords]]
-==== `with maxspan` keywords
+=== `with maxspan` keywords
 
 You can use the `with maxspan` keywords to constrain a sequence to a specified
 timespan. All events in a matching sequence must occur within this duration,
@@ -453,7 +517,7 @@ sequence with maxspan=15m
 
 [discrete]
 [[eql-by-keyword]]
-==== `by` keyword
+=== `by` keyword
 
 You can use the `by` keyword with sequences to only match events that share the
 same field values. If a field value should be shared across all events, you
@@ -520,7 +584,7 @@ sequence by user.name with maxspan=15m
 
 [discrete]
 [[eql-until-keyword]]
-==== `until` keyword
+=== `until` keyword
 
 You can use the `until` keyword to specify an expiration event for a sequence.
 If this expiration event occurs _between_ matching events in a sequence, the
@@ -605,12 +669,25 @@ until [ process where event.type == "stop" ]
 === Functions
 
 You can use EQL functions to convert data types, perform math, manipulate
-strings, and more. Most functions are case-sensitive by default.
+strings, and more. For a list of supported functions, see <<eql-function-ref>>.
 
-For a list of supported functions, see <<eql-function-ref>>.
+[discrete]
+[[eql-case-insensitive-functions]]
+=== Case-insensitive functions
 
-[TIP]
-====
+Most EQL functions are case-sensitive by default. To make a function
+case-insensitive, use the `~` operator after the function name:
+
+[source,eql]
+----
+stringContains(process.name,".exe")  // Matches ".exe" but not ".EXE" or ".Exe"
+stringContains~(process.name,".exe") // Matches ".exe", ".EXE", or ".Exe"
+----
+
+[discrete]
+[[eql-how-functions-impact-search-performance]]
+=== How functions impact search performance
+
 Using functions in EQL queries can result in slower search speeds. If you
 often use functions to transform indexed data, you can speed up search by making
 these changes during indexing instead. However, that often means slower index
@@ -650,7 +727,6 @@ file where file.extension in ("exe", "dll")
 
 We recommend testing and benchmarking any indexing changes before deploying them
 in production. See <<tune-for-indexing-speed>> and <<tune-for-search-speed>>.
-====
 
 [discrete]
 [[eql-pipes]]
@@ -697,6 +773,14 @@ another field. This applies even if the fields are changed using a
 <<eql-functions,function>>.
 
 [discrete]
+[[eql-text-fields]]
+==== Text fields are not supported
+
+EQL searches do not support <<text,`text`>> fields. To a search a `text` field,
+use the EQL search API's <<eql-search-filter-query-dsl,Query DSL `filter`>>
+parameter.
+
+[discrete]
 [[eql-array-fields]]
 ==== Array field values are not supported
 
@@ -719,13 +803,24 @@ sub-fields of a `nested` field. However, data streams and indices containing
 {es} EQL differs from the {eql-ref}/index.html[Elastic Endgame EQL syntax] as
 follows:
 
-* Most operators and functions in {es} EQL are case-sensitive. For
-case-insensitive equality comparisons, use the `:` operator.
+* In {es} EQL, most operators are case-sensitive. For example,
+`process_name == "cmd.exe"` is not equivalent to 
+`process_name == "Cmd.exe"`.
 
-* Comparisons using the `==` and `!=` operators do not expand wildcard
-characters. For example, `process_name == "cmd*.exe"` interprets `*` as a
-literal asterisk, not a wildcard. For case-sensitive wildcard matching, use the
-<<eql-fn-wildcard,`wildcard`>> function.
+* In {es} EQL, functions are case-sensitive. To make a function
+case-insensitive, use `~`, such as `endsWith~(process_name, ".exe")`.
+
+* For case-insensitive equality comparisons, use the `:` operator. Both `*` and
+`?` are recognized wildcard characters.
+
+* The `==` and `!=` operators do not expand wildcard characters. For example,
+`process_name == "cmd*.exe"` interprets `*` as a literal asterisk, not a
+wildcard.
+
+* For wildcard matching, use the `like` keyword when case-sensitive and
+`like~` when case-insensitive. The `:` operator is equivalent to `like~`.
+
+* For regular expression matching, use `regex` or `regex~`.
 
 * `=` cannot be substituted for the `==` operator.
 
@@ -757,3 +852,231 @@ three double quotes (`"""`) instead.
 *** {eql-ref}/pipes.html#sort[`sort`]
 *** {eql-ref}/pipes.html#unique[`unique`]
 *** {eql-ref}/pipes.html#unique-count[`unique_count`]
+
+[discrete]
+[[eql-how-sequence-queries-handle-matches]]
+==== How sequence queries handle matches
+
+<<eql-sequences,Sequence queries>> don't find all potential matches for a
+sequence. This approach would be too slow and costly for large event data sets.
+Instead, a sequence query handles pending sequence matches as a
+{wikipedia}/Finite-state_machine[state machine]:
+
+* Each event item in the sequence query is a state in the machine.
+* Only one pending sequence can be in each state at a time.
+* If two pending sequences are in the same state at the same time, the most
+recent sequence overwrites the older one.
+* If the query includes <<eql-by-keyword,`by` fields>>, the query uses a
+separate state machine for each unique `by` field value.
+
+.*Example*
+[%collapsible]
+====
+A data set contains the following `process` events in ascending chronological
+order:
+
+[source,js]
+----
+{ "index" : { "_id": "1" } }
+{ "user": { "name": "root" }, "process": { "name": "attrib" }, ...}
+{ "index" : { "_id": "2" } }
+{ "user": { "name": "root" }, "process": { "name": "attrib" }, ...}
+{ "index" : { "_id": "3" } }
+{ "user": { "name": "elkbee" }, "process": { "name": "bash" }, ...}
+{ "index" : { "_id": "4" } }
+{ "user": { "name": "root" }, "process": { "name": "bash" }, ...}
+{ "index" : { "_id": "5" } }
+{ "user": { "name": "root" }, "process": { "name": "bash" }, ...}
+{ "index" : { "_id": "6" } }
+{ "user": { "name": "elkbee" }, "process": { "name": "attrib" }, ...}
+{ "index" : { "_id": "7" } }
+{ "user": { "name": "root" }, "process": { "name": "attrib" }, ...}
+{ "index" : { "_id": "8" } }
+{ "user": { "name": "elkbee" }, "process": { "name": "bash" }, ...}
+{ "index" : { "_id": "9" } }
+{ "user": { "name": "root" }, "process": { "name": "cat" }, ...}
+{ "index" : { "_id": "10" } }
+{ "user": { "name": "elkbee" }, "process": { "name": "cat" }, ...}
+{ "index" : { "_id": "11" } }
+{ "user": { "name": "root" }, "process": { "name": "cat" }, ...}
+----
+// NOTCONSOLE
+
+An EQL sequence query searches the data set:
+
+[source,eql]
+----
+sequence by user.name
+  [process where process.name == "attrib"]
+  [process where process.name == "bash"]
+  [process where process.name == "cat"]
+----
+
+The query's event items correspond to the following states:
+
+* State A:  `[process where process.name == "attrib"]`
+* State B:  `[process where process.name == "bash"]`
+* Complete: `[process where process.name == "cat"]`
+
+image::images/eql/sequence-state-machine.svg[align="center"]
+
+To find matching sequences, the query uses separate state machines for each
+unique `user.name` value. Based on the data set, you can expect two state
+machines: one for the `root` user and one for `elkbee`.
+
+image::images/eql/separate-state-machines.svg[align="center"]
+
+Pending sequence matches move through each machine's states as follows:
+
+[source,txt]
+----
+{ "index" : { "_id": "1" } }
+{ "user": { "name": "root" }, "process": { "name": "attrib" }, ...}
+// Creates sequence [1] in state A for the "root" user.
+//
+// +------------------------"root"------------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+     +------------+  |
+// |  |    [1]    |     |           |     |            |  |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
+
+{ "index" : { "_id": "2" } }
+{ "user": { "name": "root" }, "process": { "name": "attrib" }, ...}
+// Creates sequence [2] in state A for "root", overwriting sequence [1].
+//
+// +------------------------"root"------------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+     +------------+  |
+// |  |    [2]    |     |           |     |            |  |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
+
+{ "index" : { "_id": "3" } }
+{ "user": { "name": "elkbee" }, "process": { "name": "bash" }, ...}
+// Nothing happens. The "elkbee" user has no pending sequence to move
+// from state A to state B.
+//
+// +-----------------------"elkbee"-----------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+     +------------+  |
+// |  |           |     |           |     |            |  |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
+
+{ "index" : { "_id": "4" } }
+{ "user": { "name": "root" }, "process": { "name": "bash" }, ...}
+// Sequence [2] moves out of state A for "root".
+// State B for "root" now contains [2, 4].
+// State A for "root" is empty.
+//
+// +------------------------"root"------------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+ --> +-----------+     +------------+  |
+// |  |           |     |   [2, 4]  |     |            |  |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
+
+{ "index" : { "_id": "5" } }
+{ "user": { "name": "root" }, "process": { "name": "bash" }, ...}
+// Nothing happens. State A is empty for "root".
+//
+// +------------------------"root"------------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+     +------------+  |
+// |  |           |     |   [2, 4]  |     |            |  |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
+
+{ "index" : { "_id": "6" } }
+{ "user": { "name": "elkbee" }, "process": { "name": "attrib" }, ...}
+// Creates sequence [6] in state A for "elkbee".
+//
+// +-----------------------"elkbee"-----------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+     +------------+  |
+// |  |    [6]    |     |           |     |            |  |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
+
+{ "index" : { "_id": "7" } }
+{ "user": { "name": "root" }, "process": { "name": "attrib" }, ...}
+// Creates sequence [7] in state A for "root".
+// Sequence [2, 4] remains in state B for "root".
+//
+// +------------------------"root"------------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+     +------------+  |
+// |  |    [7]    |     |   [2, 4]  |     |            |  |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
+
+{ "index" : { "_id": "8" } }
+{ "user": { "name": "elkbee" }, "process": { "name": "bash" }, ...}
+// Sequence [6, 8] moves to state B for "elkbee".
+// State A for "elkbee" is now empty.
+//
+// +-----------------------"elkbee"-----------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+ --> +-----------+     +------------+  |
+// |  |           |     |   [6, 8]  |     |            |  |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
+
+{ "index" : { "_id": "9" } }
+{ "user": { "name": "root" }, "process": { "name": "cat" }, ...}
+// Sequence [2, 4, 9] is complete for "root".
+// State B for "root" is now empty.
+// Sequence [7] remains in state A.
+//
+// +------------------------"root"------------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+ --> +------------+  |
+// |  |    [7]    |     |           |     |  [2, 4, 9] |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
+
+{ "index" : { "_id": "10" } }
+{ "user": { "name": "elkbee" }, "process": { "name": "cat" }, ...}
+// Sequence [6, 8, 10] is complete for "elkbee".
+// State A and B for "elkbee" are now empty.
+//
+// +-----------------------"elkbee"-----------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+ --> +------------+  |
+// |  |           |     |           |     | [6, 8, 10] |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
+
+{ "index" : { "_id": "11" } }
+{ "user": { "name": "root" }, "process": { "name": "cat" }, ...}
+// Nothing happens.
+// The machines for "root" and "elkbee" remain the same.
+//
+// +------------------------"root"------------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+     +------------+  |
+// |  |    [7]    |     |           |     |  [2, 4, 9] |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
+//
+// +-----------------------"elkbee"-----------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+     +------------+  |
+// |  |           |     |           |     | [6, 8, 10] |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
+----
+====

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm;
@@ -231,9 +232,9 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
      * @throws IllegalArgumentException if the repository does not exist
      */
     public static void validateRepositoryExists(final String repository, final ClusterState state) {
-        Optional.ofNullable((RepositoriesMetadata) state.metadata().custom(RepositoriesMetadata.TYPE))
-            .map(repoMeta -> repoMeta.repository(repository))
-            .orElseThrow(() -> new IllegalArgumentException("no such repository [" + repository + "]"));
+        if (state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(repository) == null) {
+            throw new IllegalArgumentException("no such repository [" + repository + "]");
+        }
     }
 
     /**

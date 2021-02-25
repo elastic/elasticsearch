@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
@@ -102,7 +103,7 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     @Override
     public Optional<InputStream> next() throws IOException {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
@@ -239,6 +240,7 @@ public class ChunkedDataExtractor implements DataExtractor {
             return new SearchSourceBuilder()
                 .size(0)
                 .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, currentStart, context.end))
+                .runtimeMappings(context.runtimeMappings)
                 .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.timeField))
                 .aggregation(AggregationBuilders.max(LATEST_TIME).field(context.timeField));
         }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
@@ -27,6 +16,7 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
@@ -98,6 +88,11 @@ public class Setting<T> implements ToXContentObject {
         Dynamic,
 
         /**
+         * Operator only Dynamic setting
+         */
+        OperatorDynamic,
+
+        /**
          * mark this setting as final, not updateable even when the context is not dynamic
          * ie. Setting this property on an index scoped setting will fail update when the index is closed
          */
@@ -167,8 +162,12 @@ public class Setting<T> implements ToXContentObject {
             this.properties = EMPTY_PROPERTIES;
         } else {
             final EnumSet<Property> propertiesAsSet = EnumSet.copyOf(Arrays.asList(properties));
-            if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.Final)) {
+            if ((propertiesAsSet.contains(Property.Dynamic) || propertiesAsSet.contains(Property.OperatorDynamic))
+                && propertiesAsSet.contains(Property.Final)) {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
+            }
+            if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.OperatorDynamic)) {
+                throw new IllegalArgumentException("setting [" + key + "] cannot be both dynamic and operator dynamic");
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
@@ -294,7 +293,14 @@ public class Setting<T> implements ToXContentObject {
      * Returns <code>true</code> if this setting is dynamically updateable, otherwise <code>false</code>
      */
     public final boolean isDynamic() {
-        return properties.contains(Property.Dynamic);
+        return properties.contains(Property.Dynamic) || properties.contains(Property.OperatorDynamic);
+    }
+
+    /**
+     * Returns <code>true</code> if this setting is dynamically updateable by operators, otherwise <code>false</code>
+     */
+    public final boolean isOperatorOnly() {
+        return properties.contains(Property.OperatorDynamic);
     }
 
     /**
@@ -487,7 +493,14 @@ public class Setting<T> implements ToXContentObject {
      */
     public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
         if (exists(source) == false) {
-            builder.put(getKey(), getRaw(defaultSettings));
+            if (exists(defaultSettings)) {
+                // If the setting is only in the defaults, use the value from the defaults
+                builder.put(getKey(), getRaw(defaultSettings));
+            } else {
+                // If the setting is in neither `source` nor `default`, get the value
+                // from `source` as it may depend on the value of other settings
+                builder.put(getKey(), getRaw(source));
+            }
         }
     }
 
@@ -523,7 +536,8 @@ public class Setting<T> implements ToXContentObject {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
             Settings.DeprecationLoggerHolder.deprecationLogger
-                .deprecate(key, "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                .deprecate(DeprecationCategory.SETTINGS, key,
+                    "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
                     + "See the breaking changes documentation for the next major version.", key);
         }
     }
@@ -1363,6 +1377,20 @@ public class Setting<T> implements ToXContentObject {
             throw new IllegalArgumentException(message);
         }
         return value;
+    }
+
+    /**
+     * Creates a setting where the allowed values are defined as enum constants. All enum constants must be uppercase.
+     *
+     * @param clazz the enum class
+     * @param key the key for the setting
+     * @param defaultValue the default value for this setting
+     * @param properties properties for this setting like scope, filtering...
+     * @param <T> the generics type parameter reflecting the actual type of the enum
+     * @return the setting object
+     */
+    public static <T extends Enum<T>> Setting<T> enumSetting(Class<T> clazz, String key, T defaultValue, Property... properties) {
+        return new Setting<>(key, defaultValue.toString(), e -> Enum.valueOf(clazz, e.toUpperCase(Locale.ROOT)), properties);
     }
 
     /**

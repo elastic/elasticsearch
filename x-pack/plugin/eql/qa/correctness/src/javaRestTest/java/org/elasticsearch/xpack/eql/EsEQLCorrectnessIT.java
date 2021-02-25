@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql;
@@ -150,6 +151,7 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
         eqlSearchRequest.tiebreakerField("serial_id");
         eqlSearchRequest.size(Integer.parseInt(CFG.getProperty("size")));
         eqlSearchRequest.fetchSize(Integer.parseInt(CFG.getProperty("fetch_size")));
+        eqlSearchRequest.resultPosition(CFG.getProperty("result_position"));
         EqlSearchResponse response = highLevelClient().eql().search(eqlSearchRequest, RequestOptions.DEFAULT);
         long responseTime = response.took();
         LOGGER.info("QueryNo: {}, took: {}ms", queryNo, responseTime);

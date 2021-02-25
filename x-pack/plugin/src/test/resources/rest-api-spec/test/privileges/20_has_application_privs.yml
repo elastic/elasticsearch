@@ -136,7 +136,7 @@ setup:
           username: "eng_read"
           body:  >
               {
-                "password": "p@ssw0rd",
+                "password": "s3cr3t-p@ssw0rd",
                 "roles" : [ "myapp_engineering_read" ]
               }
   - do:
@@ -144,7 +144,7 @@ setup:
           username: "eng_write"
           body:  >
               {
-                "password": "p@ssw0rd",
+                "password": "s3cr3t-p@ssw0rd",
                 "roles" : [ "myapp_engineering_write" ]
               }
   - do:
@@ -152,7 +152,7 @@ setup:
           username: "your_read"
           body:  >
               {
-                "password": "p@ssw0rd",
+                "password": "s3cr3t-p@ssw0rd",
                 "roles" : [ "yourapp_read_config" ]
               }
   - do:
@@ -160,7 +160,7 @@ setup:
         username: "myapp_yourapp_wildard_role_user"
         body:  >
           {
-            "password": "p@ssw0rd",
+            "password": "s3cr3t-p@ssw0rd",
             "roles" : [ "role_containing_wildcard_app_name_and_plain_app_name" ]
           }
 
@@ -225,7 +225,7 @@ teardown:
 ---
 "Test has_privileges with application-privileges":
   - do:
-      headers: { Authorization: "Basic ZW5nX3JlYWQ6cEBzc3cwcmQ=" } # eng_read
+      headers: { Authorization: "Basic ZW5nX3JlYWQ6czNjcjN0LXBAc3N3MHJk" } # eng_read
       security.has_privileges:
         user: null
         body: >
@@ -282,7 +282,7 @@ teardown:
     } }
 
   - do:
-      headers: { Authorization: "Basic eW91cl9yZWFkOnBAc3N3MHJk" } # your_read
+      headers: { Authorization: "Basic eW91cl9yZWFkOnMzY3IzdC1wQHNzdzByZA==" } # your_read
       security.has_privileges:
         user: null
         body: >
@@ -333,7 +333,7 @@ teardown:
     } }
 
   - do:
-      headers: { Authorization: "Basic bXlhcHBfeW91cmFwcF93aWxkYXJkX3JvbGVfdXNlcjpwQHNzdzByZA==" } # myapp_yourapp_wildard_role_user
+      headers: { Authorization: "Basic bXlhcHBfeW91cmFwcF93aWxkYXJkX3JvbGVfdXNlcjpzM2NyM3QtcEBzc3cwcmQ=" } # myapp_yourapp_wildard_role_user
       security.has_privileges:
         user: null
         body: >

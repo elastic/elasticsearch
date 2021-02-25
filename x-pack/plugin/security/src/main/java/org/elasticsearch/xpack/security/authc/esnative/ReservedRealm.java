@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSetting;
@@ -52,6 +54,7 @@ import java.util.Map;
 public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public static final String TYPE = "reserved";
+    public static final String NAME = "reserved";
 
     private final ReservedUserInfo bootstrapUserInfo;
     public static final Setting<SecureString> BOOTSTRAP_ELASTIC_PASSWORD = SecureSetting.secureString("bootstrap.password",
@@ -67,10 +70,10 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser,
                          SecurityIndexManager securityIndex, ThreadPool threadPool) {
-        super(new RealmConfig(new RealmConfig.RealmIdentifier(TYPE, TYPE),
+        super(new RealmConfig(new RealmConfig.RealmIdentifier(TYPE, NAME),
             Settings.builder()
                 .put(settings)
-                .put(RealmSettings.realmSettingPrefix(new RealmConfig.RealmIdentifier(TYPE, TYPE)) + "order", Integer.MIN_VALUE)
+                .put(RealmSettings.realmSettingPrefix(new RealmConfig.RealmIdentifier(TYPE, NAME)) + "order", Integer.MIN_VALUE)
                 .build(), env, threadPool.getThreadContext()), threadPool);
         this.nativeUsersStore = nativeUsersStore;
         this.realmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
@@ -228,7 +231,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private void logDeprecatedUser(final User user){
         Map<String, Object> metadata = user.metadata();
         if (Boolean.TRUE.equals(metadata.get(MetadataUtils.DEPRECATED_METADATA_KEY))) {
-            deprecationLogger.deprecate("deprecated_user-" + user.principal(), "The user [" + user.principal() +
+            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "deprecated_user-" + user.principal(), "The user [" +
+                user.principal() +
                     "] is deprecated and will be removed in a future version of Elasticsearch. " +
                     metadata.get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY));
         }

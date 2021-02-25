@@ -80,6 +80,9 @@
                 }
             }
         },
+        "file_path" : {
+          "type" : "[runtime_random_keyword_type]"
+        },
         "serial_event_id" : {
             "type" : "long"
         },

@@ -75,6 +75,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertTrue(settingsResponse.isAcknowledged());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69594")
     public void testGeoIpDatabasesDownload() throws Exception {
         // use short wait for local fixture, longer when we hit real service
         int waitTime = ENDPOINT == null ? 120 : 10;

@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.info.BuildParams
 import org.gradle.initialization.BuildRequestMetaData
@@ -15,6 +16,7 @@ buildScan {
     String nodeName = System.getenv('NODE_NAME')
 
     tag OS.current().name()
+    tag Architecture.current().name()
 
     // Tag if this build is run in FIPS mode
     if (BuildParams.inFipsJvm) {

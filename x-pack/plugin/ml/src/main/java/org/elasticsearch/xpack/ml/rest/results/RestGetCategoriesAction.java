@@ -14,42 +14,41 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction.Request;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.core.ml.action.GetCategoriesAction.Request.CATEGORY_ID;
+import static org.elasticsearch.xpack.core.ml.job.config.Job.ID;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetCategoriesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.of(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories/{"
-                    + Request.CATEGORY_ID.getPreferredName() + "}"),
-            Route.of(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                    "}/results/categories/{" + Request.CATEGORY_ID.getPreferredName() + "}"),
-            Route.of(
-                    GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories"),
-            Route.of(
-                    POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories")
+            Route.of(GET, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() +
+                "}/results/categories/{" + CATEGORY_ID.getPreferredName() + "}"),
+            Route.of(POST, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() +
+                "}/results/categories/{" + CATEGORY_ID.getPreferredName() + "}"),
+            Route.of(GET, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() + "}/results/categories"),
+            Route.of(POST, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() + "}/results/categories")
         );
     }
 
     @Override
     public String getName() {
-        return "ml_get_catagories_action";
+        return "ml_get_categories_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Request request;
-        String jobId = restRequest.param(Job.ID.getPreferredName());
-        Long categoryId = restRequest.hasParam(Request.CATEGORY_ID.getPreferredName()) ? Long.parseLong(
-                restRequest.param(Request.CATEGORY_ID.getPreferredName())) : null;
+        String jobId = restRequest.param(ID.getPreferredName());
+        Long categoryId = restRequest.hasParam(CATEGORY_ID.getPreferredName()) ? Long.parseLong(
+                restRequest.param(CATEGORY_ID.getPreferredName())) : null;
 
         if (restRequest.hasContentOrSourceParam()) {
             XContentParser parser = restRequest.contentOrSourceParamParser();

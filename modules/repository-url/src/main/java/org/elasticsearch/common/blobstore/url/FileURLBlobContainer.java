@@ -11,6 +11,7 @@ package org.elasticsearch.common.blobstore.url;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.io.Streams;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -27,6 +28,6 @@ public class FileURLBlobContainer extends URLBlobContainer {
         if (position > 0) {
             inputStream.skip(position);
         }
-        return Streams.limitStream(inputStream, length);
+        return Streams.limitStream(new BufferedInputStream(inputStream, blobStore.bufferSizeInBytes()), length);
     }
 }

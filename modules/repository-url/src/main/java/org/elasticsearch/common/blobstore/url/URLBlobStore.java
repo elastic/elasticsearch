@@ -41,6 +41,12 @@ public class URLBlobStore implements BlobStore {
         TimeValue.timeValueMinutes(60),
         Setting.Property.NodeScope);
 
+    static final Setting<ByteSizeValue> BUFFER_SIZE_SETTING = Setting.byteSizeSetting(
+        "repositories.uri.buffer_size",
+        new ByteSizeValue(100, ByteSizeUnit.KB),
+        Setting.Property.NodeScope
+    );
+
 
     private final URL path;
 
@@ -61,8 +67,7 @@ public class URLBlobStore implements BlobStore {
      */
     public URLBlobStore(Settings settings, URL path, URLHttpClient httpClient) {
         this.path = path;
-        this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.uri.buffer_size",
-            new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
+        this.bufferSizeInBytes = (int) BUFFER_SIZE_SETTING.get(settings).getBytes();
         final HttpClientSettings httpClientSettings = new HttpClientSettings();
         httpClientSettings.setMaxRetries(HTTP_MAX_RETRIES_SETTING.get(settings));
         httpClientSettings.setSocketTimeoutMs((int) SOCKET_TIMEOUT_SETTING.get(settings).millis());

@@ -179,6 +179,15 @@ be registered in the `path.repo` setting.
 NOTE: Read-only URL repositories do not support
 <<searchable-snapshots,searchable snapshots>>.
 
+For URLs using the `http` or `https` protocol, it is possible to configure the following
+parameters:
+
+[source,yaml]
+----
+repositories.uri.http.max_retries: 5
+repositories.uri.http.socket_timeout: 50s
+----
+
 [discrete]
 [role="xpack"]
 [testenv="basic"]

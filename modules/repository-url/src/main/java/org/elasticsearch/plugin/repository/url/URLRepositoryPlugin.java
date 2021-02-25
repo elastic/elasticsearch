@@ -34,7 +34,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;

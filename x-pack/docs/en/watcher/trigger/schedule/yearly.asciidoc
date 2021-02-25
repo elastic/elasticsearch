@@ -1,6 +1,9 @@
 [role="xpack"]
 [[schedule-yearly]]
-==== Yearly schedule
+==== {watcher} yearly schedule
+++++
+<titleabbrev>Yearly schedule</titleabbrev>
+++++
 
 A <<trigger-schedule,`schedule`>> that triggers at a specific day and time
 every year. To use the `yearly` schedule, you specify the month, day, and time

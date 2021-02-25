@@ -10,7 +10,7 @@ setup:
         username: "joe"
         body:  >
           {
-            "password": "s3krit",
+            "password": "s3krit-password",
             "roles" : [ "superuser" ]
           }
   - do:
@@ -31,7 +31,7 @@ setup:
         username: "unprivileged_user"
         body:  >
           {
-            "password": "s3krit",
+            "password": "s3krit-password",
             "roles" : [ "user" ]
           }
 
@@ -56,7 +56,7 @@ teardown:
       features: catch_unauthorized
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
       cluster.health: {}
   - match: { timed_out: false }
 
@@ -66,20 +66,20 @@ teardown:
         username: "joe"
         body:  >
             {
-              "password" : "s3krit2"
+              "password" : "s3krit-password2"
             }
 
 # attempt to login with invalid credentials
   - do:
       catch: unauthorized
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
       cluster.health: {}
 
 # login with new credentials
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdDI="
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZDI="
       cluster.health: {}
   - match: { timed_out: false }
 
@@ -90,31 +90,31 @@ teardown:
 # test that the role actually works
   - do:
       headers:
-        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0"
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0LXBhc3N3b3Jk"
       cluster.health: {}
   - match: { timed_out: false }
 
 # change password as the current user. the user role only grants the ability to change their own password
   - do:
       headers:
-        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0"
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0LXBhc3N3b3Jk"
       security.change_password:
         body:  >
             {
-              "password" : "s3krit2"
+              "password" : "s3krit-password2"
             }
 
 # attempt to login with invalid credentials
   - do:
       catch: unauthorized
       headers:
-        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0"
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0LXBhc3N3b3Jk"
       cluster.health: {}
 
 # login with new credentials
   - do:
       headers:
-        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0Mg=="
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0LXBhc3N3b3JkMg=="
       cluster.health: {}
   - match: { timed_out: false }
 
@@ -123,18 +123,18 @@ teardown:
 # test that the role actually works
   - do:
       headers:
-        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0"
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0LXBhc3N3b3Jk"
       cluster.health: {}
   - match: { timed_out: false }
 
 # attempt to change another users password
   - do:
       headers:
-        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0"
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0LXBhc3N3b3Jk"
       catch: forbidden
       security.change_password:
         username: "anotheruser"
         body:  >
             {
-              "password" : "s3krit2"
+              "password" : "s3krit-password2"
             }

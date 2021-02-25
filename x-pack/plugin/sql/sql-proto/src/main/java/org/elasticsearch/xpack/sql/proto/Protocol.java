@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.proto;
@@ -50,14 +51,20 @@ public final class Protocol {
     public static final TimeValue PAGE_TIMEOUT = TimeValue.timeValueSeconds(45);
     public static final boolean FIELD_MULTI_VALUE_LENIENCY = false;
     public static final boolean INDEX_INCLUDE_FROZEN = false;
-    
+
     /*
-     * Using the Boolean object here so that SqlTranslateRequest to set this to null (since it doesn't need a "columnar" or 
+     * Using the Boolean object here so that SqlTranslateRequest to set this to null (since it doesn't need a "columnar" or
      * binary parameter).
      * See {@code SqlTranslateRequest.toXContent}
      */
     public static final Boolean COLUMNAR = Boolean.FALSE;
     public static final Boolean BINARY_COMMUNICATION = null;
+
+    /*
+     * URL parameters
+     */
+    public static final String URL_PARAM_FORMAT = "format";
+    public static final String URL_PARAM_DELIMITER = "delimiter";
 
     /**
      * SQL-related endpoints

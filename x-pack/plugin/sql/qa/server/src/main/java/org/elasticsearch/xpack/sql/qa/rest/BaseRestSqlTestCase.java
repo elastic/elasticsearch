@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.qa.rest;
@@ -133,7 +134,11 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
     }
 
     protected void index(String... docs) throws IOException {
-        Request request = new Request("POST", "/test/_bulk");
+        indexWithIndexName("test", docs);
+    }
+
+    protected void indexWithIndexName(String indexName, String... docs) throws IOException {
+        Request request = new Request("POST", "/" + indexName + "/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : docs) {

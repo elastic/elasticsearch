@@ -5,12 +5,12 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Close {anomaly-job} API
+=== Close {anomaly-jobs} API
 
 Closes {anomaly-jobs} in the cluster. It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Close {anomaly-job} request
+==== Close {anomaly-jobs} request
 
 A +{request}+ object gets created with an existing non-null `jobId`.
 
@@ -27,7 +27,7 @@ which has not responded to its initial close request.
 execution should wait for the job to be closed.
 
 [id="{upid}-{api}-response"]
-==== Close {anomaly-job} response
+==== Close {anomaly-jobs} response
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

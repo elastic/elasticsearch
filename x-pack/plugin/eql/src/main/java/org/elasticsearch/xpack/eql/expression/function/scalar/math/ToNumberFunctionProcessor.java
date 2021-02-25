@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.expression.function.scalar.math;
 
@@ -53,7 +54,7 @@ public class ToNumberFunctionProcessor implements Processor {
             return null;
         }
 
-        if (!(value instanceof String || value instanceof Character)) {
+        if ((value instanceof String || value instanceof Character) == false) {
             throw new EqlIllegalArgumentException("A string/char is required; received [{}]", value);
         }
 

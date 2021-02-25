@@ -4,22 +4,11 @@ import java.util.List;
 import java.util.function.Function;
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 /** Currently just a dummy class for testing a few features not yet exposed by whitelist! */
@@ -42,6 +31,10 @@ public class FeatureTestObject {
     /** static method with a type parameter Number */
     public static int staticNumberTest(Number number) {
         return number.intValue();
+    }
+
+    public static int staticNumberArgument(int injected, int userArgument) {
+        return injected * userArgument;
     }
 
     private int x;
@@ -88,6 +81,26 @@ public class FeatureTestObject {
     /** setter for y */
     public void setI(Integer i) {
         this.i = i;
+    }
+
+    public int injectTimesX(int injected, short user) {
+        return this.x * injected * user;
+    }
+
+    public int timesSupplier(Function<Short, Integer> fn, short fnArg, int userArg) {
+        return fn.apply(fnArg) * userArg;
+    }
+
+    public int injectWithLambda(int injected, Function<Short, Integer> fn, short arg) {
+        return this.x*fn.apply(arg)*injected;
+    }
+
+    public int injectMultiTimesX(int inject1, int inject2, int inject3, short user) {
+        return this.x * (inject1 + inject2 + inject3) * user;
+    }
+
+    public int injectMultiWithLambda(int inject1, int inject2, int inject3, Function<Short, Integer> fn, short arg) {
+        return this.x*fn.apply(arg)*(inject1 + inject2 + inject3);
     }
 
     public Double mixedAdd(int i, Byte b, char c, Float f) {

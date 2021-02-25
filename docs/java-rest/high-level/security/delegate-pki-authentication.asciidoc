@@ -52,6 +52,8 @@ The returned +{response}+ contains the following properties:
 `type`:: The type of the token, this is always `"Bearer"`.
 `expiresIn`:: The length of time (in seconds) until the token will expire.
    The token will be considered invalid after that time.
+`authentication`:: This is the authentication object for the newly created token. See also
+<<{upid}-authenticate-response, authenticate response>> for details.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -48,8 +37,8 @@ public final class JsonProcessor extends AbstractProcessor {
     private final String targetField;
     private final boolean addToRoot;
 
-    JsonProcessor(String tag, String field, String targetField, boolean addToRoot) {
-        super(tag);
+    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot) {
+        super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.addToRoot = addToRoot;
@@ -124,7 +113,7 @@ public final class JsonProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
         @Override
         public JsonProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    Map<String, Object> config) throws Exception {
+                                    String description, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");
             boolean addToRoot = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "add_to_root", false);
@@ -138,7 +127,7 @@ public final class JsonProcessor extends AbstractProcessor {
                 targetField = field;
             }
 
-            return new JsonProcessor(processorTag, field, targetField, addToRoot);
+            return new JsonProcessor(processorTag, description, field, targetField, addToRoot);
         }
     }
 }

@@ -1,0 +1,78 @@
+---
+"Async search with point in time":
+  - skip:
+      version: " - 7.9.99"
+      reason: "point in time is introduced in 7.10"
+  - do:
+      indices.create:
+        index: test-1
+        body:
+          settings:
+            number_of_shards: "2"
+
+  - do:
+      indices.create:
+        index: test-2
+        body:
+          settings:
+            number_of_shards: "1"
+
+  - do:
+      indices.create:
+        index: test-3
+        body:
+          settings:
+            number_of_shards: "3"
+
+  - do:
+      index:
+        index:  test-2
+        body:   { max: 2 }
+
+  - do:
+      index:
+        index:  test-1
+        body:   { max: 1 }
+
+  - do:
+      index:
+        index:  test-3
+        body:   { max: 3 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      open_point_in_time:
+        index: test-*
+        keep_alive: 5m
+  - set: {id: point_in_time_id}
+
+  - do:
+      async_search.submit:
+        batched_reduce_size: 2
+        wait_for_completion_timeout: 10s
+        body:
+          query:
+            match_all: {}
+          aggs:
+            max:
+              max:
+                field: max
+          sort: max
+          pit:
+            id: "$point_in_time_id"
+            keep_alive: 1m
+
+  - is_false: id
+  - match:  { is_partial:                   false }
+  - length: { response.hits.hits:               3 }
+  - match:  { response.hits.hits.0._source.max: 1 }
+  - match:  { response.aggregations.max.value:  3.0 }
+
+  - do:
+      close_point_in_time:
+        body:
+          id: "$point_in_time_id"
+
+

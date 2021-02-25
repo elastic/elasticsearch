@@ -7,18 +7,14 @@ apply plugin: 'elasticsearch.build'
 description = 'Code shared between jdbc and cli'
 
 dependencies {
-  compile xpackProject('plugin:sql:sql-proto')
-  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  testCompile project(":test:framework")
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  api xpackProject('plugin:sql:sql-proto')
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  testImplementation project(":test:framework")
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
-  mapping from: /sql-proto.*/, to: 'elasticsearch'
-  mapping from: /elasticsearch-cli.*/, to: 'elasticsearch'
-  mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
-  ignoreSha 'elasticsearch-core'
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -31,6 +27,6 @@ tasks.named('forbiddenApisTest').configure {
   bundledSignatures += 'jdk-internal'
 }
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.keystore'
 }

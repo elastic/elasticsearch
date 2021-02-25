@@ -34,10 +34,10 @@ class SqlBaseParser extends Parser {
     ESCAPE_ESC=103, FUNCTION_ESC=104, LIMIT_ESC=105, DATE_ESC=106, TIME_ESC=107, 
     TIMESTAMP_ESC=108, GUID_ESC=109, ESC_START=110, ESC_END=111, EQ=112, NULLEQ=113, 
     NEQ=114, LT=115, LTE=116, GT=117, GTE=118, PLUS=119, MINUS=120, ASTERISK=121, 
-    SLASH=122, PERCENT=123, CAST_OP=124, CONCAT=125, DOT=126, PARAM=127, STRING=128, 
-    INTEGER_VALUE=129, DECIMAL_VALUE=130, IDENTIFIER=131, DIGIT_IDENTIFIER=132, 
-    TABLE_IDENTIFIER=133, QUOTED_IDENTIFIER=134, BACKQUOTED_IDENTIFIER=135, 
-    SIMPLE_COMMENT=136, BRACKETED_COMMENT=137, WS=138, UNRECOGNIZED=139, DELIMITER=140;
+    SLASH=122, PERCENT=123, CAST_OP=124, DOT=125, PARAM=126, STRING=127, INTEGER_VALUE=128, 
+    DECIMAL_VALUE=129, IDENTIFIER=130, DIGIT_IDENTIFIER=131, TABLE_IDENTIFIER=132, 
+    QUOTED_IDENTIFIER=133, BACKQUOTED_IDENTIFIER=134, SIMPLE_COMMENT=135, 
+    BRACKETED_COMMENT=136, WS=137, UNRECOGNIZED=138, DELIMITER=139;
   public static final int
     RULE_singleStatement = 0, RULE_singleExpression = 1, RULE_statement = 2, 
     RULE_query = 3, RULE_queryNoWith = 4, RULE_limitClause = 5, RULE_queryTerm = 6, 
@@ -91,7 +91,7 @@ class SqlBaseParser extends Parser {
     "'TOP'", "'TYPE'", "'TYPES'", "'USING'", "'VERIFY'", "'WHEN'", "'WHERE'", 
     "'WITH'", "'YEAR'", "'YEARS'", null, null, null, null, null, null, null, 
     null, "'}'", "'='", "'<=>'", null, "'<'", "'<='", "'>'", "'>='", "'+'", 
-    "'-'", "'*'", "'/'", "'%'", "'::'", "'||'", "'.'", "'?'"
+    "'-'", "'*'", "'/'", "'%'", "'::'", "'.'", "'?'"
   };
   private static final String[] _SYMBOLIC_NAMES = {
     null, null, null, null, null, "ALL", "ANALYZE", "ANALYZED", "AND", "ANY", 
@@ -110,10 +110,9 @@ class SqlBaseParser extends Parser {
     "ESCAPE_ESC", "FUNCTION_ESC", "LIMIT_ESC", "DATE_ESC", "TIME_ESC", "TIMESTAMP_ESC", 
     "GUID_ESC", "ESC_START", "ESC_END", "EQ", "NULLEQ", "NEQ", "LT", "LTE", 
     "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", "PERCENT", "CAST_OP", 
-    "CONCAT", "DOT", "PARAM", "STRING", "INTEGER_VALUE", "DECIMAL_VALUE", 
-    "IDENTIFIER", "DIGIT_IDENTIFIER", "TABLE_IDENTIFIER", "QUOTED_IDENTIFIER", 
-    "BACKQUOTED_IDENTIFIER", "SIMPLE_COMMENT", "BRACKETED_COMMENT", "WS", 
-    "UNRECOGNIZED", "DELIMITER"
+    "DOT", "PARAM", "STRING", "INTEGER_VALUE", "DECIMAL_VALUE", "IDENTIFIER", 
+    "DIGIT_IDENTIFIER", "TABLE_IDENTIFIER", "QUOTED_IDENTIFIER", "BACKQUOTED_IDENTIFIER", 
+    "SIMPLE_COMMENT", "BRACKETED_COMMENT", "WS", "UNRECOGNIZED", "DELIMITER"
   };
   public static final Vocabulary VOCABULARY = new VocabularyImpl(_LITERAL_NAMES, _SYMBOLIC_NAMES);
 
@@ -2068,7 +2067,7 @@ class SqlBaseParser extends Parser {
         match(T__0);
         setState(350);
         _la = _input.LA(1);
-        if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << T__0) | (1L << ANALYZE) | (1L << ANALYZED) | (1L << CASE) | (1L << CAST) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CONVERT) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << EXECUTABLE) | (1L << EXISTS) | (1L << EXPLAIN) | (1L << EXTRACT) | (1L << FALSE) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LEFT) | (1L << LIMIT) | (1L << MAPPED) | (1L << MATCH) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 66)) & ~0x3f) == 0 && ((1L << (_la - 66)) & ((1L << (NOT - 66)) | (1L << (NULL - 66)) | (1L << (OPTIMIZED - 66)) | (1L << (PARSED - 66)) | (1L << (PHYSICAL - 66)) | (1L << (PIVOT - 66)) | (1L << (PLAN - 66)) | (1L << (RIGHT - 66)) | (1L << (RLIKE - 66)) | (1L << (QUERY - 66)) | (1L << (SCHEMAS - 66)) | (1L << (SECOND - 66)) | (1L << (SHOW - 66)) | (1L << (SYS - 66)) | (1L << (TABLES - 66)) | (1L << (TEXT - 66)) | (1L << (TRUE - 66)) | (1L << (TOP - 66)) | (1L << (TYPE - 66)) | (1L << (TYPES - 66)) | (1L << (VERIFY - 66)) | (1L << (YEAR - 66)) | (1L << (FUNCTION_ESC - 66)) | (1L << (DATE_ESC - 66)) | (1L << (TIME_ESC - 66)) | (1L << (TIMESTAMP_ESC - 66)) | (1L << (GUID_ESC - 66)) | (1L << (PLUS - 66)) | (1L << (MINUS - 66)) | (1L << (ASTERISK - 66)) | (1L << (PARAM - 66)) | (1L << (STRING - 66)) | (1L << (INTEGER_VALUE - 66)))) != 0) || ((((_la - 130)) & ~0x3f) == 0 && ((1L << (_la - 130)) & ((1L << (DECIMAL_VALUE - 130)) | (1L << (IDENTIFIER - 130)) | (1L << (DIGIT_IDENTIFIER - 130)) | (1L << (QUOTED_IDENTIFIER - 130)) | (1L << (BACKQUOTED_IDENTIFIER - 130)))) != 0)) {
+        if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << T__0) | (1L << ANALYZE) | (1L << ANALYZED) | (1L << CASE) | (1L << CAST) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CONVERT) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << EXECUTABLE) | (1L << EXISTS) | (1L << EXPLAIN) | (1L << EXTRACT) | (1L << FALSE) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LEFT) | (1L << LIMIT) | (1L << MAPPED) | (1L << MATCH) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 66)) & ~0x3f) == 0 && ((1L << (_la - 66)) & ((1L << (NOT - 66)) | (1L << (NULL - 66)) | (1L << (OPTIMIZED - 66)) | (1L << (PARSED - 66)) | (1L << (PHYSICAL - 66)) | (1L << (PIVOT - 66)) | (1L << (PLAN - 66)) | (1L << (RIGHT - 66)) | (1L << (RLIKE - 66)) | (1L << (QUERY - 66)) | (1L << (SCHEMAS - 66)) | (1L << (SECOND - 66)) | (1L << (SHOW - 66)) | (1L << (SYS - 66)) | (1L << (TABLES - 66)) | (1L << (TEXT - 66)) | (1L << (TRUE - 66)) | (1L << (TOP - 66)) | (1L << (TYPE - 66)) | (1L << (TYPES - 66)) | (1L << (VERIFY - 66)) | (1L << (YEAR - 66)) | (1L << (FUNCTION_ESC - 66)) | (1L << (DATE_ESC - 66)) | (1L << (TIME_ESC - 66)) | (1L << (TIMESTAMP_ESC - 66)) | (1L << (GUID_ESC - 66)) | (1L << (PLUS - 66)) | (1L << (MINUS - 66)) | (1L << (ASTERISK - 66)) | (1L << (PARAM - 66)) | (1L << (STRING - 66)) | (1L << (INTEGER_VALUE - 66)) | (1L << (DECIMAL_VALUE - 66)))) != 0) || ((((_la - 130)) & ~0x3f) == 0 && ((1L << (_la - 130)) & ((1L << (IDENTIFIER - 130)) | (1L << (DIGIT_IDENTIFIER - 130)) | (1L << (QUOTED_IDENTIFIER - 130)) | (1L << (BACKQUOTED_IDENTIFIER - 130)))) != 0)) {
           {
           setState(342);
           expression();
@@ -3144,7 +3143,7 @@ class SqlBaseParser extends Parser {
       valueExpression(0);
       setState(489);
       _la = _input.LA(1);
-      if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << ANALYZE) | (1L << ANALYZED) | (1L << AS) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << EXECUTABLE) | (1L << EXPLAIN) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LIMIT) | (1L << MAPPED) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 70)) & ~0x3f) == 0 && ((1L << (_la - 70)) & ((1L << (OPTIMIZED - 70)) | (1L << (PARSED - 70)) | (1L << (PHYSICAL - 70)) | (1L << (PIVOT - 70)) | (1L << (PLAN - 70)) | (1L << (RLIKE - 70)) | (1L << (QUERY - 70)) | (1L << (SCHEMAS - 70)) | (1L << (SECOND - 70)) | (1L << (SHOW - 70)) | (1L << (SYS - 70)) | (1L << (TABLES - 70)) | (1L << (TEXT - 70)) | (1L << (TOP - 70)) | (1L << (TYPE - 70)) | (1L << (TYPES - 70)) | (1L << (VERIFY - 70)) | (1L << (YEAR - 70)) | (1L << (IDENTIFIER - 70)) | (1L << (DIGIT_IDENTIFIER - 70)))) != 0) || _la==QUOTED_IDENTIFIER || _la==BACKQUOTED_IDENTIFIER) {
+      if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << ANALYZE) | (1L << ANALYZED) | (1L << AS) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << EXECUTABLE) | (1L << EXPLAIN) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LIMIT) | (1L << MAPPED) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 70)) & ~0x3f) == 0 && ((1L << (_la - 70)) & ((1L << (OPTIMIZED - 70)) | (1L << (PARSED - 70)) | (1L << (PHYSICAL - 70)) | (1L << (PIVOT - 70)) | (1L << (PLAN - 70)) | (1L << (RLIKE - 70)) | (1L << (QUERY - 70)) | (1L << (SCHEMAS - 70)) | (1L << (SECOND - 70)) | (1L << (SHOW - 70)) | (1L << (SYS - 70)) | (1L << (TABLES - 70)) | (1L << (TEXT - 70)) | (1L << (TOP - 70)) | (1L << (TYPE - 70)) | (1L << (TYPES - 70)) | (1L << (VERIFY - 70)) | (1L << (YEAR - 70)) | (1L << (IDENTIFIER - 70)) | (1L << (DIGIT_IDENTIFIER - 70)) | (1L << (QUOTED_IDENTIFIER - 70)))) != 0) || _la==BACKQUOTED_IDENTIFIER) {
         {
         setState(486);
         _la = _input.LA(1);
@@ -4673,7 +4672,7 @@ class SqlBaseParser extends Parser {
         _prevctx = _localctx;
         setState(640);
         _la = _input.LA(1);
-        if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << ANALYZE) | (1L << ANALYZED) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << EXECUTABLE) | (1L << EXPLAIN) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LIMIT) | (1L << MAPPED) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 70)) & ~0x3f) == 0 && ((1L << (_la - 70)) & ((1L << (OPTIMIZED - 70)) | (1L << (PARSED - 70)) | (1L << (PHYSICAL - 70)) | (1L << (PIVOT - 70)) | (1L << (PLAN - 70)) | (1L << (RLIKE - 70)) | (1L << (QUERY - 70)) | (1L << (SCHEMAS - 70)) | (1L << (SECOND - 70)) | (1L << (SHOW - 70)) | (1L << (SYS - 70)) | (1L << (TABLES - 70)) | (1L << (TEXT - 70)) | (1L << (TOP - 70)) | (1L << (TYPE - 70)) | (1L << (TYPES - 70)) | (1L << (VERIFY - 70)) | (1L << (YEAR - 70)) | (1L << (IDENTIFIER - 70)) | (1L << (DIGIT_IDENTIFIER - 70)))) != 0) || _la==QUOTED_IDENTIFIER || _la==BACKQUOTED_IDENTIFIER) {
+        if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << ANALYZE) | (1L << ANALYZED) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << EXECUTABLE) | (1L << EXPLAIN) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LIMIT) | (1L << MAPPED) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 70)) & ~0x3f) == 0 && ((1L << (_la - 70)) & ((1L << (OPTIMIZED - 70)) | (1L << (PARSED - 70)) | (1L << (PHYSICAL - 70)) | (1L << (PIVOT - 70)) | (1L << (PLAN - 70)) | (1L << (RLIKE - 70)) | (1L << (QUERY - 70)) | (1L << (SCHEMAS - 70)) | (1L << (SECOND - 70)) | (1L << (SHOW - 70)) | (1L << (SYS - 70)) | (1L << (TABLES - 70)) | (1L << (TEXT - 70)) | (1L << (TOP - 70)) | (1L << (TYPE - 70)) | (1L << (TYPES - 70)) | (1L << (VERIFY - 70)) | (1L << (YEAR - 70)) | (1L << (IDENTIFIER - 70)) | (1L << (DIGIT_IDENTIFIER - 70)) | (1L << (QUOTED_IDENTIFIER - 70)))) != 0) || _la==BACKQUOTED_IDENTIFIER) {
           {
           setState(637);
           qualifiedName();
@@ -4739,7 +4738,7 @@ class SqlBaseParser extends Parser {
         match(CASE);
         setState(655);
         _la = _input.LA(1);
-        if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << T__0) | (1L << ANALYZE) | (1L << ANALYZED) | (1L << CASE) | (1L << CAST) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CONVERT) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << EXECUTABLE) | (1L << EXISTS) | (1L << EXPLAIN) | (1L << EXTRACT) | (1L << FALSE) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LEFT) | (1L << LIMIT) | (1L << MAPPED) | (1L << MATCH) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 66)) & ~0x3f) == 0 && ((1L << (_la - 66)) & ((1L << (NOT - 66)) | (1L << (NULL - 66)) | (1L << (OPTIMIZED - 66)) | (1L << (PARSED - 66)) | (1L << (PHYSICAL - 66)) | (1L << (PIVOT - 66)) | (1L << (PLAN - 66)) | (1L << (RIGHT - 66)) | (1L << (RLIKE - 66)) | (1L << (QUERY - 66)) | (1L << (SCHEMAS - 66)) | (1L << (SECOND - 66)) | (1L << (SHOW - 66)) | (1L << (SYS - 66)) | (1L << (TABLES - 66)) | (1L << (TEXT - 66)) | (1L << (TRUE - 66)) | (1L << (TOP - 66)) | (1L << (TYPE - 66)) | (1L << (TYPES - 66)) | (1L << (VERIFY - 66)) | (1L << (YEAR - 66)) | (1L << (FUNCTION_ESC - 66)) | (1L << (DATE_ESC - 66)) | (1L << (TIME_ESC - 66)) | (1L << (TIMESTAMP_ESC - 66)) | (1L << (GUID_ESC - 66)) | (1L << (PLUS - 66)) | (1L << (MINUS - 66)) | (1L << (ASTERISK - 66)) | (1L << (PARAM - 66)) | (1L << (STRING - 66)) | (1L << (INTEGER_VALUE - 66)))) != 0) || ((((_la - 130)) & ~0x3f) == 0 && ((1L << (_la - 130)) & ((1L << (DECIMAL_VALUE - 130)) | (1L << (IDENTIFIER - 130)) | (1L << (DIGIT_IDENTIFIER - 130)) | (1L << (QUOTED_IDENTIFIER - 130)) | (1L << (BACKQUOTED_IDENTIFIER - 130)))) != 0)) {
+        if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << T__0) | (1L << ANALYZE) | (1L << ANALYZED) | (1L << CASE) | (1L << CAST) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CONVERT) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << EXECUTABLE) | (1L << EXISTS) | (1L << EXPLAIN) | (1L << EXTRACT) | (1L << FALSE) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LEFT) | (1L << LIMIT) | (1L << MAPPED) | (1L << MATCH) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 66)) & ~0x3f) == 0 && ((1L << (_la - 66)) & ((1L << (NOT - 66)) | (1L << (NULL - 66)) | (1L << (OPTIMIZED - 66)) | (1L << (PARSED - 66)) | (1L << (PHYSICAL - 66)) | (1L << (PIVOT - 66)) | (1L << (PLAN - 66)) | (1L << (RIGHT - 66)) | (1L << (RLIKE - 66)) | (1L << (QUERY - 66)) | (1L << (SCHEMAS - 66)) | (1L << (SECOND - 66)) | (1L << (SHOW - 66)) | (1L << (SYS - 66)) | (1L << (TABLES - 66)) | (1L << (TEXT - 66)) | (1L << (TRUE - 66)) | (1L << (TOP - 66)) | (1L << (TYPE - 66)) | (1L << (TYPES - 66)) | (1L << (VERIFY - 66)) | (1L << (YEAR - 66)) | (1L << (FUNCTION_ESC - 66)) | (1L << (DATE_ESC - 66)) | (1L << (TIME_ESC - 66)) | (1L << (TIMESTAMP_ESC - 66)) | (1L << (GUID_ESC - 66)) | (1L << (PLUS - 66)) | (1L << (MINUS - 66)) | (1L << (ASTERISK - 66)) | (1L << (PARAM - 66)) | (1L << (STRING - 66)) | (1L << (INTEGER_VALUE - 66)) | (1L << (DECIMAL_VALUE - 66)))) != 0) || ((((_la - 130)) & ~0x3f) == 0 && ((1L << (_la - 130)) & ((1L << (IDENTIFIER - 130)) | (1L << (DIGIT_IDENTIFIER - 130)) | (1L << (QUOTED_IDENTIFIER - 130)) | (1L << (BACKQUOTED_IDENTIFIER - 130)))) != 0)) {
           {
           setState(654);
           ((CaseContext)_localctx).operand = booleanExpression(0);
@@ -5360,7 +5359,7 @@ class SqlBaseParser extends Parser {
       match(T__0);
       setState(743);
       _la = _input.LA(1);
-      if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << T__0) | (1L << ALL) | (1L << ANALYZE) | (1L << ANALYZED) | (1L << CASE) | (1L << CAST) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CONVERT) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << DISTINCT) | (1L << EXECUTABLE) | (1L << EXISTS) | (1L << EXPLAIN) | (1L << EXTRACT) | (1L << FALSE) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LEFT) | (1L << LIMIT) | (1L << MAPPED) | (1L << MATCH) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 66)) & ~0x3f) == 0 && ((1L << (_la - 66)) & ((1L << (NOT - 66)) | (1L << (NULL - 66)) | (1L << (OPTIMIZED - 66)) | (1L << (PARSED - 66)) | (1L << (PHYSICAL - 66)) | (1L << (PIVOT - 66)) | (1L << (PLAN - 66)) | (1L << (RIGHT - 66)) | (1L << (RLIKE - 66)) | (1L << (QUERY - 66)) | (1L << (SCHEMAS - 66)) | (1L << (SECOND - 66)) | (1L << (SHOW - 66)) | (1L << (SYS - 66)) | (1L << (TABLES - 66)) | (1L << (TEXT - 66)) | (1L << (TRUE - 66)) | (1L << (TOP - 66)) | (1L << (TYPE - 66)) | (1L << (TYPES - 66)) | (1L << (VERIFY - 66)) | (1L << (YEAR - 66)) | (1L << (FUNCTION_ESC - 66)) | (1L << (DATE_ESC - 66)) | (1L << (TIME_ESC - 66)) | (1L << (TIMESTAMP_ESC - 66)) | (1L << (GUID_ESC - 66)) | (1L << (PLUS - 66)) | (1L << (MINUS - 66)) | (1L << (ASTERISK - 66)) | (1L << (PARAM - 66)) | (1L << (STRING - 66)) | (1L << (INTEGER_VALUE - 66)))) != 0) || ((((_la - 130)) & ~0x3f) == 0 && ((1L << (_la - 130)) & ((1L << (DECIMAL_VALUE - 130)) | (1L << (IDENTIFIER - 130)) | (1L << (DIGIT_IDENTIFIER - 130)) | (1L << (QUOTED_IDENTIFIER - 130)) | (1L << (BACKQUOTED_IDENTIFIER - 130)))) != 0)) {
+      if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << T__0) | (1L << ALL) | (1L << ANALYZE) | (1L << ANALYZED) | (1L << CASE) | (1L << CAST) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CONVERT) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << DISTINCT) | (1L << EXECUTABLE) | (1L << EXISTS) | (1L << EXPLAIN) | (1L << EXTRACT) | (1L << FALSE) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LEFT) | (1L << LIMIT) | (1L << MAPPED) | (1L << MATCH) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 66)) & ~0x3f) == 0 && ((1L << (_la - 66)) & ((1L << (NOT - 66)) | (1L << (NULL - 66)) | (1L << (OPTIMIZED - 66)) | (1L << (PARSED - 66)) | (1L << (PHYSICAL - 66)) | (1L << (PIVOT - 66)) | (1L << (PLAN - 66)) | (1L << (RIGHT - 66)) | (1L << (RLIKE - 66)) | (1L << (QUERY - 66)) | (1L << (SCHEMAS - 66)) | (1L << (SECOND - 66)) | (1L << (SHOW - 66)) | (1L << (SYS - 66)) | (1L << (TABLES - 66)) | (1L << (TEXT - 66)) | (1L << (TRUE - 66)) | (1L << (TOP - 66)) | (1L << (TYPE - 66)) | (1L << (TYPES - 66)) | (1L << (VERIFY - 66)) | (1L << (YEAR - 66)) | (1L << (FUNCTION_ESC - 66)) | (1L << (DATE_ESC - 66)) | (1L << (TIME_ESC - 66)) | (1L << (TIMESTAMP_ESC - 66)) | (1L << (GUID_ESC - 66)) | (1L << (PLUS - 66)) | (1L << (MINUS - 66)) | (1L << (ASTERISK - 66)) | (1L << (PARAM - 66)) | (1L << (STRING - 66)) | (1L << (INTEGER_VALUE - 66)) | (1L << (DECIMAL_VALUE - 66)))) != 0) || ((((_la - 130)) & ~0x3f) == 0 && ((1L << (_la - 130)) & ((1L << (IDENTIFIER - 130)) | (1L << (DIGIT_IDENTIFIER - 130)) | (1L << (QUOTED_IDENTIFIER - 130)) | (1L << (BACKQUOTED_IDENTIFIER - 130)))) != 0)) {
         {
         setState(733);
         _la = _input.LA(1);
@@ -6405,7 +6404,7 @@ class SqlBaseParser extends Parser {
         {
         setState(818);
         _la = _input.LA(1);
-        if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << ANALYZE) | (1L << ANALYZED) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << EXECUTABLE) | (1L << EXPLAIN) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LIMIT) | (1L << MAPPED) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 70)) & ~0x3f) == 0 && ((1L << (_la - 70)) & ((1L << (OPTIMIZED - 70)) | (1L << (PARSED - 70)) | (1L << (PHYSICAL - 70)) | (1L << (PIVOT - 70)) | (1L << (PLAN - 70)) | (1L << (RLIKE - 70)) | (1L << (QUERY - 70)) | (1L << (SCHEMAS - 70)) | (1L << (SECOND - 70)) | (1L << (SHOW - 70)) | (1L << (SYS - 70)) | (1L << (TABLES - 70)) | (1L << (TEXT - 70)) | (1L << (TOP - 70)) | (1L << (TYPE - 70)) | (1L << (TYPES - 70)) | (1L << (VERIFY - 70)) | (1L << (YEAR - 70)) | (1L << (IDENTIFIER - 70)) | (1L << (DIGIT_IDENTIFIER - 70)))) != 0) || _la==QUOTED_IDENTIFIER || _la==BACKQUOTED_IDENTIFIER) {
+        if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << ANALYZE) | (1L << ANALYZED) | (1L << CATALOGS) | (1L << COLUMNS) | (1L << CURRENT_DATE) | (1L << CURRENT_TIME) | (1L << CURRENT_TIMESTAMP) | (1L << DAY) | (1L << DEBUG) | (1L << EXECUTABLE) | (1L << EXPLAIN) | (1L << FIRST) | (1L << FORMAT) | (1L << FULL) | (1L << FUNCTIONS) | (1L << GRAPHVIZ) | (1L << HOUR) | (1L << INTERVAL) | (1L << LAST) | (1L << LIMIT) | (1L << MAPPED) | (1L << MINUTE) | (1L << MONTH))) != 0) || ((((_la - 70)) & ~0x3f) == 0 && ((1L << (_la - 70)) & ((1L << (OPTIMIZED - 70)) | (1L << (PARSED - 70)) | (1L << (PHYSICAL - 70)) | (1L << (PIVOT - 70)) | (1L << (PLAN - 70)) | (1L << (RLIKE - 70)) | (1L << (QUERY - 70)) | (1L << (SCHEMAS - 70)) | (1L << (SECOND - 70)) | (1L << (SHOW - 70)) | (1L << (SYS - 70)) | (1L << (TABLES - 70)) | (1L << (TEXT - 70)) | (1L << (TOP - 70)) | (1L << (TYPE - 70)) | (1L << (TYPES - 70)) | (1L << (VERIFY - 70)) | (1L << (YEAR - 70)) | (1L << (IDENTIFIER - 70)) | (1L << (DIGIT_IDENTIFIER - 70)) | (1L << (QUOTED_IDENTIFIER - 70)))) != 0) || _la==BACKQUOTED_IDENTIFIER) {
           {
           setState(815);
           ((TableIdentifierContext)_localctx).catalog = identifier();
@@ -6984,7 +6983,7 @@ class SqlBaseParser extends Parser {
   }
 
   public static final String _serializedATN =
-    "\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\3\u008e\u0356\4\2\t"+
+    "\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\3\u008d\u0356\4\2\t"+
     "\2\4\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4\t\t\t\4\n\t\n\4\13"+
     "\t\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22\t\22"+
     "\4\23\t\23\4\24\t\24\4\25\t\25\4\26\t\26\4\27\t\27\4\30\t\30\4\31\t\31"+
@@ -7048,8 +7047,8 @@ class SqlBaseParser extends Parser {
     "\59\u0347\n9\3:\3:\5:\u034b\n:\3;\3;\3<\3<\3<\3<\3<\3=\3=\3=\2\58FH>\2"+
     "\4\6\b\n\f\16\20\22\24\26\30\32\34\36 \"$&(*,.\60\62\64\668:<>@BDFHJL"+
     "NPRTVXZ\\^`bdfhjlnprtvx\2\22\b\2\7\7\t\t\"\"==HHLL\4\2..[[\4\2\t\tHH\4"+
-    "\2**\63\63\3\2\34\35\3\2yz\4\2\7\7\u0083\u0083\4\2\r\r\34\34\4\2\'\'9"+
-    "9\4\2\7\7\36\36\3\2{}\3\2rx\4\2&&]]\7\2\31\32\61\62?BTUgh\3\2\u0081\u0082"+
+    "\2**\63\63\3\2\34\35\3\2yz\4\2\7\7\u0082\u0082\4\2\r\r\34\34\4\2\'\'9"+
+    "9\4\2\7\7\36\36\3\2{}\3\2rx\4\2&&]]\7\2\31\32\61\62?BTUgh\3\2\u0080\u0081"+
     "\31\2\b\t\23\24\26\31\33\33\"\"$$\'\')),.\61\61\66\6699<=??AAHHLOQTWX"+
     "Z[_accgg\u03b9\2z\3\2\2\2\4}\3\2\2\2\6\u00f1\3\2\2\2\b\u00fc\3\2\2\2\n"+
     "\u0100\3\2\2\2\f\u0115\3\2\2\2\16\u011c\3\2\2\2\20\u011e\3\2\2\2\22\u0126"+
@@ -7147,7 +7146,7 @@ class SqlBaseParser extends Parser {
     "\u0161\3\2\2\2\u0161\u0162\3\2\2\2\u0162\u0165\7\4\2\2\u0163\u0165\5\66"+
     "\34\2\u0164\u0157\3\2\2\2\u0164\u0163\3\2\2\2\u0165\33\3\2\2\2\u0166\u0167"+
     "\5j\66\2\u0167\u0168\7\f\2\2\u0168\u0169\7\3\2\2\u0169\u016a\5\n\6\2\u016a"+
-    "\u016b\7\4\2\2\u016b\35\3\2\2\2\u016c\u016d\7_\2\2\u016d\u016e\7\u0083"+
+    "\u016b\7\4\2\2\u016b\35\3\2\2\2\u016c\u016d\7_\2\2\u016d\u016e\7\u0082"+
     "\2\2\u016e\37\3\2\2\2\u016f\u0170\t\13\2\2\u0170!\3\2\2\2\u0171\u0176"+
     "\5$\23\2\u0172\u0173\7\5\2\2\u0173\u0175\5$\23\2\u0174\u0172\3\2\2\2\u0175"+
     "\u0178\3\2\2\2\u0176\u0174\3\2\2\2\u0176\u0177\3\2\2\2\u0177#\3\2\2\2"+
@@ -7238,8 +7237,8 @@ class SqlBaseParser extends Parser {
     "\3\2\2\2\u0275\u0271\3\2\2\2\u0276\u0279\3\2\2\2\u0277\u0275\3\2\2\2\u0277"+
     "\u0278\3\2\2\2\u0278G\3\2\2\2\u0279\u0277\3\2\2\2\u027a\u027b\b%\1\2\u027b"+
     "\u029f\5L\'\2\u027c\u029f\5R*\2\u027d\u029f\5J&\2\u027e\u029f\5\\/\2\u027f"+
-    "\u0280\5h\65\2\u0280\u0281\7\u0080\2\2\u0281\u0283\3\2\2\2\u0282\u027f"+
-    "\3\2\2\2\u0282\u0283\3\2\2\2\u0283\u0284\3\2\2\2\u0284\u029f\7{\2\2\u0285"+
+    "\u0280\5h\65\2\u0280\u0281\7\177\2\2\u0281\u0283\3\2\2\2\u0282\u027f\3"+
+    "\2\2\2\u0282\u0283\3\2\2\2\u0283\u0284\3\2\2\2\u0284\u029f\7{\2\2\u0285"+
     "\u029f\5V,\2\u0286\u0287\7\3\2\2\u0287\u0288\5\b\5\2\u0288\u0289\7\4\2"+
     "\2\u0289\u029f\3\2\2\2\u028a\u029f\5h\65\2\u028b\u028c\7\3\2\2\u028c\u028d"+
     "\5\66\34\2\u028d\u028e\7\4\2\2\u028e\u029f\3\2\2\2\u028f\u0291\7\20\2"+
@@ -7277,9 +7276,9 @@ class SqlBaseParser extends Parser {
     "\2\2\u02ea\u02eb\3\2\2\2\u02eb\u02ec\7\4\2\2\u02ecY\3\2\2\2\u02ed\u02f1"+
     "\7:\2\2\u02ee\u02f1\7P\2\2\u02ef\u02f1\5j\66\2\u02f0\u02ed\3\2\2\2\u02f0"+
     "\u02ee\3\2\2\2\u02f0\u02ef\3\2\2\2\u02f1[\3\2\2\2\u02f2\u030d\7E\2\2\u02f3"+
-    "\u030d\5b\62\2\u02f4\u030d\5r:\2\u02f5\u030d\5`\61\2\u02f6\u02f8\7\u0082"+
+    "\u030d\5b\62\2\u02f4\u030d\5r:\2\u02f5\u030d\5`\61\2\u02f6\u02f8\7\u0081"+
     "\2\2\u02f7\u02f6\3\2\2\2\u02f8\u02f9\3\2\2\2\u02f9\u02f7\3\2\2\2\u02f9"+
-    "\u02fa\3\2\2\2\u02fa\u030d\3\2\2\2\u02fb\u030d\7\u0081\2\2\u02fc\u02fd"+
+    "\u02fa\3\2\2\2\u02fa\u030d\3\2\2\2\u02fb\u030d\7\u0080\2\2\u02fc\u02fd"+
     "\7l\2\2\u02fd\u02fe\5t;\2\u02fe\u02ff\7q\2\2\u02ff\u030d\3\2\2\2\u0300"+
     "\u0301\7m\2\2\u0301\u0302\5t;\2\u0302\u0303\7q\2\2\u0303\u030d\3\2\2\2"+
     "\u0304\u0305\7n\2\2\u0305\u0306\5t;\2\u0306\u0307\7q\2\2\u0307\u030d\3"+
@@ -7294,19 +7293,19 @@ class SqlBaseParser extends Parser {
     "\u031d\5d\63\2\u031b\u031c\7^\2\2\u031c\u031e\5d\63\2\u031d\u031b\3\2"+
     "\2\2\u031d\u031e\3\2\2\2\u031ec\3\2\2\2\u031f\u0320\t\17\2\2\u0320e\3"+
     "\2\2\2\u0321\u0322\5j\66\2\u0322g\3\2\2\2\u0323\u0324\5j\66\2\u0324\u0325"+
-    "\7\u0080\2\2\u0325\u0327\3\2\2\2\u0326\u0323\3\2\2\2\u0327\u032a\3\2\2"+
-    "\2\u0328\u0326\3\2\2\2\u0328\u0329\3\2\2\2\u0329\u032b\3\2\2\2\u032a\u0328"+
+    "\7\177\2\2\u0325\u0327\3\2\2\2\u0326\u0323\3\2\2\2\u0327\u032a\3\2\2\2"+
+    "\u0328\u0326\3\2\2\2\u0328\u0329\3\2\2\2\u0329\u032b\3\2\2\2\u032a\u0328"+
     "\3\2\2\2\u032b\u032c\5j\66\2\u032ci\3\2\2\2\u032d\u0330\5n8\2\u032e\u0330"+
     "\5p9\2\u032f\u032d\3\2\2\2\u032f\u032e\3\2\2\2\u0330k\3\2\2\2\u0331\u0332"+
     "\5j\66\2\u0332\u0333\7\6\2\2\u0333\u0335\3\2\2\2\u0334\u0331\3\2\2\2\u0334"+
-    "\u0335\3\2\2\2\u0335\u0336\3\2\2\2\u0336\u033e\7\u0087\2\2\u0337\u0338"+
+    "\u0335\3\2\2\2\u0335\u0336\3\2\2\2\u0336\u033e\7\u0086\2\2\u0337\u0338"+
     "\5j\66\2\u0338\u0339\7\6\2\2\u0339\u033b\3\2\2\2\u033a\u0337\3\2\2\2\u033a"+
     "\u033b\3\2\2\2\u033b\u033c\3\2\2\2\u033c\u033e\5j\66\2\u033d\u0334\3\2"+
-    "\2\2\u033d\u033a\3\2\2\2\u033em\3\2\2\2\u033f\u0342\7\u0088\2\2\u0340"+
-    "\u0342\7\u0089\2\2\u0341\u033f\3\2\2\2\u0341\u0340\3\2\2\2\u0342o\3\2"+
-    "\2\2\u0343\u0347\7\u0085\2\2\u0344\u0347\5x=\2\u0345\u0347\7\u0086\2\2"+
+    "\2\2\u033d\u033a\3\2\2\2\u033em\3\2\2\2\u033f\u0342\7\u0087\2\2\u0340"+
+    "\u0342\7\u0088\2\2\u0341\u033f\3\2\2\2\u0341\u0340\3\2\2\2\u0342o\3\2"+
+    "\2\2\u0343\u0347\7\u0084\2\2\u0344\u0347\5x=\2\u0345\u0347\7\u0085\2\2"+
     "\u0346\u0343\3\2\2\2\u0346\u0344\3\2\2\2\u0346\u0345\3\2\2\2\u0347q\3"+
-    "\2\2\2\u0348\u034b\7\u0084\2\2\u0349\u034b\7\u0083\2\2\u034a\u0348\3\2"+
+    "\2\2\2\u0348\u034b\7\u0083\2\2\u0349\u034b\7\u0082\2\2\u034a\u0348\3\2"+
     "\2\2\u034a\u0349\3\2\2\2\u034bs\3\2\2\2\u034c\u034d\t\20\2\2\u034du\3"+
     "\2\2\2\u034e\u034f\7d\2\2\u034f\u0350\5\66\34\2\u0350\u0351\7\\\2\2\u0351"+
     "\u0352\5\66\34\2\u0352w\3\2\2\2\u0353\u0354\t\21\2\2\u0354y\3\2\2\2t\u0089"+

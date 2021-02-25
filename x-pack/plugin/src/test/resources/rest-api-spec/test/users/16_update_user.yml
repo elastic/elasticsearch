@@ -9,7 +9,7 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "s3krit",
+              "password": "s3krit-password",
               "roles" : [ "superuser" ]
             }
 
@@ -39,7 +39,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
       cluster.health: {}
   - match: { timed_out: false }
 
@@ -71,7 +71,7 @@ teardown:
 # validate existing password works
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
       cluster.health: {}
   - match: { timed_out: false }
 
@@ -93,7 +93,7 @@ teardown:
         username: "joe"
         body:  >
             {
-              "password" : "s3krit2",
+              "password" : "s3krit-password2",
               "roles" : [ "superuser" ],
               "full_name" : "Bazooka Joe",
               "email" : "joe@bazooka.gum",
@@ -109,13 +109,13 @@ teardown:
   - do:
       catch: unauthorized
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
       cluster.health: {}
 
 # validate new password works
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdDI="
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZDI="
       cluster.health: {}
   - match: { timed_out: false }
 

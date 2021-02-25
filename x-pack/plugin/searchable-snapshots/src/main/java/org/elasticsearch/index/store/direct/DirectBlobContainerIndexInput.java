@@ -1,10 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.store.direct;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.CheckedRunnable;
@@ -24,6 +27,8 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
+
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 /**
  * A {@link DirectBlobContainerIndexInput} instance corresponds to a single file from a Lucene directory that has been snapshotted. Because
@@ -50,6 +55,8 @@ import java.util.concurrent.atomic.LongAdder;
  * a new request to the {@link BlobContainer} each time their internal buffer needs refilling.
  */
 public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexInput {
+
+    private static final Logger logger = LogManager.getLogger(DirectBlobContainerIndexInput.class);
 
     private long position;
 
@@ -94,27 +101,28 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long sequentialReadSize,
         int bufferSize
     ) {
-        super(resourceDesc, blobContainer, fileInfo, context, stats, offset, length, bufferSize);
+        super(logger, resourceDesc, blobContainer, fileInfo, context, stats, offset, length);
         this.position = position;
         assert sequentialReadSize >= 0;
         this.sequentialReadSize = sequentialReadSize;
+        setBufferSize(bufferSize);
     }
 
     @Override
-    protected void readInternal(ByteBuffer b) throws IOException {
+    protected void doReadInternal(ByteBuffer b) throws IOException {
         ensureOpen();
-        if (fileInfo.numberOfParts() == 1L) {
+        if (fileInfo.numberOfParts() == 1) {
             readInternalBytes(0, position, b, b.remaining());
         } else {
             while (b.hasRemaining()) {
                 int currentPart = Math.toIntExact(position / fileInfo.partSize().getBytes());
-                int remainingBytesInPart;
+                long remainingBytesInPart;
                 if (currentPart < (fileInfo.numberOfParts() - 1)) {
-                    remainingBytesInPart = Math.toIntExact(((currentPart + 1L) * fileInfo.partSize().getBytes()) - position);
+                    remainingBytesInPart = ((currentPart + 1) * fileInfo.partSize().getBytes()) - position;
                 } else {
-                    remainingBytesInPart = Math.toIntExact(fileInfo.length() - position);
+                    remainingBytesInPart = toIntBytes(fileInfo.length() - position);
                 }
-                final int read = Math.min(b.remaining(), remainingBytesInPart);
+                final int read = toIntBytes(Math.min(b.remaining(), remainingBytesInPart));
                 readInternalBytes(currentPart, position % fileInfo.partSize().getBytes(), b, read);
             }
         }
@@ -209,8 +217,8 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         // it and keep it open for future reads
         final InputStream inputStream = openBlobStream(part, pos, streamLength);
         streamForSequentialReads = new StreamForSequentialReads(new FilterInputStream(inputStream) {
-            private LongAdder bytesRead = new LongAdder();
-            private LongAdder timeNanos = new LongAdder();
+            private final LongAdder bytesRead = new LongAdder();
+            private final LongAdder timeNanos = new LongAdder();
 
             private int onOptimizedRead(CheckedSupplier<Integer, IOException> read) throws IOException {
                 final long startTimeNanos = stats.currentTimeNanos();
@@ -283,7 +291,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
             final DirectBlobContainerIndexInput slice = new DirectBlobContainerIndexInput(
-                sliceDescription,
+                getFullSliceDescription(sliceDescription),
                 blobContainer,
                 fileInfo,
                 context,
@@ -316,28 +324,18 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     @Override
-    public void innerClose() throws IOException {
+    public void doClose() throws IOException {
         closeStreamForSequentialReads();
     }
 
     @Override
     public String toString() {
-        return "DirectBlobContainerIndexInput{"
-            + "resourceDesc="
-            + super.toString()
-            + ", fileInfo="
-            + fileInfo
-            + ", offset="
-            + offset
-            + ", length="
-            + length()
-            + ", position="
-            + position
-            + '}';
+        return super.toString() + "[read seq=" + (streamForSequentialReads != null ? "yes" : "no") + ']';
     }
 
     private InputStream openBlobStream(int part, long pos, long length) throws IOException {
         assert assertCurrentThreadMayAccessBlobStore();
+        stats.addBlobStoreBytesRequested(length);
         return blobContainer.readBlob(fileInfo.partName(part), pos, length);
     }
 

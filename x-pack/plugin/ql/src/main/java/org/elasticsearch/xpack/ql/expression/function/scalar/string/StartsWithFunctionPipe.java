@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.function.scalar.string;
 
@@ -17,30 +18,27 @@ import java.util.Objects;
 
 public class StartsWithFunctionPipe extends Pipe {
 
-    private final Pipe field;
+    private final Pipe input;
     private final Pipe pattern;
     private final boolean isCaseSensitive;
 
-    public StartsWithFunctionPipe(Source source, Expression expression, Pipe field, Pipe pattern, boolean isCaseSensitive) {
-        super(source, expression, Arrays.asList(field, pattern));
-        this.field = field;
+    public StartsWithFunctionPipe(Source source, Expression expression, Pipe input, Pipe pattern, boolean isCaseSensitive) {
+        super(source, expression, Arrays.asList(input, pattern));
+        this.input = input;
         this.pattern = pattern;
         this.isCaseSensitive = isCaseSensitive;
     }
 
     @Override
     public final Pipe replaceChildren(List<Pipe> newChildren) {
-        if (newChildren.size() != 2) {
-            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
-        }
         return replaceChildren(newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
-        Pipe newField = field.resolveAttributes(resolver);
+        Pipe newField = input.resolveAttributes(resolver);
         Pipe newPattern = pattern.resolveAttributes(resolver);
-        if (newField == field && newPattern == pattern) {
+        if (newField == input && newPattern == pattern) {
             return this;
         }
         return replaceChildren(newField, newPattern);
@@ -48,12 +46,12 @@ public class StartsWithFunctionPipe extends Pipe {
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return field.supportedByAggsOnlyQuery() && pattern.supportedByAggsOnlyQuery();
+        return input.supportedByAggsOnlyQuery() && pattern.supportedByAggsOnlyQuery();
     }
 
     @Override
     public boolean resolved() {
-        return field.resolved() && pattern.resolved();
+        return input.resolved() && pattern.resolved();
     }
 
     protected Pipe replaceChildren(Pipe newField, Pipe newPattern) {
@@ -62,22 +60,22 @@ public class StartsWithFunctionPipe extends Pipe {
 
     @Override
     public final void collectFields(QlSourceBuilder sourceBuilder) {
-        field.collectFields(sourceBuilder);
+        input.collectFields(sourceBuilder);
         pattern.collectFields(sourceBuilder);
     }
 
     @Override
     protected NodeInfo<StartsWithFunctionPipe> info() {
-        return NodeInfo.create(this, StartsWithFunctionPipe::new, expression(), field, pattern, isCaseSensitive);
+        return NodeInfo.create(this, StartsWithFunctionPipe::new, expression(), input, pattern, isCaseSensitive);
     }
 
     @Override
     public StartsWithFunctionProcessor asProcessor() {
-        return new StartsWithFunctionProcessor(field.asProcessor(), pattern.asProcessor(), isCaseSensitive);
+        return new StartsWithFunctionProcessor(input.asProcessor(), pattern.asProcessor(), isCaseSensitive);
     }
-    
-    public Pipe field() {
-        return field;
+
+    public Pipe input() {
+        return input;
     }
 
     public Pipe pattern() {
@@ -90,7 +88,7 @@ public class StartsWithFunctionPipe extends Pipe {
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, pattern, isCaseSensitive);
+        return Objects.hash(input, pattern, isCaseSensitive);
     }
 
     @Override
@@ -104,7 +102,7 @@ public class StartsWithFunctionPipe extends Pipe {
         }
 
         StartsWithFunctionPipe other = (StartsWithFunctionPipe) obj;
-        return Objects.equals(field, other.field)
+        return Objects.equals(input, other.input)
                 && Objects.equals(pattern, other.pattern)
                 && Objects.equals(isCaseSensitive, other.isCaseSensitive);
     }

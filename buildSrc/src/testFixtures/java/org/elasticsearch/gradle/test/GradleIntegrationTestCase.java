@@ -1,3 +1,10 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
 package org.elasticsearch.gradle.test;
 
 import org.gradle.testkit.runner.BuildResult;
@@ -10,6 +17,7 @@ import org.junit.rules.TemporaryFolder;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.management.ManagementFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -43,7 +51,11 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return GradleRunner.create().withProjectDir(getProjectDir(sampleProject)).withPluginClasspath().withTestKitDir(testkit);
+        return GradleRunner.create()
+            .withProjectDir(getProjectDir(sampleProject))
+            .withPluginClasspath()
+            .withTestKitDir(testkit)
+            .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0);
     }
 
     protected File getBuildDir(String name) {
@@ -76,13 +88,13 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         assertThat("Expected the following line in output:\n\n" + line + "\n\nOutput is:\n" + output, output, containsString(line));
     }
 
-    protected void assertOutputDoesNotContain(String output, String line) {
+    protected void assertOutputMissing(String output, String line) {
         assertFalse("Expected the following line not to be in output:\n\n" + line + "\n\nOutput is:\n" + output, output.contains(line));
     }
 
-    protected void assertOutputDoesNotContain(String output, String... lines) {
+    protected void assertOutputMissing(String output, String... lines) {
         for (String line : lines) {
-            assertOutputDoesNotContain(line);
+            assertOutputMissing(line);
         }
     }
 
@@ -144,7 +156,7 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
     }
 
     protected void assertNoDeprecationWarning(BuildResult result) {
-        assertOutputDoesNotContain(result.getOutput(), "Deprecated Gradle features were used in this build");
+        assertOutputMissing(result.getOutput(), "Deprecated Gradle features were used in this build");
     }
 
     protected void assertBuildFileExists(BuildResult result, String projectName, String path) {

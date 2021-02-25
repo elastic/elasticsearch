@@ -1,9 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.function.scalar;
+
+import java.time.OffsetTime;
+import java.time.ZonedDateTime;
+import java.util.List;
 
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -16,12 +21,9 @@ import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.util.DateUtils;
 
-import java.time.OffsetTime;
-import java.time.ZonedDateTime;
-import java.util.List;
-
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 
 /**
  * A {@code ScalarFunction} is a {@code Function} that takes values from some
@@ -106,19 +108,33 @@ public abstract class ScalarFunction extends Function {
                 paramsBuilder().script(nested.params()).build(),
                 dataType());
     }
-    
+
     protected ScriptTemplate scriptWithAggregate(AggregateFunction aggregate) {
-        String template = "{}";
+        String template = basicTemplate(aggregate);
         return new ScriptTemplate(processScript(template),
                 paramsBuilder().agg(aggregate).build(),
                 dataType());
     }
 
+    // This method isn't actually used at the moment, since there is no grouping function (ie HISTOGRAM)
+    // that currently results in a script being generated
     protected ScriptTemplate scriptWithGrouping(GroupingFunction grouping) {
-        String template = "{}";
+        String template = basicTemplate(grouping);
         return new ScriptTemplate(processScript(template),
                 paramsBuilder().grouping(grouping).build(),
                 dataType());
+    }
+
+    // FIXME: this needs to be refactored to account for different datatypes in different projects (ie DATE from SQL)
+    private String basicTemplate(Function function) {
+        if (function.dataType().name().equals("DATE") || function.dataType() == DATETIME ||
+            // Aggregations on date_nanos are returned as string
+            (function instanceof AggregateFunction && ((AggregateFunction) function).field().dataType() == DATETIME)) {
+
+            return "{sql}.asDateTime({})";
+        } else {
+            return "{}";
+        }
     }
 
     protected ScriptTemplate scriptWithField(FieldAttribute field) {

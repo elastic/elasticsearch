@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.frozen.action;
 
@@ -15,11 +16,9 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.OpenIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -30,7 +29,6 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -42,7 +40,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -61,24 +58,15 @@ public final class TransportFreezeIndexAction extends
                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                       DestructiveOperations destructiveOperations) {
         super(FreezeIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, FreezeRequest::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, FreezeResponse::new, ThreadPool.Names.SAME);
         this.destructiveOperations = destructiveOperations;
         this.indexStateService = indexStateService;
-    }
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override
     protected void doExecute(Task task, FreezeRequest request, ActionListener<FreezeResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
         super.doExecute(task, request, listener);
-    }
-
-    @Override
-    protected FreezeResponse read(StreamInput in) throws IOException {
-        return new FreezeResponse(in);
     }
 
     private Index[] resolveIndices(FreezeRequest request, ClusterState state) {
@@ -101,8 +89,7 @@ public final class TransportFreezeIndexAction extends
     }
 
     @Override
-    protected void masterOperation(Task task, FreezeRequest request, ClusterState state,
-                                   ActionListener<FreezeResponse> listener) throws Exception {
+    protected void masterOperation(Task task, FreezeRequest request, ClusterState state, ActionListener<FreezeResponse> listener) {
         final Index[] concreteIndices = resolveIndices(request, state);
         if (concreteIndices.length == 0) {
             listener.onResponse(new FreezeResponse(true, true));
@@ -136,31 +123,14 @@ public final class TransportFreezeIndexAction extends
     private void toggleFrozenSettings(final Index[] concreteIndices, final FreezeRequest request,
                                       final ActionListener<FreezeResponse> listener) {
         clusterService.submitStateUpdateTask("toggle-frozen-settings",
-            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, new ActionListener<AcknowledgedResponse>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                new AckedClusterStateUpdateTask(Priority.URGENT, request, listener.delegateFailure((delegate, acknowledgedResponse) -> {
                     OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
-                        .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                        .indices(concreteIndices).waitForActiveShards(request.waitForActiveShards());
-                    indexStateService.openIndex(updateRequest, new ActionListener<>() {
-                        @Override
-                        public void onResponse(OpenIndexClusterStateUpdateResponse openIndexClusterStateUpdateResponse) {
-                            listener.onResponse(new FreezeResponse(openIndexClusterStateUpdateResponse.isAcknowledged(),
-                                openIndexClusterStateUpdateResponse.isShardsAcknowledged()));
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            }) {
+                            .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
+                            .indices(concreteIndices).waitForActiveShards(request.waitForActiveShards());
+                    indexStateService.openIndex(updateRequest, delegate.delegateFailure((l, openIndexClusterStateUpdateResponse) ->
+                            l.onResponse(new FreezeResponse(openIndexClusterStateUpdateResponse.isAcknowledged(),
+                                    openIndexClusterStateUpdateResponse.isShardsAcknowledged()))));
+                })) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final Metadata.Builder builder = Metadata.builder(currentState.metadata());
@@ -188,11 +158,6 @@ public final class TransportFreezeIndexAction extends
                     builder.put(imdBuilder.build(), true);
                 }
                 return ClusterState.builder(currentState).blocks(blocks).metadata(builder).build();
-            }
-
-            @Override
-            protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                return new AcknowledgedResponse(acknowledged);
             }
         });
     }

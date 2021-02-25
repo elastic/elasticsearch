@@ -1,0 +1,238 @@
+[role="xpack"]
+[[ml-configuring-detector-custom-rules]]
+= Customizing detectors with custom rules
+
+<<ml-rules,Custom rules>> enable you to change the behavior of anomaly
+detectors based on domain-specific knowledge.
+
+Custom rules describe _when_ a detector should take a certain _action_ instead
+of following its default behavior. To specify the _when_ a rule uses
+a `scope` and `conditions`. You can think of `scope` as the categorical
+specification of a rule, while `conditions` are the numerical part.
+A rule can have a scope, one or more conditions, or a combination of
+scope and conditions. For the full list of specification details, see the
+{ref}/ml-put-job.html#put-customrules[`custom_rules` object] in the create
+{anomaly-jobs} API.
+
+[[ml-custom-rules-scope]]
+== Specifying custom rule scope
+
+Let us assume we are configuring an {anomaly-job} in order to detect DNS data
+exfiltration. Our data contain fields "subdomain" and "highest_registered_domain".
+We can use a detector that looks like
+`high_info_content(subdomain) over highest_registered_domain`. If we run such a
+job, it is possible that we discover a lot of anomalies on frequently used
+domains that we have reasons to trust. As security analysts, we are not
+interested in such anomalies. Ideally, we could instruct the detector to skip
+results for domains that we consider safe. Using a rule with a scope allows us
+to achieve this.
+
+First, we need to create a list of our safe domains. Those lists are called 
+_filters_ in {ml}. Filters can be shared across {anomaly-jobs}.
+
+You can create a filter in **Anomaly Detection > Settings > Filter Lists** in 
+{kib} or by using the {ref}/ml-put-filter.html[put filter API]:
+
+[source,console]
+----------------------------------
+PUT _ml/filters/safe_domains
+{
+  "description": "Our list of safe domains",
+  "items": ["safe.com", "trusted.com"]
+}
+----------------------------------
+// TEST[skip:needs-licence]
+
+Now, we can create our {anomaly-job} specifying a scope that uses the
+`safe_domains` filter for the `highest_registered_domain` field:
+
+[source,console]
+----------------------------------
+PUT _ml/anomaly_detectors/dns_exfiltration_with_rule
+{
+  "analysis_config" : {
+    "bucket_span":"5m",
+    "detectors" :[{
+      "function":"high_info_content",
+      "field_name": "subdomain",
+      "over_field_name": "highest_registered_domain",
+      "custom_rules": [{
+        "actions": ["skip_result"],
+        "scope": {
+          "highest_registered_domain": {
+            "filter_id": "safe_domains",
+            "filter_type": "include"
+          }
+        }
+      }]
+    }]
+  },
+  "data_description" : {
+    "time_field":"timestamp"
+  }
+}
+----------------------------------
+// TEST[skip:needs-licence]
+
+As time advances and we see more data and more results, we might encounter new 
+domains that we want to add in the filter. We can do that in the
+**Anomaly Detection > Settings > Filter Lists** in {kib} or by using the 
+{ref}/ml-update-filter.html[update filter API]:
+
+[source,console]
+----------------------------------
+POST _ml/filters/safe_domains/_update
+{
+  "add_items": ["another-safe.com"]
+}
+----------------------------------
+// TEST[skip:setup:ml_filter_safe_domains]
+
+Note that we can use any of the `partition_field_name`, `over_field_name`, or 
+`by_field_name` fields in the `scope`.
+
+In the following example we scope multiple fields:
+
+[source,console]
+----------------------------------
+PUT _ml/anomaly_detectors/scoping_multiple_fields
+{
+  "analysis_config" : {
+    "bucket_span":"5m",
+    "detectors" :[{
+      "function":"count",
+      "partition_field_name": "my_partition",
+      "over_field_name": "my_over",
+      "by_field_name": "my_by",
+      "custom_rules": [{
+        "actions": ["skip_result"],
+        "scope": {
+          "my_partition": {
+            "filter_id": "filter_1"
+          },
+          "my_over": {
+            "filter_id": "filter_2"
+          },
+          "my_by": {
+            "filter_id": "filter_3"
+          }
+        }
+      }]
+    }]
+  },
+  "data_description" : {
+    "time_field":"timestamp"
+  }
+}
+----------------------------------
+// TEST[skip:needs-licence]
+
+Such a detector will skip results when the values of all 3 scoped fields
+are included in the referenced filters.
+
+[[ml-custom-rules-conditions]]
+== Specifying custom rule conditions
+
+Imagine a detector that looks for anomalies in CPU utilization.
+Given a machine that is idle for long enough, small movement in CPU could
+result in anomalous results where the `actual` value is quite small, for 
+example, 0.02. Given our knowledge about how CPU utilization behaves we might 
+determine that anomalies with such small actual values are not interesting for 
+investigation.
+
+Let us now configure an {anomaly-job} with a rule that will skip results where
+CPU utilization is less than 0.20.
+
+[source,console]
+----------------------------------
+PUT _ml/anomaly_detectors/cpu_with_rule
+{
+  "analysis_config" : {
+    "bucket_span":"5m",
+    "detectors" :[{
+      "function":"high_mean",
+      "field_name": "cpu_utilization",
+      "custom_rules": [{
+        "actions": ["skip_result"],
+        "conditions": [
+          {
+            "applies_to": "actual",
+            "operator": "lt",
+            "value": 0.20
+          }
+        ]
+      }]
+    }]
+  },
+  "data_description" : {
+    "time_field":"timestamp"
+  }
+}
+----------------------------------
+// TEST[skip:needs-licence]
+
+When there are multiple conditions they are combined with a logical `and`.
+This is useful when we want the rule to apply to a range. We simply create
+a rule with two conditions, one for each end of the desired range.
+
+Here is an example where a count detector will skip results when the count
+is greater than 30 and less than 50:
+
+[source,console]
+----------------------------------
+PUT _ml/anomaly_detectors/rule_with_range
+{
+  "analysis_config" : {
+    "bucket_span":"5m",
+    "detectors" :[{
+      "function":"count",
+      "custom_rules": [{
+        "actions": ["skip_result"],
+        "conditions": [
+          {
+            "applies_to": "actual",
+            "operator": "gt",
+            "value": 30
+          },
+          {
+            "applies_to": "actual",
+            "operator": "lt",
+            "value": 50
+          }
+        ]
+      }]
+    }]
+  },
+  "data_description" : {
+    "time_field":"timestamp"
+  }
+}
+----------------------------------
+// TEST[skip:needs-licence]
+
+[[ml-custom-rules-lifecycle]]
+== Custom rules in the lifecycle of a job
+
+Custom rules only affect results created after the rules were applied.
+Let us imagine that we have configured an {anomaly-job} and it has been running
+for some time. After observing its results we decide that we can employ
+rules in order to get rid of some uninteresting results. We can use
+the {ref}/ml-update-job.html[update {anomaly-job} API] to do so. However, the
+rule we added will only be in effect for any results created from the moment we
+added the rule onwards. Past results will remain unaffected.
+
+[[ml-custom-rules-filtering]]
+== Using custom rules vs. filtering data
+
+It might appear like using rules is just another way of filtering the data
+that feeds into an {anomaly-job}. For example, a rule that skips results when
+the partition field value is in a filter sounds equivalent to having a query
+that filters out such documents. But it is not. There is a fundamental
+difference. When the data is filtered before reaching a job it is as if they
+never existed for the job. With rules, the data still reaches the job and
+affects its behavior (depending on the rule actions).
+
+For example, a rule with the `skip_result` action means all data will still
+be modeled. On the other hand, a rule with the `skip_model_update` action means
+results will still be created even though the model will not be updated by
+data matched by a rule.

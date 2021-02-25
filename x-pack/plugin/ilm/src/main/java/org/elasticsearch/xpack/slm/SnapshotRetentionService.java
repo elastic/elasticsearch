@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm;
@@ -12,7 +13,6 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -46,13 +46,18 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
 
     public SnapshotRetentionService(Settings settings,
                                     Supplier<SnapshotRetentionTask> taskSupplier,
-                                    ClusterService clusterService,
                                     Clock clock) {
         this.clock = clock;
         this.scheduler = new SchedulerEngine(settings, clock);
         this.retentionTask = taskSupplier.get();
         this.scheduler.register(this.retentionTask);
         this.slmRetentionSchedule = LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING.get(settings);
+    }
+
+    /**
+     * Initializer method to avoid the publication of a self reference in the constructor.
+     */
+    public void init(ClusterService clusterService) {
         clusterService.addLocalNodeMasterListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
             this::setUpdateSchedule);
@@ -106,11 +111,6 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
             long now = clock.millis();
             this.retentionTask.triggered(new SchedulerEngine.Event(SLM_RETENTION_MANUAL_JOB_ID, now, now));
         }
-    }
-
-    @Override
-    public String executorName() {
-        return ThreadPool.Names.SNAPSHOT;
     }
 
     @Override

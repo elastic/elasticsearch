@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package fixture.gcs;
 
@@ -87,7 +76,18 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         try {
             // Request body is closed in the finally block
             final BytesReference requestBody = Streams.readFully(Streams.noCloseStream(exchange.getRequestBody()));
-            if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o*", request)) {
+            if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o/*", request)) {
+                final String key = exchange.getRequestURI().getPath().replace("/storage/v1/b/" + bucket + "/o/", "");
+                final BytesReference blob = blobs.get(key);
+                if (blob == null) {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                } else {
+                    final byte[] response = buildBlobInfoJson(key, blob.length()).getBytes(UTF_8);
+                    exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                    exchange.getResponseBody().write(response);
+                }
+            } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o*", request)) {
                 // List Objects https://cloud.google.com/storage/docs/json_api/v1/objects/list
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
@@ -104,12 +104,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                         if (delimiterPos > -1) {
                             prefixes.add("\"" + blobName.substring(0, prefix.length() + delimiterPos + 1) + "\"");
                         } else {
-                            listOfBlobs.add("{\"kind\":\"storage#object\","
-                                + "\"bucket\":\"" + bucket + "\","
-                                + "\"name\":\"" + blobName + "\","
-                                + "\"id\":\"" + blobName + "\","
-                                + "\"size\":\"" + blob.getValue().length() + "\""
-                                + "}");
+                            listOfBlobs.add(buildBlobInfoJson(blobName, blob.getValue().length()));
                         }
                     }
                 }
@@ -126,10 +121,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "*", request)) {
                 // GET Bucket https://cloud.google.com/storage/docs/json_api/v1/buckets/get
-                byte[] response = ("{\"kind\":\"storage#bucket\",\"name\":\""+ bucket + "\",\"id\":\"0\"}").getBytes(UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                exchange.getResponseBody().write(response);
+                throw new AssertionError("Should not call get bucket API");
 
             } else if (Regex.simpleMatch("GET /download/storage/v1/b/" + bucket + "/o/*", request)) {
                 // Download Object https://cloud.google.com/storage/docs/request-body
@@ -250,6 +242,15 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             assert read == -1 : "Request body should have been fully read here but saw [" + read + "]";
             exchange.close();
         }
+    }
+
+    private String buildBlobInfoJson(String blobName, int size) {
+        return "{\"kind\":\"storage#object\","
+            + "\"bucket\":\"" + bucket + "\","
+            + "\"name\":\"" + blobName + "\","
+            + "\"id\":\"" + blobName + "\","
+            + "\"size\":\"" + size + "\""
+            + "}";
     }
 
     public Map<String, BytesReference> blobs() {

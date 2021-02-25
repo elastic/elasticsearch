@@ -1,6 +1,6 @@
 [role="xpack"]
 [[transform-setup]]
-=== Set up {transforms}
+= Set up {transforms}
 ++++
 <titleabbrev>Setup</titleabbrev>
 ++++
@@ -13,20 +13,16 @@ To use the {transforms}, you must have the
 
 [discrete]
 [[transform-setup-nodes]]
-==== {transform-cap} nodes
+== {transform-cap} nodes
 
-To use {transforms}, there must be at least one node in your cluster with
-`node.transform` set to `true`. By default, all nodes are {transform} nodes
-unless you explicitly change these settings or set `node.data` to `false`.
-
-If you want to control which nodes run {transforms}, set `node.transform` to
-`false` on some nodes.
-
-For more information, see <<transform-settings>> and <<modules-node>>.
+To use {transforms}, there must be at least one {transform} node in your cluster.
+If you want to control which nodes run {transforms}, add or remove `transform`
+from the `node.roles` setting on some nodes. For more information, see
+<<modules-node>> and <<transform-settings>>.
 
 [discrete]
 [[transform-privileges]]
-==== Security privileges
+== Security privileges
 
 The {es} {security-features} provide <<built-in-roles,built-in roles>>
 and <<security-privileges,privileges>> that make it easier to control

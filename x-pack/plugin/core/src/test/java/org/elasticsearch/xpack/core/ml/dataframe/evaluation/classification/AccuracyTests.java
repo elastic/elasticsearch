@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
@@ -10,8 +11,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy.PerClassResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy.Result;
 
 import java.io.IOException;
@@ -31,6 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
 
     private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
+    private static final EvaluationFields EVALUATION_FIELDS = new EvaluationFields("foo", "bar", null, null, null, true);
 
     @Override
     protected Accuracy doParseInstance(XContentParser parser) throws IOException {
@@ -85,7 +87,7 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
         Accuracy accuracy = new Accuracy();
         accuracy.process(aggs);
 
-        assertThat(accuracy.aggs(EVALUATION_PARAMETERS, "act", "pred"), isTuple(empty(), empty()));
+        assertThat(accuracy.aggs(EVALUATION_PARAMETERS, EVALUATION_FIELDS), isTuple(empty(), empty()));
 
         Result result = accuracy.getResult().get();
         assertThat(result.getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
@@ -93,8 +95,8 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
             result.getClasses(),
             equalTo(
                 List.of(
-                    new PerClassResult("dog", 0.5),
-                    new PerClassResult("cat", 0.5))));
+                    new PerClassSingleValue("dog", 0.5),
+                    new PerClassSingleValue("cat", 0.5))));
         assertThat(result.getOverallAccuracy(), equalTo(0.5));
     }
 
@@ -125,7 +127,7 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
             mockSingleValue(Accuracy.OVERALL_ACCURACY_AGG_NAME, 0.5)));
 
         Accuracy accuracy = new Accuracy();
-        accuracy.aggs(EVALUATION_PARAMETERS, "foo", "bar");
+        accuracy.aggs(EVALUATION_PARAMETERS, EVALUATION_FIELDS);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> accuracy.process(aggs));
         assertThat(e.getMessage(), containsString("Cardinality of field [foo] is too high"));
     }
@@ -153,9 +155,9 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
                     0)),
             equalTo(
                 List.of(
-                    new Accuracy.PerClassResult("A", 25.0 / 51),  // 13 false positives, 13 false negatives
-                    new Accuracy.PerClassResult("B", 26.0 / 51),  //  8 false positives, 17 false negatives
-                    new Accuracy.PerClassResult("C", 28.0 / 51))) // 13 false positives, 10 false negatives
+                    new PerClassSingleValue("A", 25.0 / 51),  // 13 false positives, 13 false negatives
+                    new PerClassSingleValue("B", 26.0 / 51),  //  8 false positives, 17 false negatives
+                    new PerClassSingleValue("C", 28.0 / 51))) // 13 false positives, 10 false negatives
         );
     }
 

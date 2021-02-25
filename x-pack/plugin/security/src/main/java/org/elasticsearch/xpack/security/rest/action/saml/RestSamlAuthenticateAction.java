@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action.saml;
 
@@ -22,18 +23,20 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateResponse;
+import org.elasticsearch.rest.RestRequestFilter;
 
 import java.io.IOException;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * A REST handler that attempts to authenticate a user based on the provided SAML response/assertion.
  */
-public class RestSamlAuthenticateAction extends SamlBaseRestHandler {
+public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements RestRequestFilter {
     private static final Logger logger = LogManager.getLogger();
 
     static class Input {
@@ -95,13 +98,16 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler {
                 requestBuilder.execute(new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(SamlAuthenticateResponse response, XContentBuilder builder) throws Exception {
-                        builder.startObject()
-                                .field("username", response.getPrincipal())
-                                .field("realm", response.getRealm())
-                                .field("access_token", response.getTokenString())
-                                .field("refresh_token", response.getRefreshToken())
-                                .field("expires_in", response.getExpiresIn().seconds())
-                                .endObject();
+                        builder.startObject();
+                        builder.field("username", response.getPrincipal());
+                        builder.field("realm", response.getRealm());
+                        builder.field("access_token", response.getTokenString());
+                        builder.field("refresh_token", response.getRefreshToken());
+                        builder.field("expires_in", response.getExpiresIn().seconds());
+                        if(response.getAuthentication() != null) {
+                            builder.field("authentication", response.getAuthentication());
+                        }
+                        builder.endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }
                 });
@@ -117,5 +123,12 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler {
             logger.info("Failed to decode base64 string [{}] - {}", content, e.toString());
             throw e;
         }
+    }
+
+    private static final Set<String> FILTERED_FIELDS = Set.of("content");
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
     }
 }

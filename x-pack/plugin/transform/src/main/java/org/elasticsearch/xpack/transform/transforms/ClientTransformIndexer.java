@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
@@ -11,6 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -21,7 +25,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -40,6 +48,7 @@ import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -57,10 +66,8 @@ class ClientTransformIndexer extends TransformIndexer {
 
     ClientTransformIndexer(
         ThreadPool threadPool,
-        String executorName,
         TransformConfigManager transformsConfigManager,
         CheckpointProvider checkpointProvider,
-        TransformProgressGatherer progressGatherer,
         AtomicReference<IndexerState> initialState,
         TransformIndexerPosition initialPosition,
         Client client,
@@ -77,10 +84,8 @@ class ClientTransformIndexer extends TransformIndexer {
     ) {
         super(
             ExceptionsHelper.requireNonNull(threadPool, "threadPool"),
-            executorName,
             transformsConfigManager,
             checkpointProvider,
-            progressGatherer,
             auditor,
             transformConfig,
             fieldMappings,
@@ -99,36 +104,8 @@ class ClientTransformIndexer extends TransformIndexer {
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
     }
 
-    void persistShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
-        if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint
-            || getState() == IndexerState.STOPPED
-            || getState() == IndexerState.STOPPING) {
-            shouldStopAtCheckpointListener.onResponse(null);
-            return;
-        }
-        TransformState state = new TransformState(
-            context.getTaskState(),
-            getState(),
-            getPosition(),
-            context.getCheckpoint(),
-            context.getStateReason(),
-            getProgress(),
-            null, // Node attributes
-            shouldStopAtCheckpoint
-        );
-        doSaveState(state, ActionListener.wrap(r -> {
-            // We only want to update this internal value if it is persisted as such
-            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
-            logger.debug("[{}] successfully persisted should_stop_at_checkpoint update [{}]", getJobId(), shouldStopAtCheckpoint);
-            shouldStopAtCheckpointListener.onResponse(null);
-        }, statsExc -> {
-            logger.warn("[{}] failed to persist should_stop_at_checkpoint update [{}]", getJobId(), shouldStopAtCheckpoint);
-            shouldStopAtCheckpointListener.onFailure(statsExc);
-        }));
-    }
-
     @Override
-    protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+    protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
         if (context.getTaskState() == TransformTaskState.FAILED) {
             logger.debug("[{}] attempted to search while failed.", getJobId());
             nextPhase.onFailure(new ElasticsearchException("Attempted to do a search request for failed transform [{}].", getJobId()));
@@ -139,7 +116,7 @@ class ClientTransformIndexer extends TransformIndexer {
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             SearchAction.INSTANCE,
-            request,
+            buildSearchRequest(),
             nextPhase
         );
     }
@@ -226,6 +203,44 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     @Override
+    protected void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            DeleteByQueryAction.INSTANCE,
+            deleteByQueryRequest,
+            responseListener
+        );
+    }
+
+    @Override
+    protected void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener) {
+        // note: this gets executed _without_ the headers of the user as the user might not have the rights to call
+        // _refresh for performance reasons. However this refresh is an internal detail of transform and this is only
+        // called for the transform destination index
+        ClientHelper.executeAsyncWithOrigin(
+            client,
+            ClientHelper.TRANSFORM_ORIGIN,
+            RefreshAction.INSTANCE,
+            new RefreshRequest(transformConfig.getDestination().getIndex()),
+            responseListener
+        );
+    }
+
+    @Override
+    void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            request,
+            responseListener
+        );
+    }
+
+    @Override
     protected void doSaveState(IndexerState indexerState, TransformIndexerPosition position, Runnable next) {
         if (context.getTaskState() == TransformTaskState.FAILED) {
             logger.debug("[{}] attempted to save state and stats while failed.", getJobId());
@@ -239,6 +254,9 @@ class ClientTransformIndexer extends TransformIndexer {
             return;
         }
 
+        // getting the listeners that registered till now, in theory a new listener could sneak in between this line
+        // and the next, however this is benign: we would store `shouldStopAtCheckpoint = true` twice which is ok
+        Collection<ActionListener<Void>> saveStateListenersAtTheMomentOfCalling = saveStateListeners.getAndSet(null);
         boolean shouldStopAtCheckpoint = context.shouldStopAtCheckpoint();
 
         // If we should stop at the next checkpoint, are STARTED, and with `initialRun()` we are in one of two states
@@ -257,6 +275,9 @@ class ClientTransformIndexer extends TransformIndexer {
         // If the state is `STOPPED` this means that TransformTask#stop was called while we were checking for changes.
         // Allow the stop call path to continue
         if (hasSourceChanged == false && indexerState.equals(IndexerState.STOPPED) == false) {
+            if (saveStateListenersAtTheMomentOfCalling != null) {
+                ActionListener.onResponse(saveStateListenersAtTheMomentOfCalling, null);
+            }
             next.run();
             return;
         }
@@ -298,11 +319,33 @@ class ClientTransformIndexer extends TransformIndexer {
         );
         logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
 
-        doSaveState(state, ActionListener.wrap(r -> next.run(), e -> next.run()));
+        // we might need to call the save state listeners, but do not want to stop rolling
+        doSaveState(state, ActionListener.wrap(r -> {
+            try {
+                if (saveStateListenersAtTheMomentOfCalling != null) {
+                    ActionListener.onResponse(saveStateListenersAtTheMomentOfCalling, r);
+                }
+            } catch (Exception onResponseException) {
+                String msg = LoggerMessageFormat.format("[{}] failed notifying saveState listeners, ignoring.", getJobId());
+                logger.warn(msg, onResponseException);
+            } finally {
+                next.run();
+            }
+        }, e -> {
+            try {
+                if (saveStateListenersAtTheMomentOfCalling != null) {
+                    ActionListener.onFailure(saveStateListenersAtTheMomentOfCalling, e);
+                }
+            } catch (Exception onFailureException) {
+                String msg = LoggerMessageFormat.format("[{}] failed notifying saveState listeners, ignoring.", getJobId());
+                logger.warn(msg, onFailureException);
+            } finally {
+                next.run();
+            }
+        }));
     }
 
     private void doSaveState(TransformState state, ActionListener<Void> listener) {
-
         // This could be `null` but the putOrUpdateTransformStoredDoc handles that case just fine
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = getSeqNoPrimaryTermAndIndex();
 
@@ -318,6 +361,7 @@ class ClientTransformIndexer extends TransformIndexer {
                 if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
                     context.shutdown();
                 }
+
                 // Only do this clean up once, if it succeeded, no reason to do the query again.
                 if (oldStatsCleanedUp.compareAndSet(false, true)) {
                     transformsConfigManager.deleteOldTransformStoredDocuments(getJobId(), ActionListener.wrap(nil -> {
@@ -334,23 +378,58 @@ class ClientTransformIndexer extends TransformIndexer {
                     listener.onResponse(null);
                 }
             }, statsExc -> {
-                logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.", transformConfig.getId()), statsExc);
-                auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
-                // for auto stop shutdown the task
+                if (org.elasticsearch.ExceptionsHelper.unwrapCause(statsExc) instanceof VersionConflictEngineException) {
+                    // this should never happen, but indicates a race condition in state persistence:
+                    // - there should be only 1 save persistence at a time
+                    // - this is not a catastrophic failure, if 2 state persistence calls run at the same time, 1 should succeed and update
+                    // seqNoPrimaryTermAndIndex
+                    // - for tests fail(assert), so we can debug the problem
+                    logger.error(
+                        new ParameterizedMessage(
+                            "[{}] updating stats of transform failed, unexpected version conflict of internal state, resetting to recover.",
+                            transformConfig.getId()
+                        ),
+                        statsExc
+                    );
+                    auditor.warning(
+                        getJobId(),
+                        "Failure updating stats of transform, unexpected version conflict of internal state, resetting to recover: "
+                            + statsExc.getMessage()
+                    );
+                    assert false : "[" + getJobId() + "] updating stats of transform failed, unexpected version conflict of internal state";
+                } else {
+                    logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.", transformConfig.getId()), statsExc);
+                    auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
+                }
                 if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
                     context.shutdown();
                 }
                 listener.onFailure(statsExc);
             })
         );
-
     }
 
     void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {
+        logger.debug(
+            () -> new ParameterizedMessage(
+                "[{}] Updated state document from [{}] to [{}]",
+                transformConfig.getId(),
+                expectedValue,
+                newValue
+            )
+        );
         boolean updated = seqNoPrimaryTermAndIndex.compareAndSet(expectedValue, newValue);
         // This should never happen. We ONLY ever update this value if at initialization or we just finished updating the document
         // famous last words...
-        assert updated : "[" + getJobId() + "] unexpected change to seqNoPrimaryTermAndIndex.";
+        if (updated == false) {
+            logger.warn(
+                "[{}] Unexpected change to internal state detected, expected [{}], got [{}]",
+                transformConfig.getId(),
+                expectedValue,
+                seqNoPrimaryTermAndIndex.get()
+            );
+            assert updated : "[" + getJobId() + "] unexpected change to seqNoPrimaryTermAndIndex.";
+        }
     }
 
     @Nullable

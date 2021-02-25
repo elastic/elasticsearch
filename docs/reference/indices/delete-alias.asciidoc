@@ -10,10 +10,10 @@ include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 
 [source,console]
 ----
-DELETE /twitter/_alias/alias1
+DELETE /my-index-000001/_alias/alias1
 ----
-// TEST[setup:twitter]
-// TEST[s/^/PUT twitter\/_alias\/alias1\n/]
+// TEST[setup:my_index]
+// TEST[s/^/PUT my-index-000001\/_alias\/alias1\n/]
 
 [[delete-alias-api-request]]
 ==== {api-request-title}
@@ -22,6 +22,11 @@ DELETE /twitter/_alias/alias1
 
 `DELETE /<index>/_aliases/<alias>`
 
+[[delete-alias-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for both the index and index alias.
 
 [[delete-alias-api-path-params]]
 ==== {api-path-parms-title}

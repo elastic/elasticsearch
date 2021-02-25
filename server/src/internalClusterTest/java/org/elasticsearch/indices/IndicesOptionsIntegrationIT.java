@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
@@ -677,15 +665,11 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
                 .setIndices(indices);
     }
 
-    static ClusterHealthRequestBuilder health(String... indices) {
-        return client().admin().cluster().prepareHealth(indices);
-    }
-
-    private static void verify(ActionRequestBuilder requestBuilder, boolean fail) {
+    private static void verify(ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {
         verify(requestBuilder, fail, 0);
     }
 
-    private static void verify(ActionRequestBuilder requestBuilder, boolean fail, long expectedCount) {
+    private static void verify(ActionRequestBuilder<?, ?> requestBuilder, boolean fail, long expectedCount) {
         if (fail) {
             if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();

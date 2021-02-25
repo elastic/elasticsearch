@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.ql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.sql.expression.function.Score;
@@ -171,7 +171,7 @@ public class QueryContainer {
 
             sortingColumns.add(new Tuple<>(Integer.valueOf(atIndex), comp));
         }
-        
+
         return sortingColumns;
     }
 
@@ -328,50 +328,17 @@ public class QueryContainer {
     // reference methods
     //
     private FieldExtraction topHitFieldRef(FieldAttribute fieldAttr) {
-        FieldAttribute actualField = fieldAttr;
-        FieldAttribute rootField = fieldAttr;
-        StringBuilder fullFieldName = new StringBuilder(fieldAttr.field().getName());
-        
-        // Only if the field is not an alias (in which case it will be taken out from docvalue_fields if it's isAggregatable()),
-        // go up the tree of parents until a non-object (and non-nested) type of field is found and use that specific parent
-        // as the field to extract data from, from _source. We do it like this because sub-fields are not in the _source, only
-        // the root field to which those sub-fields belong to, are. Instead of "text_field.keyword_subfield" for _source extraction,
-        // we use "text_field", because there is no source for "keyword_subfield".
-        /*
-         *    "text_field": {
-         *       "type": "text",
-         *       "fields": {
-         *         "keyword_subfield": {
-         *           "type": "keyword"
-         *         }
-         *       }
-         *     }
-         */
-        if (fieldAttr.field().isAlias() == false) {
-            while (actualField.parent() != null
-                    && actualField.parent().field().getDataType() != DataTypes.OBJECT
-                    && actualField.parent().field().getDataType() != DataTypes.NESTED
-                    && SqlDataTypes.isFromDocValuesOnly(actualField.field().getDataType()) == false) {
-                actualField = actualField.parent();
-            }
-        }
-        while (rootField.parent() != null) {
-            fullFieldName.insert(0, ".").insert(0, rootField.parent().field().getName());
-            rootField = rootField.parent();
-        }
-        return new SearchHitFieldRef(aliasName(actualField), fullFieldName.toString(), fieldAttr.field().getDataType(),
-                fieldAttr.field().isAggregatable(), fieldAttr.field().isAlias());
+        return new SearchHitFieldRef(aliasName(fieldAttr), fieldAttr.field().getDataType());
     }
 
     private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr) {
         String name = aliasName(attr);
         Query q = rewriteToContainNestedField(query, attr.source(),
-                attr.nestedParent().name(), name, 
-                SqlDataTypes.format(attr.field().getDataType()), 
+                attr.nestedParent().name(), name,
+                SqlDataTypes.format(attr.field().getDataType()),
                 SqlDataTypes.isFromDocValuesOnly(attr.field().getDataType()));
 
-        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, null, attr.field().getDataType(), attr.field().isAggregatable(),
-                false, attr.parent().name());
+        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().getDataType(), attr.parent().name());
 
         return new Tuple<>(
                 new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
@@ -432,9 +399,8 @@ public class QueryContainer {
 
         // update proc (if needed)
         if (qContainer.scalarFunctions().size() != scalarFunctions.size()) {
-            Map<Attribute, Pipe> procs = new LinkedHashMap<>(qContainer.scalarFunctions());
-            procs.put(attr, proc);
-            qContainer = qContainer.withScalarProcessors(new AttributeMap<>(procs));
+            qContainer = qContainer.withScalarProcessors(
+                AttributeMap.builder(qContainer.scalarFunctions).put(attr, proc).build());
         }
 
         return new Tuple<>(qContainer, new ComputedRef(proc));

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.history;
 
@@ -154,6 +155,7 @@ public abstract class WatchRecord implements ToXContentObject {
         builder.field(WATCH_ID.getPreferredName(), id.watchId());
         builder.field(NODE.getPreferredName(), nodeId);
         builder.field(STATE.getPreferredName(), state.id());
+        builder.field("@timestamp", triggerEvent.triggeredTime());
 
         if (user != null) {
             builder.field(USER.getPreferredName(), user);
@@ -165,7 +167,7 @@ public abstract class WatchRecord implements ToXContentObject {
         builder.field(TRIGGER_EVENT.getPreferredName());
         triggerEvent.recordXContent(builder, params);
 
-        if (!vars.isEmpty() && WatcherParams.debug(params)) {
+        if (vars.isEmpty() == false && WatcherParams.debug(params)) {
             builder.field(VARS.getPreferredName(), vars);
         }
 

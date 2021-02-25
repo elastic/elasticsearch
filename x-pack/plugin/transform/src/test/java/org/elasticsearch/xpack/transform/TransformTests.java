@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform;
@@ -10,6 +11,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Set;
+
+import static org.elasticsearch.test.NodeRoles.addRoles;
+import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -19,10 +24,20 @@ public class TransformTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         boolean transformEnabled = randomBoolean();
         boolean transformPluginEnabled = randomBoolean();
+        boolean useExplicitSetting = (transformEnabled && randomBoolean()) == false;
+        boolean useLegacySetting = useExplicitSetting && randomBoolean();
 
         // randomly use explicit or default setting
-        if ((transformEnabled && randomBoolean()) == false) {
-            builder.put("node.transform", transformEnabled);
+        if (useExplicitSetting) {
+            if (useLegacySetting) {
+                builder.put("node.transform", transformEnabled);
+            } else {
+                if (transformEnabled) {
+                    builder.put(addRoles(Set.of(Transform.TRANSFORM_ROLE)));
+                } else {
+                    builder.put(removeRoles(Set.of(Transform.TRANSFORM_ROLE)));
+                }
+            }
         }
 
         if (transformPluginEnabled == false) {
@@ -36,6 +51,9 @@ public class TransformTests extends ESTestCase {
             transformEnabled,
             Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.node"))
         );
+        if (useExplicitSetting && useLegacySetting) {
+            assertSettingDeprecationsAndWarnings(new String[]{"node.transform"});
+        }
     }
 
     public void testNodeAttributesDirectlyGiven() {

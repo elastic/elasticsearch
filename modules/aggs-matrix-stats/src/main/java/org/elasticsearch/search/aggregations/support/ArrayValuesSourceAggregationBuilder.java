@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.support;
 
@@ -22,7 +11,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -190,24 +178,24 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
     }
 
     @Override
-    protected final ArrayValuesSourceAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+    protected final ArrayValuesSourceAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent,
                                                                Builder subFactoriesBuilder) throws IOException {
-        Map<String, ValuesSourceConfig> configs = resolveConfig(queryShardContext);
-        ArrayValuesSourceAggregatorFactory factory = innerBuild(queryShardContext, configs, parent, subFactoriesBuilder);
+        Map<String, ValuesSourceConfig> configs = resolveConfig(context);
+        ArrayValuesSourceAggregatorFactory factory = innerBuild(context, configs, parent, subFactoriesBuilder);
         return factory;
     }
 
-    protected Map<String, ValuesSourceConfig> resolveConfig(QueryShardContext queryShardContext) {
+    protected Map<String, ValuesSourceConfig> resolveConfig(AggregationContext context) {
         HashMap<String, ValuesSourceConfig> configs = new HashMap<>();
         for (String field : fields) {
-            ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(queryShardContext, userValueTypeHint, field, null,
-                missingMap.get(field), null, format, CoreValuesSourceType.BYTES);
+            ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(context, userValueTypeHint, field, null,
+                missingMap.get(field), null, format, CoreValuesSourceType.KEYWORD);
             configs.put(field, config);
         }
         return configs;
     }
 
-    protected abstract ArrayValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+    protected abstract ArrayValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                                      Map<String, ValuesSourceConfig> configs,
                                                                      AggregatorFactory parent,
                                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException;

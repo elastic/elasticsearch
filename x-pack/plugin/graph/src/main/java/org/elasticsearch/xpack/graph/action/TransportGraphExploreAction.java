@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.graph.action;
 
@@ -92,7 +93,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
     @Override
     protected void doExecute(Task task, GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
-        if (licenseState.isAllowed(XPackLicenseState.Feature.GRAPH)) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.GRAPH)) {
             new AsyncGraphAction(request, listener).start();
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.GRAPH));
@@ -767,7 +768,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         }
 
         void addShardFailures(ShardOperationFailedException[] failures) {
-            if (!CollectionUtils.isEmpty(failures)) {
+            if (CollectionUtils.isEmpty(failures) == false) {
                 ShardOperationFailedException[] duplicates = new ShardOperationFailedException[shardFailures.length + failures.length];
                 System.arraycopy(shardFailures, 0, duplicates, 0, shardFailures.length);
                 System.arraycopy(failures, 0, duplicates, shardFailures.length, failures.length);

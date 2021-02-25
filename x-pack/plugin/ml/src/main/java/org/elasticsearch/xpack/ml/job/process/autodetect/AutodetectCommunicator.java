@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
@@ -44,7 +45,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -197,7 +197,7 @@ public class AutodetectCommunicator implements Closeable {
             processKilled = true;
             autodetectResultProcessor.setProcessKilled();
             autodetectWorkerExecutor.shutdown();
-            autodetectProcess.kill();
+            autodetectProcess.kill(awaitCompletion);
 
             if (awaitCompletion) {
                 try {
@@ -225,8 +225,8 @@ public class AutodetectCommunicator implements Closeable {
             }
 
             // Filters have to be written before detectors
-            if (update.getFilter() != null) {
-                autodetectProcess.writeUpdateFiltersMessage(Collections.singletonList(update.getFilter()));
+            if (update.getFilters() != null) {
+                autodetectProcess.writeUpdateFiltersMessage(update.getFilters());
             }
 
             // Add detector rules
@@ -250,14 +250,15 @@ public class AutodetectCommunicator implements Closeable {
     public void flushJob(FlushJobParams params, BiConsumer<FlushAcknowledgement, Exception> handler) {
         submitOperation(() -> {
             String flushId = autodetectProcess.flushJob(params);
-            return waitFlushToCompletion(flushId);
+            return waitFlushToCompletion(flushId, params.isWaitForNormalization());
         }, handler);
     }
 
     public void forecastJob(ForecastParams params, BiConsumer<Void, Exception> handler) {
         BiConsumer<Void, Exception> forecastConsumer = (aVoid, e) -> {
             if (e == null) {
-                FlushJobParams flushParams = FlushJobParams.builder().build();
+                // Forecasting does not care about normalization of the local data as it is not being queried
+                FlushJobParams flushParams = FlushJobParams.builder().waitForNormalization(false).build();
                 flushJob(flushParams, (flushAcknowledgement, flushException) -> {
                     if (flushException != null) {
                         String msg = String.format(Locale.ROOT, "[%s] exception while flushing job", job.getId());
@@ -284,7 +285,7 @@ public class AutodetectCommunicator implements Closeable {
     }
 
     @Nullable
-    FlushAcknowledgement waitFlushToCompletion(String flushId) throws Exception {
+    FlushAcknowledgement waitFlushToCompletion(String flushId, boolean waitForNormalization) throws Exception {
         LOGGER.debug("[{}] waiting for flush", job.getId());
 
         FlushAcknowledgement flushAcknowledgement;
@@ -300,10 +301,12 @@ public class AutodetectCommunicator implements Closeable {
         }
 
         if (processKilled == false) {
-            LOGGER.debug("[{}] Initial flush completed, waiting until renormalizer is idle.", job.getId());
             // We also have to wait for the normalizer to become idle so that we block
             // clients from querying results in the middle of normalization.
-            autodetectResultProcessor.waitUntilRenormalizerIsIdle();
+            if (waitForNormalization) {
+                LOGGER.debug("[{}] Initial flush completed, waiting until renormalizer is idle.", job.getId());
+                autodetectResultProcessor.waitUntilRenormalizerIsIdle();
+            }
 
             LOGGER.debug("[{}] Flush completed", job.getId());
         }
@@ -315,7 +318,7 @@ public class AutodetectCommunicator implements Closeable {
      * Throws an exception if the process has exited
      */
     private void checkProcessIsAlive() {
-        if (!autodetectProcess.isProcessAlive()) {
+        if (autodetectProcess.isProcessAlive() == false) {
             // Don't log here - it just causes double logging when the exception gets logged
             throw new ElasticsearchException("[{}] Unexpected death of autodetect: {}", job.getId(), autodetectProcess.readError());
         }

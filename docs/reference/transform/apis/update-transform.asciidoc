@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[update-transform]]
-=== Update {transform} API
+= Update {transform} API
 
 [subs="attributes"]
 ++++
@@ -11,14 +11,14 @@
 Updates certain properties of a {transform}.
 
 [[update-transform-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _transform/<transform_id>/_update`
 
 [[update-transform-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
+If the {es} {security-features} are enabled, you must have the following
 built-in roles and privileges:
 
 * `transform_admin`
@@ -31,7 +31,7 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[update-transform-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 This API updates an existing {transform}. The list of properties that you can
 update is a subset of the list that you can define when you create a {transform}.
@@ -40,8 +40,8 @@ When the {transform} is updated, a series of validations occur to ensure its
 success. You can use the `defer_validation` parameter to skip these checks.
 
 All updated properties except description do not take effect until after the
-{transform} starts the next checkpoint. This is so there is consistency with the
-pivoted data in each checkpoint.
+{transform} starts the next checkpoint. This is so there is data consistency in
+each checkpoint.
 
 [IMPORTANT]
 ====
@@ -58,23 +58,23 @@ give users any privileges on `.data-frame-internal*` indices.
 ====
 
 [[update-transform-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<transform_id>`::
 (Required, string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[update-transform-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `defer_validation`::
-  (Optional, boolean) When `true`, deferrable validations are not run. This
+  (Optional, Boolean) When `true`, deferrable validations are not run. This
   behavior may be desired if the source index does not exist until after the
   {transform} is updated.
 
 [role="child_attributes"]
 [[update-transform-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `description`::
   (Optional, string) Free text description of the {transform}.
@@ -102,6 +102,32 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 (Optional, <<time-units, time units>>)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
 
+//Begin retention policy
+`retention_policy`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention]
++
+.Properties of `retention_policy`
+[%collapsible%open]
+====
+`time`:::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time]
++
+.Properties of `time`
+[%collapsible%open]
+=====
+`field`:::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-field]
+
+`max_age`:::
+(Required, <<time-units, time units>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-max-age]
+=====
+====
+//End retention policy
+
 //Begin settings
 `settings`::
 (Optional, object)
@@ -110,6 +136,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
 .Properties of `settings`
 [%collapsible%open]
 ====
+`dates_as_epoch_millis`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dates-as-epoch-milli]
 `docs_per_second`:::
 (Optional, float)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
@@ -126,12 +155,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-transforms]
 +
 .Properties of `source`
 [%collapsible%open]
-====  
+====
 
 `index`:::
 (Required, string or array)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
-    
+
 `query`:::
 (Optional, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
@@ -177,7 +206,7 @@ delays.
 //End sync
 
 [[update-transform-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

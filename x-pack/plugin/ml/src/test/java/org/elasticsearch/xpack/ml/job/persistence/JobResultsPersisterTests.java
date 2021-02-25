@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
@@ -23,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -55,6 +57,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -319,6 +322,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         BulkRequest bulkRequest = bulkRequestCaptor.getValue();
         assertThat(bulkRequest.requests().size(), equalTo(1));
         IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
+        assertThat(indexRequest.isRequireAlias(), equalTo(".ml-state-write".equals(expectedIndexOrAlias)));
 
         assertThat(indexRequest.index(), equalTo(expectedIndexOrAlias));
         assertThat(indexRequest.id(), equalTo("foo_quantiles"));
@@ -359,6 +363,7 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         assertThat(indexRequest.index(), equalTo(expectedIndexOrAlias));
         assertThat(indexRequest.id(), equalTo("foo_quantiles"));
+        assertThat(indexRequest.isRequireAlias(), equalTo(".ml-state-write".equals(expectedIndexOrAlias)));
     }
 
     public void testPersistQuantilesAsync_QuantilesDocumentCreated() {
@@ -390,8 +395,20 @@ public class JobResultsPersisterTests extends ESTestCase {
                 ClusterService.USER_DEFINED_METADATA,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp);
+        ExecutorService executor = mock(ExecutorService.class);
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[0]).run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
+        when(tp.executor(any(String.class))).thenReturn(executor);
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[0]).run();
+            return null;
+        }).when(tp).schedule(
+            any(Runnable.class), any(TimeValue.class), any(String.class)
+        );
 
-        return new ResultsPersisterService(client, clusterService, Settings.EMPTY);
+        return new ResultsPersisterService(tp, client, clusterService, Settings.EMPTY);
     }
 
     private AnomalyDetectionAuditor makeAuditor() {

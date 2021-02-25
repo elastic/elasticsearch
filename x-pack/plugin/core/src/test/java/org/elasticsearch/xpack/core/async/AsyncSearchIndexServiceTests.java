@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.async;
 
@@ -23,8 +24,8 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
     private AsyncTaskIndexService<TestAsyncResponse> indexService;
 
     public static class TestAsyncResponse implements AsyncResponse<TestAsyncResponse> {
-        private final String test;
-        private final long expirationTimeMillis;
+        public final String test;
+        public final long expirationTimeMillis;
 
         public TestAsyncResponse(String test, long expirationTimeMillis) {
             this.test = test;
@@ -38,7 +39,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public long getExpirationTime() {
-            return 0;
+            return expirationTimeMillis;
         }
 
         @Override

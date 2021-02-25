@@ -1,16 +1,16 @@
 [[binary]]
-=== Binary datatype
+=== Binary field type
 ++++
 <titleabbrev>Binary</titleabbrev>
 ++++
 
 The `binary` type accepts a binary value as a
-https://en.wikipedia.org/wiki/Base64[Base64] encoded string. The field is not
+{wikipedia}/Base64[Base64] encoded string. The field is not
 stored by default and is not searchable:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -24,7 +24,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "name": "Some binary blob",
   "blob": "U29tZSBiaW5hcnkgYmxvYg==" <1>

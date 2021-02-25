@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -56,12 +46,12 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchNoDocs() throws IOException {
-        testBothCases(new MatchNoDocsQuery(), dataset,
+        testSearchCase(new MatchNoDocsQuery(), dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD),
             agg -> assertEquals(0, agg.getBuckets().size()), null // without type hint
         );
 
-        testBothCases(new MatchNoDocsQuery(), dataset,
+        testSearchCase(new MatchNoDocsQuery(), dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD),
             agg -> assertEquals(0, agg.getBuckets().size()), ValueType.STRING // with type hint
         );
@@ -70,7 +60,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
     public void testMatchAllDocs() throws IOException {
         Query query = new MatchAllDocsQuery();
 
-        testBothCases(query, dataset,
+        testSearchCase(query, dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD),
             agg -> {
                 assertEquals(9, agg.getBuckets().size());
@@ -82,7 +72,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
             }, null // without type hint
         );
 
-        testBothCases(query, dataset,
+        testSearchCase(query, dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD),
             agg -> {
                 assertEquals(9, agg.getBuckets().size());
@@ -98,35 +88,15 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
     private void testSearchCase(Query query, List<String> dataset,
                                 Consumer<TermsAggregationBuilder> configure,
                                 Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
-        executeTestCase(false, query, dataset, configure, verify, valueType);
-    }
-
-    private void testSearchAndReduceCase(Query query, List<String> dataset,
-                                         Consumer<TermsAggregationBuilder> configure,
-                                         Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
-        executeTestCase(true, query, dataset, configure, verify, valueType);
-    }
-
-    private void testBothCases(Query query, List<String> dataset,
-                               Consumer<TermsAggregationBuilder> configure,
-                               Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
-        testSearchCase(query, dataset, configure, verify, valueType);
-        testSearchAndReduceCase(query, dataset, configure, verify, valueType);
-    }
-
-    private void executeTestCase(boolean reduced, Query query, List<String> dataset,
-                                 Consumer<TermsAggregationBuilder> configure,
-                                 Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
-
+        MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD, randomBoolean(), true, null);
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
                 for (String value : dataset) {
-                    if (frequently()) {
-                        indexWriter.commit();
-                    }
-
                     document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(value)));
+                    if (keywordFieldType.isSearchable()) {
+                        document.add(new Field(KEYWORD_FIELD, new BytesRef(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
+                    }
                     indexWriter.addDocument(document);
                     document.clear();
                 }
@@ -143,16 +113,8 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
                     configure.accept(aggregationBuilder);
                 }
 
-                MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType();
-                keywordFieldType.setName(KEYWORD_FIELD);
-                keywordFieldType.setHasDocValues(true);
 
-                InternalMappedTerms rareTerms;
-                if (reduced) {
-                    rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, keywordFieldType);
-                } else {
-                    rareTerms = search(indexSearcher, query, aggregationBuilder, keywordFieldType);
-                }
+                InternalMappedTerms rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, keywordFieldType);
                 verify.accept(rareTerms);
             }
         }

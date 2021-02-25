@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.planner;
 
@@ -31,11 +32,8 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.GeoDistanceQuery;
-import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
-import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
@@ -89,8 +87,8 @@ import static org.elasticsearch.xpack.ql.expression.Foldables.valueOf;
 
 final class QueryTranslator {
 
-    public static final String DATE_FORMAT = "strict_date_time";
-    public static final String TIME_FORMAT = "strict_hour_minute_second_millis";
+    public static final String DATE_FORMAT = "strict_date_optional_time_nanos";
+    public static final String TIME_FORMAT = "strict_hour_minute_second_fraction";
 
     private QueryTranslator() {}
 
@@ -349,13 +347,7 @@ final class QueryTranslator {
             if (onAggs) {
                 aggFilter = new AggFilter(id(isNotNull), isNotNull.asScript());
             } else {
-                Query q = null;
-                if (isNotNull.field() instanceof FieldAttribute) {
-                    q = new ExistsQuery(isNotNull.source(), handler.nameOf(isNotNull.field()));
-                } else {
-                    q = new ScriptQuery(isNotNull.source(), isNotNull.asScript());
-                }
-                query = handler.wrapFunctionQuery(isNotNull, isNotNull.field(), q);
+                query = ExpressionTranslators.IsNotNulls.doTranslate(isNotNull, handler);
             }
 
             return new QueryTranslation(query, aggFilter);
@@ -372,13 +364,7 @@ final class QueryTranslator {
             if (onAggs) {
                 aggFilter = new AggFilter(id(isNull), isNull.asScript());
             } else {
-                Query q = null;
-                if (isNull.field() instanceof FieldAttribute) {
-                    q = new NotQuery(isNull.source(), new ExistsQuery(isNull.source(), handler.nameOf(isNull.field())));
-                } else {
-                    q = new ScriptQuery(isNull.source(), isNull.asScript());
-                }
-                query = handler.wrapFunctionQuery(isNull, isNull.field(), q);
+                query = ExpressionTranslators.IsNulls.doTranslate(isNull, handler);
             }
 
             return new QueryTranslation(query, aggFilter);
@@ -487,7 +473,7 @@ final class QueryTranslator {
             if (onAggs) {
                 aggFilter = new AggFilter(id(f), f.asScript());
             } else {
-                query = org.elasticsearch.xpack.ql.planner.ExpressionTranslators.Scalars.doTranslate(f, handler);
+                query = ExpressionTranslators.Scalars.doTranslate(f, handler);
             }
 
             return new QueryTranslation(query, aggFilter);
@@ -627,7 +613,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Percentiles p) {
-            return new PercentilesAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.percents()));
+            return new PercentilesAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.percents()), p.percentilesConfig());
         }
     }
 
@@ -635,7 +621,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, PercentileRanks p) {
-            return new PercentileRanksAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.values()));
+            return new PercentileRanksAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.values()), p.percentilesConfig());
         }
     }
 
@@ -696,4 +682,5 @@ final class QueryTranslator {
         }
         return values;
     }
+
 }

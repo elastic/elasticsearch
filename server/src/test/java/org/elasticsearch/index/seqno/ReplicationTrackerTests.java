@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.seqno;
@@ -243,7 +232,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assigned
                 .entrySet()
                 .stream()
-                .filter(e -> !e.getKey().equals(missingActiveID))
+                .filter(e -> e.getKey().equals(missingActiveID) == false)
                 .forEach(e -> updateLocalCheckpoint(tracker, e.getKey().getId(), e.getValue()));
 
         if (missingActiveID.equals(primaryId) == false) {
@@ -502,10 +491,10 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final Set<AllocationId> removingActiveAllocationIds = new HashSet<>(randomSubsetOf(activeAllocationIds));
         removingActiveAllocationIds.remove(primaryId);
         final Set<AllocationId> newActiveAllocationIds =
-                activeAllocationIds.stream().filter(a -> !removingActiveAllocationIds.contains(a)).collect(Collectors.toSet());
+                activeAllocationIds.stream().filter(a -> removingActiveAllocationIds.contains(a) == false).collect(Collectors.toSet());
         final List<AllocationId> removingInitializingAllocationIds = randomSubsetOf(initializingIds);
         final Set<AllocationId> newInitializingAllocationIds =
-                initializingIds.stream().filter(a -> !removingInitializingAllocationIds.contains(a)).collect(Collectors.toSet());
+                initializingIds.stream().filter(a -> removingInitializingAllocationIds.contains(a) == false).collect(Collectors.toSet());
         routingTable = routingTable(newInitializingAllocationIds, primaryId);
         tracker.updateFromMaster(initialClusterStateVersion + 1, ids(newActiveAllocationIds), routingTable);
         assertTrue(newActiveAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
@@ -933,7 +922,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     }
 
     private static Set<AllocationId> exclude(Collection<AllocationId> allocationIds, Set<String> excludeIds) {
-        return allocationIds.stream().filter(aId -> !excludeIds.contains(aId.getId())).collect(Collectors.toSet());
+        return allocationIds.stream().filter(aId -> excludeIds.contains(aId.getId()) == false).collect(Collectors.toSet());
     }
 
     private static Tuple<Set<AllocationId>, Set<AllocationId>> randomActiveAndInitializingAllocationIds(
@@ -951,7 +940,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             do {
                 final AllocationId newAllocationId = AllocationId.newInitializing();
                 // ensure we do not duplicate an allocation ID
-                if (!existingAllocationIds.contains(newAllocationId)) {
+                if (existingAllocationIds.contains(newAllocationId) == false) {
                     return newAllocationId;
                 }
             } while (true);

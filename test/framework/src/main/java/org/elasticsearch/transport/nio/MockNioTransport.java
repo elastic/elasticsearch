@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport.nio;
@@ -39,6 +28,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
@@ -55,7 +45,7 @@ import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.InboundPipeline;
-import org.elasticsearch.transport.OutboundHandler;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.StatsTracker;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpServerChannel;
@@ -269,6 +259,30 @@ public class MockNioTransport extends TcpTransport {
         }
     }
 
+    private static final class LeakAwareRefCounted extends AbstractRefCounted {
+        private final LeakTracker.Leak<Releasable> leak;
+
+        private final Releasable releasable;
+
+        LeakAwareRefCounted(Releasable releasable) {
+            super("leak-aware-ref-counted");
+            this.releasable = releasable;
+            leak = LeakTracker.INSTANCE.track(releasable);
+        }
+
+        @Override
+        protected void closeInternal() {
+            boolean leakReleased = leak.close(releasable);
+            assert leakReleased : "leak should not have been released already";
+            releasable.close();
+        }
+
+        @Override
+        protected void touch() {
+            leak.record();
+        }
+    }
+
     private static class MockTcpReadWriteHandler extends BytesWriteHandler {
 
         private final MockSocketChannel channel;
@@ -293,7 +307,8 @@ public class MockNioTransport extends TcpTransport {
                 references[i] = BytesReference.fromByteBuffer(pages[i].byteBuffer());
             }
             Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
-            try (ReleasableBytesReference reference = new ReleasableBytesReference(CompositeBytesReference.of(references), releasable)) {
+            try (ReleasableBytesReference reference =
+                         new ReleasableBytesReference(CompositeBytesReference.of(references), new LeakAwareRefCounted(releasable))) {
                 pipeline.handleBytes(channel, reference);
                 return reference.length();
             }
@@ -366,15 +381,8 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
-        public void sendMessage(OutboundHandler.SendContext sendContext) {
-            final BytesReference message;
-            try {
-                message = sendContext.get();
-            } catch (IOException e) {
-                sendContext.onFailure(e);
-                return;
-            }
-            getContext().sendMessage(BytesReference.toByteBuffers(message), ActionListener.toBiConsumer(sendContext));
+        public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+            getContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
         }
     }
 

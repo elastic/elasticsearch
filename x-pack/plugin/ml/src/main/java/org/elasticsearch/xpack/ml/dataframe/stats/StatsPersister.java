@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.dataframe.stats;
@@ -29,7 +30,6 @@ public class StatsPersister {
     private final String jobId;
     private final ResultsPersisterService resultsPersisterService;
     private final DataFrameAnalyticsAuditor auditor;
-    private volatile boolean isCancelled;
 
     public StatsPersister(String jobId, ResultsPersisterService resultsPersisterService, DataFrameAnalyticsAuditor auditor) {
         this.jobId = Objects.requireNonNull(jobId);
@@ -38,10 +38,6 @@ public class StatsPersister {
     }
 
     public void persistWithRetry(ToXContentObject result, Function<String, String> docIdSupplier) {
-        if (isCancelled) {
-            return;
-        }
-
         try {
             resultsPersisterService.indexWithRetry(jobId,
                 MlStatsIndex.writeAlias(),
@@ -49,18 +45,16 @@ public class StatsPersister {
                 new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
                 WriteRequest.RefreshPolicy.NONE,
                 docIdSupplier.apply(jobId),
-                () -> isCancelled == false,
-                errorMsg -> auditor.error(jobId,
-                    "failed to persist result with id [" + docIdSupplier.apply(jobId) + "]; " + errorMsg)
+                true,
+                () -> true,
+                retryMessage ->
+                    LOGGER.debug("[{}] failed to persist result with id [{}]; {}", jobId, docIdSupplier.apply(jobId), retryMessage)
             );
         } catch (IOException ioe) {
             LOGGER.error(() -> new ParameterizedMessage("[{}] Failed serializing stats result", jobId), ioe);
         } catch (Exception e) {
             LOGGER.error(() -> new ParameterizedMessage("[{}] Failed indexing stats result", jobId), e);
+            auditor.error(jobId, "Failed indexing stats result with id [" + docIdSupplier.apply(jobId) + "]; " + e.getMessage());
         }
-    }
-
-    public void cancel() {
-        isCancelled = true;
     }
 }

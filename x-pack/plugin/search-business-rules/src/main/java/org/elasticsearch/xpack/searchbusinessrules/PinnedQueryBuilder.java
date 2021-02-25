@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.searchbusinessrules;
@@ -27,7 +28,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,20 +71,20 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
       }
       if (ids.length > MAX_NUM_PINNED_HITS) {
           throw new IllegalArgumentException("[" + NAME + "] Max of "+MAX_NUM_PINNED_HITS+" ids exceeded: "+
-                  ids.length+" provided.");          
+                  ids.length+" provided.");
       }
       LinkedHashSet<String> deduped = new LinkedHashSet<>();
       for (String id : ids) {
           if (id == null) {
               throw new IllegalArgumentException("[" + NAME + "] id cannot be null");
-          }          
+          }
           if(deduped.add(id) == false) {
-              throw new IllegalArgumentException("[" + NAME + "] duplicate id found in list: "+id);              
+              throw new IllegalArgumentException("[" + NAME + "] duplicate id found in list: "+id);
           }
       }
       this.ids = new ArrayList<>();
       Collections.addAll(this.ids, ids);
-      
+
     }
 
     /**
@@ -130,11 +131,11 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         printBoostAndQueryName(builder);
         builder.endObject();
     }
-    
-    
-    
+
+
+
     private static final ConstructingObjectParser<PinnedQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            a -> 
+            a ->
                 {
                     QueryBuilder organicQuery = (QueryBuilder) a[0];
                     @SuppressWarnings("unchecked")
@@ -143,7 +144,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
                 }
              );
     static {
-        PARSER.declareObject(constructorArg(), (p, c) -> parseInnerQueryBuilder(p), ORGANIC_QUERY_FIELD);        
+        PARSER.declareObject(constructorArg(), (p, c) -> parseInnerQueryBuilder(p), ORGANIC_QUERY_FIELD);
         PARSER.declareStringArray(constructorArg(), IDS_FIELD);
         declareStandardFields(PARSER);
     }
@@ -162,8 +163,8 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder newOrganicQuery = organicQuery.rewrite(queryShardContext);
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);
         if (newOrganicQuery != organicQuery) {
             PinnedQueryBuilder result = new PinnedQueryBuilder(newOrganicQuery, ids.toArray(String[]::new));
             result.boost(this.boost);
@@ -173,8 +174,8 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
         if (idField == null) {
             return new MatchNoDocsQuery("No mappings");
         }

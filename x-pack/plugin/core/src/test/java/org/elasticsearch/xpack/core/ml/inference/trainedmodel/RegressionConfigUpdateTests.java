@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -18,6 +20,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests.randomRegressionConfig;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCase<RegressionConfigUpdate> {
 
@@ -58,6 +61,26 @@ public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCas
                 .build()
                 .apply(originalConfig)
             ));
+    }
+
+    public void testInvalidResultFieldNotUnique() {
+        ElasticsearchStatusException e =
+            expectThrows(ElasticsearchStatusException.class, () -> new RegressionConfigUpdate("warning", 0));
+        assertEquals("Invalid inference config. More than one field is configured as [warning]", e.getMessage());
+    }
+
+    public void testNewBuilder() {
+        RegressionConfigUpdate update = randomRegressionConfigUpdate();
+        String newFieldName = update.getResultsField() + "_value";
+
+        InferenceConfigUpdate updateWithField = update.newBuilder().setResultsField(newFieldName).build();
+
+        assertNotSame(updateWithField, update);
+        assertEquals(newFieldName, updateWithField.getResultsField());
+        // other fields are the same
+        assertThat(updateWithField, instanceOf(RegressionConfigUpdate.class));
+        assertEquals(update.getNumTopFeatureImportanceValues(),
+            ((RegressionConfigUpdate)updateWithField).getNumTopFeatureImportanceValues());
     }
 
     @Override

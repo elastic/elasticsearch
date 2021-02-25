@@ -12,8 +12,8 @@ include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 ----
 HEAD /_alias/alias1
 ----
-// TEST[setup:twitter]
-// TEST[s/^/PUT twitter\/_alias\/alias1\n/]
+// TEST[setup:my_index]
+// TEST[s/^/PUT my-index-000001\/_alias\/alias1\n/]
 
 
 [[alias-exists-api-request]]
@@ -23,6 +23,13 @@ HEAD /_alias/alias1
 
 `HEAD /<index>/_alias/<alias>`
 
+[[alias-exists-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the index alias. If you specify an index, you must also have
+`view_index_metadata` or `manage` index privilege for the index.
 
 [[alias-exists-api-path-params]]
 ==== {api-path-parms-title}

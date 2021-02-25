@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -75,7 +76,7 @@ public class UpdateSettingsStepTests extends AbstractStepMasterTimeoutTestCase<U
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
             assertThat(request.settings(), equalTo(step.getSettings()));
             assertThat(request.indices(), equalTo(new String[] {indexMetadata.getIndex().getName()}));
-            listener.onResponse(new AcknowledgedResponse(true));
+            listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 

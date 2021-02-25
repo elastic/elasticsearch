@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.indices;
 
@@ -53,7 +42,6 @@ import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -66,7 +54,6 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
@@ -176,7 +163,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, Mapper.TypeParser> getMappers() {
-            return Collections.singletonMap("fake-mapper", new KeywordFieldMapper.TypeParser());
+            return Collections.singletonMap("fake-mapper", KeywordFieldMapper.PARSER);
         }
 
         @Override
@@ -458,8 +445,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .numberOfReplicas(0)
             .build();
         MapperService mapperService = indicesService.createIndexMapperService(indexMetadata);
-        assertNotNull(mapperService.documentMapperParser().parserContext().typeParser("fake-mapper"));
-        Similarity sim = mapperService.documentMapperParser().parserContext().getSimilarity("test").get();
+        assertNotNull(mapperService.parserContext().typeParser("fake-mapper"));
+        Similarity sim = mapperService.parserContext().getSimilarity("test").get();
         assertThat(sim, instanceOf(NonNegativeScoresSimilarity.class));
         sim = ((NonNegativeScoresSimilarity) sim).getDelegate();
         assertThat(sim, instanceOf(BM25Similarity.class));
@@ -515,19 +502,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertThat(indexStats.isEmpty(), equalTo(false));
         assertThat("index not defined", indexStats.containsKey(index), equalTo(true));
         assertThat("unexpected shard stats", indexStats.get(index), equalTo(shardStats));
-    }
-
-    public void testIsMetadataField() {
-        IndicesService indicesService = getIndicesService();
-        final Version randVersion = VersionUtils.randomIndexCompatibleVersion(random());
-        assertFalse(indicesService.isMetadataField(randVersion, randomAlphaOfLengthBetween(10, 15)));
-        for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
-            if (NestedPathFieldMapper.NAME.equals(builtIn) && randVersion.before(Version.V_8_0_0)) {
-                continue;   // Nested field does not exist in the 7x line
-            }
-            assertTrue("Expected " + builtIn + " to be a metadata field for version " + randVersion,
-                indicesService.isMetadataField(randVersion, builtIn));
-        }
     }
 
     public void testGetEngineFactory() throws IOException {

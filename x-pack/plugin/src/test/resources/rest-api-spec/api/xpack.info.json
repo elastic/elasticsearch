@@ -5,6 +5,10 @@
       "description":"Retrieves information about the installed X-Pack features."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -19,6 +23,14 @@
       "categories":{
         "type":"list",
         "description":"Comma-separated list of info categories. Can be any of: build, license, features"
+      },
+      "accept_enterprise":{
+        "type":"boolean",
+        "description":"If this param is used it must be set to true",
+        "deprecated":{
+          "version":"8.0.0",
+          "description":"Supported for backwards compatibility with 7.x"
+        }
       }
     }
   }

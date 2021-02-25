@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gateway;
@@ -38,11 +27,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -59,6 +51,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -70,9 +63,11 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     private ClusterName clusterName;
     private Settings settings;
     private DiscoveryNode localNode;
+    private BigArrays bigArrays;
 
     @Override
     public void setUp() throws Exception {
+        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         nodeEnvironment = newNodeEnvironment();
         localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
             Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
@@ -88,7 +83,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     }
 
     private CoordinationState.PersistedState newGatewayPersistedState() {
-        final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode);
+        final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode, bigArrays);
         gateway.start(settings, nodeEnvironment, xContentRegistry());
         final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
         assertThat(persistedState, instanceOf(GatewayMetaState.LucenePersistedState.class));
@@ -297,7 +292,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     public void testStatePersistedOnLoad() throws IOException {
         // open LucenePersistedState to make sure that cluster state is written out to each data path
         final PersistedClusterStateService persistedClusterStateService =
-            new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+            new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
         final ClusterState state = createClusterState(randomNonNegativeLong(),
             Metadata.builder().clusterUUID(randomAlphaOfLength(10)).build());
@@ -315,7 +310,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
             try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
                 final PersistedClusterStateService newPersistedClusterStateService =
-                    new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                    new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
                         new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
                 final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
                 assertFalse(onDiskState.empty());
@@ -334,9 +329,12 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         try {
             DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
                 Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
-            Settings settings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value()).put(
-                Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_NAME_SETTING.getKey(), "test").build();
-            final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode);
+            Settings settings = Settings.builder()
+                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value())
+                .put(nonMasterNode())
+                .put(Node.NODE_NAME_SETTING.getKey(), "test")
+                .build();
+            final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode, bigArrays);
             cleanup.add(gateway);
             final TransportService transportService = mock(TransportService.class);
             TestThreadPool threadPool = new TestThreadPool("testMarkAcceptedConfigAsCommittedOnDataOnlyNode");
@@ -346,7 +344,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             when(clusterService.getClusterSettings()).thenReturn(
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
             final PersistedClusterStateService persistedClusterStateService =
-                new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
             gateway.start(settings, transportService, clusterService,
                 new MetaStateService(nodeEnvironment, xContentRegistry()), null, null, persistedClusterStateService);
@@ -433,7 +431,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         final AtomicReference<Double> ioExceptionRate = new AtomicReference<>(0.01d);
         final List<MockDirectoryWrapper> list = new ArrayList<>();
         final PersistedClusterStateService persistedClusterStateService =
-            new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+            new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
                 @Override
                 Directory createDirectory(Path path) {
@@ -510,7 +508,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
             try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
                 final PersistedClusterStateService newPersistedClusterStateService =
-                    new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                    new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
                         new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
                 final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
                 assertFalse(onDiskState.empty());
@@ -521,6 +519,12 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                         .metadata(onDiskState.metadata).build());
             }
         }
+    }
+
+    private static BigArrays getBigArrays() {
+        return usually()
+                ? BigArrays.NON_RECYCLING_INSTANCE
+                : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
 }

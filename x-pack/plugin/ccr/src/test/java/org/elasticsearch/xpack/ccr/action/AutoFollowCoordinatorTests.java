@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -12,6 +13,8 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -74,6 +77,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -90,8 +94,23 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         ClusterState remoteState = createRemoteClusterState("logs-20190101", true);
 
-        AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
-            null, true, null, null, null, null, null, null, null, null, null, null);
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("logs-*"),
+            null,
+            Settings.EMPTY,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
         patterns.put("remote", autoFollowPattern);
         Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
@@ -133,6 +152,94 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
                 assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
+                assertThat(followRequest.masterNodeTimeout(), equalTo(TimeValue.MAX_VALUE));
+                successHandler.run();
+            }
+
+            @Override
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction,
+                                          Consumer<Exception> handler) {
+                ClusterState resultCs = updateFunction.apply(currentState);
+                AutoFollowMetadata result = resultCs.metadata().custom(AutoFollowMetadata.TYPE);
+                assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
+                assertThat(result.getFollowedLeaderIndexUUIDs().get("remote").size(), equalTo(1));
+                handler.accept(null);
+            }
+
+            @Override
+            void cleanFollowedRemoteIndices(ClusterState remoteClusterState, List<String> patterns) {
+                // Ignore, to avoid invoking updateAutoFollowMetadata(...) twice
+            }
+        };
+        autoFollower.start();
+        assertThat(invoked[0], is(true));
+    }
+
+    public void testAutoFollower_dataStream() {
+        Client client = mock(Client.class);
+        when(client.getRemoteClusterClient(anyString())).thenReturn(client);
+
+        ClusterState remoteState = createRemoteClusterStateWithDataStream("logs-foobar");
+
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("logs-*"),
+            null,
+            Settings.EMPTY,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        Map<String, AutoFollowPattern> patterns = new HashMap<>();
+        patterns.put("remote", autoFollowPattern);
+        Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
+        followedLeaderIndexUUIDS.put("remote", new ArrayList<>());
+        Map<String, Map<String, String>> autoFollowHeaders = new HashMap<>();
+        autoFollowHeaders.put("remote", Map.of("key", "val"));
+        AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, autoFollowHeaders);
+
+        ClusterState currentState = ClusterState.builder(new ClusterName("name"))
+            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .build();
+
+        boolean[] invoked = new boolean[]{false};
+        Consumer<List<AutoFollowCoordinator.AutoFollowResult>> handler = results -> {
+            invoked[0] = true;
+
+            assertThat(results.size(), equalTo(1));
+            assertThat(results.get(0).clusterStateFetchException, nullValue());
+            List<Map.Entry<Index, Exception>> entries = new ArrayList<>(results.get(0).autoFollowExecutionResults.entrySet());
+            assertThat(entries.size(), equalTo(1));
+            assertThat(entries.get(0).getKey().getName(), matchesPattern(DataStreamTestHelper.backingIndexPattern("logs-foobar", 1)));
+            assertThat(entries.get(0).getValue(), nullValue());
+        };
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(currentState), () -> 1L, Runnable::run) {
+            @Override
+            void getRemoteClusterState(String remoteCluster,
+                                       long metadataVersion,
+                                       BiConsumer<ClusterStateResponse, Exception> handler) {
+                assertThat(remoteCluster, equalTo("remote"));
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, false), null);
+            }
+
+            @Override
+            void createAndFollow(Map<String, String> headers,
+                                 PutFollowAction.Request followRequest,
+                                 Runnable successHandler,
+                                 Consumer<Exception> failureHandler) {
+                assertThat(headers, equalTo(autoFollowHeaders.get("remote")));
+                assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
+                assertThat(followRequest.getLeaderIndex(), matchesPattern(DataStreamTestHelper.backingIndexPattern("logs-foobar", 1)));
+                assertThat(followRequest.getFollowerIndex(), matchesPattern(DataStreamTestHelper.backingIndexPattern("logs-foobar", 1)));
+                assertThat(followRequest.masterNodeTimeout(), equalTo(TimeValue.MAX_VALUE));
                 successHandler.run();
             }
 
@@ -159,8 +266,23 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
-        AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
-                null, true, null, null, null, null, null, null, null, null, null, null);
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("logs-*"),
+            null,
+            Settings.EMPTY,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
         patterns.put("remote", autoFollowPattern);
         Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
@@ -211,8 +333,23 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
         ClusterState remoteState = createRemoteClusterState("logs-20190101", true);
 
-        AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
-                null, true, null, null, null, null, null, null, null, null, null, null);
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("logs-*"),
+            null,
+            Settings.EMPTY,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
         patterns.put("remote", autoFollowPattern);
         Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
@@ -251,6 +388,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
                 assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
+                assertThat(followRequest.masterNodeTimeout(), equalTo(TimeValue.MAX_VALUE));
                 successHandler.run();
             }
 
@@ -267,10 +405,41 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         final String remoteCluster = randomAlphaOfLength(5);
 
         final Map<String, AutoFollowPattern> autoFollowPatterns = new HashMap<>(2);
-        autoFollowPatterns.put("pattern_1", new AutoFollowPattern(remoteCluster, List.of("logs-*", "test-*"), "copy-", false, null, null,
-            null, null, null, null, null, null, null, null));
-        autoFollowPatterns.put("pattern_2", new AutoFollowPattern(remoteCluster, List.of("users-*"), "copy-", false, null, null,
-            null, null, null, null, null, null, null, null));
+        autoFollowPatterns.put("pattern_1", new AutoFollowPattern(
+                remoteCluster,
+                List.of("logs-*", "test-*"),
+                "copy-",
+                Settings.EMPTY,
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
+        autoFollowPatterns.put("pattern_2", new AutoFollowPattern(
+                remoteCluster,
+                List.of("users-*"), "copy-",
+                Settings.EMPTY,
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
 
         final Map<String, List<String>> followedLeaderIndexUUIDs = new HashMap<>(2);
         followedLeaderIndexUUIDs.put("pattern_1", List.of("uuid1", "uuid2"));
@@ -424,6 +593,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 void createAndFollow(Map<String, String> headers, PutFollowAction.Request request,
                                      Runnable successHandler, Consumer<Exception> failureHandler) {
                     assertThat(request.getRemoteCluster(), equalTo(remoteCluster));
+                    assertThat(request.masterNodeTimeout(), equalTo(TimeValue.MAX_VALUE));
                     assertThat(request.getFollowerIndex(), startsWith("copy-"));
                     followedIndices.add(request.getLeaderIndex());
                     successHandler.run();
@@ -487,8 +657,22 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
         ClusterState remoteState = createRemoteClusterState("logs-20190101", true);
 
-        AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
-                null, true, null, null, null, null, null, null, null, null, null, null);
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("logs-*"),
+            null,
+            Settings.EMPTY, true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
         patterns.put("remote", autoFollowPattern);
         Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
@@ -525,6 +709,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
                 assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
+                assertThat(followRequest.masterNodeTimeout(), equalTo(TimeValue.MAX_VALUE));
                 assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 failureHandler.accept(failure);
@@ -546,8 +731,23 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testGetLeaderIndicesToFollow() {
-        final AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("metrics-*"), null, true,
-            null, null, null, null, null, null, null, null, null, null);
+        final AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("metrics-*"),
+            null,
+            Settings.EMPTY,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         Metadata.Builder imdBuilder = Metadata.builder();
@@ -601,8 +801,23 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(result.get(2).getName(), equalTo("metrics-3"));
         assertThat(result.get(3).getName(), equalTo("metrics-4"));
 
-        final AutoFollowPattern inactiveAutoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("metrics-*"), null,
-            false, null, null, null, null, null, null, null, null, null, null);
+        final AutoFollowPattern inactiveAutoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("metrics-*"),
+            null,
+            Settings.EMPTY,
+            false,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
         result = AutoFollower.getLeaderIndicesToFollow(inactiveAutoFollowPattern, remoteState, Collections.emptyList());
         assertThat(result.size(), equalTo(0));
@@ -612,8 +827,23 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testGetLeaderIndicesToFollow_shardsNotStarted() {
-        AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("*"),
-            null, true, null, null, null, null, null, null, null, null, null, null);
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("*"),
+            null,
+            Settings.EMPTY,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
         // 1 shard started and another not started:
         ClusterState remoteState = createRemoteClusterState("index1", true);
@@ -652,8 +882,23 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testGetLeaderIndicesToFollowWithClosedIndices() {
-        final AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("*"),
-            null, true, null, null, null, null, null, null, null, null, null, null);
+        final AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("*"),
+            null,
+            Settings.EMPTY,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
         // index is opened
         ClusterState remoteState = ClusterStateCreationUtils.stateWithActivePrimary("test-index", true, randomIntBetween(1, 3), 0);
@@ -775,16 +1020,61 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testGetFollowerIndexName() {
-        AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("metrics-*"), null, true, null,
-            null, null, null, null, null, null, null, null, null);
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("metrics-*"),
+            null,
+            Settings.EMPTY,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         assertThat(AutoFollower.getFollowerIndexName(autoFollowPattern, "metrics-0"), equalTo("metrics-0"));
 
-        autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("metrics-*"), "eu-metrics-0", true, null, null,
-            null, null, null, null, null, null, null, null);
+        autoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("metrics-*"),
+            "eu-metrics-0",
+            Settings.EMPTY,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         assertThat(AutoFollower.getFollowerIndexName(autoFollowPattern, "metrics-0"), equalTo("eu-metrics-0"));
 
-        autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("metrics-*"), "eu-{{leader_index}}", true, null,
-            null, null, null, null, null, null, null, null, null);
+        autoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("metrics-*"),
+            "eu-{{leader_index}}",
+            Settings.EMPTY,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         assertThat(AutoFollower.getFollowerIndexName(autoFollowPattern, "metrics-0"), equalTo("eu-metrics-0"));
     }
 
@@ -864,12 +1154,65 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             Runnable::run);
         // Add 3 patterns:
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
-        patterns.put("pattern1", new AutoFollowPattern("remote1", Collections.singletonList("logs-*"), null, true, null, null,
-            null, null, null, null, null, null, null, null));
-        patterns.put("pattern2", new AutoFollowPattern("remote2", Collections.singletonList("logs-*"), null, true, null, null,
-            null, null, null, null, null, null, null, null));
-        patterns.put("pattern3", new AutoFollowPattern("remote2", Collections.singletonList("metrics-*"), null, true, null, null,
-            null, null, null, null, null, null, null, null));
+        patterns.put(
+            "pattern1", new AutoFollowPattern(
+                "remote1",
+                Collections.singletonList("logs-*"),
+                null,
+                Settings.EMPTY,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
+        patterns.put(
+            "pattern2",
+            new AutoFollowPattern(
+                "remote2",
+                Collections.singletonList("logs-*"),
+                null,
+                Settings.EMPTY,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
+        patterns.put(
+            "pattern3",
+            new AutoFollowPattern(
+                "remote2",
+                Collections.singletonList("metrics-*"),
+                null,
+                Settings.EMPTY,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
         ClusterState clusterState = ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE,
                 new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap())))
@@ -894,8 +1237,26 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().get("remote2"), notNullValue());
         assertThat(removedAutoFollower1.removed, is(true));
         // Add pattern 4:
-        patterns.put("pattern4", new AutoFollowPattern("remote1", Collections.singletonList("metrics-*"), null, true, null, null,
-            null, null, null, null, null, null, null, null));
+        patterns.put(
+            "pattern4",
+            new AutoFollowPattern(
+                "remote1",
+                Collections.singletonList("metrics-*"),
+                null,
+                Settings.EMPTY,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
         clusterState = ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE,
                 new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap())))
@@ -970,12 +1331,64 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         // Add 3 patterns:
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
-        patterns.put("pattern1", new AutoFollowPattern("remote1", Collections.singletonList("logs-*"), null, true, null, null,
-            null, null, null, null, null, null, null, null));
-        patterns.put("pattern2", new AutoFollowPattern("remote2", Collections.singletonList("logs-*"), null, true, null, null,
-            null, null, null, null, null, null, null, null));
-        patterns.put("pattern3", new AutoFollowPattern("remote2", Collections.singletonList("metrics-*"), null, true, null, null,
-            null, null, null, null, null, null, null, null));
+        patterns.put(
+            "pattern1",
+            new AutoFollowPattern(
+                "remote1",
+                Collections.singletonList("logs-*"),
+                null,
+                Settings.EMPTY,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
+        patterns.put(
+            "pattern2",
+            new AutoFollowPattern("remote2",
+                Collections.singletonList("logs-*"),
+                null,
+                Settings.EMPTY,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
+        patterns.put(
+            "pattern3",
+            new AutoFollowPattern("remote2",
+                Collections.singletonList("metrics-*"),
+                null,
+                Settings.EMPTY,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
 
         autoFollowCoordinator.updateAutoFollowers(ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE,
@@ -991,16 +1404,45 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(removedAutoFollower2.removed, is(false));
 
         // Make pattern 1 and pattern 3 inactive
-        patterns.computeIfPresent("pattern1", (name, pattern) -> new AutoFollowPattern(pattern.getRemoteCluster(),
-            pattern.getLeaderIndexPatterns(), pattern.getFollowIndexPattern(), false, pattern.getMaxReadRequestOperationCount(),
-            pattern.getMaxWriteRequestOperationCount(), pattern.getMaxOutstandingReadRequests(), pattern.getMaxOutstandingWriteRequests(),
-            pattern.getMaxReadRequestSize(), pattern.getMaxWriteRequestSize(), pattern.getMaxWriteBufferCount(),
-            pattern.getMaxWriteBufferSize(), pattern.getMaxRetryDelay(), pattern.getReadPollTimeout()));
-        patterns.computeIfPresent("pattern3", (name, pattern) -> new AutoFollowPattern(pattern.getRemoteCluster(),
-            pattern.getLeaderIndexPatterns(), pattern.getFollowIndexPattern(), false, pattern.getMaxReadRequestOperationCount(),
-            pattern.getMaxWriteRequestOperationCount(), pattern.getMaxOutstandingReadRequests(), pattern.getMaxOutstandingWriteRequests(),
-            pattern.getMaxReadRequestSize(), pattern.getMaxWriteRequestSize(), pattern.getMaxWriteBufferCount(),
-            pattern.getMaxWriteBufferSize(), pattern.getMaxRetryDelay(), pattern.getReadPollTimeout()));
+        patterns.computeIfPresent(
+            "pattern1",
+            (name, pattern) -> new AutoFollowPattern(
+                pattern.getRemoteCluster(),
+                pattern.getLeaderIndexPatterns(),
+                pattern.getFollowIndexPattern(),
+                Settings.EMPTY,
+                false,
+                pattern.getMaxReadRequestOperationCount(),
+                pattern.getMaxWriteRequestOperationCount(),
+                pattern.getMaxOutstandingReadRequests(),
+                pattern.getMaxOutstandingWriteRequests(),
+                pattern.getMaxReadRequestSize(),
+                pattern.getMaxWriteRequestSize(),
+                pattern.getMaxWriteBufferCount(),
+                pattern.getMaxWriteBufferSize(),
+                pattern.getMaxRetryDelay(),
+                pattern.getReadPollTimeout()
+            )
+        );
+        patterns.computeIfPresent(
+            "pattern3",
+            (name, pattern) -> new AutoFollowPattern(pattern.getRemoteCluster(),
+                pattern.getLeaderIndexPatterns(),
+                pattern.getFollowIndexPattern(),
+                Settings.EMPTY,
+                false,
+                pattern.getMaxReadRequestOperationCount(),
+                pattern.getMaxWriteRequestOperationCount(),
+                pattern.getMaxOutstandingReadRequests(),
+                pattern.getMaxOutstandingWriteRequests(),
+                pattern.getMaxReadRequestSize(),
+                pattern.getMaxWriteRequestSize(),
+                pattern.getMaxWriteBufferCount(),
+                pattern.getMaxWriteBufferSize(),
+                pattern.getMaxRetryDelay(),
+                pattern.getReadPollTimeout()
+            )
+        );
 
         autoFollowCoordinator.updateAutoFollowers(ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE,
@@ -1012,13 +1454,45 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(removedAutoFollower2.removed, is(false));
 
         // Add active pattern 4 and make pattern 2 inactive
-        patterns.put("pattern4", new AutoFollowPattern("remote1", Collections.singletonList("metrics-*"), null, true, null, null,
-            null, null, null, null, null, null, null, null));
-        patterns.computeIfPresent("pattern2", (name, pattern) -> new AutoFollowPattern(pattern.getRemoteCluster(),
-            pattern.getLeaderIndexPatterns(), pattern.getFollowIndexPattern(), false, pattern.getMaxReadRequestOperationCount(),
-            pattern.getMaxWriteRequestOperationCount(), pattern.getMaxOutstandingReadRequests(), pattern.getMaxOutstandingWriteRequests(),
-            pattern.getMaxReadRequestSize(), pattern.getMaxWriteRequestSize(), pattern.getMaxWriteBufferCount(),
-            pattern.getMaxWriteBufferSize(), pattern.getMaxRetryDelay(), pattern.getReadPollTimeout()));
+        patterns.put(
+            "pattern4",
+            new AutoFollowPattern(
+                "remote1",
+                Collections.singletonList("metrics-*"),
+                null,
+                Settings.EMPTY,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
+        patterns.computeIfPresent(
+            "pattern2",
+            (name, pattern) -> new AutoFollowPattern(pattern.getRemoteCluster(),
+                pattern.getLeaderIndexPatterns(),
+                pattern.getFollowIndexPattern(),
+                Settings.EMPTY,
+                false,
+                pattern.getMaxReadRequestOperationCount(),
+                pattern.getMaxWriteRequestOperationCount(),
+                pattern.getMaxOutstandingReadRequests(),
+                pattern.getMaxOutstandingWriteRequests(),
+                pattern.getMaxReadRequestSize(),
+                pattern.getMaxWriteRequestSize(),
+                pattern.getMaxWriteBufferCount(),
+                pattern.getMaxWriteBufferSize(),
+                pattern.getMaxRetryDelay(),
+                pattern.getReadPollTimeout()
+            )
+        );
 
         autoFollowCoordinator.updateAutoFollowers(ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE,
@@ -1046,8 +1520,23 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
-        AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
-            null, true, null, null, null, null, null, null, null, null, null, null);
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("logs-*"),
+            null,
+            Settings.EMPTY,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
         patterns.put("remote", autoFollowPattern);
         Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
@@ -1109,8 +1598,23 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
-        AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
-            null, true, null, null, null, null, null, null, null, null, null, null);
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("logs-*"),
+            null,
+            Settings.EMPTY,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
         patterns.put("remote", autoFollowPattern);
         Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
@@ -1167,8 +1671,23 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         ClusterState remoteState = createRemoteClusterState("logs-20190101", false);
 
-        AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
-            null, true, null, null, null, null, null, null, null, null, null, null);
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("logs-*"),
+            null,
+            Settings.EMPTY,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
         patterns.put("remote", autoFollowPattern);
         Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
@@ -1233,8 +1752,23 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         ClusterState remoteState = createRemoteClusterState("logs-20190101", true);
 
-        AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
-            null, true, null, null, null, null, null, null, null, null, null, null);
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("logs-*"),
+            null,
+            Settings.EMPTY,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
         patterns.put("remote", autoFollowPattern);
         Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
@@ -1320,7 +1854,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             "remote",
             List.of("*"),
             "{}",
-            true, 0,
+            Settings.EMPTY,
+            true,
+            0,
             0,
             0,
             0,
@@ -1329,7 +1865,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             0,
             ByteSizeValue.ZERO,
             TimeValue.ZERO,
-            TimeValue.ZERO);
+            TimeValue.ZERO
+        );
         final AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(Map.of("remote", pattern), Map.of(), Map.of());
         when(metadata.custom(AutoFollowMetadata.TYPE)).thenReturn(autoFollowMetadata);
 
@@ -1391,9 +1928,29 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         final ClusterState localState = ClusterState.builder(new ClusterName("local"))
             .metadata(Metadata.builder()
                 .putCustom(AutoFollowMetadata.TYPE,
-                    new AutoFollowMetadata(Map.of(pattern, new AutoFollowPattern("remote", List.of("docs-*"), null, true,
-                        null, null, null, null, null, null, null, null, null, null)),
-                        Map.of(pattern, List.of()), Map.of(pattern, Map.of()))))
+                    new AutoFollowMetadata(
+                        Map.of(
+                            pattern,
+                            new AutoFollowPattern(
+                                "remote",
+                                List.of("docs-*"),
+                                null,
+                                Settings.EMPTY,
+                                true,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        ),
+                        Map.of(pattern, List.of()),
+                        Map.of(pattern, Map.of()))))
             .build();
 
         ClusterState remoteState = null;
@@ -1489,9 +2046,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         ShardRouting shardRouting =
             TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING).moveToStarted();
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
-        csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
-
-        return csBuilder.build();
+        return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
     }
 
     private static ClusterState createRemoteClusterState(final ClusterState previous, final String... indices) {
@@ -1541,6 +2096,30 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, Collections.singleton(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
+    }
+
+    private static ClusterState createRemoteClusterStateWithDataStream(String dataStreamName) {
+        Settings.Builder indexSettings = settings(Version.CURRENT);
+        indexSettings.put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()));
+        indexSettings.put("index.hidden", true);
+
+        IndexMetadata indexMetadata = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+            .settings(indexSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        DataStream dataStream = new DataStream(dataStreamName, new DataStream.TimestampField("@timestamp"),
+            List.of(indexMetadata.getIndex()));
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
+            .metadata(Metadata.builder()
+                .put(indexMetadata, true)
+                .put(dataStream)
+                .version(0L));
+
+        ShardRouting shardRouting =
+            TestShardRouting.newShardRouting(dataStreamName, 0, "1", true, ShardRoutingState.INITIALIZING).moveToStarted();
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
+        return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
     }
 
 }

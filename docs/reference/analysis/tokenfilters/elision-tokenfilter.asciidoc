@@ -4,7 +4,7 @@
 <titleabbrev>Elision</titleabbrev>
 ++++
 
-Removes specified https://en.wikipedia.org/wiki/Elision[elisions] from
+Removes specified {wikipedia}/Elision[elisions] from
 the beginning of tokens. For example, you can use this filter to change
 `l'avion` to `avion`.
 
@@ -96,16 +96,16 @@ The following <<indices-create-index,create index API>> request uses the
 --------------------------------------------------
 PUT /elision_example
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "whitespace_elision" : {
-                    "tokenizer" : "whitespace",
-                    "filter" : ["elision"]
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "whitespace_elision": {
+          "tokenizer": "whitespace",
+          "filter": [ "elision" ]
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -146,7 +146,7 @@ specified.
 --
 
 `articles_case`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the filter treats any provided elisions as case sensitive.
 Defaults to `false`.
 
@@ -165,22 +165,22 @@ and `j'` elisions:
 --------------------------------------------------
 PUT /elision_case_sensitive_example
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "default" : {
-                    "tokenizer" : "whitespace",
-                    "filter" : ["elision_case_sensitive"]
-                }
-            },
-            "filter" : {
-                "elision_case_sensitive" : {
-                    "type" : "elision",
-                    "articles" : ["l", "m", "t", "qu", "n", "s", "j"],
-                    "articles_case": true
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "default": {
+          "tokenizer": "whitespace",
+          "filter": [ "elision_case_sensitive" ]
         }
+      },
+      "filter": {
+        "elision_case_sensitive": {
+          "type": "elision",
+          "articles": [ "l", "m", "t", "qu", "n", "s", "j" ],
+          "articles_case": true
+        }
+      }
     }
+  }
 }
 --------------------------------------------------

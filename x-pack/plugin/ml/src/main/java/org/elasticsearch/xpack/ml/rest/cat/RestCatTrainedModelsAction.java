@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.cat;
 
@@ -240,7 +241,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             // Trained Model Info
             table.addCell(config.getModelId());
             table.addCell(config.getCreatedBy());
-            table.addCell(new ByteSizeValue(config.getEstimatedHeapMemory()));
+            table.addCell(ByteSizeValue.ofBytes(config.getEstimatedHeapMemory()));
             table.addCell(config.getEstimatedOperations());
             table.addCell(config.getLicenseLevel());
             table.addCell(config.getCreateTime());

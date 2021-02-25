@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.ttest;
@@ -13,11 +14,11 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder;
@@ -45,8 +46,8 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
 
     static {
         MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);
-        MultiValuesSourceParseHelper.declareField(A_FIELD.getPreferredName(), PARSER, true, false, true);
-        MultiValuesSourceParseHelper.declareField(B_FIELD.getPreferredName(), PARSER, true, false, true);
+        MultiValuesSourceParseHelper.declareField(A_FIELD.getPreferredName(), PARSER, true, false, true, false);
+        MultiValuesSourceParseHelper.declareField(B_FIELD.getPreferredName(), PARSER, true, false, true, false);
         PARSER.declareString(TTestAggregationBuilder::testType, TYPE_FIELD);
         PARSER.declareInt(TTestAggregationBuilder::tails, TAILS_FIELD);
     }
@@ -126,7 +127,7 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
 
     @Override
     protected MultiValuesSourceAggregatorFactory innerBuild(
-        QueryShardContext queryShardContext,
+        AggregationContext context,
         Map<String, ValuesSourceConfig> configs,
         Map<String, QueryBuilder> filters,
         DocValueFormat format,
@@ -146,7 +147,7 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
         }
 
         return new TTestAggregatorFactory(name, configs, testType, tails,
-            filterA, filterB, format, queryShardContext, parent,
+            filterA, filterB, format, context, parent,
             subFactoriesBuilder, metadata);
     }
 

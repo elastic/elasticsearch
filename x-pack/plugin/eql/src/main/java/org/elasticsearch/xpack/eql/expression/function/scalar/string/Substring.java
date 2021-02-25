@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
@@ -37,22 +38,22 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  */
 public class Substring extends ScalarFunction implements OptionalArgument {
 
-    private final Expression source, start, end;
+    private final Expression input, start, end;
 
-    public Substring(Source source, Expression src, Expression start, Expression end) {
-        super(source, Arrays.asList(src, start, end != null ? end : new Literal(source, null, DataTypes.NULL)));
-        this.source = src;
+    public Substring(Source source, Expression input, Expression start, Expression end) {
+        super(source, Arrays.asList(input, start, end != null ? end : new Literal(source, null, DataTypes.NULL)));
+        this.input = input;
         this.start = start;
         this.end = arguments().get(2);
     }
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = isStringAndExact(source, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = isStringAndExact(input, sourceText(), ParamOrdinal.FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
@@ -67,41 +68,41 @@ public class Substring extends ScalarFunction implements OptionalArgument {
 
     @Override
     protected Pipe makePipe() {
-        return new SubstringFunctionPipe(source(), this, Expressions.pipe(source), Expressions.pipe(start), Expressions.pipe(end));
+        return new SubstringFunctionPipe(source(), this, Expressions.pipe(input), Expressions.pipe(start), Expressions.pipe(end));
     }
 
     @Override
     public boolean foldable() {
-        return source.foldable() && start.foldable() && end.foldable();
+        return input.foldable() && start.foldable() && end.foldable();
     }
 
     @Override
     public Object fold() {
-        return doProcess(source.fold(), start.fold(), end.fold());
+        return doProcess(input.fold(), start.fold(), end.fold());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Substring::new, source, start, end);
+        return NodeInfo.create(this, Substring::new, input, start, end);
     }
 
     @Override
     public ScriptTemplate asScript() {
-        ScriptTemplate sourceScript = asScript(source);
+        ScriptTemplate inputScript = asScript(input);
         ScriptTemplate startScript = asScript(start);
         ScriptTemplate endScript = asScript(end);
 
-        return asScriptFrom(sourceScript, startScript, endScript);
+        return asScriptFrom(inputScript, startScript, endScript);
     }
 
-    protected ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate startScript, ScriptTemplate endScript) {
+    protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate startScript, ScriptTemplate endScript) {
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s)"),
                 "substring",
-                sourceScript.template(),
+                inputScript.template(),
                 startScript.template(),
                 endScript.template()),
                 paramsBuilder()
-                    .script(sourceScript.params())
+                    .script(inputScript.params())
                     .script(startScript.params())
                     .script(endScript.params())
                     .build(), dataType());
@@ -121,10 +122,6 @@ public class Substring extends ScalarFunction implements OptionalArgument {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
-        }
-
         return new Substring(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 }

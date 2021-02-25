@@ -11,15 +11,15 @@ to Lucene `SpanFirstQuery`. Here is an example:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "span_first" : {
-            "match" : {
-                "span_term" : { "user" : "kimchy" }
-            },
-            "end" : 3
-        }
+  "query": {
+    "span_first": {
+      "match": {
+        "span_term": { "user.id": "kimchy" }
+      },
+      "end": 3
     }
-}    
+  }
+}   
 --------------------------------------------------
 
 The `match` clause can be any other span type query. The `end` controls

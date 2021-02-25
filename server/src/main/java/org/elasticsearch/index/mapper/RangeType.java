@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANYDa
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -36,14 +25,17 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -69,8 +61,9 @@ public enum RangeType {
             InetAddress address = InetAddresses.forString(parser.text());
             return included ? address : nextDown(address);
         }
+
         @Override
-        public InetAddress parse(Object value, boolean coerce) {
+        public InetAddress parseValue(Object value, boolean coerce, @Nullable DateMathParser dateMathParser) {
             if (value instanceof InetAddress) {
                 return (InetAddress) value;
             } else {
@@ -80,6 +73,12 @@ public enum RangeType {
                 return InetAddresses.forString(value.toString());
             }
         }
+
+        @Override
+        public Object formatValue(Object value, DateFormatter dateFormatter) {
+            return InetAddresses.toAddrString((InetAddress) value);
+        }
+
         @Override
         public InetAddress minValue() {
             return InetAddressPoint.MIN_VALUE;
@@ -170,22 +169,34 @@ public enum RangeType {
         public Field getRangeField(String name, RangeFieldMapper.Range r) {
             return new LongRange(name, new long[] {((Number)r.from).longValue()}, new long[] {((Number)r.to).longValue()});
         }
-        private Number parse(DateMathParser dateMathParser, String dateStr) {
-            return dateMathParser.parse(dateStr, () -> {throw new IllegalArgumentException("now is not used at indexing time");})
-                .toEpochMilli();
-        }
         @Override
         public Number parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
                 throws IOException {
-            Number value = parse(fieldType.dateMathParser, parser.text());
+            Number value = parseValue(parser.text(), coerce, fieldType.dateMathParser);
             return included ? value : nextUp(value);
         }
         @Override
         public Number parseTo(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
                 throws IOException{
-            Number value = parse(fieldType.dateMathParser, parser.text());
+            Number value = parseValue(parser.text(), coerce, fieldType.dateMathParser);
             return included ? value : nextDown(value);
         }
+
+        @Override
+        public Long parseValue(Object dateStr, boolean coerce, @Nullable DateMathParser dateMathParser) {
+            assert dateMathParser != null;
+            return dateMathParser.parse(dateStr.toString(), () -> {
+                throw new IllegalArgumentException("now is not used at indexing time");
+            }).toEpochMilli();
+        }
+
+        @Override
+        public Object formatValue(Object value, DateFormatter dateFormatter) {
+            long timestamp = (long) value;
+            ZonedDateTime dateTime = Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC);
+            return dateFormatter.format(dateTime);
+        }
+
         @Override
         public Long minValue() {
             return Long.MIN_VALUE;
@@ -227,7 +238,7 @@ public enum RangeType {
         @Override
         public Query rangeQuery(String field, boolean hasDocValues, Object lowerTerm, Object upperTerm, boolean includeLower,
                                 boolean includeUpper, ShapeRelation relation, @Nullable ZoneId timeZone,
-                                @Nullable DateMathParser parser, QueryShardContext context) {
+                                @Nullable DateMathParser parser, SearchExecutionContext context) {
             ZoneId zone = (timeZone == null) ? ZoneOffset.UTC : timeZone;
 
             DateMathParser dateMathParser = (parser == null) ?
@@ -243,6 +254,7 @@ public enum RangeType {
 
             return createRangeQuery(field, hasDocValues, low, high, includeLower, includeUpper, relation);
         }
+
         @Override
         public Query withinQuery(String field, Object from, Object to, boolean includeLower, boolean includeUpper) {
             return LONG.withinQuery(field, from, to, includeLower, includeUpper);
@@ -598,6 +610,15 @@ public enum RangeType {
         }
         return fields;
     }
+
+    public Object parseValue(Object value, boolean coerce, @Nullable DateMathParser dateMathParser) {
+        return numberType.parse(value, coerce);
+    }
+
+    public Object formatValue(Object value, DateFormatter formatter) {
+        return value;
+    }
+
     /** parses from value. rounds according to included flag */
     public Object parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce,
                             boolean included) throws IOException {
@@ -618,15 +639,12 @@ public enum RangeType {
     public abstract Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo);
     public abstract Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo);
     public abstract Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo);
-    public Object parse(Object value, boolean coerce) {
-        return numberType.parse(value, coerce);
-    }
 
     public Query rangeQuery(String field, boolean hasDocValues, Object from, Object to, boolean includeFrom, boolean includeTo,
                             ShapeRelation relation, @Nullable ZoneId timeZone, @Nullable DateMathParser dateMathParser,
-                            QueryShardContext context) {
-        Object lower = from == null ? minValue() : parse(from, false);
-        Object upper = to == null ? maxValue() : parse(to, false);
+                            SearchExecutionContext context) {
+        Object lower = from == null ? minValue() : parseValue(from, false, dateMathParser);
+        Object upper = to == null ? maxValue() : parseValue(to, false, dateMathParser);
         return createRangeQuery(field, hasDocValues, lower, upper, includeFrom, includeTo, relation);
     }
 
@@ -676,6 +694,10 @@ public enum RangeType {
 
     public abstract Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to,
                                        boolean includeFrom, boolean includeTo);
+
+    public final Mapper.TypeParser parser() {
+        return new FieldMapper.TypeParser((n, c) -> new RangeFieldMapper.Builder(n, this, c.getSettings()));
+    }
 
     public final String name;
     private final NumberFieldMapper.NumberType numberType;

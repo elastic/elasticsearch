@@ -1,13 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
@@ -35,6 +39,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -146,7 +151,7 @@ class DatafeedJob {
             sendPersistRequest();
         }
 
-        if (isRunning() && !isIsolated) {
+        if (isRunning() && isIsolated == false) {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED));
             LOGGER.info("[{}] Lookback has finished", jobId);
             if (isLookbackOnly) {
@@ -156,7 +161,7 @@ class DatafeedJob {
                 return nextRealtimeTimestamp();
             }
         }
-        if (!isIsolated) {
+        if (isIsolated == false) {
             LOGGER.debug("[{}] Lookback finished after being stopped", jobId);
         }
         return null;
@@ -172,8 +177,8 @@ class DatafeedJob {
             FlushJobAction.Request request = new FlushJobAction.Request(jobId);
             request.setSkipTime(String.valueOf(startTime));
             FlushJobAction.Response flushResponse = flushJob(request);
-            LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().getTime());
-            return flushResponse.getLastFinalizedBucketEnd().getTime();
+            LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().toEpochMilli());
+            return flushResponse.getLastFinalizedBucketEnd().toEpochMilli();
         }
         return startTime;
     }
@@ -183,6 +188,7 @@ class DatafeedJob {
         long nowMinusQueryDelay = currentTimeSupplier.get() - queryDelayMs;
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
+        request.setWaitForNormalization(false);
         request.setCalcInterim(true);
         request.setAdvanceTime(String.valueOf(end));
         run(start, end, request);
@@ -191,7 +197,7 @@ class DatafeedJob {
     }
 
     private void checkForMissingDataIfNecessary() {
-        if (isRunning() && !isIsolated && checkForMissingDataTriggered()) {
+        if (isRunning() && isIsolated == false && checkForMissingDataTriggered()) {
 
             // Keep track of the last bucket time for which we did a missing data check
             this.lastDataCheckTimeMs = this.currentTimeSupplier.get();
@@ -305,7 +311,7 @@ class DatafeedJob {
         long recordCount = 0;
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
         while (dataExtractor.hasNext()) {
-            if ((isIsolated || !isRunning()) && !dataExtractor.isCancelled()) {
+            if ((isIsolated || isRunning() == false) && dataExtractor.isCancelled() == false) {
                 dataExtractor.cancel();
             }
             if (isIsolated) {
@@ -316,7 +322,7 @@ class DatafeedJob {
             try {
                 extractedData = dataExtractor.next();
             } catch (Exception e) {
-                LOGGER.debug("[" + jobId + "] error while extracting data", e);
+                LOGGER.error(new ParameterizedMessage("[{}] error while extracting data", jobId), e);
                 // When extraction problems are encountered, we do not want to advance time.
                 // Instead, it is preferable to retry the given interval next time an extraction
                 // is triggered.
@@ -348,7 +354,7 @@ class DatafeedJob {
                     if (isIsolated) {
                         return;
                     }
-                    LOGGER.debug("[" + jobId + "] error while posting data", e);
+                LOGGER.error(new ParameterizedMessage("[{}] error while posting data", jobId), e);
 
                     // a conflict exception means the job state is not open any more.
                     // we should therefore stop the datafeed.
@@ -381,10 +387,10 @@ class DatafeedJob {
         // If the datafeed was stopped, then it is possible that by the time
         // we call flush the job is closed. Thus, we don't flush unless the
         // datafeed is still running.
-        if (isRunning() && !isIsolated) {
-            Date lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
+        if (isRunning() && isIsolated == false) {
+            Instant lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
             if (lastFinalizedBucketEnd != null) {
-                this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.getTime();
+                this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
             }
         }
 
@@ -467,7 +473,7 @@ class DatafeedJob {
         return lastEndTimeMs;
     }
 
-    static class AnalysisProblemException extends RuntimeException {
+    static class AnalysisProblemException extends ElasticsearchException implements ElasticsearchWrapperException {
 
         final boolean shouldStop;
         final long nextDelayInMsSinceEpoch;
@@ -479,7 +485,7 @@ class DatafeedJob {
         }
     }
 
-    static class ExtractionProblemException extends RuntimeException {
+    static class ExtractionProblemException extends ElasticsearchException implements ElasticsearchWrapperException {
 
         final long nextDelayInMsSinceEpoch;
 

@@ -1,25 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.session;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.time.ZoneId;
 
 // Typed object holding properties for a given query
 public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configuration {
-    
+
     private final int pageSize;
     private final TimeValue requestTimeout;
     private final TimeValue pageTimeout;
     private final Mode mode;
     private final String clientId;
+    private final SqlVersion version;
     private final boolean multiValueFieldLeniency;
     private final boolean includeFrozenIndices;
 
@@ -27,7 +31,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private QueryBuilder filter;
 
     public SqlConfiguration(ZoneId zi, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter,
-                         Mode mode, String clientId,
+                         Mode mode, String clientId, SqlVersion version,
                          String username, String clusterName,
                          boolean multiValueFieldLeniency,
                          boolean includeFrozen) {
@@ -40,6 +44,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.filter = filter;
         this.mode = mode == null ? Mode.PLAIN : mode;
         this.clientId = clientId;
+        this.version = version != null ? version : SqlVersion.fromId(Version.CURRENT.id);
         this.multiValueFieldLeniency = multiValueFieldLeniency;
         this.includeFrozenIndices = includeFrozen;
     }
@@ -73,5 +78,9 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public boolean includeFrozen() {
         return includeFrozenIndices;
+    }
+
+    public SqlVersion version() {
+        return version;
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.calendar;
 
@@ -22,18 +23,11 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteCalendarEventAction extends BaseRestHandler {
 
-    @Override
-    public List<Route> routes() {
-        return Collections.emptyList();
-    }
 
     @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
+    public List<Route> routes() {
         return Collections.singletonList(
-            new ReplacedRoute(DELETE, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events/{" +
-                ScheduledEvent.EVENT_ID.getPreferredName() + "}",
-                DELETE, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events/{" +
+            new Route(DELETE, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events/{" +
                 ScheduledEvent.EVENT_ID.getPreferredName() + "}")
         );
     }

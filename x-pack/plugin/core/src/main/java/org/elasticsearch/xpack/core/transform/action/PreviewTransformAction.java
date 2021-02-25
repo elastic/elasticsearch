@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.action;
@@ -36,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class PreviewTransformAction extends ActionType<PreviewTransformAction.Response> {
@@ -94,12 +94,8 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (config.getPivotConfig() != null) {
-                for (String failure : config.getPivotConfig().aggFieldValidation()) {
-                    validationException = addValidationError(failure, validationException);
-                }
-            }
 
+            validationException = config.validate(validationException);
             validationException = SourceDestValidator.validateRequest(
                 validationException,
                 config.getDestination() != null ? config.getDestination().getIndex() : null

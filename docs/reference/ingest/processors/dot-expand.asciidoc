@@ -1,5 +1,8 @@
 [[dot-expand-processor]]
-=== Dot Expander Processor
+=== Dot expander processor
+++++
+<titleabbrev>Dot expander</titleabbrev>
+++++
 
 Expands a field with dots into an object field. This processor allows fields
 with dots in the name to be accessible by other processors in the pipeline.

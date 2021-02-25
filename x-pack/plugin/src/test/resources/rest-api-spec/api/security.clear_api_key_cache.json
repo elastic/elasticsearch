@@ -1,0 +1,30 @@
+{
+  "security.clear_api_key_cache":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-api-key-cache.html",
+      "description":"Clear a subset or all entries from the API key cache."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/api_key/{ids}/_clear_cache",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "ids":{
+              "type":"list",
+              "description":"A comma-separated list of IDs of API keys to clear from the cache"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}

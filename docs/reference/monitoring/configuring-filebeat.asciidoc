@@ -52,7 +52,7 @@ not appear in the appropriate context in {kib}.
 
 --
 
-. {filebeat-ref}/filebeat-installation.html[Install {filebeat}] on the {es}
+. {filebeat-ref}/filebeat-installation-configuration.html[Install {filebeat}] on the {es}
 nodes that contain logs that you want to monitor.
 
 . Identify where to send the log data.

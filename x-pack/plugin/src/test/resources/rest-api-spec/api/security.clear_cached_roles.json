@@ -5,6 +5,10 @@
       "description":"Evicts roles from the native role cache."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

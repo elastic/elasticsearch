@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.user;
 
@@ -118,10 +119,6 @@ public class User implements ToXContentObject {
         return authenticatedUser != null;
     }
 
-    public User withRoles(String[] newRoles) {
-        return new User(username, newRoles, fullName, email, metadata, enabled);
-    }
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -145,14 +142,13 @@ public class User implements ToXContentObject {
 
         User user = (User) o;
 
-        if (!username.equals(user.username)) return false;
+        if (username.equals(user.username) == false) return false;
         // Probably incorrect - comparing Object[] arrays with Arrays.equals
-        if (!Arrays.equals(roles, user.roles)) return false;
-        if (authenticatedUser != null ? !authenticatedUser.equals(user.authenticatedUser) : user.authenticatedUser != null) return false;
-        if (!metadata.equals(user.metadata)) return false;
-        if (fullName != null ? !fullName.equals(user.fullName) : user.fullName != null) return false;
-        return !(email != null ? !email.equals(user.email) : user.email != null);
-
+        if (Arrays.equals(roles, user.roles) == false) return false;
+        if (metadata.equals(user.metadata) == false) return false;
+        return Objects.equals(authenticatedUser, user.authenticatedUser)
+            && Objects.equals(fullName, user.fullName)
+            && Objects.equals(email, user.email);
     }
 
     @Override
@@ -242,6 +238,7 @@ public class User implements ToXContentObject {
         ParseField LOOKUP_REALM = new ParseField("lookup_realm");
         ParseField REALM_TYPE = new ParseField("type");
         ParseField REALM_NAME = new ParseField("name");
+        ParseField AUTHENTICATION_TYPE = new ParseField("authentication_type");
     }
 }
 

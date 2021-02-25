@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
@@ -169,6 +170,35 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
                         .setThreshold(randomDouble()))
                 .setFeatureNames(featureNames)
                 .setClassificationLabels(Arrays.asList("label1", "label2"))
+                .build()
+                .validate();
+        });
+        assertThat(ex.getMessage(), equalTo(msg));
+    }
+
+    public void testTreeWithEmptyFeaturesAndOneNode() {
+        // Shouldn't throw
+        Tree.builder()
+            .setRoot(TreeNode.builder(0).setLeafValue(10.0))
+            .setFeatureNames(Collections.emptyList())
+            .build()
+            .validate();
+    }
+
+    public void testTreeWithEmptyFeaturesAndThreeNodes() {
+        String msg = "[feature_names] is empty and the tree has > 1 nodes; num nodes [3]. " +
+            "The model Must have features if tree is not a stump";
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
+            Tree.builder()
+                .setRoot(TreeNode.builder(0)
+                    .setLeftChild(1)
+                    .setRightChild(2)
+                    .setThreshold(randomDouble()))
+                .addNode(TreeNode.builder(1)
+                    .setLeafValue(randomDouble()))
+                .addNode(TreeNode.builder(2)
+                    .setLeafValue(randomDouble()))
+                .setFeatureNames(Collections.emptyList())
                 .build()
                 .validate();
         });

@@ -6,6 +6,7 @@
 [role="xpack"]
 [id="{upid}-{api}"]
 === Delete {anomaly-jobs} from calendar API
+
 Removes {anomaly-jobs} from an existing {ml} calendar.
 The API accepts a +{request}+ and responds
 with a +{response}+ object.

@@ -39,10 +39,10 @@ POST _search
   "query": {
     "bool" : {
       "must" : {
-        "term" : { "user" : "kimchy" }
+        "term" : { "user.id" : "kimchy" }
       },
       "filter": {
-        "term" : { "tag" : "tech" }
+        "term" : { "tags" : "production" }
       },
       "must_not" : {
         "range" : {
@@ -50,8 +50,8 @@ POST _search
         }
       },
       "should" : [
-        { "term" : { "tag" : "wow" } },
-        { "term" : { "tag" : "elasticsearch" } }
+        { "term" : { "tags" : "env1" } },
+        { "term" : { "tags" : "deployed" } }
       ],
       "minimum_should_match" : 1,
       "boost" : 1.0
@@ -142,9 +142,30 @@ GET _search
 }
 ---------------------------------
 
-==== Using named queries to see which clauses matched
+[[named-queries]]
+==== Named queries
 
-If you need to know which of the clauses in the bool query matched the documents
-returned from the query, you can use
-<<request-body-search-queries-and-filters,named queries>> to assign a name to
-each clause.
+Each query accepts a `_name` in its top level definition. You can use named
+queries to track which queries matched returned documents. If named queries are
+used, the response includes a `matched_queries` property for each hit.
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "bool": {
+      "should": [
+        { "match": { "name.first": { "query": "shay", "_name": "first" } } },
+        { "match": { "name.last": { "query": "banon", "_name": "last" } } }
+      ],
+      "filter": {
+        "terms": {
+          "name.last": [ "banon", "kimchy" ],
+          "_name": "test"
+        }
+      }
+    }
+  }
+}
+----

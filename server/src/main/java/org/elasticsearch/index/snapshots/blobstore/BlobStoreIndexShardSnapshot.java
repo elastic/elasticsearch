@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.snapshots.blobstore;
@@ -29,12 +18,14 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.IntStream;
 
 /**
  * Shard snapshot metadata
@@ -49,7 +40,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         private final String name;
         private final ByteSizeValue partSize;
         private final long partBytes;
-        private final long numberOfParts;
+        private final int numberOfParts;
         private final StoreFileMetadata metadata;
 
         /**
@@ -68,17 +59,19 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                 partBytes = partSize.getBytes();
             }
 
-            long totalLength = metadata.length();
-            long numberOfParts = totalLength / partBytes;
-            if (totalLength % partBytes > 0) {
-                numberOfParts++;
+            if (metadata.length() == 0) {
+                numberOfParts = 1;
+            } else {
+                long longNumberOfParts = 1L + (metadata.length() - 1L) / partBytes; // ceil(len/partBytes), but beware of long overflow
+                numberOfParts = (int)longNumberOfParts;
+                if (numberOfParts != longNumberOfParts) { // also beware of int overflow, although 2^32 parts is already ludicrous
+                    throw new IllegalArgumentException("part size [" + partSize + "] too small for file [" + metadata + "]");
+                }
             }
-            if (numberOfParts == 0) {
-                numberOfParts++;
-            }
-            this.numberOfParts = numberOfParts;
+
             this.partSize = partSize;
             this.partBytes = partBytes;
+            assert IntStream.range(0, numberOfParts).mapToLong(this::partBytes).sum() == metadata.length();
         }
 
         /**
@@ -96,7 +89,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
          * @param part part number
          * @return part name
          */
-        public String partName(long part) {
+        public String partName(int part) {
             if (numberOfParts > 1) {
                 return name + ".part" + part;
             } else {
@@ -150,6 +143,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
          * @return the size (in bytes) of a given part
          */
         public long partBytes(int part) {
+            assert 0 <= part && part < numberOfParts : part + " vs " + numberOfParts;
             if (numberOfParts == 1) {
                 return length();
             }
@@ -158,7 +152,9 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                 return partBytes;
             }
             // Last part size is deducted from the length and the number of parts
-            return length() - (partBytes * (numberOfParts-1));
+            final long lastPartBytes = length() - (this.partBytes * (numberOfParts - 1));
+            assert 0 < lastPartBytes && lastPartBytes <= partBytes : lastPartBytes + " vs " + partBytes;
+            return lastPartBytes;
         }
 
         /**
@@ -166,7 +162,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
          *
          * @return number of parts
          */
-        public long numberOfParts() {
+        public int numberOfParts() {
             return numberOfParts;
         }
 
@@ -209,11 +205,11 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             if (partBytes != fileInfo.partBytes) {
                 return false;
             }
-            if (!name.equals(fileInfo.name)) {
+            if (name.equals(fileInfo.name) == false) {
                 return false;
             }
             if (partSize != null) {
-                if (!partSize.equals(fileInfo.partSize)) {
+                if (partSize.equals(fileInfo.partSize) == false) {
                     return false;
                 }
             } else {
@@ -380,6 +376,18 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     }
 
     /**
+     * Creates a new instance has a different name and zero incremental file counts but is identical to this instance in terms of the files
+     * it references.
+     *
+     * @param targetSnapshotName target snapshot name
+     * @param startTime          time the clone operation on the repository was started
+     * @param time               time it took to create the clone
+     */
+    public BlobStoreIndexShardSnapshot asClone(String targetSnapshotName, long startTime, long time) {
+        return new BlobStoreIndexShardSnapshot(targetSnapshotName, indexVersion, indexFiles, startTime, time, 0, 0);
+    }
+
+    /**
      * Returns snapshot name
      *
      * @return snapshot name
@@ -501,36 +509,33 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_OBJECT) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    String currentFieldName = parser.currentName();
-                    token = parser.nextToken();
-                    if (token.isValue()) {
-                        if (PARSE_NAME.match(currentFieldName, parser.getDeprecationHandler())) {
-                            snapshot = parser.text();
-                        } else if (PARSE_INDEX_VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
-                            // The index-version is needed for backward compatibility with v 1.0
-                            indexVersion = parser.longValue();
-                        } else if (PARSE_START_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
-                            startTime = parser.longValue();
-                        } else if (PARSE_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
-                            time = parser.longValue();
-                        } else if (PARSE_INCREMENTAL_FILE_COUNT.match(currentFieldName, parser.getDeprecationHandler())) {
-                            incrementalFileCount = parser.intValue();
-                        } else if (PARSE_INCREMENTAL_SIZE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            incrementalSize = parser.longValue();
-                        } else {
-                            throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
-                        }
-                    } else if (token == XContentParser.Token.START_ARRAY) {
-                        if (PARSE_FILES.match(currentFieldName, parser.getDeprecationHandler())) {
-                            while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                indexFiles.add(FileInfo.fromXContent(parser));
-                            }
-                        } else {
-                            throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                final String currentFieldName = parser.currentName();
+                token = parser.nextToken();
+                if (token.isValue()) {
+                    if (PARSE_NAME.match(currentFieldName, parser.getDeprecationHandler())) {
+                        snapshot = parser.text();
+                    } else if (PARSE_INDEX_VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
+                        // The index-version is needed for backward compatibility with v 1.0
+                        indexVersion = parser.longValue();
+                    } else if (PARSE_START_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
+                        startTime = parser.longValue();
+                    } else if (PARSE_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
+                        time = parser.longValue();
+                    } else if (PARSE_INCREMENTAL_FILE_COUNT.match(currentFieldName, parser.getDeprecationHandler())) {
+                        incrementalFileCount = parser.intValue();
+                    } else if (PARSE_INCREMENTAL_SIZE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        incrementalSize = parser.longValue();
+                    } else {
+                        throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
+                    }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if (PARSE_FILES.match(currentFieldName, parser.getDeprecationHandler())) {
+                        while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            indexFiles.add(FileInfo.fromXContent(parser));
                         }
                     } else {
-                        throw new ElasticsearchParseException("unexpected token  [{}]", token);
+                        throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
                     }
                 } else {
                     throw new ElasticsearchParseException("unexpected token [{}]", token);

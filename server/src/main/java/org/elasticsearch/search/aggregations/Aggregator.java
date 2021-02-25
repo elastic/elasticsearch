@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations;
@@ -28,9 +17,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -65,27 +52,9 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     }
 
     /**
-     * Returns whether one of the parents is a {@link BucketsAggregator}.
-     */
-    public static boolean descendsFromBucketAggregator(Aggregator parent) {
-        while (parent != null) {
-            if (parent instanceof BucketsAggregator) {
-                return true;
-            }
-            parent = parent.parent();
-        }
-        return false;
-    }
-
-    /**
      * Return the name of this aggregator.
      */
     public abstract String name();
-
-    /**
-     * Return the {@link SearchContext} attached with this {@link Aggregator}.
-     */
-    public abstract SearchContext context();
 
     /**
      * Return the parent aggregator.
@@ -156,12 +125,12 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
 
     /**
      * Build the results of this aggregation.
-     * @param owningBucketOrds the ordinals of the buckets that we want to
+      * @param ordsToCollect the ordinals of the buckets that we want to
      *        collect from this aggregation
      * @return the results for each ordinal, in the same order as the array
      *         of ordinals
      */
-    public abstract InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException;
+    public abstract InternalAggregation[] buildAggregations(long[] ordsToCollect) throws IOException;
 
     /**
      * Build the result of this aggregation if it is at the "top level"
@@ -180,7 +149,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     public abstract InternalAggregation buildEmptyAggregation();
 
     /**
-     * Collect debug information to add to the profiling results.. This will
+     * Collect debug information to add to the profiling results. This will
      * only be called if the aggregation is being profiled.
      * <p>
      * Well behaved implementations will always call the superclass
@@ -188,9 +157,14 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * also only add objects which can be serialized with
      * {@link StreamOutput#writeGenericValue(Object)} and
      * {@link XContentBuilder#value(Object)}. And they'll have an integration
-     * test. 
+     * test.
      */
     public void collectDebugInfo(BiConsumer<String, Object> add) {}
+
+    /**
+     * Get the aggregators running under this one.
+     */
+    public abstract Aggregator[] subAggregators();
 
     /** Aggregation mode for sub aggregations. */
     public enum SubAggCollectionMode implements Writeable {

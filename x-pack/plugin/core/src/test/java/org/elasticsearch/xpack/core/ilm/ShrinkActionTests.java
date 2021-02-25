@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -11,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -34,12 +36,20 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
     }
 
     static ShrinkAction randomInstance() {
-        return new ShrinkAction(randomIntBetween(1, 100));
+        if (randomBoolean()) {
+            return new ShrinkAction(randomIntBetween(1, 100), null);
+        } else {
+            return new ShrinkAction(null, new ByteSizeValue(randomIntBetween(1, 100)));
+        }
     }
 
     @Override
     protected ShrinkAction mutateInstance(ShrinkAction action) {
-        return new ShrinkAction(action.getNumberOfShards() + randomIntBetween(1, 2));
+        if (action.getNumberOfShards() != null) {
+            return new ShrinkAction(action.getNumberOfShards() + randomIntBetween(1, 2), null);
+        } else {
+            return new ShrinkAction(null, new ByteSizeValue(action.getMaxPrimaryShardSize().getBytes() + 1));
+        }
     }
 
     @Override
@@ -48,14 +58,24 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
     }
 
     public void testNonPositiveShardNumber() {
-        Exception e = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(-100, 0)));
+        Exception e = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(-100, 0), null));
         assertThat(e.getMessage(), equalTo("[number_of_shards] must be greater than 0"));
+    }
+
+    public void testMaxPrimaryShardSize() {
+        ByteSizeValue maxPrimaryShardSize1 = new ByteSizeValue(10);
+        Exception e1 = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(1, 100), maxPrimaryShardSize1));
+        assertThat(e1.getMessage(), equalTo("Cannot set both [number_of_shards] and [max_primary_shard_size]"));
+
+        ByteSizeValue maxPrimaryShardSize2 = new ByteSizeValue(0);
+        Exception e2 = expectThrows(Exception.class, () -> new ShrinkAction(null, maxPrimaryShardSize2));
+        assertThat(e2.getMessage(), equalTo("[max_primary_shard_size] must be greater than 0"));
     }
 
     public void testPerformActionWithSkip() {
         String lifecycleName = randomAlphaOfLengthBetween(4, 10);
         int numberOfShards = randomIntBetween(1, 10);
-        ShrinkAction action = new ShrinkAction(numberOfShards);
+        ShrinkAction action = new ShrinkAction(numberOfShards, null);
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10));
@@ -90,7 +110,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         int divisor = randomFrom(2, 3, 6);
         int expectedFinalShards = numShards / divisor;
         String lifecycleName = randomAlphaOfLengthBetween(4, 10);
-        ShrinkAction action = new ShrinkAction(expectedFinalShards);
+        ShrinkAction action = new ShrinkAction(expectedFinalShards, null);
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10));
@@ -116,7 +136,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
                         .setStepTime(0L)
                         .build().asMap())
                 .numberOfShards(numShards).numberOfReplicas(0))).build();
-        ClusterState newState = step.performAction(state.metadata().index(indexName).getIndex(), state);
+        step.performAction(state.metadata().index(indexName).getIndex(), state);
         assertThat(step.getNextStepKey(), equalTo(steps.get(1).getKey()));
     }
 
@@ -126,17 +146,21 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10));
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
-        assertThat(steps.size(), equalTo(10));
-        StepKey expectedFirstKey = new StepKey(phase, ShrinkAction.NAME, BranchingStep.NAME);
-        StepKey expectedSecondKey = new StepKey(phase, ShrinkAction.NAME, WaitForNoFollowersStep.NAME);
-        StepKey expectedThirdKey = new StepKey(phase, ShrinkAction.NAME, ReadOnlyAction.NAME);
-        StepKey expectedFourthKey = new StepKey(phase, ShrinkAction.NAME, SetSingleNodeAllocateStep.NAME);
-        StepKey expectedFifthKey = new StepKey(phase, ShrinkAction.NAME, CheckShrinkReadyStep.NAME);
-        StepKey expectedSixthKey = new StepKey(phase, ShrinkAction.NAME, ShrinkStep.NAME);
-        StepKey expectedSeventhKey = new StepKey(phase, ShrinkAction.NAME, ShrunkShardsAllocatedStep.NAME);
-        StepKey expectedEighthKey = new StepKey(phase, ShrinkAction.NAME, CopyExecutionStateStep.NAME);
-        StepKey expectedNinthKey = new StepKey(phase, ShrinkAction.NAME, ShrinkSetAliasStep.NAME);
-        StepKey expectedTenthKey = new StepKey(phase, ShrinkAction.NAME, ShrunkenIndexCheckStep.NAME);
+        assertThat(steps.size(), equalTo(14));
+        StepKey expectedFirstKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP);
+        StepKey expectedSecondKey = new StepKey(phase, ShrinkAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
+        StepKey expectedThirdKey = new StepKey(phase, ShrinkAction.NAME, WaitForNoFollowersStep.NAME);
+        StepKey expectedFourthKey = new StepKey(phase, ShrinkAction.NAME, ReadOnlyAction.NAME);
+        StepKey expectedFifthKey = new StepKey(phase, ShrinkAction.NAME, SetSingleNodeAllocateStep.NAME);
+        StepKey expectedSixthKey = new StepKey(phase, ShrinkAction.NAME, CheckShrinkReadyStep.NAME);
+        StepKey expectedSeventhKey = new StepKey(phase, ShrinkAction.NAME, ShrinkStep.NAME);
+        StepKey expectedEighthKey = new StepKey(phase, ShrinkAction.NAME, ShrunkShardsAllocatedStep.NAME);
+        StepKey expectedNinthKey = new StepKey(phase, ShrinkAction.NAME, CopyExecutionStateStep.NAME);
+        StepKey expectedTenthKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.CONDITIONAL_DATASTREAM_CHECK_KEY);
+        StepKey expectedEleventhKey = new StepKey(phase, ShrinkAction.NAME, ShrinkSetAliasStep.NAME);
+        StepKey expectedTwelveKey = new StepKey(phase, ShrinkAction.NAME, ShrunkenIndexCheckStep.NAME);
+        StepKey expectedThirteenKey = new StepKey(phase, ShrinkAction.NAME, ReplaceDataStreamBackingIndexStep.NAME);
+        StepKey expectedFourteenKey = new StepKey(phase, ShrinkAction.NAME, DeleteStep.NAME);
 
         assertTrue(steps.get(0) instanceof BranchingStep);
         assertThat(steps.get(0).getKey(), equalTo(expectedFirstKey));
@@ -144,47 +168,66 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertThat(((BranchingStep) steps.get(0)).getNextStepKeyOnFalse(), equalTo(expectedSecondKey));
         assertThat(((BranchingStep) steps.get(0)).getNextStepKeyOnTrue(), equalTo(nextStepKey));
 
-        assertTrue(steps.get(1) instanceof WaitForNoFollowersStep);
+        assertTrue(steps.get(1) instanceof CheckNotDataStreamWriteIndexStep);
         assertThat(steps.get(1).getKey(), equalTo(expectedSecondKey));
         assertThat(steps.get(1).getNextStepKey(), equalTo(expectedThirdKey));
 
-        assertTrue(steps.get(2) instanceof UpdateSettingsStep);
+        assertTrue(steps.get(2) instanceof WaitForNoFollowersStep);
         assertThat(steps.get(2).getKey(), equalTo(expectedThirdKey));
         assertThat(steps.get(2).getNextStepKey(), equalTo(expectedFourthKey));
-        assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(((UpdateSettingsStep)steps.get(2)).getSettings()));
 
-        assertTrue(steps.get(3) instanceof SetSingleNodeAllocateStep);
+        assertTrue(steps.get(3) instanceof UpdateSettingsStep);
         assertThat(steps.get(3).getKey(), equalTo(expectedFourthKey));
         assertThat(steps.get(3).getNextStepKey(), equalTo(expectedFifthKey));
+        assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(((UpdateSettingsStep)steps.get(3)).getSettings()));
 
-        assertTrue(steps.get(4) instanceof CheckShrinkReadyStep);
+        assertTrue(steps.get(4) instanceof SetSingleNodeAllocateStep);
         assertThat(steps.get(4).getKey(), equalTo(expectedFifthKey));
         assertThat(steps.get(4).getNextStepKey(), equalTo(expectedSixthKey));
 
-        assertTrue(steps.get(5) instanceof ShrinkStep);
+        assertTrue(steps.get(5) instanceof CheckShrinkReadyStep);
         assertThat(steps.get(5).getKey(), equalTo(expectedSixthKey));
         assertThat(steps.get(5).getNextStepKey(), equalTo(expectedSeventhKey));
-        assertThat(((ShrinkStep) steps.get(5)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
 
-        assertTrue(steps.get(6) instanceof ShrunkShardsAllocatedStep);
+        assertTrue(steps.get(6) instanceof ShrinkStep);
         assertThat(steps.get(6).getKey(), equalTo(expectedSeventhKey));
         assertThat(steps.get(6).getNextStepKey(), equalTo(expectedEighthKey));
-        assertThat(((ShrunkShardsAllocatedStep) steps.get(6)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+        assertThat(((ShrinkStep) steps.get(6)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
 
-        assertTrue(steps.get(7) instanceof CopyExecutionStateStep);
+        assertTrue(steps.get(7) instanceof ShrunkShardsAllocatedStep);
         assertThat(steps.get(7).getKey(), equalTo(expectedEighthKey));
         assertThat(steps.get(7).getNextStepKey(), equalTo(expectedNinthKey));
-        assertThat(((CopyExecutionStateStep) steps.get(7)).getTargetIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+        assertThat(((ShrunkShardsAllocatedStep) steps.get(7)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
 
-        assertTrue(steps.get(8) instanceof ShrinkSetAliasStep);
+        assertTrue(steps.get(8) instanceof CopyExecutionStateStep);
         assertThat(steps.get(8).getKey(), equalTo(expectedNinthKey));
         assertThat(steps.get(8).getNextStepKey(), equalTo(expectedTenthKey));
-        assertThat(((ShrinkSetAliasStep) steps.get(8)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+        assertThat(((CopyExecutionStateStep) steps.get(8)).getTargetIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
 
-        assertTrue(steps.get(9) instanceof ShrunkenIndexCheckStep);
+        assertTrue(steps.get(9) instanceof BranchingStep);
         assertThat(steps.get(9).getKey(), equalTo(expectedTenthKey));
-        assertThat(steps.get(9).getNextStepKey(), equalTo(nextStepKey));
-        assertThat(((ShrunkenIndexCheckStep) steps.get(9)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+        expectThrows(IllegalStateException.class, () -> steps.get(9).getNextStepKey());
+        assertThat(((BranchingStep) steps.get(9)).getNextStepKeyOnFalse(), equalTo(expectedEleventhKey));
+        assertThat(((BranchingStep) steps.get(9)).getNextStepKeyOnTrue(), equalTo(expectedThirteenKey));
+
+        assertTrue(steps.get(10) instanceof ShrinkSetAliasStep);
+        assertThat(steps.get(10).getKey(), equalTo(expectedEleventhKey));
+        assertThat(steps.get(10).getNextStepKey(), equalTo(expectedTwelveKey));
+        assertThat(((ShrinkSetAliasStep) steps.get(10)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+
+        assertTrue(steps.get(11) instanceof ShrunkenIndexCheckStep);
+        assertThat(steps.get(11).getKey(), equalTo(expectedTwelveKey));
+        assertThat(steps.get(11).getNextStepKey(), equalTo(nextStepKey));
+        assertThat(((ShrunkenIndexCheckStep) steps.get(11)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+
+        assertTrue(steps.get(12) instanceof ReplaceDataStreamBackingIndexStep);
+        assertThat(steps.get(12).getKey(), equalTo(expectedThirteenKey));
+        assertThat(steps.get(12).getNextStepKey(), equalTo(expectedFourteenKey));
+        assertThat(((ReplaceDataStreamBackingIndexStep) steps.get(12)).getTargetIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+
+        assertTrue(steps.get(13) instanceof DeleteStep);
+        assertThat(steps.get(13).getKey(), equalTo(expectedFourteenKey));
+        assertThat(steps.get(13).getNextStepKey(), equalTo(expectedTwelveKey));
     }
 
     @Override

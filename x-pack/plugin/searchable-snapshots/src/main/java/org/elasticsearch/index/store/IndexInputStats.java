@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.store;
 
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput;
@@ -23,7 +25,8 @@ public class IndexInputStats {
     /* A threshold beyond which an index input seeking is counted as "large" */
     static final ByteSizeValue SEEKING_THRESHOLD = new ByteSizeValue(8, ByteSizeUnit.MB);
 
-    private final long fileLength;
+    private final int numFiles;
+    private final long totalSize;
     private final long seekingThreshold;
     private final LongSupplier currentTimeNanos;
 
@@ -43,14 +46,19 @@ public class IndexInputStats {
     private final TimedCounter optimizedBytesRead = new TimedCounter();
 
     private final Counter cachedBytesRead = new Counter();
+    private final Counter indexCacheBytesRead = new Counter();
     private final TimedCounter cachedBytesWritten = new TimedCounter();
 
-    public IndexInputStats(long fileLength, LongSupplier currentTimeNanos) {
-        this(fileLength, SEEKING_THRESHOLD.getBytes(), currentTimeNanos);
+    private final Counter blobStoreBytesRequested = new Counter();
+    private final AtomicLong currentIndexCacheFills = new AtomicLong();
+
+    public IndexInputStats(int numFiles, long totalSize, LongSupplier currentTimeNanos) {
+        this(numFiles, totalSize, SEEKING_THRESHOLD.getBytes(), currentTimeNanos);
     }
 
-    public IndexInputStats(long fileLength, long seekingThreshold, LongSupplier currentTimeNanos) {
-        this.fileLength = fileLength;
+    public IndexInputStats(int numFiles, long totalSize, long seekingThreshold, LongSupplier currentTimeNanos) {
+        this.numFiles = numFiles;
+        this.totalSize = totalSize;
         this.seekingThreshold = seekingThreshold;
         this.currentTimeNanos = currentTimeNanos;
     }
@@ -72,6 +80,10 @@ public class IndexInputStats {
 
     public void addCachedBytesRead(int bytesRead) {
         cachedBytesRead.add(bytesRead);
+    }
+
+    public void addIndexCacheBytesRead(int bytesRead) {
+        indexCacheBytesRead.add(bytesRead);
     }
 
     public void addCachedBytesWritten(long bytesWritten, long nanoseconds) {
@@ -105,15 +117,32 @@ public class IndexInputStats {
             }
         } else {
             if (isLarge) {
-                backwardLargeSeeks.add(delta);
+                backwardLargeSeeks.add(-delta);
             } else {
-                backwardSmallSeeks.add(delta);
+                backwardSmallSeeks.add(-delta);
             }
         }
     }
 
-    public long getFileLength() {
-        return fileLength;
+    public void addBlobStoreBytesRequested(long bytesRequested) {
+        blobStoreBytesRequested.add(bytesRequested);
+    }
+
+    public Releasable addIndexCacheFill() {
+        final long openValue = currentIndexCacheFills.incrementAndGet();
+        assert openValue > 0 : openValue;
+        return () -> {
+            final long closeValue = currentIndexCacheFills.decrementAndGet();
+            assert closeValue >= 0 : closeValue;
+        };
+    }
+
+    public int getNumFiles() {
+        return numFiles;
+    }
+
+    public long getTotalSize() {
+        return totalSize;
     }
 
     public LongAdder getOpened() {
@@ -160,13 +189,25 @@ public class IndexInputStats {
         return cachedBytesRead;
     }
 
+    public Counter getIndexCacheBytesRead() {
+        return indexCacheBytesRead;
+    }
+
     public TimedCounter getCachedBytesWritten() {
         return cachedBytesWritten;
+    }
+
+    public Counter getBlobStoreBytesRequested() {
+        return blobStoreBytesRequested;
     }
 
     @SuppressForbidden(reason = "Handles Long.MIN_VALUE before using Math.abs()")
     public boolean isLargeSeek(long delta) {
         return delta != Long.MIN_VALUE && Math.abs(delta) > seekingThreshold;
+    }
+
+    public long getCurrentIndexCacheFills() {
+        return currentIndexCacheFills.get();
     }
 
     public static class Counter {

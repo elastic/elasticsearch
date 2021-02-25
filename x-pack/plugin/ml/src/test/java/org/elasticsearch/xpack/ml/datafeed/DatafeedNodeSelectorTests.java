@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
@@ -10,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -24,7 +26,10 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
@@ -38,11 +43,15 @@ import org.junit.Before;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
 import static org.hamcrest.Matchers.containsString;
@@ -58,7 +67,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
 
     @Before
     public void init() {
-        resolver = new IndexNameExpressionResolver();
+        resolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
         nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("node_name", "node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                         Collections.emptyMap(), Collections.emptySet(), Version.CURRENT))
@@ -75,6 +84,34 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         tasks = tasksBuilder.build();
 
         givenClusterState("foo", 1, 0);
+
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(clusterState,
+            resolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+        assertEquals("node_id", result.getExecutorNode());
+        new DatafeedNodeSelector(clusterState,
+            resolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS).checkDatafeedTaskCanBeCreated();
+    }
+
+    public void testSelectNode_GivenJobIsOpenedAndDataStream() {
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+
+        givenClusterStateWithDatastream("foo",
+            1,
+            0,
+            Collections.singletonList(new Tuple<>(0, ShardRoutingState.STARTED)));
 
         PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(clusterState,
             resolver,
@@ -286,6 +323,31 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             "]] with exception [no such index [not_foo]]]"));
     }
 
+    public void testIndexPatternDoesntExist() {
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Arrays.asList("missing-*", "foo*"));
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0);
+
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(clusterState,
+            resolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+        assertEquals("node_id", result.getExecutorNode());
+        new DatafeedNodeSelector(clusterState,
+            resolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS).checkDatafeedTaskCanBeCreated();
+    }
+
     public void testRemoteIndex() {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("remote:foo"));
@@ -447,6 +509,28 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                 .nodes(nodes)
                 .routingTable(generateRoutingTable(indexMetadata, states))
                 .build();
+    }
+
+    private void givenClusterStateWithDatastream(String dataStreamName,
+                                                 int numberOfShards,
+                                                 int numberOfReplicas,
+                                                 List<Tuple<Integer, ShardRoutingState>> states) {
+        Index index = new Index(getDefaultBackingIndexName(dataStreamName, 1), INDEX_UUID_NA_VALUE);
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(numberOfShards)
+            .numberOfReplicas(numberOfReplicas)
+            .build();
+
+        clusterState = ClusterState.builder(new ClusterName("cluster_name"))
+            .metadata(new Metadata.Builder()
+                .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), Collections.singletonList(index)))
+                .putCustom(PersistentTasksCustomMetadata.TYPE, tasks)
+                .putCustom(MlMetadata.TYPE, mlMetadata)
+                .put(indexMetadata, false))
+            .nodes(nodes)
+            .routingTable(generateRoutingTable(indexMetadata, states))
+            .build();
     }
 
     private static RoutingTable generateRoutingTable(IndexMetadata indexMetadata, List<Tuple<Integer, ShardRoutingState>> states) {

@@ -1,33 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.gradle.api.file.RegularFile;
-import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.slf4j.Logger;
 
 import java.io.File;
-import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -45,17 +32,13 @@ public interface TestClusterConfiguration {
 
     void setTestDistribution(TestDistribution distribution);
 
-    void plugin(URI plugin);
+    void plugin(Provider<RegularFile> plugin);
 
-    void plugin(File plugin);
-
-    void plugin(Provider<URI> plugin);
-
-    void plugin(RegularFileProperty plugin);
-
-    void module(File module);
+    void plugin(String pluginProjectPath);
 
     void module(Provider<RegularFile> module);
+
+    void module(String moduleProjectPath);
 
     void keystore(String key, String value);
 
@@ -92,6 +75,10 @@ public interface TestClusterConfiguration {
     void environment(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization);
 
     void jvmArgs(String... values);
+
+    boolean isPreserveDataDir();
+
+    void setPreserveDataDir(boolean preserveDataDir);
 
     void freeze();
 

@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,22 +37,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
         indices = new CommonStatsFlags(in);
         requestedMetrics.clear();
-        if (in.getVersion().before(Version.V_7_7_0)) {
-            optionallyAddMetric(in.readBoolean(), Metric.OS.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.PROCESS.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.JVM.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.THREAD_POOL.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.FS.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.TRANSPORT.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.HTTP.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.BREAKER.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.SCRIPT.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.DISCOVERY.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.INGEST.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.ADAPTIVE_SELECTION.metricName());
-        } else {
-            requestedMetrics.addAll(in.readStringList());
-        }
+        requestedMetrics.addAll(in.readStringList());
     }
 
     /**
@@ -185,22 +158,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         indices.writeTo(out);
-        if (out.getVersion().before(Version.V_7_7_0)) {
-            out.writeBoolean(Metric.OS.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.PROCESS.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.JVM.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.THREAD_POOL.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.FS.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.TRANSPORT.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.HTTP.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.BREAKER.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.SCRIPT.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.DISCOVERY.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.INGEST.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.ADAPTIVE_SELECTION.containedIn(requestedMetrics));
-        } else {
-            out.writeStringArray(requestedMetrics.toArray(String[]::new));
-        }
+        out.writeStringArray(requestedMetrics.toArray(String[]::new));
     }
 
     /**
@@ -220,7 +178,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         DISCOVERY("discovery"),
         INGEST("ingest"),
         ADAPTIVE_SELECTION("adaptive_selection"),
-        SCRIPT_CACHE("script_cache");
+        SCRIPT_CACHE("script_cache"),
+        INDEXING_PRESSURE("indexing_pressure"),;
 
         private String metricName;
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr;
 
@@ -78,7 +79,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         createLeaderIndex("metrics-201901", leaderIndexSettings);
 
         createLeaderIndex("logs-201901", leaderIndexSettings);
-        assertBusy(() -> {
+        assertLongBusy(() -> {
             assertTrue(ESIntegTestCase.indexExists("copy-logs-201901", followerClient()));
         });
         createLeaderIndex("transactions-201901", leaderIndexSettings);
@@ -252,7 +253,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
 
         createLeaderIndex("logs-201901", leaderIndexSettings);
-        assertBusy(() -> {
+        assertLongBusy(() -> {
             FollowInfoAction.Request followInfoRequest = new FollowInfoAction.Request();
             followInfoRequest.setFollowerIndices("copy-logs-201901");
             FollowInfoAction.Response followInfoResponse;

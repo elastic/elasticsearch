@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -28,11 +17,13 @@ import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteReposito
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
+import org.elasticsearch.client.snapshots.GetSnapshottableFeaturesRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -123,6 +114,21 @@ final class SnapshotRequestConverters {
         return request;
     }
 
+    static Request cloneSnapshot(CloneSnapshotRequest cloneSnapshotRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPart("_snapshot")
+                .addPathPart(cloneSnapshotRequest.repository())
+                .addPathPart(cloneSnapshotRequest.source())
+                .addPathPart("_clone")
+                .addPathPart(cloneSnapshotRequest.target())
+                .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(cloneSnapshotRequest.masterNodeTimeout());
+        request.addParameters(params.asMap());
+        request.setEntity(RequestConverters.createEntity(cloneSnapshotRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request getSnapshots(GetSnapshotsRequest getSnapshotsRequest) {
         RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder().addPathPartAsIs("_snapshot")
             .addCommaSeparatedPathParts(getSnapshotsRequest.repositories());
@@ -182,6 +188,15 @@ final class SnapshotRequestConverters {
 
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withMasterTimeout(deleteSnapshotRequest.masterNodeTimeout());
+        request.addParameters(parameters.asMap());
+        return request;
+    }
+
+    static Request getSnapshottableFeatures(GetSnapshottableFeaturesRequest getSnapshottableFeaturesRequest) {
+        String endpoint = "/_snapshottable_features";
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        RequestConverters.Params parameters = new RequestConverters.Params();
+        parameters.withMasterTimeout(getSnapshottableFeaturesRequest.masterNodeTimeout());
         request.addParameters(parameters.asMap());
         return request;
     }

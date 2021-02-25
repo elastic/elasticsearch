@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -19,7 +20,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.io.IOException;
@@ -60,7 +61,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                                           IndexNameExpressionResolver indexNameExpressionResolver, Client client,
                                           TrainedModelProvider trainedModelProvider, NamedXContentRegistry xContentRegistry) {
         super(PutTrainedModelAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
         this.xContentRegistry = xContentRegistry;
@@ -68,29 +69,10 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected Response read(StreamInput in) throws IOException {
-        return new Response(in);
-    }
-
-    @Override
     protected void masterOperation(Task task,
                                    PutTrainedModelAction.Request request,
                                    ClusterState state,
                                    ActionListener<Response> listener) {
-        // 7.8.0 introduced splitting the model definition across multiple documents.
-        // This means that new models will not be usable on nodes that cannot handle multiple definition documents
-        if (state.nodes().getMinNodeVersion().before(Version.V_7_8_0)) {
-            listener.onFailure(ExceptionsHelper.badRequestException(
-                "Creating a new model requires that all nodes are at least version [{}]",
-                request.getTrainedModelConfig().getModelId(),
-                Version.V_7_8_0.toString()));
-            return;
-        }
         try {
             request.getTrainedModelConfig().ensureParsedDefinition(xContentRegistry);
             request.getTrainedModelConfig().getModelDefinition().getTrainedModel().validate();
@@ -142,6 +124,13 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             .setEstimatedHeapMemory(request.getTrainedModelConfig().getModelDefinition().ramBytesUsed())
             .setEstimatedOperations(request.getTrainedModelConfig().getModelDefinition().getTrainedModel().estimatedNumOperations())
             .build();
+        if (ModelAliasMetadata.fromState(state).getModelId(trainedModelConfig.getModelId()) != null) {
+            listener.onFailure(ExceptionsHelper.badRequestException(
+                "requested model_id [{}] is the same as an existing model_alias. Model model_aliases and ids must be unique",
+                request.getTrainedModelConfig().getModelId()
+            ));
+            return;
+        }
 
         ActionListener<Void> tagsModelIdCheckListener = ActionListener.wrap(
             r -> trainedModelProvider.storeTrainedModel(trainedModelConfig, ActionListener.wrap(
@@ -221,7 +210,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
             super.doExecute(task, request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

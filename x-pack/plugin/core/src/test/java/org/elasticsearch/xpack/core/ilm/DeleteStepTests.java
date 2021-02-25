@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -11,11 +12,18 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
+import java.util.List;
+
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteStep> {
 
@@ -78,7 +86,10 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
 
         DeleteStep step = createRandomInstance();
-        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
+        ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
+            Metadata.builder().put(indexMetadata, true).build()
+        ).build();
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 actionCompleted.set(complete);
@@ -114,7 +125,10 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
         DeleteStep step = createRandomInstance();
-        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
+        ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
+            Metadata.builder().put(indexMetadata, true).build()
+        ).build();
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 throw new AssertionError("Unexpected method call");
@@ -128,5 +142,37 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
         });
 
         assertThat(exceptionThrown.get(), equalTo(true));
+    }
+
+    public void testPerformActionThrowsExceptionIfIndexIsTheDataStreamWriteIndex() {
+        String dataStreamName = randomAlphaOfLength(10);
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String policyName = "test-ilm-policy";
+        IndexMetadata sourceIndexMetadata =
+            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        DataStream dataStream =
+            new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(sourceIndexMetadata.getIndex()));
+        ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
+            Metadata.builder().put(sourceIndexMetadata, true).put(dataStream).build()
+        ).build();
+
+        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+            () -> createRandomInstance().performDuringNoSnapshot(sourceIndexMetadata, clusterState, new AsyncActionStep.Listener() {
+                @Override
+                public void onResponse(boolean complete) {
+                    fail("unexpected listener callback");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("unexpected listener callback");
+                }
+            }));
+        assertThat(illegalStateException.getMessage(),
+            is("index [" + indexName + "] is the write index for data stream [" + dataStreamName + "]. stopping execution of lifecycle" +
+                " [test-ilm-policy] as a data stream's write index cannot be deleted. manually rolling over the index will resume the " +
+                "execution of the policy as the index will not be the data stream's write index anymore"));
     }
 }

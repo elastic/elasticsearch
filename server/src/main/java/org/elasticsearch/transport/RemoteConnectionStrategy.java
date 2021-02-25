@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
@@ -138,9 +127,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             .setCompressionEnabled(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .setPingInterval(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .addConnections(0, TransportRequestOptions.Type.BULK, TransportRequestOptions.Type.STATE,
-                TransportRequestOptions.Type.RECOVERY)
-            // TODO: Evaluate if we actually need PING channels?
-            .addConnections(mode.numberOfChannels, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING);
+                TransportRequestOptions.Type.RECOVERY, TransportRequestOptions.Type.PING)
+            .addConnections(mode.numberOfChannels, TransportRequestOptions.Type.REG);
         return builder.build();
     }
 
@@ -211,7 +199,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     static int parsePort(String remoteHost) {
         try {
-            int port = Integer.valueOf(remoteHost.substring(indexOfPortSeparator(remoteHost) + 1));
+            int port = Integer.parseInt(remoteHost.substring(indexOfPortSeparator(remoteHost) + 1));
             if (port <= 0) {
                 throw new IllegalArgumentException("port number must be > 0 but was: [" + port + "]");
             }

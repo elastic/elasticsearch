@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.stringstats;
 
@@ -212,6 +213,11 @@ public class InternalStringStats extends InternalAggregation {
 
         return new InternalStringStats(name, count, totalLength, minLength, maxLength, occurs,
             showDistribution, format, getMetadata());
+    }
+
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return false;
     }
 
     @Override

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -39,9 +28,13 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplat
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
+import org.elasticsearch.client.indices.CreateDataStreamRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.DataStreamsStatsRequest;
+import org.elasticsearch.client.indices.GetDataStreamRequest;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
+import org.elasticsearch.client.indices.DeleteDataStreamRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
@@ -67,6 +60,38 @@ import java.util.Locale;
 final class IndicesRequestConverters {
 
     private IndicesRequestConverters() {}
+
+    static Request putDataStream(CreateDataStreamRequest createDataStreamRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_data_stream")
+            .addPathPart(createDataStreamRequest.getName()).build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        return request;
+    }
+
+    static Request deleteDataStream(DeleteDataStreamRequest deleteDataStreamRequest) {
+        String name = deleteDataStreamRequest.getName();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_data_stream").addPathPart(name).build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        return request;
+    }
+
+    static Request getDataStreams(GetDataStreamRequest dataStreamRequest) {
+        final String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_data_stream")
+            .addPathPart(dataStreamRequest.getName())
+            .build();
+        return new Request(HttpGet.METHOD_NAME, endpoint);
+    }
+
+    static Request dataStreamsStats(DataStreamsStatsRequest dataStreamsStatsRequest) {
+        String[] expressions = dataStreamsStatsRequest.indices() == null ? Strings.EMPTY_ARRAY : dataStreamsStatsRequest.indices();
+        final String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_data_stream")
+            .addCommaSeparatedPathParts(expressions)
+            .addPathPartAsIs("_stats")
+            .build();
+        return new Request(HttpGet.METHOD_NAME, endpoint);
+    }
 
     static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {
         String endpoint = RequestConverters.endpoint(deleteIndexRequest.indices());
@@ -101,6 +126,7 @@ final class IndicesRequestConverters {
         parameters.withTimeout(closeIndexRequest.timeout());
         parameters.withMasterTimeout(closeIndexRequest.masterNodeTimeout());
         parameters.withIndicesOptions(closeIndexRequest.indicesOptions());
+        parameters.withWaitForActiveShards(closeIndexRequest.waitForActiveShards());
         request.addParameters(parameters.asMap());
         return request;
     }

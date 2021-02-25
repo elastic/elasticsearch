@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -228,9 +217,8 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testPartiallyUnmapped() throws IOException {
-        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
-        fieldType.setName(FIELD_NAME);
-        fieldType.setHasDocValues(true);
+        final MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberType.LONG);
 
         final SumAggregationBuilder builder = sum("_name")
             .field(fieldType.name());
@@ -257,7 +245,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
                 final IndexSearcher searcher = newSearcher(multiReader, true, true);
 
-                final InternalSum internalSum = search(searcher, new MatchAllDocsQuery(), builder, fieldType);
+                final InternalSum internalSum = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, fieldType);
                 assertEquals(sum, internalSum.getValue(), 0d);
                 assertTrue(AggregationInspectionHelper.hasValue(internalSum));
             }
@@ -314,8 +302,8 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
     public void testMissing() throws IOException {
         final MappedFieldType aggField = defaultFieldType();
-        final MappedFieldType irrelevantField = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
-        irrelevantField.setName("irrelevant_field");
+        final MappedFieldType irrelevantField
+            = new NumberFieldMapper.NumberFieldType("irrelevant_field", NumberType.LONG);
 
         final int numDocs = randomIntBetween(10, 100);
         final long missingValue = randomLongBetween(1, 1000);
@@ -435,9 +423,6 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     private static MappedFieldType defaultFieldType(NumberType numberType) {
-        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(numberType);
-        fieldType.setName(FIELD_NAME);
-        fieldType.setHasDocValues(true);
-        return fieldType;
+        return new NumberFieldMapper.NumberFieldType(FIELD_NAME, numberType);
     }
 }

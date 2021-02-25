@@ -1,23 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.index.store.checksum;
 
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.ByteBuffersDataOutput;
-import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.index.store.Store;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 /**
  * A {@link IndexInput} that can only be used to verify footer checksums.
@@ -110,7 +111,7 @@ public class ChecksumBlobContainerIndexInput extends IndexInput {
             assert false : "unexpected read or seek at position [" + pos + "] but checksum starts at [" + checksumPosition + ']';
             throw new IllegalArgumentException("Can't read or seek before footer checksum");
         }
-        return Math.toIntExact(checksum.length - (length - pos));
+        return toIntBytes(checksum.length - (length - pos));
     }
 
     private static void ensureReadOnceChecksumContext(IOContext context) {
@@ -131,14 +132,18 @@ public class ChecksumBlobContainerIndexInput extends IndexInput {
      * @throws IOException if something goes wrong when creating the {@link ChecksumBlobContainerIndexInput}
      */
     public static ChecksumBlobContainerIndexInput create(String name, long length, String checksum, IOContext context) throws IOException {
-        final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        try (IndexOutput output = new ByteBuffersIndexOutput(out, "tmp", name)) {
-            // reverse CodecUtil.writeFooter()
-            output.writeInt(CodecUtil.FOOTER_MAGIC);
-            output.writeInt(0);
-            output.writeLong(Long.parseLong(checksum, Character.MAX_RADIX));
-            output.close();
-            return new ChecksumBlobContainerIndexInput(name, length, out.toArrayCopy(), context);
-        }
+        return new ChecksumBlobContainerIndexInput(name, length, checksumToBytesArray(checksum), context);
+    }
+
+    public static byte[] checksumToBytesArray(String checksum) throws IOException {
+        final byte[] result = new byte[CodecUtil.footerLength()];
+        assert result.length >= Integer.BYTES + Integer.BYTES + Long.BYTES; // ensure that nobody changed the file format under us
+        final ByteArrayDataOutput output = new ByteArrayDataOutput(result);
+        // reverse CodecUtil.writeFooter()
+        output.writeInt(CodecUtil.FOOTER_MAGIC);
+        output.writeInt(0);
+        output.writeLong(Long.parseLong(checksum, Character.MAX_RADIX));
+        assert output.getPosition() == result.length;
+        return result;
     }
 }

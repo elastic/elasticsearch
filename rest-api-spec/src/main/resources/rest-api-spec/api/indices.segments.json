@@ -5,6 +5,10 @@
       "description":"Provides low-level information about segments in a Lucene index."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

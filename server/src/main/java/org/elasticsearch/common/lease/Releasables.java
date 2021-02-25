@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.lease;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
@@ -44,6 +34,15 @@ public enum Releasables {
     /** Release the provided {@link Releasable}s. */
     public static void close(Iterable<? extends Releasable> releasables) {
         close(releasables, false);
+    }
+
+    /** Release the provided {@link Releasable}. */
+    public static void close(@Nullable Releasable releasable) {
+        try {
+            IOUtils.close(releasable);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /** Release the provided {@link Releasable}s. */
@@ -96,13 +95,13 @@ public enum Releasables {
     }
 
     /**
-     * Equivalent to {@link #wrap(Releasable...)} but can be called multiple times without double releasing.
+     * Wraps a {@link Releasable} such that its {@link Releasable#close()} method can be called multiple times without double releasing.
      */
-    public static Releasable releaseOnce(final Releasable... releasables) {
+    public static Releasable releaseOnce(final Releasable releasable) {
         final AtomicBoolean released = new AtomicBoolean(false);
         return () -> {
             if (released.compareAndSet(false, true)) {
-                close(releasables);
+                releasable.close();
             }
         };
     }

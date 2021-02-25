@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.settings;
 
@@ -37,7 +26,6 @@ import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
-import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
@@ -73,12 +61,12 @@ import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.gateway.DanglingIndicesState;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -90,12 +78,14 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.plugins.PluginsService;
@@ -106,6 +96,9 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
+import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -195,7 +188,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             BreakerSettings.CIRCUIT_BREAKER_TYPE,
             ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING,
             ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
-            DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING,
             EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
             EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING,
             FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING,
@@ -220,6 +212,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING,
             RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING,
             RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING,
+            RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING,
             ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
             ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
             ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
@@ -233,14 +226,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING,
             InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING,
             InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
+            InternalSnapshotsInfoService.INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING,
             DestructiveOperations.REQUIRES_NAME_SETTING,
             NoMasterBlockService.NO_MASTER_BLOCK_SETTING,
             GatewayService.EXPECTED_DATA_NODES_SETTING,
-            GatewayService.EXPECTED_MASTER_NODES_SETTING,
-            GatewayService.EXPECTED_NODES_SETTING,
             GatewayService.RECOVER_AFTER_DATA_NODES_SETTING,
-            GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING,
-            GatewayService.RECOVER_AFTER_NODES_SETTING,
             GatewayService.RECOVER_AFTER_TIME_SETTING,
             PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD,
             NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
@@ -262,7 +252,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HttpTransportSettings.SETTING_CORS_ALLOW_METHODS,
             HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS,
             HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
-            HttpTransportSettings.SETTING_HTTP_CONTENT_TYPE_REQUIRED,
             HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH,
             HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE,
             HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,
@@ -354,6 +343,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TransportSettings.CONNECTIONS_PER_NODE_PING,
             TransportSettings.TRACE_LOG_EXCLUDE_SETTING,
             TransportSettings.TRACE_LOG_INCLUDE_SETTING,
+            TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
             NetworkService.NETWORK_SERVER,
             NetworkService.GLOBAL_NETWORK_HOST_SETTING,
             NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING,
@@ -368,9 +358,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             NetworkService.TCP_RECEIVE_BUFFER_SIZE,
             IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
             IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
-            ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING,
-            ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
-            ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
             ScriptService.SCRIPT_CACHE_SIZE_SETTING,
             ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
             ScriptService.SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING,
@@ -409,11 +396,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SearchService.MAX_OPEN_SCROLL_CONTEXT,
             Node.WRITE_PORTS_FILE_SETTING,
             Node.NODE_NAME_SETTING,
-            Node.NODE_DATA_SETTING,
-            Node.NODE_MASTER_SETTING,
-            Node.NODE_INGEST_SETTING,
-            Node.NODE_REMOTE_CLUSTER_CLIENT,
             Node.NODE_ATTRIBUTES,
+            NodeRoleSettings.NODE_ROLES_SETTING,
             AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
             BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,
             ClusterName.CLUSTER_NAME_SETTING,
@@ -456,6 +440,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
             ResourceWatcherService.RELOAD_INTERVAL_LOW,
             SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
+            SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING,
             ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
             FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
             Node.BREAKER_TYPE_KEY,
@@ -472,7 +457,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ElectionSchedulerFactory.ELECTION_DURATION_SETTING,
             Coordinator.PUBLISH_TIMEOUT_SETTING,
             Coordinator.PUBLISH_INFO_TIMEOUT_SETTING,
-            JoinHelper.JOIN_TIMEOUT_SETTING,
             FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING,
             FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING,
             FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING,
@@ -485,7 +469,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
             LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
             HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
-            HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING);
+            HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
+            SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
+            RestoreService.REFRESH_REPO_UUID_ON_RESTORE_SETTING,
+            FsHealthService.ENABLED_SETTING,
+            FsHealthService.REFRESH_INTERVAL_SETTING,
+            FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
+            IndexingPressure.MAX_INDEXING_BYTES);
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 

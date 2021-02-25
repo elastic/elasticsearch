@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
@@ -10,7 +11,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.transport.TransportActionProxy;
-import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.util.Collections;
 import java.util.function.Predicate;
@@ -19,7 +20,7 @@ public final class SystemPrivilege extends Privilege {
 
     public static SystemPrivilege INSTANCE = new SystemPrivilege();
 
-    private static final Predicate<String> ALLOWED_ACTIONS = Automatons.predicate(
+    private static final Predicate<String> ALLOWED_ACTIONS = StringMatcher.of(
         "internal:*",
         "indices:monitor/*", // added for monitoring
         "cluster:monitor/*",  // added for monitoring

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.action;
@@ -9,8 +10,11 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -19,6 +23,9 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import java.net.InetAddress;
 import java.util.Collections;
 
+import static org.elasticsearch.xpack.ml.MachineLearning.MAX_MACHINE_MEMORY_PERCENT;
+import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -28,7 +35,11 @@ public class TransportMlInfoActionTests extends ESTestCase {
     public void testCalculateEffectiveMaxModelMemoryLimit() {
 
         int mlMemoryPercent = randomIntBetween(5, 90);
-        long highestMlMachineMemory = -1;
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(MAX_MACHINE_MEMORY_PERCENT.getKey(), mlMemoryPercent).build(),
+            Sets.newHashSet(MAX_MACHINE_MEMORY_PERCENT, USE_AUTO_MACHINE_MEMORY_PERCENT));
+        long highestMlMachineMemoryBytes = -1;
+        long totalMlMemoryBytes = 0;
 
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         for (int i = randomIntBetween(1, 10); i > 0; --i) {
@@ -41,7 +52,8 @@ public class TransportMlInfoActionTests extends ESTestCase {
             } else {
                 // ML node
                 long machineMemory = randomLongBetween(2000000000L, 100000000000L);
-                highestMlMachineMemory = Math.max(machineMemory, highestMlMachineMemory);
+                highestMlMachineMemoryBytes = Math.max(machineMemory, highestMlMachineMemoryBytes);
+                totalMlMemoryBytes += machineMemory * mlMemoryPercent / 100;
                 builder.add(new DiscoveryNode(nodeName, nodeId, ta,
                     Collections.singletonMap(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(machineMemory)),
                     Collections.emptySet(), Version.CURRENT));
@@ -49,17 +61,21 @@ public class TransportMlInfoActionTests extends ESTestCase {
         }
         DiscoveryNodes nodes = builder.build();
 
-        ByteSizeValue effectiveMaxModelMemoryLimit =
-            TransportMlInfoAction.calculateEffectiveMaxModelMemoryLimit(mlMemoryPercent, nodes);
+        ByteSizeValue effectiveMaxModelMemoryLimit = TransportMlInfoAction.calculateEffectiveMaxModelMemoryLimit(clusterSettings, nodes);
 
-        if (highestMlMachineMemory < 0) {
+        if (highestMlMachineMemoryBytes < 0) {
             assertThat(effectiveMaxModelMemoryLimit, nullValue());
         } else {
             assertThat(effectiveMaxModelMemoryLimit, notNullValue());
             assertThat(effectiveMaxModelMemoryLimit.getBytes()
                     + Math.max(Job.PROCESS_MEMORY_OVERHEAD.getBytes(), DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes())
                     + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
-                lessThanOrEqualTo(highestMlMachineMemory * mlMemoryPercent / 100));
+                lessThanOrEqualTo(highestMlMachineMemoryBytes * mlMemoryPercent / 100));
         }
+
+        ByteSizeValue totalMlMemory = TransportMlInfoAction.calculateTotalMlMemory(clusterSettings, nodes);
+
+        assertThat(totalMlMemory, notNullValue());
+        assertThat(totalMlMemory, is(ByteSizeValue.ofMb(totalMlMemoryBytes / (1024 * 1024))));
     }
 }

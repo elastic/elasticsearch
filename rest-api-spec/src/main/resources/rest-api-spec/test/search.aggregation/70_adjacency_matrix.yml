@@ -12,36 +12,104 @@ setup:
                   type: integer
 
   - do:
-        index:
-          index: test
-          id: 1
-          body: { "num": [1, 2] }
-
-  - do:
-      index:
+      bulk:
         index: test
-        id: 2
-        body: { "num": [2, 3] }
-
-  - do:
-      index:
-        index: test
-        id: 3
-        body: { "num": [3, 4] }
+        refresh: true
+        body: |
+          { "index": {"_id": "1"}}
+          { "num": [1, 2] }
+          { "index": {"_id": "2"}}
+          { "num": [2, 3] }
+          { "index": {"_id": "3"}}
+          { "num": [3, 4] }
 
   - do:
       indices.refresh: {}
-
-
 ---
 "Filters intersections":
 
   - do:
       search:
-        rest_total_hits_as_int: true
-        body: { "size": 0, "aggs": { "conns": { "adjacency_matrix": {  "filters": { "1": { "term": { "num": 1 } }, "2": { "term": { "num": 2 } }, "4": { "term": { "num": 4 } } } } } } }
+        index: test
+        body:
+          size: 0
+          aggs:
+            conns:
+              adjacency_matrix:
+                filters:
+                  1:
+                    term:
+                      num: 1
+                  2:
+                    term:
+                      num: 2
+                  4:
+                    term:
+                      num: 4
 
-  - match: { hits.total: 3 }
+  - match: { hits.total.value: 3 }
+
+  - length: { aggregations.conns.buckets: 4 }
+
+  - match: { aggregations.conns.buckets.0.doc_count: 1 }
+  - match: { aggregations.conns.buckets.0.key: "1" }
+
+  - match: { aggregations.conns.buckets.1.doc_count: 1 }
+  - match: { aggregations.conns.buckets.1.key: "1&2" }
+
+  - match: { aggregations.conns.buckets.2.doc_count: 2 }
+  - match: { aggregations.conns.buckets.2.key: "2" }
+
+  - match: { aggregations.conns.buckets.3.doc_count: 1 }
+  - match: { aggregations.conns.buckets.3.key: "4" }
+
+
+---
+"Terms lookup":
+  - skip:
+      version: " - 7.8.99"
+      reason:  fixed in 7.9.0
+
+  - do:
+      bulk:
+        index: lookup
+        refresh: true
+        body: |
+          { "index": {"_id": 1} }
+          { "num": [1] }
+          { "index": {"_id": 2} }
+          { "num": [2] }
+          { "index": {"_id": 4} }
+          { "num": [4] }
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            conns:
+              adjacency_matrix:
+                filters:
+                  1:
+                    terms:
+                      num:
+                        index: lookup
+                        id: "1"
+                        path: num
+                  2:
+                    terms:
+                      num:
+                        index: lookup
+                        id: "2"
+                        path: num
+                  4:
+                    terms:
+                      num:
+                        index: lookup
+                        id: "4"
+                        path: num
+
+  - match: { hits.total.value: 3 }
 
   - length: { aggregations.conns.buckets: 4 }
 

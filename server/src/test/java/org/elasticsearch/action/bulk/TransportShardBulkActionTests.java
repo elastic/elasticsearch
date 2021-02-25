@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -57,6 +46,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -226,7 +216,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     } catch (IOException e) {
                         throw new AssertionError(e);
                     }
-                }), latch::countDown), threadPool);
+                }), latch::countDown), threadPool, Names.WRITE);
 
         latch.await();
     }
@@ -241,7 +231,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
         Engine.IndexResult mappingUpdate =
-            new Engine.IndexResult(new Mapping(null, mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()));
+            new Engine.IndexResult(new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()));
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
 
@@ -770,7 +760,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             "I'm conflicted <(;_;)>");
         Engine.IndexResult conflictedResult = new Engine.IndexResult(err, 0);
         Engine.IndexResult mappingUpdate =
-            new Engine.IndexResult(new Mapping(null, mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()));
+            new Engine.IndexResult(new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()));
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
 
@@ -813,7 +803,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     DocWriteResponse response = primaryResponse.getResponse();
                     assertThat(response.status(), equalTo(RestStatus.CREATED));
                     assertThat(response.getSeqNo(), equalTo(13L));
-                }), latch), threadPool);
+                }), latch), threadPool, Names.WRITE);
         latch.await();
     }
 
@@ -850,7 +840,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
             Engine.IndexResult mappingUpdate =
-                new Engine.IndexResult(new Mapping(null, mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()));
+                new Engine.IndexResult(new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()));
             Translog.Location resultLocation1 = new Translog.Location(42, 36, 36);
             Translog.Location resultLocation2 = new Translog.Location(42, 42, 42);
             Engine.IndexResult success1 = new FakeIndexResult(1, 1, 10, true, resultLocation1);
@@ -886,7 +876,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                         // Assert that we still need to fsync the location that was successfully written
                         assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location,
                             equalTo(resultLocation1))), latch),
-                rejectingThreadPool);
+                rejectingThreadPool,
+                Names.WRITE);
             latch.await();
 
             assertThat("mappings were \"updated\" once", updateCalled.get(), equalTo(1));

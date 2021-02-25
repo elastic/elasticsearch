@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -45,6 +45,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -52,13 +53,14 @@ import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class RestClientTests extends RestClientTestCase {
 
     public void testCloseIsIdempotent() throws IOException {
         List<Node> nodes = singletonList(new Node(new HttpHost("localhost", 9200)));
         CloseableHttpAsyncClient closeableHttpAsyncClient = mock(CloseableHttpAsyncClient.class);
-        RestClient restClient = new RestClient(closeableHttpAsyncClient, new Header[0], nodes, null, null, null, false);
+        RestClient restClient = new RestClient(closeableHttpAsyncClient, new Header[0], nodes, null, null, null, false, false);
         restClient.close();
         verify(closeableHttpAsyncClient, times(1)).close();
         restClient.close();
@@ -355,7 +357,7 @@ public class RestClientTests extends RestClientTestCase {
 
     private static RestClient createRestClient() {
         List<Node> nodes = Collections.singletonList(new Node(new HttpHost("localhost", 9200)));
-        return new RestClient(mock(CloseableHttpAsyncClient.class), new Header[] {}, nodes, null, null, null, false);
+        return new RestClient(mock(CloseableHttpAsyncClient.class), new Header[] {}, nodes, null, null, null, false, false);
     }
 
     public void testRoundRobin() throws IOException {
@@ -385,6 +387,18 @@ public class RestClientTests extends RestClientTestCase {
         assertEquals(Integer.MIN_VALUE, lastNodeIndex.incrementAndGet());
         assertNodes(nodeTuple, lastNodeIndex, 50);
         assertEquals(Integer.MIN_VALUE + 50, lastNodeIndex.get());
+    }
+
+    public void testIsRunning(){
+        List<Node> nodes = Collections.singletonList(new Node(new HttpHost("localhost", 9200)));
+        CloseableHttpAsyncClient client = mock(CloseableHttpAsyncClient.class);
+        RestClient restClient = new RestClient(client, new Header[] {}, nodes, null, null, null, false, false);
+
+        when(client.isRunning()).thenReturn(true);
+        assertTrue(restClient.isRunning());
+
+        when(client.isRunning()).thenReturn(false);
+        assertFalse(restClient.isRunning());
     }
 
     private static void assertNodes(NodeTuple<List<Node>> nodeTuple, AtomicInteger lastNodeIndex, int runs) throws IOException {

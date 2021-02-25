@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.ingest;
 
@@ -40,7 +41,7 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
         SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(() -> securityContext, () -> licenseState);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        SetSecurityUserProcessor processor = factory.create(null, "_tag", config);
+        SetSecurityUserProcessor processor = factory.create(null, "_tag", null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getProperties(), equalTo(EnumSet.allOf(Property.class)));
     }
@@ -48,7 +49,7 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
     public void testProcessor_noField() throws Exception {
         SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(() -> securityContext, () -> licenseState);
         Map<String, Object> config = new HashMap<>();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", config));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
         assertThat(e.getMetadata("es.property_name").get(0), equalTo("field"));
         assertThat(e.getMetadata("es.processor_type").get(0), equalTo(SetSecurityUserProcessor.TYPE));
         assertThat(e.getMetadata("es.processor_tag").get(0), equalTo("_tag"));
@@ -59,7 +60,7 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("properties", Arrays.asList(Property.USERNAME.name(), Property.ROLES.name()));
-        SetSecurityUserProcessor processor = factory.create(null, "_tag", config);
+        SetSecurityUserProcessor processor = factory.create(null, "_tag", null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getProperties(), equalTo(EnumSet.of(Property.USERNAME, Property.ROLES)));
     }
@@ -69,7 +70,7 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("properties", Arrays.asList("invalid"));
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", config));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
         assertThat(e.getMetadata("es.property_name").get(0), equalTo("properties"));
         assertThat(e.getMetadata("es.processor_type").get(0), equalTo(SetSecurityUserProcessor.TYPE));
         assertThat(e.getMetadata("es.processor_tag").get(0), equalTo("_tag"));
@@ -80,7 +81,7 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
         SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(() -> null, () -> licenseState);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        final SetSecurityUserProcessor processor = factory.create(null, "_tag", config);
+        final SetSecurityUserProcessor processor = factory.create(null, "_tag", null, config);
         assertThat(processor, notNullValue());
     }
 

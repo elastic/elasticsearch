@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
@@ -36,6 +37,7 @@ public class ProcessPipes {
     public static final String RESTORE_IS_PIPE_ARG = "--restoreIsPipe";
     public static final String PERSIST_ARG = "--persist=";
     public static final String PERSIST_IS_PIPE_ARG = "--persistIsPipe";
+    public static final String TIMEOUT_ARG = "--namedPipeConnectTimeout=";
 
     private final NamedPipeHelper namedPipeHelper;
     private final String jobId;
@@ -49,6 +51,14 @@ public class ProcessPipes {
     private final String processOutPipeName;
     private final String restorePipeName;
     private final String persistPipeName;
+
+    /**
+     * Needs to be long enough for the C++ process perform all startup tasks that precede creation of named
+     * pipes.  There should not be very many of these, so a short timeout should be fine.  However, at least
+     * five seconds is recommended due to the vagaries of process scheduling and the way VMs can completely
+     * stall for some hypervisor actions.
+     */
+    private final Duration timeout;
 
     private CppLogMessageHandler logStreamHandler;
     private OutputStream commandStream;
@@ -66,11 +76,12 @@ public class ProcessPipes {
      * @param jobId The job ID of the process to which pipes are to be opened, if the process is associated with a specific job.
      *              May be null or empty for processes not associated with a specific job.
      */
-    public ProcessPipes(Environment env, NamedPipeHelper namedPipeHelper, String processName, String jobId,
-                        boolean wantCommandPipe, boolean wantProcessInPipe, boolean wantProcessOutPipe,
+    public ProcessPipes(Environment env, NamedPipeHelper namedPipeHelper, Duration timeout, String processName, String jobId,
+                        Long uniqueId, boolean wantCommandPipe, boolean wantProcessInPipe, boolean wantProcessOutPipe,
                         boolean wantRestorePipe, boolean wantPersistPipe) {
         this.namedPipeHelper = namedPipeHelper;
         this.jobId = jobId;
+        this.timeout = timeout;
 
         // The way the pipe names are formed MUST match what is done in the controller main()
         // function, as it does not get any command line arguments when started as a daemon.  If
@@ -78,8 +89,11 @@ public class ProcessPipes {
         // main() function.
         StringBuilder prefixBuilder = new StringBuilder();
         prefixBuilder.append(namedPipeHelper.getDefaultPipeDirectoryPrefix(env)).append(Objects.requireNonNull(processName)).append('_');
-        if (!Strings.isNullOrEmpty(jobId)) {
+        if (Strings.isNullOrEmpty(jobId) == false) {
             prefixBuilder.append(jobId).append('_');
+        }
+        if (uniqueId != null) {
+            prefixBuilder.append(uniqueId).append('_');
         }
         String prefix = prefixBuilder.toString();
         String suffix = String.format(Locale.ROOT, "_%d", JvmInfo.jvmInfo().getPid());
@@ -116,6 +130,7 @@ public class ProcessPipes {
             command.add(PERSIST_ARG + persistPipeName);
             command.add(PERSIST_IS_PIPE_ARG);
         }
+        command.add(TIMEOUT_ARG + timeout.getSeconds());
     }
 
     /**
@@ -123,24 +138,16 @@ public class ProcessPipes {
      * started to read from it</em>so that there is no risk of messages logged in between creation of the other pipes on the C++
      * side from blocking due to filling up the named pipe's buffer, and hence deadlocking communications between that process
      * and this JVM.
-     * @param timeout Needs to be long enough for the C++ process perform all startup tasks that precede creation of named pipes.
-     *                There should not be very many of these, so a short timeout should be fine.  However, at least a couple of
-     *                seconds is recommended due to the vagaries of process scheduling and the way VMs can completely stall for
-     *                some hypervisor actions.
      */
-    public void connectLogStream(Duration timeout) throws IOException {
+    public void connectLogStream() throws IOException {
         logStreamHandler = new CppLogMessageHandler(jobId, namedPipeHelper.openNamedPipeInputStream(logPipeName, timeout));
     }
 
     /**
      * Connect the other pipes created by the C++ process after the logging pipe has been connected.  This must be called after
      * the corresponding C++ process has been started, and after {@link #connectLogStream}.
-     * @param timeout Needs to be long enough for the C++ process perform all startup tasks that precede creation of named pipes.
-     *                There should not be very many of these, so a short timeout should be fine.  However, at least a couple of
-     *                seconds is recommended due to the vagaries of process scheduling and the way VMs can completely stall for
-     *                some hypervisor actions.
      */
-    public void connectOtherStreams(Duration timeout) throws IOException {
+    public void connectOtherStreams() throws IOException {
         assert logStreamHandler != null : "Must connect log stream before other streams";
         if (logStreamHandler == null) {
             throw new NullPointerException("Must connect log stream before other streams");
@@ -254,5 +261,9 @@ public class ProcessPipes {
             throw new IllegalStateException("process streams must be connected before use");
         }
         return Optional.of(persistStream);
+    }
+
+    public Duration getTimeout() {
+        return timeout;
     }
 }

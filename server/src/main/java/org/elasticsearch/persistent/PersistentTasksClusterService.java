@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.persistent;
@@ -28,7 +17,9 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -68,7 +59,9 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         this.decider = new EnableAssignmentDecider(settings, clusterService.getClusterSettings());
         this.threadPool = threadPool;
         this.periodicRechecker = new PeriodicRechecker(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.get(settings));
-        clusterService.addListener(this);
+        if (DiscoveryNode.isMasterNode(settings)) {
+            clusterService.addListener(this);
+        }
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING,
             this::setRecheckInterval);
     }
@@ -76,6 +69,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     // visible for testing only
     public void setRecheckInterval(TimeValue recheckInterval) {
         periodicRechecker.setInterval(recheckInterval);
+    }
+
+    // visible for testing only
+    PeriodicRechecker getPeriodicRechecker() {
+        return periodicRechecker;
     }
 
     @Override
@@ -317,6 +315,8 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 logger.trace("checking task reassignment for cluster state {}", event.state().getVersion());
                 reassignPersistentTasks();
             }
+        } else {
+            periodicRechecker.cancel();
         }
     }
 
@@ -333,9 +333,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             @Override
             public void onFailure(String source, Exception e) {
                 logger.warn("failed to reassign persistent tasks", e);
-                // There must be a task that's worth rechecking because there was one
-                // that caused this method to be called and the method failed to assign it
-                periodicRechecker.rescheduleIfNecessary();
+                if (e instanceof NotMasterException == false) {
+                    // There must be a task that's worth rechecking because there was one
+                    // that caused this method to be called and the method failed to assign it,
+                    // but only do this if the node is still the master
+                    periodicRechecker.rescheduleIfNecessary();
+                }
             }
 
             @Override
@@ -450,7 +453,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     /**
      * Class to periodically try to reassign unassigned persistent tasks.
      */
-    private class PeriodicRechecker extends AbstractAsyncTask {
+    class PeriodicRechecker extends AbstractAsyncTask {
 
         PeriodicRechecker(TimeValue recheckInterval) {
             super(logger, threadPool, recheckInterval, false);

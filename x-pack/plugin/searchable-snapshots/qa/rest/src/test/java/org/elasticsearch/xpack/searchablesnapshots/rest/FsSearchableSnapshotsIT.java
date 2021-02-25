@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.searchablesnapshots.rest;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsRestTestCase;
 
@@ -19,14 +19,6 @@ public class FsSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTest
 
     @Override
     protected Settings repositorySettings() {
-        final Settings.Builder settings = Settings.builder();
-        settings.put("location", System.getProperty("tests.path.repo"));
-        if (randomBoolean()) {
-            settings.put("compress", randomBoolean());
-        }
-        if (randomBoolean()) {
-            settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
-        }
-        return settings.build();
+        return Settings.builder().put("location", System.getProperty("tests.path.repo")).build();
     }
 }

@@ -1,33 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.geo;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-
 import org.apache.lucene.geo.GeoTestUtil;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.CircleBuilder;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
@@ -71,8 +58,8 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class GeoShapeQueryTests extends GeoQueryTests {
     protected static final String[] PREFIX_TREES = new String[] {
-        LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.GEOHASH,
-        LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE
+        LegacyGeoShapeFieldMapper.PrefixTrees.GEOHASH,
+        LegacyGeoShapeFieldMapper.PrefixTrees.QUADTREE
     };
 
     @Override
@@ -103,8 +90,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .startObject("properties").startObject("geo")
             .field("type", "geo_shape");
         if (randomBoolean()) {
-            xcb = xcb.field("tree", randomFrom(PREFIX_TREES))
-                .field("strategy", randomFrom(SpatialStrategy.RECURSIVE, SpatialStrategy.TERM));
+            xcb = xcb.field("tree", randomFrom(PREFIX_TREES));
         }
         xcb = xcb.endObject().endObject().endObject();
 
@@ -478,7 +464,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         // don't use random mapping as permits quadtree
         String mapping = Strings.toString(
             usePrefixTrees ?
-                createPrefixTreeMapping(LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE) :
+                createPrefixTreeMapping(LegacyGeoShapeFieldMapper.PrefixTrees.QUADTREE) :
                 createDefaultMapping());
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();

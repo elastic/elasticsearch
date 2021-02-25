@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.blobstore.fs;
@@ -26,10 +15,10 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.core.internal.io.Streams;
 
-import java.io.BufferedInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -48,6 +37,7 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -99,7 +89,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         Map<String, BlobMetadata> builder = new HashMap<>();
 
         blobNamePrefix = blobNamePrefix == null ? "" : blobNamePrefix;
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(path, blobNamePrefix + "*")) {
+        try (DirectoryStream<Path> stream = newDirectoryStreamIfFound(blobNamePrefix)) {
             for (Path file : stream) {
                 final BasicFileAttributes attrs;
                 try {
@@ -114,6 +104,34 @@ public class FsBlobContainer extends AbstractBlobContainer {
             }
         }
         return unmodifiableMap(builder);
+    }
+
+    private DirectoryStream<Path> newDirectoryStreamIfFound(String blobNamePrefix) throws IOException {
+        try {
+            return Files.newDirectoryStream(path, blobNamePrefix + "*");
+        } catch (FileNotFoundException | NoSuchFileException e) {
+            // a nonexistent directory contains no blobs
+            return new DirectoryStream<>() {
+                @Override
+                public Iterator<Path> iterator() {
+                    return new Iterator<>() {
+                        @Override
+                        public boolean hasNext() {
+                            return false;
+                        }
+
+                        @Override
+                        public Path next() {
+                            return null;
+                        }
+                    };
+                }
+
+                @Override
+                public void close() {
+                }
+            };
+        }
     }
 
     @Override
@@ -144,15 +162,16 @@ public class FsBlobContainer extends AbstractBlobContainer {
         IOUtils.rm(blobNames.stream().map(path::resolve).toArray(Path[]::new));
     }
 
-    private InputStream bufferedInputStream(InputStream inputStream) {
-        return new BufferedInputStream(inputStream, blobStore.bufferSizeInBytes());
+    @Override
+    public boolean blobExists(String blobName) {
+        return Files.exists(path.resolve(blobName));
     }
 
     @Override
     public InputStream readBlob(String name) throws IOException {
         final Path resolvedPath = path.resolve(name);
         try {
-            return bufferedInputStream(Files.newInputStream(resolvedPath));
+            return Files.newInputStream(resolvedPath);
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + name + "] blob not found");
         }
@@ -165,7 +184,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             channel.position(position);
         }
         assert channel.position() == position;
-        return bufferedInputStream(org.elasticsearch.common.io.Streams.limitStream(Channels.newInputStream(channel), length));
+        return Streams.limitStream(Channels.newInputStream(channel), length);
     }
 
     @Override
@@ -176,27 +195,40 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        if (failIfAlreadyExists == false) {
-            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
-        }
         final Path file = path.resolve(blobName);
-        try (OutputStream outputStream = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW)) {
-            Streams.copy(inputStream, outputStream);
+        try {
+            writeToPath(inputStream, file, blobSize);
+        } catch (FileAlreadyExistsException faee) {
+            if (failIfAlreadyExists) {
+                throw faee;
+            }
+            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
+            writeToPath(inputStream, file, blobSize);
         }
-        IOUtils.fsync(file, false);
         IOUtils.fsync(path, true);
     }
 
     @Override
-    public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize, boolean failIfAlreadyExists)
-        throws IOException {
+    public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        final Path file = path.resolve(blobName);
+        try {
+            writeToPath(bytes, file);
+        } catch (FileAlreadyExistsException faee) {
+            if (failIfAlreadyExists) {
+                throw faee;
+            }
+            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
+            writeToPath(bytes, file);
+        }
+        IOUtils.fsync(path, true);
+    }
+
+    @Override
+    public void writeBlobAtomic(final String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         final String tempBlob = tempBlobName(blobName);
         final Path tempBlobPath = path.resolve(tempBlob);
         try {
-            try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
-                Streams.copy(inputStream, outputStream);
-            }
-            IOUtils.fsync(tempBlobPath, false);
+            writeToPath(bytes, tempBlobPath);
             moveBlobAtomic(tempBlob, blobName, failIfAlreadyExists);
         } catch (IOException ex) {
             try {
@@ -208,6 +240,22 @@ public class FsBlobContainer extends AbstractBlobContainer {
         } finally {
             IOUtils.fsync(path, true);
         }
+    }
+
+    private void writeToPath(BytesReference bytes, Path tempBlobPath) throws IOException {
+        try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
+            bytes.writeTo(outputStream);
+        }
+        IOUtils.fsync(tempBlobPath, false);
+    }
+
+    private void writeToPath(InputStream inputStream, Path tempBlobPath, long blobSize) throws IOException {
+        try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
+            final int bufferSize = blobStore.bufferSizeInBytes();
+            org.elasticsearch.core.internal.io.Streams.copy(
+                    inputStream, outputStream, new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize]);
+        }
+        IOUtils.fsync(tempBlobPath, false);
     }
 
     public void moveBlobAtomic(final String sourceBlobName, final String targetBlobName, final boolean failIfAlreadyExists)

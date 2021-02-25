@@ -115,7 +115,7 @@ include-tagged::{doc-tests}/SnifferDocumentation.java[sniffer-https]
 
 In the same way it is also possible to customize the `sniffRequestTimeout`,
 which defaults to one second. That is the `timeout` parameter provided as a
-querystring parameter when calling the Nodes Info api, so that when the
+query string parameter when calling the Nodes Info api, so that when the
 timeout expires on the server side, a valid response is still returned
 although it may contain only a subset of the nodes that are part of the
 cluster, the ones that have responded until then.
@@ -126,7 +126,7 @@ include-tagged::{doc-tests}/SnifferDocumentation.java[sniff-request-timeout]
 --------------------------------------------------
 
 Also, a custom `NodesSniffer` implementation can be provided for advanced
-use-cases that may require fetching the `Node`s from external sources rather
+use cases that may require fetching the nodes from external sources rather
 than from Elasticsearch:
 
 ["source","java",subs="attributes,callouts,macros"]

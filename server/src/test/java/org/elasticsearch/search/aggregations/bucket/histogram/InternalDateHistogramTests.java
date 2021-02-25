@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -24,7 +13,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.time.ZonedDateTime;
@@ -58,19 +46,20 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         long interval = randomIntBetween(1, 3);
         intervalMillis = randomFrom(timeValueSeconds(interval), timeValueMinutes(interval), timeValueHours(interval)).getMillis();
         Rounding rounding = Rounding.builder(TimeValue.timeValueMillis(intervalMillis)).build();
-        baseMillis = rounding.round(System.currentTimeMillis());
+        long now = System.currentTimeMillis();
+        baseMillis = rounding.prepare(now, now).round(now);
         if (randomBoolean()) {
             minDocCount = randomIntBetween(1, 10);
             emptyBucketInfo = null;
         } else {
             minDocCount = 0;
-            ExtendedBounds extendedBounds = null;
+            LongBounds extendedBounds = null;
             if (randomBoolean()) {
                 //it's ok if min and max are outside the range of the generated buckets, that will just mean that
                 //empty buckets won't be added before the first bucket and/or after the last one
                 long min = baseMillis - intervalMillis * randomNumberOfBuckets();
                 long max = baseMillis + randomNumberOfBuckets() * intervalMillis;
-                extendedBounds = new ExtendedBounds(min, max);
+                extendedBounds = new LongBounds(min, max);
             }
             emptyBucketInfo = new InternalDateHistogram.EmptyBucketInfo(rounding, InternalAggregations.EMPTY, extendedBounds);
         }
@@ -108,8 +97,12 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             long minBound = -1;
             long maxBound = -1;
             if (emptyBucketInfo.bounds != null) {
-                minBound = emptyBucketInfo.rounding.round(emptyBucketInfo.bounds.getMin());
-                maxBound = emptyBucketInfo.rounding.round(emptyBucketInfo.bounds.getMax());
+                Rounding.Prepared prepared = emptyBucketInfo.rounding.prepare(
+                    emptyBucketInfo.bounds.getMin(),
+                    emptyBucketInfo.bounds.getMax()
+                );
+                minBound = prepared.round(emptyBucketInfo.bounds.getMin());
+                maxBound = prepared.round(emptyBucketInfo.bounds.getMax());
                 if (expectedCounts.isEmpty() && minBound <= maxBound) {
                     expectedCounts.put(minBound, 0L);
                 }
@@ -142,7 +135,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
     }
 
     @Override
-    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+    protected Class<ParsedDateHistogram> implementationClass() {
         return ParsedDateHistogram.class;
     }
 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.join.query;
 
@@ -44,10 +33,9 @@ import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.join.mapper.ParentIdFieldMapper;
-import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+import org.elasticsearch.join.mapper.Joiner;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -297,14 +285,14 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[joining] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
 
-        ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());
-        if (joinFieldMapper == null) {
+        Joiner joiner = Joiner.getJoiner(context);
+        if (joiner == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
@@ -312,30 +300,37 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             }
         }
 
-        ParentIdFieldMapper parentIdFieldMapper = joinFieldMapper.getParentIdFieldMapper(type, false);
-        if (parentIdFieldMapper != null) {
-            Query parentFilter = parentIdFieldMapper.getParentFilter();
-            Query childFilter = parentIdFieldMapper.getChildFilter(type);
-            Query innerQuery = Queries.filtered(query.toQuery(context), childFilter);
-            MappedFieldType fieldType = parentIdFieldMapper.fieldType();
-            final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
-            return new LateParsingQuery(parentFilter, innerQuery, minChildren(), maxChildren(),
-                fieldType.name(), scoreMode, fieldData, context.getSearchSimilarity());
-        } else {
+        if (joiner.childTypeExists(type) == false) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
-                throw new QueryShardException(context, "[" + NAME + "] join field [" + joinFieldMapper.name() +
+                throw new QueryShardException(context, "[" + NAME + "] join field [" + joiner.getJoinField() +
                     "] doesn't hold [" + type + "] as a child");
             }
         }
+
+        String parentJoinField = joiner.parentJoinField(type);
+        if (context.isFieldMapped(parentJoinField) == false) {
+            if (ignoreUnmapped) {
+                return new MatchNoDocsQuery();
+            }
+            throw new QueryShardException(context, "[" + NAME + "] no parent join field [" + parentJoinField + "] configured");
+        }
+
+        Query parentFilter = joiner.parentFilter(type);
+        Query childFilter = joiner.filter(type);
+        Query filteredQuery = Queries.filtered(query.toQuery(context), childFilter);
+        MappedFieldType ft = context.getFieldType(parentJoinField);
+        final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(ft);
+        return new LateParsingQuery(parentFilter, filteredQuery, minChildren, maxChildren,
+            parentJoinField, scoreMode, fieldData, context.getSearchSimilarity());
     }
 
     /**
      * A query that rewrites into another query using
      * {@link JoinUtil#createJoinQuery(String, Query, Query, IndexSearcher, ScoreMode, OrdinalMap, int, int)}
      * that executes the actual join.
-     *
+     * <p>
      * This query is exclusively used by the {@link HasChildQueryBuilder} and {@link HasParentQueryBuilder} to get access
      * to the {@link DirectoryReader} used by the current search in order to retrieve the {@link OrdinalMap}.
      * The {@link OrdinalMap} is required by {@link JoinUtil} to execute the join.
@@ -400,9 +395,9 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
             if (minChildren != that.minChildren) return false;
             if (maxChildren != that.maxChildren) return false;
-            if (!toQuery.equals(that.toQuery)) return false;
-            if (!innerQuery.equals(that.innerQuery)) return false;
-            if (!joinField.equals(that.joinField)) return false;
+            if (toQuery.equals(that.toQuery) == false) return false;
+            if (innerQuery.equals(that.innerQuery) == false) return false;
+            if (joinField.equals(that.joinField) == false) return false;
             return scoreMode == that.scoreMode;
         }
 
@@ -454,8 +449,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder rewrittenQuery = query.rewrite(queryShardContext);
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder rewrittenQuery = query.rewrite(queryRewriteContext);
         if (rewrittenQuery != query) {
             HasChildQueryBuilder hasChildQueryBuilder =
                 new HasChildQueryBuilder(type, rewrittenQuery, minChildren, maxChildren, scoreMode, innerHitBuilder);

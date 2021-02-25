@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
@@ -66,7 +67,7 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
         process = mock(AnalyticsProcess.class);
         when(process.readAnalyticsResults()).thenReturn(List.of(PROCESS_RESULT).iterator());
         processFactory = mock(AnalyticsProcessFactory.class);
-        when(processFactory.createAnalyticsProcess(any(), any(), any(), any(), any())).thenReturn(process);
+        when(processFactory.createAnalyticsProcess(any(), any(), anyBoolean(), any(), any())).thenReturn(process);
         dataExtractor = mock(DataFrameDataExtractor.class);
         when(dataExtractor.collectDataSummary()).thenReturn(new DataFrameDataExtractor.DataSummary(NUM_ROWS, NUM_COLS));
         dataExtractorFactory = mock(DataFrameDataExtractorFactory.class);
@@ -108,7 +109,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
         InOrder inOrder = inOrder(process);
         inOrder.verify(process).readAnalyticsResults();
         inOrder.verify(process).readError();
-        inOrder.verify(process).consumeAndCloseOutputStream();
         inOrder.verify(process).close();
         verifyNoMoreInteractions(process, listener);
     }
@@ -127,7 +127,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
         InOrder inOrder = inOrder(process);
         inOrder.verify(process).readAnalyticsResults();
         inOrder.verify(process).readError();
-        inOrder.verify(process).consumeAndCloseOutputStream();
         inOrder.verify(process).close();
         verifyNoMoreInteractions(process, listener);
     }
@@ -146,7 +145,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
         InOrder inOrder = inOrder(process);
         inOrder.verify(process).readAnalyticsResults();
         inOrder.verify(process).readError();
-        inOrder.verify(process).consumeAndCloseOutputStream();
         inOrder.verify(process).close();
         verifyNoMoreInteractions(process, listener);
     }
@@ -164,7 +162,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
 
         InOrder inOrder = inOrder(process);
         inOrder.verify(process).readAnalyticsResults();
-        inOrder.verify(process).consumeAndCloseOutputStream();
         inOrder.verify(process).close();
         inOrder.verify(process).readError();
         verifyNoMoreInteractions(process, listener);
@@ -186,7 +183,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
 
         InOrder inOrder = inOrder(process);
         inOrder.verify(process).readAnalyticsResults();
-        inOrder.verify(process).consumeAndCloseOutputStream();
         inOrder.verify(process).close();
         inOrder.verify(process).readError();
         verifyNoMoreInteractions(process, listener);
@@ -201,7 +197,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
 
         InOrder inOrder = inOrder(process);
         inOrder.verify(process).readAnalyticsResults();
-        inOrder.verify(process).consumeAndCloseOutputStream();
         inOrder.verify(process).close();
         verifyNoMoreInteractions(process, listener);
     }

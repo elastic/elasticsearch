@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.action;
@@ -21,13 +22,15 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.hasItemInArray;
-
 public class TransformNodesTests extends ESTestCase {
 
     public void testTransformNodes() {
         String transformIdFoo = "df-id-foo";
         String transformIdBar = "df-id-bar";
+        String transformIdFailed = "df-id-failed";
+        String transformIdBaz = "df-id-baz";
+        String transformIdOther = "df-id-other";
+        String transformIdStopped = "df-id-stopped";
 
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         tasksBuilder.addTask(
@@ -63,20 +66,73 @@ public class TransformNodesTests extends ESTestCase {
                 return null;
             }
         }, new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment"));
+        tasksBuilder.addTask(
+            transformIdFailed,
+            TransformField.TASK_NAME,
+            new TransformTaskParams(transformIdFailed, Version.CURRENT, null, false),
+            new PersistentTasksCustomMetadata.Assignment(null, "awaiting reassignment after node loss")
+        );
+        tasksBuilder.addTask(
+            transformIdBaz,
+            TransformField.TASK_NAME,
+            new TransformTaskParams(transformIdBaz, Version.CURRENT, null, false),
+            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
+        );
+        tasksBuilder.addTask(
+            transformIdOther,
+            TransformField.TASK_NAME,
+            new TransformTaskParams(transformIdOther, Version.CURRENT, null, false),
+            new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment")
+        );
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
             .build();
 
-        String[] nodes = TransformNodes.transformTaskNodes(Arrays.asList(transformIdFoo, transformIdBar), cs);
-        assertEquals(2, nodes.length);
-        assertThat(nodes, hasItemInArray("node-1"));
-        assertThat(nodes, hasItemInArray("node-2"));
+        // don't ask for transformIdOther
+        TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(
+            Arrays.asList(transformIdFoo, transformIdBar, transformIdFailed, transformIdBaz, transformIdStopped),
+            cs
+        );
+        assertEquals(2, transformNodeAssignments.getExecutorNodes().size());
+        assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
+        assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-2"));
+        assertFalse(transformNodeAssignments.getExecutorNodes().contains(null));
+        assertFalse(transformNodeAssignments.getExecutorNodes().contains("node-3"));
+        assertEquals(1, transformNodeAssignments.getWaitingForAssignment().size());
+        assertTrue(transformNodeAssignments.getWaitingForAssignment().contains(transformIdFailed));
+        assertEquals(3, transformNodeAssignments.getAssigned().size());
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdFoo));
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdBar));
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdBaz));
+        assertFalse(transformNodeAssignments.getAssigned().contains(transformIdFailed));
+        assertEquals(1, transformNodeAssignments.getStopped().size());
+        assertTrue(transformNodeAssignments.getStopped().contains(transformIdStopped));
+
+        transformNodeAssignments = TransformNodes.transformTaskNodes(
+            Arrays.asList(transformIdFoo, transformIdFailed),
+            cs
+        );
+
+        assertEquals(1, transformNodeAssignments.getExecutorNodes().size());
+        assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
+        assertEquals(1, transformNodeAssignments.getWaitingForAssignment().size());
+        assertTrue(transformNodeAssignments.getWaitingForAssignment().contains(transformIdFailed));
+        assertEquals(1, transformNodeAssignments.getAssigned().size());
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdFoo));
+        assertFalse(transformNodeAssignments.getAssigned().contains(transformIdFailed));
+        assertEquals(0, transformNodeAssignments.getStopped().size());
     }
 
     public void testTransformNodes_NoTasks() {
         ClusterState emptyState = ClusterState.builder(new ClusterName("_name")).build();
-        String[] nodes = TransformNodes.transformTaskNodes(Collections.singletonList("df-id"), emptyState);
-        assertEquals(0, nodes.length);
+        TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(
+            Collections.singletonList("df-id"),
+            emptyState
+        );
+
+        assertEquals(0, transformNodeAssignments.getExecutorNodes().size());
+        assertEquals(1, transformNodeAssignments.getStopped().size());
+        assertTrue(transformNodeAssignments.getStopped().contains("df-id"));
     }
 }

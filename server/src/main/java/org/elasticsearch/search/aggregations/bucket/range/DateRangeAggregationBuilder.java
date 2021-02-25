@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -38,6 +27,10 @@ import java.util.Map;
 
 public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeAggregationBuilder, RangeAggregator.Range> {
     public static final String NAME = "date_range";
+    public static final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        RangeAggregatorSupplier.class
+    );
 
     public static final ObjectParser<DateRangeAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME,  DateRangeAggregationBuilder::new);
@@ -53,7 +46,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        AbstractRangeAggregatorFactory.registerAggregators(builder, NAME);
+        AbstractRangeAggregatorFactory.registerAggregators(builder, REGISTRY_KEY);
     }
 
     public DateRangeAggregationBuilder(String name) {
@@ -81,6 +74,11 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 
     @Override
@@ -292,9 +290,11 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     }
 
     @Override
-    protected DateRangeAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
+    protected DateRangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                                     AggregatorFactory parent,
                                                     AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        RangeAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         // We need to call processRanges here so they are parsed and we know whether `now` has been used before we make
         // the decision of whether to cache the request
         RangeAggregator.Range[] ranges = processRanges(range -> {
@@ -305,23 +305,23 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
             String fromAsString = range.getFromAsString();
             String toAsString = range.getToAsString();
             if (fromAsString != null) {
-                from = parser.parseDouble(fromAsString, false, queryShardContext::nowInMillis);
+                from = parser.parseDouble(fromAsString, false, context::nowInMillis);
             } else if (Double.isFinite(from)) {
                 // from/to provided as double should be converted to string and parsed regardless to support
                 // different formats like `epoch_millis` vs. `epoch_second` with numeric input
-                from = parser.parseDouble(Long.toString((long) from), false, queryShardContext::nowInMillis);
+                from = parser.parseDouble(Long.toString((long) from), false, context::nowInMillis);
             }
             if (toAsString != null) {
-                to = parser.parseDouble(toAsString, false, queryShardContext::nowInMillis);
+                to = parser.parseDouble(toAsString, false, context::nowInMillis);
             } else if (Double.isFinite(to)) {
-                to = parser.parseDouble(Long.toString((long) to), false, queryShardContext::nowInMillis);
+                to = parser.parseDouble(Long.toString((long) to), false, context::nowInMillis);
             }
             return new RangeAggregator.Range(range.getKey(), from, fromAsString, to, toAsString);
         });
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
-        return new DateRangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, queryShardContext, parent, subFactoriesBuilder,
-                metadata);
+        return new DateRangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
+                metadata, aggregatorSupplier);
     }
 }

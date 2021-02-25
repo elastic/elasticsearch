@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.store;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
@@ -70,14 +72,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("remote_monitoring_agent", new RoleDescriptor("remote_monitoring_agent",
                         new String[] {
                                 "manage_index_templates", "manage_ingest_pipelines", "monitor",
+                                GetLifecycleAction.NAME,  PutLifecycleAction.NAME,
                                 "cluster:monitor/xpack/watcher/watch/get",
                                 "cluster:admin/xpack/watcher/watch/put",
-                                "cluster:admin/xpack/watcher/watch/delete",
+                                "cluster:admin/xpack/watcher/watch/delete"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("all").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices("metricbeat-*").privileges("index", "create_index").build() },
+                                    .indices("metricbeat-*").privileges("index", "create_index", "view_index_metadata",
+                                        IndicesAliasesAction.NAME).build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("remote_monitoring_collector", new RoleDescriptor(
                         "remote_monitoring_collector",
@@ -116,8 +120,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             "monitor", "manage_index_templates", MonitoringBulkAction.NAME, "manage_saml", "manage_token", "manage_oidc",
                             InvalidateApiKeyAction.NAME, "grant_api_key",
                             GetBuiltinPrivilegesAction.NAME, "delegate_pki", GetLifecycleAction.NAME,  PutLifecycleAction.NAME,
+                            // To facilitate ML UI functionality being controlled using Kibana security privileges
+                            "manage_ml",
                             // The symbolic constant for this one is in SecurityActionMapper, so not accessible from X-Pack core
-                            "cluster:admin/analyze"
+                            "cluster:admin/analyze",
+                            // To facilitate using the file uploader functionality
+                            "monitor_text_structure",
+                            // To cancel tasks and delete async searches
+                            "cancel_task"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()
@@ -126,6 +136,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                         .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".management-beats").privileges("create_index", "read", "write").build(),
+                                // To facilitate ML UI functionality being controlled using Kibana security privileges
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices(".ml-anomalies*", ".ml-notifications*", ".ml-stats-*")
+                                        .privileges("read").build(),
+                                RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*")
+                                        .privileges("read", "write").build(),
                                 // APM agent configuration
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".apm-agent-configuration").privileges("all").build(),
@@ -136,6 +152,19 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("apm-*")
                                     .privileges("read", "read_cross_cluster").build(),
+                                // Data telemetry reads mappings, metadata and stats of indices
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices("*")
+                                    .privileges("view_index_metadata", "monitor").build(),
+                                // Endpoint diagnostic information. Kibana reads from these indices to send telemetry
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices(".logs-endpoint.diagnostic.collection-*")
+                                    .privileges("read").build(),
+                                // Fleet Server indices. Kibana create this indice before Fleet Server use them.
+                                // Fleet Server indices. Kibana read and write to this indice to manage Elastic Agents
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices(".fleet*")
+                                    .privileges("all").build(),
                         },
                         null,
                         new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },
@@ -167,8 +196,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         RoleDescriptor.IndicesPrivileges.builder().indices("apm-*")
                             .privileges("read", "view_index_metadata").build(),
                         RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*")
-                            .privileges("view_index_metadata", "read").build(),
-                    }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                            .privileges("read", "view_index_metadata").build(),
+                        RoleDescriptor.IndicesPrivileges.builder().indices("observability-annotations")
+                            .privileges("read", "view_index_metadata").build()
+                    }, new RoleDescriptor.ApplicationResourcePrivileges[] {
+                            RoleDescriptor.ApplicationResourcePrivileges.builder()
+                                .application("kibana-*").resources("*").privileges("reserved_ml_apm_user").build()
+                        }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
                 .put("machine_learning_user", new RoleDescriptor("machine_learning_user", new String[] { "monitor_ml" },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*", ".ml-notifications*")
@@ -176,6 +210,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*")
                                         .privileges("view_index_metadata", "read", "write").build()
                         },
+                        // TODO: remove Kibana privileges from ML backend roles in 8.0.0
                         new RoleDescriptor.ApplicationResourcePrivileges[] {
                             RoleDescriptor.ApplicationResourcePrivileges.builder()
                                 .application("kibana-*").resources("*").privileges("reserved_ml_user").build()
@@ -189,6 +224,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*")
                                         .privileges("view_index_metadata", "read", "write").build()
                         },
+                        // TODO: remove Kibana privileges from ML backend roles in 8.0.0
                         new RoleDescriptor.ApplicationResourcePrivileges[] {
                             RoleDescriptor.ApplicationResourcePrivileges.builder()
                                 .application("kibana-*").resources("*").privileges("reserved_ml_admin").build()
@@ -253,7 +289,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 RoleDescriptor.IndicesPrivileges.builder().indices(HistoryStoreField.INDEX_PREFIX + "*")
                                         .privileges("read")
                                         .build() }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("logstash_admin", new RoleDescriptor("logstash_admin", null, new RoleDescriptor.IndicesPrivileges[] {
+                .put("logstash_admin", new RoleDescriptor("logstash_admin", new String[] {"manage_logstash_pipelines"},
+                    new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder().indices(".logstash*")
                                 .privileges("create", "delete", "index", "manage", "read").build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))

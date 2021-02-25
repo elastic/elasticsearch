@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -90,9 +92,9 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
                                                         deleteCandidate.getSnapshotId(), deleteCandidate.getDescription());
 
                                                 auditor.info(request.getJobId(), msg);
-                                                logger.debug("[{}] {}", request.getJobId(), msg);
+                                                logger.debug(() -> new ParameterizedMessage("[{}] {}", request.getJobId(), msg));
                                                 // We don't care about the bulk response, just that it succeeded
-                                                listener.onResponse(new AcknowledgedResponse(true));
+                                                listener.onResponse(AcknowledgedResponse.TRUE);
                                             }
 
                                             @Override

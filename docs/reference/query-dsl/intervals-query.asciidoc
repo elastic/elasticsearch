@@ -18,7 +18,7 @@ parent sources.
 ==== Example request
 
 The following `intervals` search returns documents containing `my
-favorite food` immediately followed by `hot water` or `cold porridge` in the
+favorite food` without any gap, followed by `hot water` or `cold porridge` in the
 `my_text` field.
 
 This search would match a `my_text` value of `my favorite food is cold
@@ -98,7 +98,7 @@ set to `0`, the terms must appear next to each other.
 --
 
 `ordered`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, matching terms must appear in their specified order. Defaults to
 `false`.
 
@@ -193,7 +193,7 @@ edit distance defined by <<fuzziness>>.  If the fuzzy expansion matches more tha
 expansions. Defaults to `0`.
 
 `transpositions`::
-(Optional, boolean) Indicates whether edits include transpositions of two
+(Optional, Boolean) Indicates whether edits include transpositions of two
 adjacent characters (ab → ba). Defaults to `true`.
 
 `fuzziness`::
@@ -235,7 +235,7 @@ set to `0`, the terms must appear next to each other.
 --
 
 `ordered`::
-(Optional, boolean) If `true`, intervals produced by the rules should appear in
+(Optional, Boolean) If `true`, intervals produced by the rules should appear in
 the order in which they are specified. Defaults to `false`.
 
 `filter`::

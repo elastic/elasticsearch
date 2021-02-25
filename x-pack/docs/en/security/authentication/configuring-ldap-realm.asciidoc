@@ -19,7 +19,7 @@ However, multiple bind operations might be needed to find the correct user DN.
 
 . To configure an `ldap` realm with user search:
 
-.. Add a realm configuration of to `elasticsearch.yml` under the
+.. Add a realm configuration to `elasticsearch.yml` under the
 `xpack.security.authc.realms.ldap` namespace. At a minimum, you must specify
 the `url` and `order` of the LDAP server, and set `user_search.base_dn` to the
 container DN where the users are searched for.

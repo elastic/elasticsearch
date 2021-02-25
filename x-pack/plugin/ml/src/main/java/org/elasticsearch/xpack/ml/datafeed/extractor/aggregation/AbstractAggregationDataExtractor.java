@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
@@ -47,7 +48,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
      * post data action too often. The value of 1000 was determined via
      * such testing.
      */
-    private static int BATCH_KEY_VALUE_PAIRS = 1000;
+    private static final int BATCH_KEY_VALUE_PAIRS = 1000;
 
     protected final Client client;
     protected final AggregationDataExtractorContext context;
@@ -55,7 +56,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
     private boolean hasNext;
     private boolean isCancelled;
     private AggregationToJsonProcessor aggregationToJsonProcessor;
-    private ByteArrayOutputStream outputStream;
+    private final ByteArrayOutputStream outputStream;
 
     AbstractAggregationDataExtractor(
             Client client, AggregationDataExtractorContext dataExtractorContext, DatafeedTimingStatsReporter timingStatsReporter) {
@@ -91,7 +92,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
 
     @Override
     public Optional<InputStream> next() throws IOException {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
@@ -104,7 +105,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
             initAggregationProcessor(aggs);
         }
 
-        return Optional.ofNullable(processNextBatch());
+        return Optional.of(processNextBatch());
     }
 
     private Aggregations search() {
@@ -137,6 +138,9 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
             .size(0)
             .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, histogramSearchStartTime, context.end));
 
+        if (context.runtimeMappings.isEmpty() == false) {
+            searchSourceBuilder.runtimeMappings(context.runtimeMappings);
+        }
         context.aggs.getAggregatorFactories().forEach(searchSourceBuilder::aggregation);
         context.aggs.getPipelineAggregatorFactories().forEach(searchSourceBuilder::aggregation);
         return searchSourceBuilder;

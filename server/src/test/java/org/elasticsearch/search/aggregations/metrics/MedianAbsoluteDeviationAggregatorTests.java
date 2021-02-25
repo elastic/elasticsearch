@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -66,7 +55,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
 
     private static final int SAMPLE_MIN = -1000000;
     private static final int SAMPLE_MAX = 1000000;
-    public static final String FIELD_NAME = "number";
+    private static final String FIELD_NAME = "number";
 
     /** Script to return the {@code _value} provided by aggs framework. */
     private static final String VALUE_SCRIPT = "_value";
@@ -182,7 +171,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         }, agg -> {
             assertEquals(Double.NaN,  agg.getMedianAbsoluteDeviation(),0);
             assertFalse(AggregationInspectionHelper.hasValue(agg));
-        },  null);
+        });
     }
 
     public void testUnmappedMissing() throws IOException {
@@ -197,13 +186,12 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         }, agg -> {
             assertEquals(0, agg.getMedianAbsoluteDeviation(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(agg));
-        }, null);
+        });
     }
 
     public void testValueScript() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        fieldType.setName(FIELD_NAME);
-        fieldType.setHasDocValues(true);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         MedianAbsoluteDeviationAggregationBuilder aggregationBuilder = new MedianAbsoluteDeviationAggregationBuilder("foo")
             .field(FIELD_NAME)
@@ -227,8 +215,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         MedianAbsoluteDeviationAggregationBuilder aggregationBuilder = new MedianAbsoluteDeviationAggregationBuilder("foo")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SINGLE_SCRIPT, Collections.emptyMap()));
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        fieldType.setName(FIELD_NAME);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         final int size = randomIntBetween(100, 1000);
         final List<Long> sample = new ArrayList<>(size);
@@ -253,16 +241,20 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             .field(FIELD_NAME)
             .compression(randomDoubleBetween(20, 1000, true));
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        fieldType.setName(FIELD_NAME);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         testAggregation(builder, query, buildIndex, verify, fieldType);
     }
 
-    private void testAggregation(AggregationBuilder aggregationBuilder, Query query,
-                          CheckedConsumer<RandomIndexWriter, IOException> indexer,
-                          Consumer<InternalMedianAbsoluteDeviation> verify, MappedFieldType fieldType) throws IOException {
-        testCase(aggregationBuilder, query, indexer, verify, fieldType);
+    private void testAggregation(
+        AggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> indexer,
+        Consumer<InternalMedianAbsoluteDeviation> verify,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        testCase(aggregationBuilder, query, indexer, verify, fieldTypes);
     }
 
     public static class IsCloseToRelative extends TypeSafeMatcher<Double> {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
@@ -164,6 +165,13 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         if (maxFeatureIndex >= featureNames.size()) {
             throw ExceptionsHelper.badRequestException("feature index [{}] is out of bounds for the [{}] array",
                     maxFeatureIndex, FEATURE_NAMES.getPreferredName());
+        }
+        if (nodes.size() > 1) {
+            if (featureNames.isEmpty()) {
+                throw ExceptionsHelper.badRequestException("[{}] is empty and the tree has > 1 nodes; num nodes [{}]. " +
+                        "The model Must have features if tree is not a stump",
+                    FEATURE_NAMES.getPreferredName(), nodes.size());
+            }
         }
         checkTargetType();
         detectMissingNodes();

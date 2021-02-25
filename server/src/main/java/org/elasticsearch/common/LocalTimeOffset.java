@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common;
@@ -22,6 +11,7 @@ package org.elasticsearch.common;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.ChronoField;
 import java.time.zone.ZoneOffsetTransition;
 import java.time.zone.ZoneOffsetTransitionRule;
 import java.time.zone.ZoneRules;
@@ -54,7 +44,7 @@ public abstract class LocalTimeOffset {
      * Lookup offsets for a provided zone. This <strong>can</strong> fail if
      * there are many transitions and the provided lookup would be very large.
      *
-     * @return a {@linkplain Lookup} or {@code null} if none could be built 
+     * @return a {@linkplain Lookup} or {@code null} if none could be built
      */
     public static Lookup lookup(ZoneId zone, long minUtcMillis, long maxUtcMillis) {
         if (minUtcMillis > maxUtcMillis) {
@@ -89,7 +79,7 @@ public abstract class LocalTimeOffset {
      * Lookup offsets without any known min or max time. This will generally
      * fail if the provided zone isn't fixed.
      *
-     * @return a lookup function of {@code null} if none could be built 
+     * @return a lookup function of {@code null} if none could be built
      */
     public static LocalTimeOffset fixedOffset(ZoneId zone) {
         return checkForFixedZone(zone, zone.getRules());
@@ -174,6 +164,12 @@ public abstract class LocalTimeOffset {
      */
     protected abstract LocalTimeOffset offsetContaining(long utcMillis);
 
+    /**
+     * Does this transition or any previous transitions move back to the
+     * previous day? See {@link Lookup#anyMoveBackToPreviousDay()} for rules.
+     */
+    protected abstract boolean anyMoveBackToPreviousDay();
+
     @Override
     public String toString() {
         return toString(millis);
@@ -194,6 +190,15 @@ public abstract class LocalTimeOffset {
          * return {@code null}.
          */
         public abstract LocalTimeOffset fixedInRange(long minUtcMillis, long maxUtcMillis);
+
+        /**
+         * Do any of the transitions move back to the previous day?
+         * <p>
+         * Note: If an overlap occurs at, say, 1 am and jumps back to
+         * <strong>exactly</strong> midnight then it doesn't count because
+         * midnight is still counted as being in the "next" day.
+         */
+        public abstract boolean anyMoveBackToPreviousDay();
 
         /**
          * The number of offsets in the lookup. Package private for testing.
@@ -223,6 +228,11 @@ public abstract class LocalTimeOffset {
              * the provided time.
              */
             return this;
+        }
+
+        @Override
+        protected boolean anyMoveBackToPreviousDay() {
+            return false;
         }
 
         @Override
@@ -299,6 +309,11 @@ public abstract class LocalTimeOffset {
         }
 
         @Override
+        protected boolean anyMoveBackToPreviousDay() {
+            return previous().anyMoveBackToPreviousDay();
+        }
+
+        @Override
         protected String toString(long millis) {
             return "Gap of " + millis + "@" + Instant.ofEpochMilli(startUtcMillis());
         }
@@ -307,13 +322,21 @@ public abstract class LocalTimeOffset {
     public static class Overlap extends Transition {
         private final long firstOverlappingLocalTime;
         private final long firstNonOverlappingLocalTime;
+        private final boolean movesBackToPreviousDay;
 
-        private Overlap(long millis, LocalTimeOffset previous, long startUtcMillis,
-                long firstOverlappingLocalTime, long firstNonOverlappingLocalTime) {
+        private Overlap(
+            long millis,
+            LocalTimeOffset previous,
+            long startUtcMillis,
+            long firstOverlappingLocalTime,
+            long firstNonOverlappingLocalTime,
+            boolean movesBackToPreviousDay
+        ) {
             super(millis, previous, startUtcMillis);
             this.firstOverlappingLocalTime = firstOverlappingLocalTime;
             this.firstNonOverlappingLocalTime = firstNonOverlappingLocalTime;
             assert firstOverlappingLocalTime < firstNonOverlappingLocalTime;
+            this.movesBackToPreviousDay = movesBackToPreviousDay;
         }
 
         @Override
@@ -339,6 +362,11 @@ public abstract class LocalTimeOffset {
          */
         public long firstOverlappingLocalTime() {
             return firstOverlappingLocalTime;
+        }
+
+        @Override
+        protected boolean anyMoveBackToPreviousDay() {
+            return movesBackToPreviousDay || previous().anyMoveBackToPreviousDay();
         }
 
         @Override
@@ -375,6 +403,11 @@ public abstract class LocalTimeOffset {
         public String toString() {
             return String.format(Locale.ROOT, "FixedLookup[for %s at %s]", zone, fixed);
         }
+
+        @Override
+        public boolean anyMoveBackToPreviousDay() {
+            return false;
+        }
     }
 
     /**
@@ -405,6 +438,11 @@ public abstract class LocalTimeOffset {
         @Override
         int size() {
             return size;
+        }
+
+        @Override
+        public boolean anyMoveBackToPreviousDay() {
+            return lastOffset.anyMoveBackToPreviousDay();
         }
     }
 
@@ -451,6 +489,11 @@ public abstract class LocalTimeOffset {
         @Override
         int size() {
             return offsets.length;
+        }
+
+        @Override
+        public boolean anyMoveBackToPreviousDay() {
+            return offsets[offsets.length - 1].anyMoveBackToPreviousDay();
         }
 
         @Override
@@ -505,7 +548,25 @@ public abstract class LocalTimeOffset {
             }
             long firstOverlappingLocalTime = utcStart + offsetAfterMillis;
             long firstNonOverlappingLocalTime = utcStart + offsetBeforeMillis;
-            return new Overlap(offsetAfterMillis, previous, utcStart, firstOverlappingLocalTime, firstNonOverlappingLocalTime);
+            return new Overlap(
+                offsetAfterMillis,
+                previous,
+                utcStart,
+                firstOverlappingLocalTime,
+                firstNonOverlappingLocalTime,
+                movesBackToPreviousDay(transition)
+            );
+        }
+
+        private static boolean movesBackToPreviousDay(ZoneOffsetTransition transition) {
+            if (transition.getDateTimeBefore().getDayOfMonth() == transition.getDateTimeAfter().getDayOfMonth()) {
+                return false;
+            }
+            if (transition.getDateTimeBefore().getLong(ChronoField.NANO_OF_DAY) == 0L) {
+                // If we change *at* midnight this is ok.
+                return false;
+            }
+            return true;
         }
     }
 
@@ -630,7 +691,7 @@ public abstract class LocalTimeOffset {
         }
         if (minYear == maxYear) {
             if (transitions.isEmpty()) {
-                // Make sure we have *some* transition to work with. 
+                // Make sure we have *some* transition to work with.
                 transitions.add(lastTransitionFromMinYear);
             }
             return transitions;

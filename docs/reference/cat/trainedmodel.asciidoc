@@ -23,8 +23,7 @@ privileges:
 
 * cluster: `monitor_ml`
 
-For more information, see <<security-privileges>> and 
-{ml-docs}/setup.html[Set up {ml-features}].
+For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
 
 
 ////
@@ -111,7 +110,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET _cat/ml/trained_models?h=c,o,l,ct,v&v
+GET _cat/ml/trained_models?h=c,o,l,ct,v&v=ture
 --------------------------------------------------
 // TEST[skip:kibana sample data]
 

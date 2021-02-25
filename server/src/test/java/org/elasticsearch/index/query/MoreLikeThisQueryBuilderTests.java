@@ -1,25 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
@@ -257,7 +248,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     @Override
-    protected void doAssertLuceneQuery(MoreLikeThisQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(MoreLikeThisQueryBuilder queryBuilder, Query query,SearchExecutionContext context) {
         if (CollectionUtils.isEmpty(queryBuilder.likeItems()) == false) {
             assertThat(query, instanceOf(BooleanQuery.class));
             BooleanQuery booleanQuery = (BooleanQuery) query;
@@ -292,12 +283,27 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         MoreLikeThisQueryBuilder queryBuilder =
             new MoreLikeThisQueryBuilder(new String[] {unsupportedField}, new String[]{"some text"}, null)
                 .failOnUnsupportedField(true);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> queryBuilder.toQuery(createShardContext()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> queryBuilder.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("more_like_this only supports text/keyword fields"));
     }
 
+    public void testUsesIndexAnalyzer() throws IOException {
+        MoreLikeThisQueryBuilder qb
+            = new MoreLikeThisQueryBuilder(new String[]{KEYWORD_FIELD_NAME}, new String[]{"some text"}, null);
+        MoreLikeThisQuery q = (MoreLikeThisQuery) qb.toQuery(createSearchExecutionContext());
+        try (TokenStream ts = q.getAnalyzer().tokenStream(KEYWORD_FIELD_NAME, "some text")) {
+            ts.reset();
+            CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
+            assertTrue(ts.incrementToken());
+            assertEquals("some text", termAtt.toString());
+            assertFalse(ts.incrementToken());
+            ts.end();
+        }
+    }
+
     public void testDefaultField() throws IOException {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
 
         {
             MoreLikeThisQueryBuilder builder =
@@ -332,7 +338,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     public void testMoreLikeThisBuilder() throws Exception {
         Query parsedQuery =
             parseQuery(moreLikeThisQuery(new String[]{"name.first", "name.last"}, new String[]{"something"}, null)
-                .minTermFreq(1).maxQueryTerms(12)).toQuery(createShardContext());
+                .minTermFreq(1).maxQueryTerms(12)).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
         MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
         assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));
@@ -380,25 +386,25 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     public void testCacheability() throws IOException {
         MoreLikeThisQueryBuilder queryBuilder = createTestQueryBuilder();
         boolean isCacheable = queryBuilder.likeItems().length == 0; // items are always fetched
-        QueryShardContext context = createShardContext();
-        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
         assertEquals("query should " + (isCacheable ? "" : "not") + " be cacheable: " + queryBuilder.toString(), isCacheable,
                 context.isCacheable());
 
         // specifically trigger case where query is cacheable
         queryBuilder = new MoreLikeThisQueryBuilder(randomStringFields(), new String[] {"some text"}, null);
-        context = createShardContext();
-        rewriteQuery(queryBuilder, new QueryShardContext(context));
-        rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        context = createSearchExecutionContext();
+        rewriteQuery(queryBuilder, new SearchExecutionContext(context));
+        rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
 
         // specifically trigger case where query is not cacheable
         queryBuilder = new MoreLikeThisQueryBuilder(randomStringFields(), null, new Item[] { new Item("foo", "1") });
-        context = createShardContext();
-        rewriteQuery(queryBuilder, new QueryShardContext(context));
-        rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        context = createSearchExecutionContext();
+        rewriteQuery(queryBuilder, new SearchExecutionContext(context));
+        rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
         assertFalse("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.rest;
 
@@ -20,7 +21,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -48,6 +48,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.xpack.ql.TestUtils.getNumberOfSearchContexts;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -417,6 +418,50 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
+    public void testCountAndCountDistinct() throws IOException {
+        String mode = randomMode();
+        index(
+            "test",
+            "{\"gender\":\"m\", \"langs\": 1}",
+            "{\"gender\":\"m\", \"langs\": 1}",
+            "{\"gender\":\"m\", \"langs\": 2}",
+            "{\"gender\":\"m\", \"langs\": 3}",
+            "{\"gender\":\"m\", \"langs\": 3}",
+            "{\"gender\":\"f\", \"langs\": 1}",
+            "{\"gender\":\"f\", \"langs\": 2}",
+            "{\"gender\":\"f\", \"langs\": 2}",
+            "{\"gender\":\"f\", \"langs\": 2}",
+            "{\"gender\":\"f\", \"langs\": 3}",
+            "{\"gender\":\"f\", \"langs\": 3}"
+        );
+
+        Map<String, Object> expected = new HashMap<>();
+        boolean columnar = randomBoolean();
+        expected.put(
+            "columns",
+            Arrays.asList(
+                columnInfo(mode, "gender", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
+                columnInfo(mode, "cnt", "long", JDBCType.BIGINT, 20),
+                columnInfo(mode, "cnt_dist", "long", JDBCType.BIGINT, 20)
+            )
+        );
+        if (columnar) {
+            expected.put("values", Arrays.asList(Arrays.asList("f", "m"), Arrays.asList(6, 5), Arrays.asList(3, 3)));
+        } else {
+            expected.put("rows", Arrays.asList(Arrays.asList("f", 6, 3), Arrays.asList("m", 5, 3)));
+        }
+
+        Map<String, Object> response = runSql(
+            mode,
+            "SELECT gender, COUNT(langs) AS cnt, COUNT(DISTINCT langs) AS cnt_dist " + "FROM test GROUP BY gender ORDER BY gender",
+            columnar
+        );
+
+        String cursor = (String) response.remove("cursor");
+        assertNotNull(cursor);
+        assertResponse(expected, response);
+    }
+
     @Override
     public void testSelectScoreSubField() throws Exception {
         index("{\"foo\":1}");
@@ -627,11 +672,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         Map<String, Object> response = runTranslateSql(query("SELECT * FROM test").toString());
         assertEquals(1000, response.get("size"));
+        assertFalse((Boolean) response.get("_source"));
         @SuppressWarnings("unchecked")
-        Map<String, Object> source = (Map<String, Object>) response.get("_source");
-        assertNotNull(source);
-        assertEquals(emptyList(), source.get("excludes"));
-        assertEquals(singletonList("test"), source.get("includes"));
+        List<Map<String, Object>> source = (List<Map<String, Object>>) response.get("fields");
+        assertEquals(singletonList(singletonMap("field", "test")), source);
     }
 
     public void testBasicQueryWithFilter() throws IOException {
@@ -698,11 +742,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Map<String, Object> response = runTranslateSql(query("SELECT * FROM test").filter("{\"match\": {\"test\": \"foo\"}}").toString());
 
         assertEquals(response.get("size"), 1000);
+        assertFalse((Boolean) response.get("_source"));
         @SuppressWarnings("unchecked")
-        Map<String, Object> source = (Map<String, Object>) response.get("_source");
-        assertNotNull(source);
-        assertEquals(emptyList(), source.get("excludes"));
-        assertEquals(singletonList("test"), source.get("includes"));
+        List<Map<String, Object>> source = (List<Map<String, Object>>) response.get("fields");
+        assertEquals(singletonList(singletonMap("field", "test")), source);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> query = (Map<String, Object>) response.get("query");
@@ -739,7 +782,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         assertEquals(response.get("size"), 0);
         assertEquals(false, response.get("_source"));
-        assertEquals("_none_", response.get("stored_fields"));
+        assertNull(response.get("stored_fields"));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> aggregations = (Map<String, Object>) response.get("aggregations");
@@ -903,6 +946,55 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         executeQueryWithNextPage("text/tab-separated-values", "text\tnumber\tsum\n", "%s\t%d\t%d\n");
     }
 
+    public void testBinaryFieldFiltering() throws IOException {
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("properties");
+            {
+                createIndex.startObject("id").field("type", "long").endObject();
+                createIndex.startObject("binary").field("type", "binary").field("doc_values", true).endObject();
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject().endObject();
+
+        Request request = new Request("PUT", "/test_binary");
+        request.setJsonEntity(Strings.toString(createIndex));
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        long nonNullId = randomLong();
+        long nullId = randomLong();
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{").append(toJson("index")).append(":{}}\n");
+        bulk.append("{");
+        {
+            bulk.append(toJson("id")).append(":").append(nonNullId);
+            bulk.append(",");
+            bulk.append(toJson("binary")).append(":").append(toJson("U29tZSBiaW5hcnkgYmxvYg=="));
+        }
+        bulk.append("}\n");
+        bulk.append("{").append(toJson("index")).append(":{}}\n");
+        bulk.append("{");
+        {
+            bulk.append(toJson("id")).append(":").append(nullId);
+        }
+        bulk.append("}\n");
+
+        request = new Request("PUT", "/test_binary/_bulk?refresh=true");
+        request.setJsonEntity(bulk.toString());
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        String mode = randomMode();
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", singletonList(columnInfo(mode, "id", "long", JDBCType.BIGINT, 20)));
+        expected.put("rows", singletonList(singletonList(nonNullId)));
+        assertResponse(expected, runSql(mode, "SELECT id FROM test_binary WHERE binary IS NOT NULL", false));
+
+        expected.put("rows", singletonList(singletonList(nullId)));
+        assertResponse(expected, runSql(mode, "SELECT id FROM test_binary WHERE binary IS NULL", false));
+    }
+
     private void executeQueryWithNextPage(String format, String expectedHeader, String expectedLineFormat) throws IOException {
         int size = 20;
         String[] docs = new String[size];
@@ -953,7 +1045,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
         assertEquals(true, response.get("succeeded"));
 
-        assertEquals(0, getNumberOfSearchContexts("test"));
+        assertEquals(0, getNumberOfSearchContexts(client(), "test"));
     }
 
     private Tuple<String, String> runSqlAsText(String sql, String accept) throws IOException {
@@ -1000,37 +1092,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(actual, expected);
             fail("Response does not match:\n" + message.toString());
-        }
-    }
-
-    public static int getNumberOfSearchContexts(String index) throws IOException {
-        return getOpenContexts(searchStats(), index);
-    }
-
-    public static void assertNoSearchContexts() throws IOException {
-        Map<String, Object> stats = searchStats();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> indicesStats = (Map<String, Object>) stats.get("indices");
-        for (String index : indicesStats.keySet()) {
-            if (index.startsWith(".") == false) { // We are not interested in internal indices
-                assertEquals(index + " should have no search contexts", 0, getOpenContexts(stats, index));
-            }
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static int getOpenContexts(Map<String, Object> stats, String index) {
-        stats = (Map<String, Object>) stats.get("indices");
-        stats = (Map<String, Object>) stats.get(index);
-        stats = (Map<String, Object>) stats.get("total");
-        stats = (Map<String, Object>) stats.get("search");
-        return (Integer) stats.get("open_contexts");
-    }
-
-    private static Map<String, Object> searchStats() throws IOException {
-        Response response = client().performRequest(new Request("GET", "/_stats/search"));
-        try (InputStream content = response.getEntity().getContent()) {
-            return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml;
 
@@ -22,7 +23,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
@@ -163,7 +162,7 @@ public class MlConfigMigrator {
             return;
         }
 
-        if (clusterState.metadata().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
+        if (clusterState.metadata().hasIndex(MlConfigIndex.indexName()) == false) {
             createConfigIndex(ActionListener.wrap(
                     response -> {
                         unMarkMigrationInProgress.onResponse(Boolean.FALSE);
@@ -421,7 +420,7 @@ public class MlConfigMigrator {
     }
 
     private IndexRequest indexRequest(ToXContentObject source, String documentId, ToXContent.Params params) {
-        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName()).id(documentId);
+        IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(documentId);
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             indexRequest.source(source.toXContent(builder, params));
@@ -448,6 +447,7 @@ public class MlConfigMigrator {
         String documentId = "ml-config";
         IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
                 .id(documentId)
+                .setRequireAlias(true)
                 .opType(DocWriteRequest.OpType.CREATE);
 
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
@@ -487,16 +487,12 @@ public class MlConfigMigrator {
 
     private void createConfigIndex(ActionListener<Boolean> listener) {
         logger.info("creating the .ml-config index");
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(AnomalyDetectorsIndex.configIndexName());
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(MlConfigIndex.indexName());
         try
         {
-            createIndexRequest.settings(
-                    Settings.builder()
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                            .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
-            );
+            createIndexRequest.settings(MlConfigIndex.settings());
             createIndexRequest.mapping(MlConfigIndex.mapping());
+            createIndexRequest.origin(ML_ORIGIN);
         } catch (Exception e) {
             logger.error("error writing the .ml-config mappings", e);
             listener.onFailure(e);

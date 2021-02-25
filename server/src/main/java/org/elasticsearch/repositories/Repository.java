@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories;
 
@@ -29,7 +18,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,11 +26,9 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -113,6 +99,8 @@ public interface Repository extends LifecycleComponent {
      * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots
      * and the indices across all snapshots found in the repository.  Throws a {@link RepositoryException}
      * if there was an error in reading the data.
+     * @param listener listener that may be resolved on different kinds of threads including transport and cluster state applier threads
+     *                 and therefore must fork to a new thread for executing any long running actions
      */
     void getRepositoryData(ActionListener<RepositoryData> listener);
 
@@ -121,27 +109,18 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * This method is called on master after all shards are snapshotted.
      *
-     * @param snapshotId            snapshot id
      * @param shardGenerations      updated shard generations
-     * @param startTime             start time of the snapshot
-     * @param failure               global failure reason or null
-     * @param totalShards           total number of shards
-     * @param shardFailures         list of shard failures
      * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot began
-     * @param includeGlobalState    include cluster global state
      * @param clusterMetadata       cluster metadata
-     * @param userMetadata          user metadata
+     * @param snapshotInfo     SnapshotInfo instance to write for this snapshot
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param stateTransformer      a function that filters the last cluster state update that the snapshot finalization will execute and
      *                              is used to remove any state tracked for the in-progress snapshot from the cluster state
-     * @param listener              listener to be invoked with the new {@link RepositoryData} and the snapshot's {@link SnapshotInfo}
-     *                              completion of the snapshot
+     * @param listener              listener to be invoked with the new {@link RepositoryData} after completing the snapshot
      */
-    void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
-                          int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                          boolean includeGlobalState, Metadata clusterMetadata, Map<String, Object> userMetadata,
-                          Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
-                          ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener);
+    void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
+                          SnapshotInfo snapshotInfo, Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
+                          ActionListener<RepositoryData> listener);
 
     /**
      * Deletes snapshots
@@ -152,7 +131,7 @@ public interface Repository extends LifecycleComponent {
      * @param listener              completion listener
      */
     void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
-                         ActionListener<Void> listener);
+                         ActionListener<RepositoryData> listener);
     /**
      * Returns snapshot throttle time in nanoseconds
      */
@@ -273,6 +252,18 @@ public interface Repository extends LifecycleComponent {
      */
     void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
                                       Consumer<Exception> onFailure);
+
+    /**
+     * Clones a shard snapshot.
+     *
+     * @param source          source snapshot
+     * @param target          target snapshot
+     * @param shardId         shard id
+     * @param shardGeneration shard generation in repo
+     * @param listener        listener to complete with new shard generation once clone has completed
+     */
+    void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, @Nullable String shardGeneration,
+                            ActionListener<String> listener);
 
     /**
      * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}

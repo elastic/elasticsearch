@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.env.Environment;
@@ -44,6 +46,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -107,6 +110,7 @@ import org.elasticsearch.xpack.transform.rest.action.compat.RestUpdateTransformA
 import org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
@@ -116,6 +120,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+
+import static org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants.AUDIT_INDEX_PATTERN;
 
 public class Transform extends Plugin implements SystemIndexPlugin, PersistentTaskPlugin {
 
@@ -128,6 +134,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     private final SetOnce<TransformServices> transformServices = new SetOnce<>();
 
     public static final int DEFAULT_FAILURE_RETRIES = 10;
+    public static final Integer DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE = Integer.valueOf(500);
+    public static final TimeValue DEFAULT_TRANSFORM_FREQUENCY = TimeValue.timeValueMillis(60000);
 
     // How many times the transform task can retry on an non-critical failure
     public static final Setting<Integer> NUM_FAILURE_RETRIES_SETTING = Setting.intSetting(
@@ -148,17 +156,27 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     /**
      * Setting whether transform (the coordinator task) can run on this node.
      */
-    public static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
+    private static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
         "node.transform",
-        settings -> Boolean.toString(DiscoveryNode.isDataNode(settings)),
+        settings ->
+            // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+            Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) || DataTier.isExplicitDataTier(settings)),
+        Property.Deprecated,
         Property.NodeScope
     );
 
     public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t") {
 
         @Override
-        protected Setting<Boolean> roleSetting() {
+        public Setting<Boolean> legacySetting() {
             return TRANSFORM_ENABLED_NODE;
+        }
+
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return super.isEnabledByDefault(settings) &&
+                // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+                (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) || DataTier.isExplicitDataTier(settings));
         }
 
     };
@@ -263,13 +281,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
-        TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName());
-        TransformCheckpointService checkpointService = new TransformCheckpointService(
-            settings,
-            clusterService,
-            configManager,
-            auditor
-        );
+        TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName(), clusterService);
+        TransformCheckpointService checkpointService = new TransformCheckpointService(settings, clusterService, configManager, auditor);
         SchedulerEngine scheduler = new SchedulerEngine(settings, Clock.systemUTC());
 
         transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));
@@ -280,14 +293,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return templates -> {
-            try {
-                templates.put(
-                    TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME,
-                    TransformInternalIndex.getIndexTemplateMetadata()
-                );
-            } catch (IOException e) {
-                logger.error("Error creating transform index template", e);
-            }
             try {
                 templates.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetadata());
             } catch (IOException e) {
@@ -337,7 +342,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
         Settings.Builder additionalSettings = Settings.builder();
 
-        additionalSettings.put(transformEnabledNodeAttribute, TRANSFORM_ENABLED_NODE.get(settings));
+        additionalSettings.put(transformEnabledNodeAttribute, DiscoveryNode.hasRole(settings, Transform.TRANSFORM_ROLE));
 
         return additionalSettings.build();
     }
@@ -361,8 +366,24 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.singletonList(
-            new SystemIndexDescriptor(TransformInternalIndexConstants.INDEX_NAME_PATTERN, "Contains Transform configuration data")
-        );
+        try {
+            return Collections.singletonList(TransformInternalIndex.getSystemIndexDescriptor());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override public Collection<String> getAssociatedIndexPatterns() {
+        return List.of(AUDIT_INDEX_PATTERN);
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "transform";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages configuration and state for transforms";
     }
 }

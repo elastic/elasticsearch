@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ilm;
 
@@ -33,6 +34,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -46,8 +48,10 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
+import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.RollupILMAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
@@ -140,7 +144,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<SnapshotLifecycleService> snapshotLifecycleService = new SetOnce<>();
     private final SetOnce<SnapshotRetentionService> snapshotRetentionService = new SetOnce<>();
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
-    private Settings settings;
+    private final Settings settings;
 
     public IndexLifecycle(Settings settings) {
         this.settings = settings;
@@ -164,7 +168,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
             LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING,
             LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
-            LifecycleSettings.SLM_RETENTION_DURATION_SETTING);
+            LifecycleSettings.SLM_RETENTION_DURATION_SETTING,
+            LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING);
     }
 
     @Override
@@ -175,27 +180,27 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                                                IndexNameExpressionResolver expressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         final List<Object> components = new ArrayList<>();
-        // This registers a cluster state listener, so appears unused but is not.
-        @SuppressWarnings("unused")
         ILMHistoryTemplateRegistry ilmTemplateRegistry =
             new ILMHistoryTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
+        ilmTemplateRegistry.initialize();
         ilmHistoryStore.set(new ILMHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
             clusterService, threadPool));
         indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
             getClock(), System::currentTimeMillis, xContentRegistry, ilmHistoryStore.get()));
         components.add(indexLifecycleInitialisationService.get());
 
-        // the template registry is a cluster state listener
-        @SuppressWarnings("unused")
         SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
             client, xContentRegistry);
+        templateRegistry.initialize();
         snapshotHistoryStore.set(new SnapshotHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
             clusterService));
         snapshotLifecycleService.set(new SnapshotLifecycleService(settings,
             () -> new SnapshotLifecycleTask(client, clusterService, snapshotHistoryStore.get()), clusterService, getClock()));
+        snapshotLifecycleService.get().init();
         snapshotRetentionService.set(new SnapshotRetentionService(settings,
-            () -> new SnapshotRetentionTask(client, clusterService, System::nanoTime, snapshotHistoryStore.get(), threadPool),
-            clusterService, getClock()));
+            () -> new SnapshotRetentionTask(client, clusterService, System::nanoTime, snapshotHistoryStore.get()),
+            getClock()));
+        snapshotRetentionService.get().init(clusterService);
         components.addAll(Arrays.asList(snapshotLifecycleService.get(), snapshotHistoryStore.get(), snapshotRetentionService.get()));
 
         return components;
@@ -207,8 +212,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry> getNamedXContent() {
-        return Arrays.asList(
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(Arrays.asList(
             // Custom Metadata
             new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(IndexLifecycleMetadata.TYPE),
                 parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)),
@@ -230,8 +235,16 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(WaitForSnapshotAction.NAME),
                 WaitForSnapshotAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SearchableSnapshotAction.NAME),
-                SearchableSnapshotAction::parse)
-        );
+                SearchableSnapshotAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MigrateAction.NAME),
+                MigrateAction::parse)));
+
+        if (RollupV2.isEnabled()) {
+            entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class,
+                new ParseField(RollupILMAction.NAME), RollupILMAction::parse));
+        }
+
+        return entries;
     }
 
     @Override

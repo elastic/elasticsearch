@@ -1,0 +1,323 @@
+[role="xpack"]
+[[set-up-a-data-stream]]
+== Set up a data stream
+
+To set up a data stream, follow these steps:
+
+. <<configure-a-data-stream-ilm-policy>>.
+. <<create-a-data-stream-template>>.
+. <<create-a-data-stream>>.
+. <<secure-a-data-stream>>.
+
+You can also <<convert-an-index-alias-to-a-data-stream,convert an existing index
+alias to a data stream>>.
+
+[discrete]
+[[configure-a-data-stream-ilm-policy]]
+=== Optional: Configure an {ilm-init} lifecycle policy
+
+While optional, we recommend you configure an <<set-up-lifecycle-policy,{ilm}
+({ilm-init}) policy>> to automate the management of your data stream's backing
+indices.
+
+In {kib}, open the menu and go to *Stack Management > Index Lifecycle Policies*.
+Click *Create policy*.
+
+[role="screenshot"]
+image::images/ilm/create-policy.png[Create Policy page]
+
+[%collapsible]
+.API example
+====
+Use the <<ilm-put-lifecycle,create lifecycle policy API>> to configure a policy:
+
+[source,console]
+----
+PUT /_ilm/policy/my-data-stream-policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_size": "25GB"
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+----
+====
+
+[discrete]
+[[create-a-data-stream-template]]
+=== Create an index template
+
+. In {kib}, open the menu and go to *Stack Management > Index Management*.
+. In the *Index Templates* tab, click *Create template*.
+. In the Create template wizard, use the *Data stream* toggle to indicate the
+template is used for data streams.
+. Use the wizard to finish defining your template. Specify:
+
+* One or more index patterns that match the data stream's name. +
+include::{es-repo-dir}/indices/create-data-stream.asciidoc[tag=data-stream-name]
+
+* Mappings and settings for the stream's backing indices.
+
+* A priority for the index template
++
+include::{es-repo-dir}/indices/index-templates.asciidoc[tag=built-in-index-templates]
+
+[[elastic-data-stream-naming-scheme]]
+.The Elastic data stream naming scheme
+****
+The {agent} uses the Elastic data stream naming scheme to name its data streams.
+To help you organize your data consistently and avoid naming collisions, we
+recommend you also use the Elastic naming scheme for your other data streams.
+
+The naming scheme splits data into different data streams based on the following
+components. Each component corresponds to a
+<<constant-keyword-field-type,constant keyword>> field defined in the
+{ecs-ref}[Elastic Common Schema (ECS)].
+
+`type`::
+Generic type describing the data, such as `logs`, `metrics`, or `synthetics`.
+Corresponds to the `data_stream.type` field.
+
+`dataset`::
+Describes the ingested data and its structure. Corresponds to the
+`data_stream.dataset` field. Defaults to `generic`.
+
+`namespace`::
+User-configurable arbitrary grouping. Corresponds to the `data_stream.dataset`
+field. Defaults to `default`.
+
+The naming scheme separates these components with a `-` character:
+
+```
+<type>-<dataset>-<namespace>
+```
+
+For example, the {agent} uses the `logs-nginx.access-production` data
+stream to store data with a type of `logs`, a dataset of `nginx.access`, and a
+namespace of `production`. If you use the {agent} to ingest a log file, it
+stores the data in the `logs-generic-default` data stream.
+
+For more information about the naming scheme and its benefits, see our
+https://www.elastic.co/blog/an-introduction-to-the-elastic-data-stream-naming-scheme[An
+introduction to the Elastic data stream naming scheme] blog post.
+****
+
+include::{es-repo-dir}/data-streams/data-streams.asciidoc[tag=timestamp-reqs]
+
+If using {ilm-init}, specify your lifecycle policy in the `index.lifecycle.name`
+setting.
+
+TIP: Carefully consider your template's mappings and settings. Later changes may
+require reindexing. See <<data-streams-change-mappings-and-settings>>.
+
+[role="screenshot"]
+image::images/data-streams/create-index-template.png[Create template page]
+
+[%collapsible]
+.API example
+====
+Use the <<indices-put-template,put index template API>> to create an index
+template. The template must include a `data_stream` object, indicating
+it's used for data streams.
+
+[source,console]
+----
+PUT /_index_template/my-data-stream-template
+{
+  "index_patterns": [ "my-data-stream*" ],
+  "data_stream": { },
+  "priority": 500,
+  "template": {
+    "settings": {
+      "index.lifecycle.name": "my-data-stream-policy"
+    }
+  }
+}
+----
+// TEST[continued]
+====
+
+[discrete]
+[[create-a-data-stream]]
+=== Create the data stream
+
+To automatically create the data stream, submit an
+<<add-documents-to-a-data-stream,indexing request>> to the stream. The stream's
+name must match one of your template's index patterns.
+
+[source,console]
+----
+POST /my-data-stream/_doc/
+{
+  "@timestamp": "2099-03-07T11:04:05.000Z",
+  "user": {
+    "id": "vlb44hny"
+  },
+  "message": "Login attempt failed"
+}
+----
+// TEST[continued]
+
+You can also use the <<indices-create-data-stream,create data stream API>> to
+manually create the data stream. The stream's name must match one of your
+template's index patterns.
+
+[source,console]
+----
+PUT /_data_stream/my-data-stream
+----
+// TEST[continued]
+// TEST[s/my-data-stream/my-data-stream-alt/]
+
+When you create a data stream, {es} automatically creates a backing index for
+the stream. This index also acts as the stream's first write index.
+
+[discrete]
+[[convert-an-index-alias-to-a-data-stream]]
+=== Convert an index alias to a data stream
+
+Prior to {es} 7.9, you would typically use an <<indices-aliases,index alias>>
+with a write index to manage time series data. Data streams replace most of
+this functionality and usually require less maintenance.
+
+To convert an index alias with a write index to a new data stream with the same
+name, use the <<indices-migrate-to-data-stream,migrate to data stream API>>.
+During conversion, the alias’s indices become hidden backing indices for the
+stream. The alias’s write index becomes the stream’s write index. Note the data
+stream still requires a matching <<create-a-data-stream-template,index
+template>>.
+
+////
+[source,console]
+----
+POST idx1/_doc/
+{
+    "message" : "testing",
+    "@timestamp" : "2099-01-01"
+}
+
+POST idx2/_doc/
+{
+    "message" : "testing2",
+    "@timestamp" : "2099-01-01"
+}
+
+POST /_aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": "idx1",
+        "alias": "my-time-series-data",
+        "is_write_index": true
+      }
+    },
+    {
+      "add": {
+        "index": "idx2",
+        "alias": "my-time-series-data"
+      }
+    }
+  ]
+}
+
+PUT /_index_template/template
+{
+  "index_patterns": ["my-time-series-data"],
+  "data_stream": { }
+}
+----
+// TEST[continued]
+////
+
+[source,console]
+----
+POST /_data_stream/_migrate/my-time-series-data
+----
+// TEST[continued]
+
+[discrete]
+[[secure-a-data-stream]]
+=== Secure the data stream
+
+To control access to the data stream and its
+data, use <<data-stream-privileges,{es}'s {security-features}>>.
+
+[discrete]
+[[get-info-about-a-data-stream]]
+=== Get information about a data stream
+
+In {kib}, open the menu and go to *Stack Management > Index Management*. In the
+*Data Streams* tab, click the data stream's name.
+
+[role="screenshot"]
+image::images/data-streams/data-streams-list.png[Data Streams tab]
+
+[%collapsible]
+.API example
+====
+Use the <<indices-get-data-stream,get data stream API>> to retrieve information
+about one or more data streams:
+
+////
+[source,console]
+----
+POST /my-data-stream/_rollover/
+----
+// TEST[continued]
+////
+
+[source,console]
+----
+GET /_data_stream/my-data-stream
+----
+// TEST[continued]
+====
+
+[discrete]
+[[delete-a-data-stream]]
+=== Delete a data stream
+
+To delete a data stream and its backing indices, open the {kib} menu and go to
+*Stack Management > Index Management*. In the *Data Streams* tab, click the
+trash icon. The trash icon only displays if you have the `delete_index`
+<<security-privileges, security privilege>> for the data stream.
+
+[role="screenshot"]
+image::images/data-streams/data-streams-no-delete.png[Data Streams tab]
+
+[%collapsible]
+.API example
+====
+Use the <<indices-delete-data-stream,delete data stream API>> to delete a data
+stream and its backing indices:
+
+[source,console]
+----
+DELETE /_data_stream/my-data-stream
+----
+// TEST[continued]
+====
+
+////
+[source,console]
+----
+DELETE /_data_stream/*
+DELETE /_index_template/*
+DELETE /_ilm/policy/my-data-stream-policy
+----
+// TEST[continued]
+////

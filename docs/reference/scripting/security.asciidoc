@@ -3,12 +3,12 @@
 
 While Elasticsearch contributors make every effort to prevent scripts from
 running amok, security is something best done in
-https://en.wikipedia.org/wiki/Defense_in_depth_(computing)[layers] because
+{wikipedia}/Defense_in_depth_(computing)[layers] because
 all software has bugs and it is important to minimize the risk of failure in
 any security layer. Find below rules of thumb for how to keep Elasticsearch
 from being a vulnerability.
 
-[float]
+[discrete]
 === Do not run as root
 First and foremost, never run Elasticsearch as the `root` user as this would
 allow any successful effort to circumvent the other security layers to do
@@ -16,7 +16,7 @@ allow any successful effort to circumvent the other security layers to do
 that it is running as `root` but this is so important that it is worth double
 and triple checking.
 
-[float]
+[discrete]
 === Do not expose Elasticsearch directly to users
 Do not expose Elasticsearch directly to users, instead have an application
 make requests on behalf of users. If this is not possible, have an application
@@ -26,7 +26,7 @@ to write a <<search, `_search`>> that overwhelms Elasticsearch and brings down
 the cluster. All such searches should be considered bugs and the Elasticsearch
 contributors make an effort to prevent this but they are still possible.
 
-[float]
+[discrete]
 === Do not expose Elasticsearch directly to the Internet
 Do not expose Elasticsearch to the Internet, instead have an application
 make requests on behalf of the Internet. Do not entertain the thought of having
@@ -49,11 +49,11 @@ Bad:
 * Users can write arbitrary scripts, queries, `_search` requests.
 * User actions make documents with structure defined by users.
 
-[float]
+[discrete]
 [[modules-scripting-other-layers]]
 === Other security layers
 In addition to user privileges and script sandboxing Elasticsearch uses the
-http://www.oracle.com/technetwork/java/seccodeguide-139067.html[Java Security Manager]
+https://www.oracle.com/java/technologies/javase/seccodeguide.html[Java Security Manager]
 and native security tools as additional layers of security.
 
 As part of its startup sequence Elasticsearch enables the Java Security Manager
@@ -63,7 +63,7 @@ preventing them from being able to do things like write files and listen to
 sockets.
 
 Elasticsearch uses
-https://en.wikipedia.org/wiki/Seccomp[seccomp] in Linux,
+{wikipedia}/Seccomp[seccomp] in Linux,
 https://www.chromium.org/developers/design-documents/sandbox/osx-sandboxing-design[Seatbelt]
 in macOS, and
 https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147[ActiveProcessLimit]
@@ -75,13 +75,19 @@ when allowing more than the defaults. Any extra permissions weakens the total
 security of the Elasticsearch deployment.
 
 [[allowed-script-types-setting]]
-[float]
+[discrete]
 === Allowed script types setting
 
 Elasticsearch supports two script types: `inline` and `stored` (<<modules-scripting-using>>).
-By default both types of scripts are allowed to be executed. To limit the types of scripts
-that can run, set `script.allowed_types` to `inline`, `stored`, or `none`. For example,
-to run `inline` scripts but not `stored` scripts, specify:
+By default, {es} is configured to run both types of scripts. 
+To limit what type of scripts are run, set `script.allowed_types` to `inline` or `stored`. 
+To prevent any scripts from running, set `script.allowed_types` to `none`.
+
+IMPORTANT: If you use {kib}, set `script.allowed_types` to `both` or `inline`. 
+Some {kib} features rely on inline scripts and do not function as expected 
+if {es} does not allow inline scripts.
+
+For example, to run `inline` scripts but not `stored` scripts, specify:
 
 [source,yaml]
 ----
@@ -90,8 +96,9 @@ script.allowed_types: inline <1>
 <1> This will allow only inline scripts to be executed but not stored scripts
 (or any other types).
 
+
 [[allowed-script-contexts-setting]]
-[float]
+[discrete]
 === Allowed script contexts setting
 
 By default all script contexts are allowed to be executed.  This can be modified using the

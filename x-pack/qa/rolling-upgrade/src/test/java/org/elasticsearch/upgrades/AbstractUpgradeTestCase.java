@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.io.Streams;
@@ -25,6 +27,9 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE =
             basicAuthHeaderValue("test_user", SecuritySettingsSourceField.TEST_PASSWORD);
+
+    protected static final Version UPGRADE_FROM_VERSION =
+        Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     @Override
     protected boolean preserveIndicesUponCompletion() {
@@ -48,6 +53,11 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     @Override
     protected boolean preserveILMPoliciesUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveDataStreamsUponCompletion() {
         return true;
     }
 
@@ -90,7 +100,6 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         if (expectedTemplates.isEmpty()) {
             return;
         }
-
         assertBusy(() -> {
             final Request catRequest = new Request("GET", "_cat/templates?h=n&s=n");
             final Response catResponse = adminClient().performRequest(catRequest);

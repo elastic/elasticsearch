@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.snapshots.mockstore;
 
-import org.apache.lucene.codecs.CodecUtil;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -30,12 +18,12 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -76,9 +64,11 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final ClusterService clusterService,
+        final RecoverySettings recoverySettings,
         final Context context,
         final Random random) {
-        super(metadata, namedXContentRegistry, clusterService, BlobPath.cleanPath());
+        super(metadata, namedXContentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings,
+                BlobPath.cleanPath());
         this.context = context;
         this.namedXContentRegistry = namedXContentRegistry;
         this.random = random;
@@ -157,7 +147,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
     private class MockBlobStore implements BlobStore {
 
-        private AtomicBoolean closed = new AtomicBoolean(false);
+        private final AtomicBoolean closed = new AtomicBoolean(false);
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
@@ -186,6 +176,16 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             @Override
             public BlobPath path() {
                 return path;
+            }
+
+            @Override
+            public boolean blobExists(String blobName) {
+                try {
+                    readBlob(blobName);
+                    return true;
+                } catch (NoSuchFileException ignored) {
+                    return false;
+                }
             }
 
             @Override
@@ -329,15 +329,12 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                         if (hasConsistentContent) {
                                 if (basePath().buildAsString().equals(path().buildAsString())) {
                                     try {
-                                        // TODO: dry up the logic for reading SnapshotInfo here against the code in ChecksumBlobStoreFormat
-                                        final int offset = CodecUtil.headerLength(BlobStoreRepository.SNAPSHOT_CODEC);
-                                        final SnapshotInfo updatedInfo = SnapshotInfo.fromXContentInternal(
-                                            XContentHelper.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE,
-                                                new BytesArray(data, offset, data.length - offset - CodecUtil.footerLength()),
-                                                XContentType.SMILE));
+                                        final SnapshotInfo updatedInfo = BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(
+                                                blobName, namedXContentRegistry, new BytesArray(data));
                                         // If the existing snapshotInfo differs only in the timestamps it stores, then the overwrite is not
                                         // a problem and could be the result of a correctly handled master failover.
-                                        final SnapshotInfo existingInfo = snapshotFormat.readBlob(this, blobName);
+                                        final SnapshotInfo existingInfo = SNAPSHOT_FORMAT.deserialize(
+                                                blobName, namedXContentRegistry, Streams.readFully(readBlob(blobName)));
                                         assertThat(existingInfo.snapshotId(), equalTo(updatedInfo.snapshotId()));
                                         assertThat(existingInfo.reason(), equalTo(updatedInfo.reason()));
                                         assertThat(existingInfo.state(), equalTo(updatedInfo.state()));
@@ -371,9 +368,9 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
-            public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
-                final boolean failIfAlreadyExists) throws IOException {
-                writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+            public void writeBlobAtomic(final String blobName, final BytesReference bytes,
+                                        final boolean failIfAlreadyExists) throws IOException {
+                writeBlob(blobName, bytes, failIfAlreadyExists);
             }
         }
     }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util.concurrent;
@@ -26,7 +15,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
@@ -41,7 +29,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 public class EsExecutors {
 
@@ -192,15 +179,6 @@ public class EsExecutors {
         return DIRECT_EXECUTOR_SERVICE;
     }
 
-    public static String threadName(Settings settings, String ... names) {
-        String namePrefix =
-                Arrays
-                        .stream(names)
-                        .filter(name -> name != null)
-                        .collect(Collectors.joining(".", "[", "]"));
-        return threadName(settings, namePrefix);
-    }
-
     public static String threadName(Settings settings, String namePrefix) {
         if (Node.NODE_NAME_SETTING.exists(settings)) {
             return threadName(Node.NODE_NAME_SETTING.get(settings), namePrefix);
@@ -222,10 +200,6 @@ public class EsExecutors {
     public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix) {
         assert nodeName != null && false == nodeName.isEmpty();
         return daemonThreadFactory(threadName(nodeName, namePrefix));
-    }
-
-    public static ThreadFactory daemonThreadFactory(Settings settings, String ... names) {
-        return daemonThreadFactory(threadName(settings, names));
     }
 
     public static ThreadFactory daemonThreadFactory(String namePrefix) {
@@ -272,7 +246,7 @@ public class EsExecutors {
         @Override
         public boolean offer(E e) {
             // first try to transfer to a waiting worker thread
-            if (!tryTransfer(e)) {
+            if (tryTransfer(e) == false) {
                 // check if there might be spare capacity in the thread
                 // pool executor
                 int left = executor.getMaximumPoolSize() - executor.getCorePoolSize();

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.geo;
@@ -39,6 +28,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+
+import static org.elasticsearch.test.ESTestCase.randomValueOtherThanMany;
 
 public class GeometryTestUtils {
 
@@ -96,7 +87,7 @@ public class GeometryTestUtils {
     }
 
     public static Polygon randomPolygon(boolean hasAlt) {
-        org.apache.lucene.geo.Polygon lucenePolygon = GeoTestUtil.nextPolygon();
+        org.apache.lucene.geo.Polygon lucenePolygon = randomValueOtherThanMany(p -> area(p) == 0, GeoTestUtil::nextPolygon);
         if (lucenePolygon.numHoles() > 0) {
             org.apache.lucene.geo.Polygon[] luceneHoles = lucenePolygon.getHoles();
             List<LinearRing> holes = new ArrayList<>();
@@ -107,6 +98,17 @@ public class GeometryTestUtils {
             return new Polygon(linearRing(lucenePolygon.getPolyLons(), lucenePolygon.getPolyLats(), hasAlt), holes);
         }
         return new Polygon(linearRing(lucenePolygon.getPolyLons(), lucenePolygon.getPolyLats(), hasAlt));
+    }
+
+    private static double area(org.apache.lucene.geo.Polygon lucenePolygon) {
+        double windingSum = 0;
+        final int numPts = lucenePolygon.numPoints() - 1;
+        for (int i = 0; i < numPts; i++) {
+            // compute signed area
+            windingSum += lucenePolygon.getPolyLon(i) * lucenePolygon.getPolyLat(i + 1) -
+                lucenePolygon.getPolyLat(i) * lucenePolygon.getPolyLon(i + 1);
+        }
+       return Math.abs(windingSum / 2);
     }
 
 
@@ -188,6 +190,30 @@ public class GeometryTestUtils {
             level < 3 ? (b) -> randomGeometryCollection(level + 1, b) : GeometryTestUtils::randomPoint // don't build too deep
         );
         return geometry.apply(hasAlt);
+    }
+
+    public static Geometry randomGeometryWithoutCircle(int level, boolean hasAlt) {
+        @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometry = ESTestCase.randomFrom(
+            GeometryTestUtils::randomPoint,
+            GeometryTestUtils::randomMultiPoint,
+            GeometryTestUtils::randomLine,
+            GeometryTestUtils::randomMultiLine,
+            GeometryTestUtils::randomPolygon,
+            GeometryTestUtils::randomMultiPolygon,
+            hasAlt ? GeometryTestUtils::randomPoint : (b) -> randomRectangle(),
+            level < 3 ? (b) ->
+                randomGeometryWithoutCircleCollection(level + 1, hasAlt) : GeometryTestUtils::randomPoint // don't build too deep
+        );
+        return geometry.apply(hasAlt);
+    }
+
+    private static Geometry randomGeometryWithoutCircleCollection(int level, boolean hasAlt) {
+        int size = ESTestCase.randomIntBetween(1, 10);
+        List<Geometry> shapes = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            shapes.add(randomGeometryWithoutCircle(level, hasAlt));
+        }
+        return new GeometryCollection<>(shapes);
     }
 
     /**

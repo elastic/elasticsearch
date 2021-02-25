@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.sort;
@@ -28,12 +17,13 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.DocValueFormat;
@@ -65,13 +55,17 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     /**
      * Create a {@linkplain SortFieldAndFormat} from this builder.
      */
-    protected abstract SortFieldAndFormat build(QueryShardContext context) throws IOException;
+    protected abstract SortFieldAndFormat build(SearchExecutionContext context) throws IOException;
 
     /**
      * Create a {@linkplain BucketedSort} which is useful for sorting inside of aggregations.
      */
-    public abstract BucketedSort buildBucketedSort(QueryShardContext context,
-            int bucketSize, BucketedSort.ExtraData extra) throws IOException;
+    public abstract BucketedSort buildBucketedSort(
+        SearchExecutionContext context,
+        BigArrays bigArrays,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) throws IOException;
 
     /**
      * Set the order of sorting.
@@ -145,7 +139,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         }
     }
 
-    public static Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders, QueryShardContext context) throws IOException {
+    public static Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders, SearchExecutionContext context) throws IOException {
         List<SortField> sortFields = new ArrayList<>(sortBuilders.size());
         List<DocValueFormat> sortFormats = new ArrayList<>(sortBuilders.size());
         for (SortBuilder<?> builder : sortBuilders) {
@@ -153,7 +147,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
             sortFields.add(sf.field);
             sortFormats.add(sf.format);
         }
-        if (!sortFields.isEmpty()) {
+        if (sortFields.isEmpty() == false) {
             // optimize if we just sort on score non reversed, we don't really
             // need sorting
             boolean sort;
@@ -161,7 +155,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
                 sort = true;
             } else {
                 SortField sortField = sortFields.get(0);
-                if (sortField.getType() == SortField.Type.SCORE && !sortField.getReverse()) {
+                if (sortField.getType() == SortField.Type.SCORE && sortField.getReverse() == false) {
                     sort = false;
                 } else {
                     sort = true;
@@ -176,7 +170,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         return Optional.empty();
     }
 
-    protected static Nested resolveNested(QueryShardContext context, NestedSortBuilder nestedSort) throws IOException {
+    protected static Nested resolveNested(SearchExecutionContext context, NestedSortBuilder nestedSort) throws IOException {
         final Query childQuery = resolveNestedQuery(context, nestedSort, null);
         if (childQuery == null) {
             return null;
@@ -191,7 +185,9 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         return new Nested(context.bitsetFilter(parentQuery), childQuery, nestedSort, context.searcher());
     }
 
-    private static Query resolveNestedQuery(QueryShardContext context, NestedSortBuilder nestedSort, Query parentQuery) throws IOException {
+    private static Query resolveNestedQuery(SearchExecutionContext context,
+                                            NestedSortBuilder nestedSort,
+                                            Query parentQuery) throws IOException {
         if (nestedSort == null || nestedSort.getPath() == null) {
             return null;
         }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -34,24 +36,31 @@ public class In extends ScalarFunction {
 
     private final Expression value;
     private final List<Expression> list;
+    private final ZoneId zoneId;
 
     public In(Source source, Expression value, List<Expression> list) {
+        this(source, value, list, null);
+    }
+
+    public In(Source source, Expression value, List<Expression> list, ZoneId zoneId) {
         super(source, CollectionUtils.combine(list, value));
         this.value = value;
         this.list = new ArrayList<>(new LinkedHashSet<>(list));
+        this.zoneId = zoneId;
     }
 
     @Override
     protected NodeInfo<In> info() {
-        return NodeInfo.create(this, In::new, value(), list());
+        return NodeInfo.create(this, In::new, value(), list(), zoneId());
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() < 2) {
-            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
-        }
-        return new In(source(), newChildren.get(newChildren.size() - 1), newChildren.subList(0, newChildren.size() - 1));
+        return new In(source(), newChildren.get(newChildren.size() - 1), newChildren.subList(0, newChildren.size() - 1), zoneId());
+    }
+
+    public ZoneId zoneId() {
+        return zoneId;
     }
 
     public Expression value() {

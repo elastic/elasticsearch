@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
@@ -47,11 +36,14 @@ final class ESPolicy extends Policy {
     final Policy untrusted;
     final Policy system;
     final PermissionCollection dynamic;
+    final PermissionCollection dataPathPermission;
     final Map<String,Policy> plugins;
 
-    ESPolicy(Map<String, URL> codebases, PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults) {
-        this.template = Security.readPolicy(getClass().getResource(POLICY_RESOURCE), codebases);
-        this.untrusted = Security.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), Collections.emptyMap());
+    ESPolicy(Map<String, URL> codebases, PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults,
+             PermissionCollection dataPathPermission) {
+        this.template = PolicyUtil.readPolicy(getClass().getResource(POLICY_RESOURCE), codebases);
+        this.dataPathPermission = dataPathPermission;
+        this.untrusted = PolicyUtil.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), Collections.emptyMap());
         if (filterBadDefaults) {
             this.system = new SystemPolicy(Policy.getPolicy());
         } else {
@@ -96,6 +88,12 @@ final class ESPolicy extends Policy {
                     rethrow(new IOException("no hadoop, you cannot do this."));
                 }
             }
+        }
+
+        // The FilePermission to check access to the path.data is the hottest permission check in
+        // Elasticsearch, so we check it first.
+        if (permission instanceof FilePermission && dataPathPermission.implies(permission)) {
+            return true;
         }
 
         // otherwise defer to template + dynamic file permissions

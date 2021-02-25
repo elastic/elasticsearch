@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -521,13 +510,17 @@ final class RequestConverters {
         return request;
     }
 
-    static Request fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest) {
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint(fieldCapabilitiesRequest.indices(), "_field_caps"));
+    static Request fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest) throws IOException {
+        String methodName = fieldCapabilitiesRequest.indexFilter() != null ? HttpPost.METHOD_NAME  : HttpGet.METHOD_NAME;
+        Request request = new Request(methodName, endpoint(fieldCapabilitiesRequest.indices(), "_field_caps"));
 
         Params params = new Params();
         params.withFields(fieldCapabilitiesRequest.fields());
         params.withIndicesOptions(fieldCapabilitiesRequest.indicesOptions());
         request.addParameters(params.asMap());
+        if (fieldCapabilitiesRequest.indexFilter() != null) {
+            request.setEntity(createEntity(fieldCapabilitiesRequest, REQUEST_BODY_CONTENT_TYPE));
+        }
         return request;
     }
 
@@ -550,8 +543,20 @@ final class RequestConverters {
         return prepareReindexRequest(reindexRequest, false);
     }
 
+    static Request deleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
+        return prepareDeleteByQueryRequest(deleteByQueryRequest, true);
+    }
+
     static Request submitDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
         return prepareDeleteByQueryRequest(deleteByQueryRequest, false);
+    }
+
+    static Request updateByQuery(UpdateByQueryRequest updateByQueryRequest) throws IOException {
+        return prepareUpdateByQueryRequest(updateByQueryRequest, true);
+    }
+
+    static Request submitUpdateByQuery(UpdateByQueryRequest updateByQueryRequest) throws IOException {
+        return prepareUpdateByQueryRequest(updateByQueryRequest, false);
     }
 
     private static Request prepareReindexRequest(ReindexRequest reindexRequest, boolean waitForCompletion) throws IOException {
@@ -604,7 +609,8 @@ final class RequestConverters {
         return request;
     }
 
-    static Request updateByQuery(UpdateByQueryRequest updateByQueryRequest) throws IOException {
+    static Request prepareUpdateByQueryRequest(UpdateByQueryRequest updateByQueryRequest,
+                                               boolean waitForCompletion) throws IOException {
         String endpoint = endpoint(updateByQueryRequest.indices(), "_update_by_query");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params()
@@ -615,6 +621,7 @@ final class RequestConverters {
             .withWaitForActiveShards(updateByQueryRequest.getWaitForActiveShards())
             .withRequestsPerSecond(updateByQueryRequest.getRequestsPerSecond())
             .withIndicesOptions(updateByQueryRequest.indicesOptions())
+            .withWaitForCompletion(waitForCompletion)
             .withSlices(updateByQueryRequest.getSlices());
         if (updateByQueryRequest.isAbortOnVersionConflict() == false) {
             params.putParam("conflicts", "proceed");
@@ -631,10 +638,6 @@ final class RequestConverters {
         request.addParameters(params.asMap());
         request.setEntity(createEntity(updateByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
-    }
-
-    static Request deleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
-        return prepareDeleteByQueryRequest(deleteByQueryRequest, true);
     }
 
     static Request rethrottleReindex(RethrottleRequest rethrottleRequest) {
@@ -1163,14 +1166,14 @@ final class RequestConverters {
      */
     static XContentType enforceSameContentType(IndexRequest indexRequest, @Nullable XContentType xContentType) {
         XContentType requestContentType = indexRequest.getContentType();
-        if (requestContentType != XContentType.JSON && requestContentType != XContentType.SMILE) {
+        if (requestContentType.canonical() != XContentType.JSON && requestContentType.canonical() != XContentType.SMILE) {
             throw new IllegalArgumentException("Unsupported content-type found for request with content-type [" + requestContentType
                     + "], only JSON and SMILE are supported");
         }
         if (xContentType == null) {
             return requestContentType;
         }
-        if (requestContentType != xContentType) {
+        if (requestContentType.canonical() != xContentType.canonical()) {
             throw new IllegalArgumentException("Mismatching content-type found for request with content-type [" + requestContentType
                     + "], previous requests have content-type [" + xContentType + "]");
         }

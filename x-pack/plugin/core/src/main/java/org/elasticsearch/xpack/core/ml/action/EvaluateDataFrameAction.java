@@ -1,17 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -67,10 +65,10 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         }
 
         private static Evaluation parseEvaluation(XContentParser parser) throws IOException {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
             Evaluation evaluation = parser.namedObject(Evaluation.class, parser.currentName(), null);
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
             return evaluation;
         }
 
@@ -93,10 +91,8 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         public Request(StreamInput in) throws IOException {
             super(in);
             indices = in.readStringArray();
-            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-                if (in.readBoolean()) {
-                    queryProvider = QueryProvider.fromStream(in);
-                }
+            if (in.readBoolean()) {
+                queryProvider = QueryProvider.fromStream(in);
             }
             evaluation = in.readNamedWriteable(Evaluation.class);
         }
@@ -141,13 +137,11 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(indices);
-            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-                if (queryProvider != null) {
-                    out.writeBoolean(true);
-                    queryProvider.writeTo(out);
-                } else {
-                    out.writeBoolean(false);
-                }
+            if (queryProvider != null) {
+                out.writeBoolean(true);
+                queryProvider.writeTo(out);
+            } else {
+                out.writeBoolean(false);
             }
             out.writeNamedWriteable(evaluation);
         }
@@ -180,13 +174,6 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
             return Arrays.equals(indices, that.indices)
                 && Objects.equals(queryProvider, that.queryProvider)
                 && Objects.equals(evaluation, that.evaluation);
-        }
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
         }
     }
 

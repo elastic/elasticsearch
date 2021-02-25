@@ -1,0 +1,20 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+rootProject.name = "root"
+
+include ":distribution:bwc:bugfix"
+include ":distribution:bwc:minor"
+include ":distribution:bwc:major"
+include ":distribution:bwc:staged"
+include ":distribution:archives:darwin-tar"
+include ":distribution:archives:oss-darwin-tar"
+include ":distribution:archives:darwin-aarch64-tar"
+include ":distribution:archives:oss-darwin-aarch64-tar"
+include ":distribution:archives:linux-aarch64-tar"
+include ":distribution:archives:oss-linux-aarch64-tar"

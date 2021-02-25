@@ -14,20 +14,20 @@ Deletes an existing <<enrich-policy,enrich policy>> and its
 ----
 PUT /users
 {
-    "mappings" : {
-        "properties" : {
-            "email" : { "type" : "keyword" }
-        }
+  "mappings": {
+    "properties": {
+      "email": { "type": "keyword" }
     }
+  }
 }
 
 PUT /_enrich/policy/my-policy
 {
-    "match": {
-        "indices": "users",
-        "match_field": "email",
-        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
-    }
+  "match": {
+    "indices": "users",
+    "match_field": "email",
+    "enrich_fields": [ "first_name", "last_name", "city", "zip", "state" ]
+  }
 }
 ----
 // TESTSETUP

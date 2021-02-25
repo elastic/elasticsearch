@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.indices.state;
 
@@ -112,6 +101,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                     logger.debug("creating index {} with background indexing", indexName);
                     final BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), -1, 1);
                     indexers.put(indexName, indexer);
+                    indexer.setFailureAssertion(t -> assertException(t, indexName));
                     waitForDocs(1, indexer);
             }
             docsPerIndex.put(indexName, (long) nbDocs);
@@ -225,20 +215,15 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 thread.join();
             }
 
+            // stop indexers first without waiting for stop to not redundantly index on some while waiting for another one to stop
+            for (BackgroundIndexer indexer : indexers.values()) {
+                indexer.stop();
+            }
             for (Map.Entry<String, BackgroundIndexer> entry : indexers.entrySet()) {
                 final BackgroundIndexer indexer = entry.getValue();
-                indexer.setAssertNoFailuresOnStop(false);
-                indexer.stop();
-
+                indexer.awaitStopped();
                 final String indexName = entry.getKey();
                 docsPerIndex.computeIfPresent(indexName, (key, value) -> value + indexer.totalIndexedDocs());
-
-                final Throwable[] failures = indexer.getFailures();
-                if (failures != null) {
-                    for (Throwable failure : failures) {
-                        assertException(failure, indexName);
-                    }
-                }
             }
 
             for (String index : indices) {

@@ -3,4 +3,4 @@
 
 Scripts are composed of one-to-many <<painless-statements, statements>> and are
 run in a sandbox that determines what local variables are immediately available
-along with what APIs are whitelisted for use.
+along with what APIs are allowed.

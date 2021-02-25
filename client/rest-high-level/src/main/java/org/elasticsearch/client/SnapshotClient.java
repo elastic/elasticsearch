@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -28,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -38,6 +28,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.snapshots.GetSnapshottableFeaturesRequest;
+import org.elasticsearch.client.snapshots.GetSnapshottableFeaturesResponse;
 
 import java.io.IOException;
 
@@ -237,6 +229,32 @@ public final class SnapshotClient {
     }
 
     /**
+     * Clones a snapshot.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     */
+    public AcknowledgedResponse clone(CloneSnapshotRequest cloneSnapshotRequest, RequestOptions options)
+            throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(cloneSnapshotRequest, SnapshotRequestConverters::cloneSnapshot, options,
+                AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously clones a snapshot.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable cloneAsync(CloneSnapshotRequest cloneSnapshotRequest, RequestOptions options,
+                                   ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(cloneSnapshotRequest,
+                SnapshotRequestConverters::cloneSnapshot, options,
+                AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Get snapshots.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
@@ -361,5 +379,48 @@ public final class SnapshotClient {
         return restHighLevelClient.performRequestAsyncAndParseEntity(deleteSnapshotRequest,
             SnapshotRequestConverters::deleteSnapshot, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Get a list of features which can be included in a snapshot as feature states.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-snapshottable-features-api.html"> Get Snapshottable
+     * Features API on elastic.co</a>
+     *
+     * @param getFeaturesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetSnapshottableFeaturesResponse getFeatures(GetSnapshottableFeaturesRequest getFeaturesRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            getFeaturesRequest,
+            SnapshotRequestConverters::getSnapshottableFeatures,
+            options,
+            GetSnapshottableFeaturesResponse::parse,
+            emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously get a list of features which can be included in a snapshot as feature states.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-snapshottable-features-api.html"> Get Snapshottable
+     * Features API on elastic.co</a>
+     *
+     * @param getFeaturesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable getFeaturesAsync(GetSnapshottableFeaturesRequest getFeaturesRequest, RequestOptions options,
+                            ActionListener<GetSnapshottableFeaturesResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            getFeaturesRequest,
+            SnapshotRequestConverters::getSnapshottableFeatures,
+            options,
+            GetSnapshottableFeaturesResponse::parse,
+            listener,
+            emptySet()
+        );
     }
 }

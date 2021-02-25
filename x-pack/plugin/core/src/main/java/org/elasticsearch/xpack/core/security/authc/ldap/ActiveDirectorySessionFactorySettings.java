@@ -1,23 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc.ldap;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings.AD_TYPE;
 
 public final class ActiveDirectorySessionFactorySettings {
     private static final String AD_DOMAIN_NAME_SETTING_KEY = "domain_name";
-    public static final Setting.AffixSetting<String> AD_DOMAIN_NAME_SETTING
-            = RealmSettings.simpleString(AD_TYPE, AD_DOMAIN_NAME_SETTING_KEY, Setting.Property.NodeScope);
+    public static final Function<String, Setting.AffixSetting<String>> AD_DOMAIN_NAME_SETTING
+        = RealmSettings.affixSetting(AD_DOMAIN_NAME_SETTING_KEY,
+        key -> Setting.simpleString(key, v -> {
+            if (Strings.isNullOrEmpty(v)) {
+                throw new IllegalArgumentException("missing [" + key + "] setting for active directory");
+            }
+        }, Setting.Property.NodeScope));
 
     public static final String AD_GROUP_SEARCH_BASEDN_SETTING = "group_search.base_dn";
     public static final String AD_GROUP_SEARCH_SCOPE_SETTING = "group_search.scope";
@@ -71,7 +79,7 @@ public final class ActiveDirectorySessionFactorySettings {
     public static Set<Setting.AffixSetting<?>> getSettings() {
         Set<Setting.AffixSetting<?>> settings = new HashSet<>();
         settings.addAll(SessionFactorySettings.getSettings(AD_TYPE));
-        settings.add(AD_DOMAIN_NAME_SETTING);
+        settings.add(AD_DOMAIN_NAME_SETTING.apply(AD_TYPE));
         settings.add(RealmSettings.simpleString(AD_TYPE, AD_GROUP_SEARCH_BASEDN_SETTING, Setting.Property.NodeScope));
         settings.add(RealmSettings.simpleString(AD_TYPE, AD_GROUP_SEARCH_SCOPE_SETTING, Setting.Property.NodeScope));
         settings.add(AD_USER_SEARCH_BASEDN_SETTING);

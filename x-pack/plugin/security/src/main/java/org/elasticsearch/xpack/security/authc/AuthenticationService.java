@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc;
 
@@ -46,17 +47,15 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -89,13 +88,15 @@ public class AuthenticationService {
     private final Cache<String, Realm> lastSuccessfulAuthCache;
     private final AtomicLong numInvalidation = new AtomicLong();
     private final ApiKeyService apiKeyService;
+    private final OperatorPrivilegesService operatorPrivilegesService;
     private final boolean runAsEnabled;
     private final boolean isAnonymousUserEnabled;
     private final AuthenticationContextSerializer authenticationSerializer;
 
     public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrailService,
                                  AuthenticationFailureHandler failureHandler, ThreadPool threadPool,
-                                 AnonymousUser anonymousUser, TokenService tokenService, ApiKeyService apiKeyService) {
+                                 AnonymousUser anonymousUser, TokenService tokenService, ApiKeyService apiKeyService,
+                                 OperatorPrivilegesService operatorPrivilegesService) {
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.realms = realms;
         this.auditTrailService = auditTrailService;
@@ -114,6 +115,7 @@ public class AuthenticationService {
             this.lastSuccessfulAuthCache = null;
         }
         this.apiKeyService = apiKeyService;
+        this.operatorPrivilegesService = operatorPrivilegesService;
         this.authenticationSerializer = new AuthenticationContextSerializer();
     }
 
@@ -204,7 +206,9 @@ public class AuthenticationService {
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
         if (lastSuccessfulAuthCache != null) {
-            if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState)) {
+            if (isMoveFromRedToNonRed(previousState, currentState)
+                || isIndexDeleted(previousState, currentState)
+                || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false) {
                 expireAll();
             }
         }
@@ -349,10 +353,9 @@ public class AuthenticationService {
         private void checkForApiKey() {
             apiKeyService.authenticateWithApiKeyIfPresent(threadContext, ActionListener.wrap(authResult -> {
                     if (authResult.isAuthenticated()) {
-                        final User user = authResult.getUser();
-                        authenticatedBy = new RealmRef(ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, nodeName);
-                        writeAuthToContext(new Authentication(user, authenticatedBy, null, Version.CURRENT,
-                            Authentication.AuthenticationType.API_KEY, authResult.getMetadata()));
+                        final Authentication authentication = apiKeyService.createApiKeyAuthentication(authResult, nodeName);
+                        this.authenticatedBy = authentication.getAuthenticatedBy();
+                        writeAuthToContext(authentication);
                     } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                         Exception e = (authResult.getException() != null) ? authResult.getException()
                             : Exceptions.authenticationError(authResult.getMessage());
@@ -558,6 +561,13 @@ public class AuthenticationService {
          */
         // pkg-private for tests
         void handleNullToken() {
+            List<Realm> unlicensedRealms = realms.getUnlicensedRealms();
+            if (unlicensedRealms.isEmpty() == false) {
+                logger.warn("No authentication credential could be extracted using realms [{}]." +
+                                " Realms [{}] were skipped because they are not permitted on the current license",
+                            Strings.collectionToCommaDelimitedString(defaultOrderedRealmList),
+                            Strings.collectionToCommaDelimitedString(unlicensedRealms));
+            }
             final Authentication authentication;
             if (fallbackUser != null) {
                 logger.trace("No valid credentials found in request [{}], using fallback [{}]", request, fallbackUser.principal());
@@ -669,8 +679,7 @@ public class AuthenticationService {
                 logger.debug("user [{}] is disabled. failing authentication", finalUser);
                 listener.onFailure(request.authenticationFailed(authenticationToken));
             } else {
-                final Authentication finalAuth = new Authentication(
-                    maybeConsolidateRolesForUser(finalUser), authenticatedBy, lookedupBy);
+                final Authentication finalAuth = new Authentication(finalUser, authenticatedBy, lookedupBy);
                 writeAuthToContext(finalAuth);
             }
         }
@@ -680,13 +689,16 @@ public class AuthenticationService {
          * successful
          */
         void writeAuthToContext(Authentication authentication) {
-            request.authenticationSuccess(authentication.getAuthenticatedBy().getName(), authentication.getUser());
             Runnable action = () -> {
                 logger.trace("Established authentication [{}] for request [{}]", authentication, request);
                 listener.onResponse(authentication);
             };
             try {
                 authenticationSerializer.writeToContext(authentication, threadContext);
+                request.authenticationSuccess(authentication);
+                // Header for operator privileges will only be written if authentication actually happens,
+                // i.e. not read from either header or transient header
+                operatorPrivilegesService.maybeMarkOperatorUser(authentication, threadContext);
             } catch (Exception e) {
                 action = () -> {
                     logger.debug(
@@ -702,33 +714,6 @@ public class AuthenticationService {
 
         private void authenticateToken(AuthenticationToken token) {
             this.consumeToken(token);
-        }
-
-        private User maybeConsolidateRolesForUser(User user) {
-            if (User.isInternal(user)) {
-                return user;
-            } else if (isAnonymousUserEnabled && anonymousUser.equals(user) == false) {
-                if (anonymousUser.roles().length == 0) {
-                    throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
-                }
-                User userWithMergedRoles = user.withRoles(mergeRoles(user.roles(), anonymousUser.roles()));
-                if (user.isRunAs()) {
-                    final User authUserWithMergedRoles = user.authenticatedUser().withRoles(
-                        mergeRoles(user.authenticatedUser().roles(), anonymousUser.roles()));
-                    userWithMergedRoles = new User(userWithMergedRoles, authUserWithMergedRoles);
-                }
-                return userWithMergedRoles;
-            } else {
-                return user;
-            }
-        }
-
-        private String[] mergeRoles(String[] existingRoles, String[] otherRoles) {
-            Set<String> roles = new LinkedHashSet<>(Arrays.asList(existingRoles));
-            if (otherRoles != null) {
-                Collections.addAll(roles, otherRoles);
-            }
-            return roles.toArray(new String[0]);
         }
     }
 
@@ -756,7 +741,7 @@ public class AuthenticationService {
 
         abstract ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token);
 
-        abstract void authenticationSuccess(String realm, User user);
+        abstract void authenticationSuccess(Authentication authentication);
 
     }
 
@@ -776,8 +761,8 @@ public class AuthenticationService {
         }
 
         @Override
-        void authenticationSuccess(String realm, User user) {
-            auditTrail.authenticationSuccess(requestId, realm, user, action, transportRequest);
+        void authenticationSuccess(Authentication authentication) {
+            auditTrail.authenticationSuccess(requestId, authentication, action, transportRequest);
         }
 
         @Override
@@ -840,8 +825,8 @@ public class AuthenticationService {
         }
 
         @Override
-        void authenticationSuccess(String realm, User user) {
-            auditTrail.authenticationSuccess(requestId, realm, user, request);
+        void authenticationSuccess(Authentication authentication) {
+            auditTrail.authenticationSuccess(requestId, authentication, request);
         }
 
         @Override

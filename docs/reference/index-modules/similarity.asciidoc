@@ -9,7 +9,7 @@ Configuring a custom similarity is considered an expert feature and the
 builtin similarities are most likely sufficient as is described in
 <<similarity>>.
 
-[float]
+[discrete]
 [[configuration]]
 === Configuring a similarity
 
@@ -52,16 +52,16 @@ PUT /index/_mapping
 --------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 === Available similarities
 
-[float]
+[discrete]
 [[bm25]]
 ==== BM25 similarity (*default*)
 
 TF/IDF based similarity that has built-in tf normalization and
 is supposed to work better for short fields (like names). See
-http://en.wikipedia.org/wiki/Okapi_BM25[Okapi_BM25] for more details.
+{wikipedia}/Okapi_BM25[Okapi_BM25] for more details.
 This similarity has the following options:
 
 [horizontal]
@@ -80,7 +80,7 @@ This similarity has the following options:
 
 Type name: `BM25`
 
-[float]
+[discrete]
 [[dfr]]
 ==== DFR similarity
 
@@ -97,24 +97,24 @@ from randomness] framework. This similarity has the following options:
 
 `after_effect`::
     Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffectB.html[`b`] and
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffectB.html[`l`].
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffectL.html[`l`].
 
 `normalization`::
     Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/Normalization.NoNormalization.html[`no`],
     {lucene-core-javadoc}/org/apache/lucene/search/similarities/NormalizationH1.html[`h1`],
     {lucene-core-javadoc}/org/apache/lucene/search/similarities/NormalizationH2.html[`h2`],
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/NormalizationH1.html[`h3`] and
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/NormalizationH3.html[`h3`] and
     {lucene-core-javadoc}/org/apache/lucene/search/similarities/NormalizationZ.html[`z`].
 
 All options but the first option need a normalization value.
 
 Type name: `DFR`
 
-[float]
+[discrete]
 [[dfi]]
 ==== DFI similarity
 
-Similarity that implements the http://trec.nist.gov/pubs/trec21/papers/irra.web.nb.pdf[divergence from independence] 
+Similarity that implements the https://trec.nist.gov/pubs/trec21/papers/irra.web.nb.pdf[divergence from independence] 
 model.
 This similarity has the following options:
 
@@ -130,7 +130,7 @@ frequency will get a score equal to 0.
 
 Type name: `DFI`
 
-[float]
+[discrete]
 [[ib]]
 ==== IB similarity.
 
@@ -151,7 +151,7 @@ This similarity has the following options:
 
 Type name: `IB`
 
-[float]
+[discrete]
 [[lm_dirichlet]]
 ==== LM Dirichlet similarity.
 
@@ -167,11 +167,11 @@ Lucene, so such terms get a score of 0.
 
 Type name: `LMDirichlet`
 
-[float]
+[discrete]
 [[lm_jelinek_mercer]]
 ==== LM Jelinek Mercer similarity.
 
-{lucene-core-javadoc}/core/org/apache/lucene/search/similarities/LMJelinekMercerSimilarity.html[LM
+{lucene-core-javadoc}/org/apache/lucene/search/similarities/LMJelinekMercerSimilarity.html[LM
 Jelinek Mercer similarity] . The algorithm attempts to capture important patterns in the text, while leaving out noise. This similarity has the following options:
 
 [horizontal]
@@ -180,7 +180,7 @@ for title queries and `0.7` for long queries. Default to `0.1`. When value appro
 
 Type name: `LMJelinekMercer`
 
-[float]
+[discrete]
 [[scripted_similarity]]
 ==== Scripted similarity
 
@@ -506,7 +506,7 @@ GET /index/_search?explain=true
 
 Type name: `scripted`
 
-[float]
+[discrete]
 [[default-base]]
 ==== Default Similarity
 

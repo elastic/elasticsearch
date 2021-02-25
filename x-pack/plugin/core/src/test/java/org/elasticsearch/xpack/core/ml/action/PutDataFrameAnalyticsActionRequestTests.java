@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetectionTests;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -43,6 +45,7 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializing
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
         namedWriteables.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedWriteables());
+        namedWriteables.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         namedWriteables.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
         return new NamedWriteableRegistry(namedWriteables);
     }
@@ -51,6 +54,7 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializing
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }
@@ -77,7 +81,7 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializing
 
     public void testValidate_GivenRequestWithIncludedAnalyzedFieldThatIsExcludedInSourceFiltering() {
         DataFrameAnalyticsSource source = new DataFrameAnalyticsSource(new String[] {"index"}, null,
-            new FetchSourceContext(true, null, new String[] {"excluded"}));
+            new FetchSourceContext(true, null, new String[] {"excluded"}), null);
         FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[] {"excluded"}, null);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
@@ -95,7 +99,7 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializing
 
     public void testValidate_GivenRequestWithIncludedAnalyzedFieldThatIsIncludedInSourceFiltering() {
         DataFrameAnalyticsSource source = new DataFrameAnalyticsSource(new String[] {"index"}, null,
-            new FetchSourceContext(true, new String[] {"included"}, null));
+            new FetchSourceContext(true, new String[] {"included"}, null), null);
         FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[] {"included"}, null);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setId("foo")

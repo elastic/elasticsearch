@@ -60,7 +60,7 @@ Such a file can be then shared among multiple systems and the user will need to 
 
 The configuration steps are similar for all the above points. Following is an example of configuring a System DSN.
 
-[float]
+[discrete]
 ===== 2.1 Launch {odbc} DSN Editor
 Click on the _System DSN_ tab, then on the _Add..._ button:
 
@@ -82,7 +82,7 @@ image:images/sql/odbc/dsn_editor_basic.png[]
 
 This new window has three tabs, each responsible for a set of configuration parameters, as follows.
 
-[float]
+[discrete]
 ===== 2.2 Connection parameters
 This tab allows configuration for the following items:
 
@@ -129,7 +129,7 @@ At a minimum, the _Name_ and _Hostname_ fields must be provisioned, before the D
 
 WARNING: Connection encryption is enabled by default. This will need to be changed if connecting to an {es} node with no encryption.
 
-[float]
+[discrete]
 ===== 2.3 Cryptography parameters
 One of the following SSL options can be chosen:
 
@@ -180,7 +180,7 @@ will be considered by default. Choose _All Files (\*.*)_ from the drop down, if 
 .Certificate file browser
 image:images/sql/odbc/dsn_editor_security_cert.png[]
 
-[float]
+[discrete]
 ===== 2.4 Connection parameters
 The connection configuration can further be tweaked by the following parameters.
 
@@ -255,7 +255,7 @@ This corresponds to the `EarlyExecution` setting in <<odbc-cfg-dsnparams>>.
 .Connection parameters
 image:images/sql/odbc/dsn_editor_misc.png[]
 
-[float]
+[discrete]
 ===== 2.5 Logging parameters
 For troubleshooting purposes, the {odbc} offers functionality to log the API calls that an application makes; this is enabled in the Administrator application:
 
@@ -289,7 +289,7 @@ When authentication is enabled, the password will be redacted from the logs.
 NOTE: Debug-logging can quickly lead to the creation of many very large files and generate significant processing overhead. Only enable if
 instructed so and preferably only when fetching low volumes of data.
 
-[float]
+[discrete]
 [[connection_testing]]
 ===== 2.5 Testing the connection
 Once the _Hostname_, the _Port_ (if different from implicit default) and the SSL options are configured, you can test if the provided
@@ -352,7 +352,7 @@ once, the connection logging taking precedence over the environment variable
 logging.
 
 [[odbc-cfg-dsnparams]]
-[float]
+[discrete]
 ==== Connection string parameters
 
 The following is a list of additional parameters that can be configured for a

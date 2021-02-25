@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories.gcs;
 
@@ -22,7 +11,6 @@ import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
-import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.gcs.FakeOAuth2HttpHandler;
 import org.apache.http.HttpStatus;
@@ -56,7 +44,6 @@ import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -151,20 +138,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         };
         service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(clientSettings.build()));
 
-        final List<HttpContext> httpContexts = Arrays.asList(
-            // Auth
-            httpServer.createContext("/token", new FakeOAuth2HttpHandler()),
-            // Does bucket exists?
-            httpServer.createContext("/storage/v1/b/bucket", safeHandler(exchange -> {
-                byte[] response = ("{\"kind\":\"storage#bucket\",\"name\":\"bucket\",\"id\":\"0\"}").getBytes(UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-                exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
-                exchange.getResponseBody().write(response);
-            }))
-        );
-
-        final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore("bucket", client, "repo", service);
-        httpContexts.forEach(httpContext -> httpServer.removeContext(httpContext));
+        httpServer.createContext("/token", new FakeOAuth2HttpHandler());
+        final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore("bucket", client, "repo", service,
+            randomIntBetween(1, 8) * 1024);
 
         return new GoogleCloudStorageBlobContainer(BlobPath.cleanPath(), blobStore);
     }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.store;
@@ -136,7 +125,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         Setting.timeSetting("index.store.stats_refresh_interval", TimeValue.timeValueSeconds(10), Property.IndexScope);
 
     /**
-     * Specific {@link IOContext} used to verify Lucene files footer checksums.
+     * Specific {@link IOContext} indicating that we will read only the Lucene file footer (containing the file checksum)
      * See {@link MetadataSnapshot#checksumFromLuceneFile(Directory, String, Map, Logger, Version, boolean)}
      */
     public static final IOContext READONCE_CHECKSUM = new IOContext(IOContext.READONCE.context);
@@ -346,9 +335,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-    public StoreStats stats() throws IOException {
+    /**
+     * @param reservedBytes a prediction of how much larger the store is expected to grow, or {@link StoreStats#UNKNOWN_RESERVED_BYTES}.
+     */
+    public StoreStats stats(long reservedBytes) throws IOException {
         ensureOpen();
-        return new StoreStats(directory.estimateSize());
+        return new StoreStats(directory.estimateSize(), reservedBytes);
     }
 
     /**
@@ -394,18 +386,26 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @see #incRef
      */
     @Override
-    public final void decRef() {
-        refCounter.decRef();
+    public final boolean decRef() {
+        return refCounter.decRef();
     }
 
     @Override
     public void close() {
-
         if (isClosed.compareAndSet(false, true)) {
             // only do this once!
             decRef();
             logger.debug("store reference count on close: {}", refCounter.refCount());
         }
+    }
+
+    /**
+     * @return true if the {@link Store#close()} method has been called. This indicates that the current
+     * store is either closed or being closed waiting for all references to it to be released.
+     * You might prefer to use {@link Store#ensureOpen()} instead.
+     */
+    public boolean isClosing() {
+        return isClosed.get();
     }
 
     private void closeInternal() {
@@ -518,7 +518,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             // throw exception if the file is corrupt
             String checksum = Store.digestToString(CodecUtil.checksumEntireFile(input));
             // throw exception if metadata is inconsistent
-            if (!checksum.equals(md.checksum())) {
+            if (checksum.equals(md.checksum()) == false) {
                 throw new CorruptIndexException("inconsistent metadata: lucene checksum=" + checksum +
                         ", metadata checksum=" + md.checksum(), input);
             }
@@ -672,6 +672,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public int refCount() {
         return refCounter.refCount();
+    }
+
+    public void beforeClose() {
+        shardLock.setDetails("closing shard");
     }
 
     static final class StoreDirectory extends FilterDirectory {
@@ -1175,7 +1179,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         private void readAndCompareChecksum() throws IOException {
             actualChecksum = digestToString(getChecksum());
-            if (!metadata.checksum().equals(actualChecksum)) {
+            if (metadata.checksum().equals(actualChecksum) == false) {
                 throw new CorruptIndexException("checksum failed (hardware problem?) : expected=" + metadata.checksum() +
                         " actual=" + actualChecksum +
                         " (resource=" + metadata.toString() + ")", "VerifyingIndexOutput(" + metadata.name() + ")");
@@ -1185,7 +1189,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         public void writeBytes(byte[] b, int offset, int length) throws IOException {
             if (writtenBytes + length > checksumPosition) {
-                for (int i = 0; i < length; i++) { // don't optimze writing the last block of bytes
+                for (int i = 0; i < length; i++) { // don't optimize writing the last block of bytes
                     writeByte(b[offset+i]);
                 }
             } else {
@@ -1345,7 +1349,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void markStoreCorrupted(IOException exception) throws IOException {
         ensureOpen();
-        if (!isMarkedCorrupted()) {
+        if (isMarkedCorrupted() == false) {
             final String corruptionMarkerName = CORRUPTED_MARKER_NAME_PREFIX + UUIDs.randomBase64UUID();
             try (IndexOutput output = this.directory().createOutput(corruptionMarkerName, IOContext.DEFAULT)) {
                 CodecUtil.writeHeader(output, CODEC, CORRUPTED_MARKER_CODEC_VERSION);
@@ -1356,7 +1360,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 BytesRef ref = bytes.toBytesRef();
                 output.writeBytes(ref.bytes, ref.offset, ref.length);
                 CodecUtil.writeFooter(output);
-            } catch (IOException ex) {
+            } catch (IOException | ImmutableDirectoryException ex) {
                 logger.warn("Can't mark store as corrupted", ex);
             }
             directory().sync(Collections.singleton(corruptionMarkerName));
@@ -1381,7 +1385,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
      */
-    public void createEmpty(Version luceneVersion) throws IOException {
+    public void createEmpty() throws IOException {
+        Version luceneVersion = indexSettings.getIndexVersionCreated().luceneVersion;
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newEmptyIndexWriter(directory, luceneVersion)) {
             final Map<String, String> map = new HashMap<>();

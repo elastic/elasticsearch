@@ -1,29 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.snapshots.blobstore;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
 import java.io.IOException;
@@ -92,6 +83,28 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
             mapBuilder.put(entry.getKey(), List.copyOf(entry.getValue()));
         }
         this.physicalFiles = unmodifiableMap(mapBuilder);
+    }
+
+    /**
+     * Create a new instance that has a new snapshot by name {@code target} added which shares all files with the snapshot of name
+     * {@code source}.
+     *
+     * @param source source snapshot name
+     * @param target target snapshot name
+     * @return new instance with added cloned snapshot
+     */
+    public BlobStoreIndexShardSnapshots withClone(String source, String target) {
+        SnapshotFiles sourceFiles = null;
+        for (SnapshotFiles shardSnapshot : shardSnapshots) {
+            if (shardSnapshot.snapshot().equals(source)) {
+                sourceFiles = shardSnapshot;
+                break;
+            }
+        }
+        if (sourceFiles == null) {
+            throw new IllegalArgumentException("unknown source [" + source + "]");
+        }
+        return new BlobStoreIndexShardSnapshots(CollectionUtils.appendToCopy(shardSnapshots, sourceFiles.withSnapshotName(target)));
     }
 
     /**
@@ -224,13 +237,10 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         }
         Map<String, List<String>> snapshotsMap = new HashMap<>();
         Map<String, String> historyUUIDs = new HashMap<>();
-        Map<String, Long> globalCheckpoints = new HashMap<>();
         Map<String, FileInfo> files = new HashMap<>();
         if (token == XContentParser.Token.START_OBJECT) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token != XContentParser.Token.FIELD_NAME) {
-                    throw new ElasticsearchParseException("unexpected token [{}]", token);
-                }
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                 String currentFieldName = parser.currentName();
                 token = parser.nextToken();
                 if (token == XContentParser.Token.START_ARRAY) {
@@ -246,13 +256,9 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                         throw new ElasticsearchParseException("unknown object [{}]", currentFieldName);
                     }
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token != XContentParser.Token.FIELD_NAME) {
-                            throw new ElasticsearchParseException("unknown object [{}]", currentFieldName);
-                        }
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                         String snapshot = parser.currentName();
-                        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                            throw new ElasticsearchParseException("unknown object [{}]", currentFieldName);
-                        }
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();

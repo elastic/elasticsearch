@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -28,7 +30,8 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         CreateApiKeyRequest request = new CreateApiKeyRequest();
 
         ActionRequestValidationException ve = request.validate();
-        assertNull(ve);
+        assertThat(ve.validationErrors().size(), is(1));
+        assertThat(ve.validationErrors().get(0), containsString("api key name is required"));
 
         request.setName(name);
         ve = request.validate();
@@ -38,25 +41,25 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), is(1));
-        assertThat(ve.validationErrors().get(0), containsString("name may not be more than 256 characters long"));
+        assertThat(ve.validationErrors().get(0), containsString("api key name may not be more than 256 characters long"));
 
         request.setName(" leading space");
         ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), is(1));
-        assertThat(ve.validationErrors().get(0), containsString("name may not begin or end with whitespace"));
+        assertThat(ve.validationErrors().get(0), containsString("api key name may not begin or end with whitespace"));
 
         request.setName("trailing space ");
         ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), is(1));
-        assertThat(ve.validationErrors().get(0), containsString("name may not begin or end with whitespace"));
+        assertThat(ve.validationErrors().get(0), containsString("api key name may not begin or end with whitespace"));
 
         request.setName(" leading and trailing space ");
         ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), is(1));
-        assertThat(ve.validationErrors().get(0), containsString("name may not begin or end with whitespace"));
+        assertThat(ve.validationErrors().get(0), containsString("api key name may not begin or end with whitespace"));
 
         request.setName("inner space");
         ve = request.validate();
@@ -66,7 +69,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), is(1));
-        assertThat(ve.validationErrors().get(0), containsString("name may not begin with an underscore"));
+        assertThat(ve.validationErrors().get(0), containsString("api key name may not begin with an underscore"));
     }
 
     public void testSerialization() throws IOException {
@@ -95,11 +98,22 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         }
         request.setRoleDescriptors(descriptorList);
 
+        boolean testV710Bwc = randomBoolean();
+
         try (BytesStreamOutput out = new BytesStreamOutput()) {
+            if (testV710Bwc) {
+                out.setVersion(Version.V_7_9_0); // a version before 7.10
+            }
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
+                if (testV710Bwc) {
+                    in.setVersion(Version.V_7_9_0);
+                }
                 final CreateApiKeyRequest serialized = new CreateApiKeyRequest(in);
                 assertEquals(name, serialized.getName());
+                if (false == testV710Bwc) {
+                    assertEquals(request.getId(), serialized.getId()); // API key id is only preserved after v 7.10
+                }
                 assertEquals(expiration, serialized.getExpiration());
                 assertEquals(refreshPolicy, serialized.getRefreshPolicy());
                 if (nullOrEmptyRoleDescriptors) {

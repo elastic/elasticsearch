@@ -6,7 +6,7 @@
 The `elasticsearch-syskeygen` command creates a system key file in the
 elasticsearch config directory.
 
-[float]
+[discrete]
 === Synopsis
 
 [source,shell]
@@ -16,7 +16,7 @@ bin/elasticsearch-syskeygen
 ([-s, --silent] | [-v, --verbose])
 --------------------------------------------------
 
-[float]
+[discrete]
 === Description
 
 The command generates a `system_key` file, which you can use to symmetrically
@@ -27,7 +27,8 @@ from returning and storing information that contains clear text credentials. See
 IMPORTANT: The system key is a symmetric key, so the same key must be used on
 every node in the cluster.
 
-[float]
+[discrete]
+[[syskeygen-parameters]]
 === Parameters
 
 `-E <KeyValuePair>`:: Configures a setting. For example, if you have a custom
@@ -41,7 +42,7 @@ environment variable.
 `-v, --verbose`:: Shows verbose output.
 
 
-[float]
+[discrete]
 === Examples
 
 The following command generates a `system_key` file in the

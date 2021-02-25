@@ -1,42 +1,34 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
-public abstract class ParseContext implements Iterable<ParseContext.Document>{
+public abstract class ParseContext {
 
     /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
     public static class Document implements Iterable<IndexableField> {
@@ -45,7 +37,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         private final String path;
         private final String prefix;
         private final List<IndexableField> fields;
-        private ObjectObjectMap<Object, IndexableField> keyedFields;
+        private Map<Object, IndexableField> keyedFields;
 
         private Document(String path, Document parent) {
             fields = new ArrayList<>();
@@ -101,7 +93,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         /** Add fields so that they can later be fetched using {@link #getByKey(Object)}. */
         public void addWithKey(Object key, IndexableField field) {
             if (keyedFields == null) {
-                keyedFields = new ObjectObjectHashMap<>();
+                keyedFields = new HashMap<>();
             } else if (keyedFields.containsKey(key)) {
                 throw new IllegalStateException("Only one field can be stored per key");
             }
@@ -162,13 +154,18 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
+        public ObjectMapper getObjectMapper(String name) {
+            return in.getObjectMapper(name);
+        }
+
+        @Override
         public Iterable<Document> nonRootDocuments() {
             return in.nonRootDocuments();
         }
 
         @Override
-        public DocumentMapperParser docMapperParser() {
-            return in.docMapperParser();
+        public Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter) {
+            return in.parserContext(dateFormatter);
         }
 
         @Override
@@ -222,13 +219,18 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public DocumentMapper docMapper() {
-            return in.docMapper();
+        public MappingLookup mappingLookup() {
+            return in.mappingLookup();
         }
 
         @Override
-        public MapperService mapperService() {
-            return in.mapperService();
+        public MetadataFieldMapper getMetadataMapper(String mapperName) {
+            return in.getMetadataMapper(mapperName);
+        }
+
+        @Override
+        public IndexAnalyzers indexAnalyzers() {
+            return in.indexAnalyzers();
         }
 
         @Override
@@ -272,8 +274,13 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public Iterator<Document> iterator() {
-            return in.iterator();
+        public void addDynamicRuntimeField(RuntimeFieldType runtimeField) {
+            in.addDynamicRuntimeField(runtimeField);
+        }
+
+        @Override
+        public List<RuntimeFieldType> getDynamicRuntimeFields() {
+            return in.getDynamicRuntimeFields();
         }
 
         @Override
@@ -288,62 +295,46 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
     }
 
     public static class InternalParseContext extends ParseContext {
-
-        private final DocumentMapper docMapper;
-
-        private final DocumentMapperParser docMapperParser;
-
-        private final ContentPath path;
-
+        private final MappingLookup mappingLookup;
+        private final Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction;
+        private final ContentPath path = new ContentPath(0);
         private final XContentParser parser;
-
-        private Document document;
-
-        private final List<Document> documents;
-
-        private final IndexSettings indexSettings;
-
+        private final Document document;
+        private final List<Document> documents = new ArrayList<>();
         private final SourceToParse sourceToParse;
-
-        private Field version;
-
-        private SeqNoFieldMapper.SequenceIDFields seqID;
-
         private final long maxAllowedNumNestedDocs;
-
+        private final List<Mapper> dynamicMappers = new ArrayList<>();
+        private final Map<String, ObjectMapper> dynamicObjectMappers = new HashMap<>();
+        private final List<RuntimeFieldType> dynamicRuntimeFields = new ArrayList<>();
+        private final Set<String> ignoredFields = new HashSet<>();
+        private Field version;
+        private SeqNoFieldMapper.SequenceIDFields seqID;
         private long numNestedDocs;
-
-        private final List<Mapper> dynamicMappers;
-
         private boolean docsReversed = false;
 
-        private final Set<String> ignoredFields = new HashSet<>();
-
-        public InternalParseContext(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
-                                    SourceToParse source, XContentParser parser) {
-            this.indexSettings = indexSettings;
-            this.docMapper = docMapper;
-            this.docMapperParser = docMapperParser;
-            this.path = new ContentPath(0);
+        public InternalParseContext(MappingLookup mappingLookup,
+                                    Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction,
+                                    SourceToParse source,
+                                    XContentParser parser) {
+            this.mappingLookup = mappingLookup;
+            this.parserContextFunction = parserContextFunction;
             this.parser = parser;
             this.document = new Document();
-            this.documents = new ArrayList<>();
             this.documents.add(document);
             this.version = null;
             this.sourceToParse = source;
-            this.dynamicMappers = new ArrayList<>();
-            this.maxAllowedNumNestedDocs = indexSettings.getMappingNestedDocsLimit();
+            this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
         }
 
         @Override
-        public DocumentMapperParser docMapperParser() {
-            return this.docMapperParser;
+        public Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter) {
+            return parserContextFunction.apply(dateFormatter);
         }
 
         @Override
         public IndexSettings indexSettings() {
-            return this.indexSettings;
+            return this.mappingLookup.getIndexSettings();
         }
 
         @Override
@@ -389,17 +380,22 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         @Override
         public RootObjectMapper root() {
-            return docMapper.root();
+            return this.mappingLookup.getMapping().root();
         }
 
         @Override
-        public DocumentMapper docMapper() {
-            return this.docMapper;
+        public MappingLookup mappingLookup() {
+            return mappingLookup;
         }
 
         @Override
-        public MapperService mapperService() {
-            return docMapperParser.mapperService;
+        public MetadataFieldMapper getMetadataMapper(String mapperName) {
+            return mappingLookup.getMapping().getMetadataMapper(mapperName);
+        }
+
+        @Override
+        public IndexAnalyzers indexAnalyzers() {
+            return mappingLookup.getIndexAnalyzers();
         }
 
         @Override
@@ -424,12 +420,30 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         @Override
         public void addDynamicMapper(Mapper mapper) {
+            if (mapper instanceof ObjectMapper) {
+                dynamicObjectMappers.put(mapper.name(), (ObjectMapper)mapper);
+            }
             dynamicMappers.add(mapper);
         }
 
         @Override
         public List<Mapper> getDynamicMappers() {
             return dynamicMappers;
+        }
+
+        @Override
+        public ObjectMapper getObjectMapper(String name) {
+            return dynamicObjectMappers.get(name);
+        }
+
+        @Override
+        public void addDynamicRuntimeField(RuntimeFieldType runtimeField) {
+            dynamicRuntimeFields.add(runtimeField);
+        }
+
+        @Override
+        public List<RuntimeFieldType> getDynamicRuntimeFields() {
+            return Collections.unmodifiableList(dynamicRuntimeFields);
         }
 
         @Override
@@ -468,12 +482,6 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public Iterator<Document> iterator() {
-            return documents.iterator();
-        }
-
-
-        @Override
         public void addIgnoredField(String field) {
             ignoredFields.add(field);
         }
@@ -501,7 +509,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
      */
     public abstract Collection<String> getIgnoredFields();
 
-    public abstract DocumentMapperParser docMapperParser();
+    public abstract Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter);
 
     /**
      * Return a new context that will be within a copy-to operation.
@@ -584,9 +592,11 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
     public abstract RootObjectMapper root();
 
-    public abstract DocumentMapper docMapper();
+    public abstract MappingLookup mappingLookup();
 
-    public abstract MapperService mapperService();
+    public abstract MetadataFieldMapper getMetadataMapper(String mapperName);
+
+    public abstract IndexAnalyzers indexAnalyzers();
 
     public abstract Field version();
 
@@ -626,11 +636,11 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
      * @return null if no external value has been set or the value
      */
     public final <T> T parseExternalValue(Class<T> clazz) {
-        if (!externalValueSet() || externalValue() == null) {
+        if (externalValueSet() == false || externalValue() == null) {
             return null;
         }
 
-        if (!clazz.isInstance(externalValue())) {
+        if (clazz.isInstance(externalValue()) == false) {
             throw new IllegalArgumentException("illegal external value class ["
                     + externalValue().getClass().getName() + "]. Should be " + clazz.getName());
         }
@@ -642,8 +652,20 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
      */
     public abstract void addDynamicMapper(Mapper update);
 
+    public abstract ObjectMapper getObjectMapper(String name);
+
     /**
      * Get dynamic mappers created while parsing.
      */
     public abstract List<Mapper> getDynamicMappers();
+
+    /**
+     * Add a new runtime field dynamically created while parsing.
+     */
+    public abstract void addDynamicRuntimeField(RuntimeFieldType runtimeField);
+
+    /**
+     * Get dynamic runtime fields created while parsing.
+     */
+    public abstract List<RuntimeFieldType> getDynamicRuntimeFields();
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc;
 
@@ -20,12 +21,15 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
 public class Authentication implements ToXContentObject {
+
+    public static final Version VERSION_API_KEY_ROLES_AS_BYTES = Version.V_7_9_0;
 
     private final User user;
     private final RealmRef authenticatedBy;
@@ -174,6 +178,7 @@ public class Authentication implements ToXContentObject {
             builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
         }
         builder.endObject();
+        builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
     }
 
     @Override
@@ -232,8 +237,8 @@ public class Authentication implements ToXContentObject {
 
             RealmRef realmRef = (RealmRef) o;
 
-            if (!nodeName.equals(realmRef.nodeName)) return false;
-            if (!name.equals(realmRef.name)) return false;
+            if (nodeName.equals(realmRef.nodeName) == false) return false;
+            if (name.equals(realmRef.name) == false) return false;
             return type.equals(realmRef.type);
         }
 
@@ -259,4 +264,3 @@ public class Authentication implements ToXContentObject {
         INTERNAL
     }
 }
-

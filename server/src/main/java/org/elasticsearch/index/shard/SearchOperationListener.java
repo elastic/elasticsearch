@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -76,43 +66,43 @@ public interface SearchOperationListener {
     default void onFetchPhase(SearchContext searchContext, long tookInNanos) {}
 
     /**
-     * Executed when a new search context was created
-     * @param context the created context
+     * Executed when a new reader context was created
+     * @param readerContext the created context
      */
-    default void onNewContext(SearchContext context) {}
+    default void onNewReaderContext(ReaderContext readerContext) {}
 
     /**
-     * Executed when a previously created search context is freed.
+     * Executed when a previously created reader context is freed.
      * This happens either when the search execution finishes, if the
      * execution failed or if the search context as idle for and needs to be
      * cleaned up.
-     * @param context the freed search context
+     * @param readerContext the freed reader context
      */
-    default void onFreeContext(SearchContext context) {}
+    default void onFreeReaderContext(ReaderContext readerContext) {}
 
     /**
-     * Executed when a new scroll search {@link SearchContext} was created
-     * @param context the created search context
+     * Executed when a new scroll search {@link ReaderContext} was created
+     * @param readerContext the created reader context
      */
-    default void onNewScrollContext(SearchContext context) {}
+    default void onNewScrollContext(ReaderContext readerContext) {}
 
     /**
      * Executed when a scroll search {@link SearchContext} is freed.
      * This happens either when the scroll search execution finishes, if the
      * execution failed or if the search context as idle for and needs to be
      * cleaned up.
-     * @param context the freed search context
+     * @param readerContext the freed search context
      */
-    default void onFreeScrollContext(SearchContext context) {}
+    default void onFreeScrollContext(ReaderContext readerContext) {}
 
     /**
-     * Executed prior to using a {@link SearchContext} that has been retrieved
+     * Executed prior to using a {@link ReaderContext} that has been retrieved
      * from the active contexts. If the context is deemed invalid a runtime
      * exception can be thrown, which will prevent the context from being used.
-     * @param context the context retrieved from the active contexts
+     * @param readerContext The reader context used by this request.
      * @param transportRequest the request that is going to use the search context
      */
-    default void validateSearchContext(SearchContext context, TransportRequest transportRequest) {}
+    default void validateReaderContext(ReaderContext readerContext, TransportRequest transportRequest) {}
 
     /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
@@ -193,10 +183,10 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void onNewContext(SearchContext context) {
+        public void onNewReaderContext(ReaderContext readerContext) {
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.onNewContext(context);
+                    listener.onNewReaderContext(readerContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onNewContext listener [{}] failed", listener), e);
                 }
@@ -204,10 +194,10 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void onFreeContext(SearchContext context) {
+        public void onFreeReaderContext(ReaderContext readerContext) {
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.onFreeContext(context);
+                    listener.onFreeReaderContext(readerContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onFreeContext listener [{}] failed", listener), e);
                 }
@@ -215,10 +205,10 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void onNewScrollContext(SearchContext context) {
+        public void onNewScrollContext(ReaderContext readerContext) {
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.onNewScrollContext(context);
+                    listener.onNewScrollContext(readerContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onNewScrollContext listener [{}] failed", listener), e);
                 }
@@ -226,10 +216,10 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void onFreeScrollContext(SearchContext context) {
+        public void onFreeScrollContext(ReaderContext readerContext) {
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.onFreeScrollContext(context);
+                    listener.onFreeScrollContext(readerContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onFreeScrollContext listener [{}] failed", listener), e);
                 }
@@ -237,11 +227,11 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void validateSearchContext(SearchContext context, TransportRequest request) {
+        public void validateReaderContext(ReaderContext readerContext, TransportRequest request) {
             Exception exception = null;
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.validateSearchContext(context, request);
+                    listener.validateReaderContext(readerContext, request);
                 } catch (Exception e) {
                     exception = ExceptionsHelper.useOrSuppress(exception, e);
                 }

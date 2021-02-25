@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap.support;
 
@@ -23,6 +24,8 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySIDUtil.convertToString;
+import static org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySIDUtil.TOKEN_GROUPS;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJECT_CLASS_PRESENCE_FILTER;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.searchForEntry;
 
@@ -76,8 +79,14 @@ public class LdapMetadataResolver {
                                 attr -> attr.getName(),
                                 attr -> {
                                     final String[] values = attr.getValues();
+                                    if(attr.getName().equals(TOKEN_GROUPS)) {
+                                        return values.length == 1 ? convertToString(attr.getValueByteArrays()[0]) :
+                                            Arrays.stream(attr.getValueByteArrays())
+                                            .map((sidBytes) -> convertToString(sidBytes))
+                                            .collect(Collectors.toList());
+                                    }
                                     return values.length == 1 ? values[0] : List.of(values);
-                                })
+                                 })
                         );
     }
 

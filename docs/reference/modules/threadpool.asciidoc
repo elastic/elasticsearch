@@ -1,9 +1,9 @@
 [[modules-threadpool]]
 === Thread pools
 
-A node uses several thread pools to manage memory consumption. 
-Queues associated with many of the thread pools enable pending requests 
-to be held instead of discarded. 
+A node uses several thread pools to manage memory consumption.
+Queues associated with many of the thread pools enable pending requests
+to be held instead of discarded.
 
 There are several thread pools, but the important ones include:
 
@@ -33,7 +33,7 @@ There are several thread pools, but the important ones include:
 `write`::
     For single-document index/delete/update and bulk requests. Thread pool type
     is `fixed` with a size of <<node.processors, `# of allocated processors`>>,
-    queue_size of `200`. The maximum size for this pool is
+    queue_size of `10000`. The maximum size for this pool is
     `pass:[1 + ]`<<node.processors, `# of allocated processors`>>.
 
 `snapshot`::
@@ -80,6 +80,16 @@ There are several thread pools, but the important ones include:
     For cluster management.
     Thread pool type is `scaling` with a keep-alive of `5m` and a default
     maximum size of `5`.
+
+`system_read`::
+    For read operations on system indices.
+    Thread pool type is `fixed` and a default maximum size of
+    `min(5, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
+
+`system_write`::
+    For write operations on system indices.
+    Thread pool type is `fixed` and a default maximum size of
+    `min(5, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
 
 Changing a specific thread pool can be done by setting its type-specific
 parameters; for example, changing the number of threads in the `write` thread
@@ -154,7 +164,7 @@ node.processors: 2
 There are a few use-cases for explicitly overriding the `node.processors`
 setting:
 
-. If you are running multiple instances of {es} on the same host but want want
+. If you are running multiple instances of {es} on the same host but want
 {es} to size its thread pools as if it only has a fraction of the CPU, you
 should override the `node.processors` setting to the desired fraction, for
 example, if you're running two instances of {es} on a 16-core machine, set

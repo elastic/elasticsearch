@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich.action;
 
@@ -41,6 +42,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -48,9 +50,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -70,6 +71,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.emptyMap;
 
 /**
  * This is an internal action, that executes msearch requests for enrich indices in a more efficient manner.
@@ -103,12 +106,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         public Request(MultiSearchRequest multiSearchRequest) {
             super(multiSearchRequest.requests().get(0).indices()[0]);
             this.multiSearchRequest = multiSearchRequest;
-            assert multiSearchRequest.requests()
-                .stream()
-                .map(SearchRequest::indices)
-                .flatMap(Arrays::stream)
-                .distinct()
-                .count() == 1 : "action [" + NAME + "] cannot handle msearch request pointing to multiple indices";
+            assert multiSearchRequest.requests().stream().map(SearchRequest::indices).flatMap(Arrays::stream).distinct().count() == 1
+                : "action [" + NAME + "] cannot handle msearch request pointing to multiple indices";
             assert assertSearchSource();
         }
 
@@ -230,14 +229,22 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             final IndexShard indexShard = indicesService.getShardOrNull(shardId);
             try (Engine.Searcher searcher = indexShard.acquireSearcher("enrich_msearch")) {
                 final FieldsVisitor visitor = new FieldsVisitor(true);
-                final QueryShardContext context = indexService.newQueryShardContext(
+                /*
+                 * Enrich doesn't support defining runtime fields in its
+                 * configuration. We could add support for that if we'd
+                 * like it but, for now at least, you can't configure any
+                 * runtime fields so it is safe to build the context without
+                 * any.
+                 */
+                Map<String, Object> runtimeFields = emptyMap();
+                final SearchExecutionContext context = indexService.newSearchExecutionContext(
                     shardId.id(),
+                    0,
                     searcher,
                     () -> { throw new UnsupportedOperationException(); },
-                    null
+                    null,
+                    runtimeFields
                 );
-                final MapperService mapperService = context.getMapperService();
-
                 final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.multiSearchRequest.requests().size()];
                 for (int i = 0; i < request.multiSearchRequest.requests().size(); i++) {
                     final SearchSourceBuilder searchSourceBuilder = request.multiSearchRequest.requests().get(i).source();
@@ -257,7 +264,12 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
 
                         visitor.reset();
                         searcher.doc(scoreDoc.doc, visitor);
-                        visitor.postProcess(mapperService);
+                        visitor.postProcess(field -> {
+                            if (context.isFieldMapped(field) == false) {
+                                throw new IllegalStateException("Field [" + field + "] exists in the index but not in mappings");
+                            }
+                            return context.getFieldType(field);
+                        });
                         final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id(), Map.of(), Map.of());
                         hit.sourceRef(filterSource(fetchSourceContext, visitor.source()));
                         hits[j] = hit;
@@ -282,7 +294,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             XContentType.SMILE.xContent(),
             new BytesStreamOutput(source.length()),
             includes,
-            excludes
+            excludes,
+            ParsedMediaType.parseMediaType(XContentType.SMILE, emptyMap())
         );
         XContentParser sourceParser = XContentHelper.createParser(
             NamedXContentRegistry.EMPTY,

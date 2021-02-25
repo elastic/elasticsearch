@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
@@ -56,6 +57,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -119,7 +121,7 @@ public class DatafeedJobTests extends ESTestCase {
         postDataFuture = mock(ActionFuture.class);
         flushJobFuture = mock(ActionFuture.class);
         annotationDocId = "AnnotationDocId";
-        flushJobResponse = new FlushJobAction.Response(true, new Date());
+        flushJobResponse = new FlushJobAction.Response(true, Instant.now());
         delayedDataDetector = mock(DelayedDataDetector.class);
         when(delayedDataDetector.getWindow()).thenReturn(DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS);
         currentTime = 0;
@@ -130,7 +132,7 @@ public class DatafeedJobTests extends ESTestCase {
         InputStream inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
         DataCounts dataCounts = new DataCounts(jobId, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0),
-                new Date(0), new Date(0), new Date(0));
+                new Date(0), new Date(0), new Date(0), Instant.now());
 
         PostDataAction.Request expectedRequest = new PostDataAction.Request(jobId);
         expectedRequest.setDataDescription(dataDescription.build());
@@ -215,7 +217,7 @@ public class DatafeedJobTests extends ESTestCase {
         long latestFinalBucketEndTimeMs = 5000;
         long latestRecordTimeMs = 5000;
 
-        FlushJobAction.Response skipTimeResponse = new FlushJobAction.Response(true, new Date(10000L));
+        FlushJobAction.Response skipTimeResponse = new FlushJobAction.Response(true, Instant.ofEpochMilli(10000L));
         when(flushJobFuture.actionGet()).thenReturn(skipTimeResponse);
 
         long frequencyMs = 1000;
@@ -240,7 +242,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testRealtimeRun() throws Exception {
-        flushJobResponse = new FlushJobAction.Response(true, new Date(2000));
+        flushJobResponse = new FlushJobAction.Response(true, Instant.ofEpochMilli(2000));
         Bucket bucket = mock(Bucket.class);
         when(bucket.getTimestamp()).thenReturn(new Date(2000));
         when(bucket.getEpoch()).thenReturn(2L);
@@ -260,6 +262,7 @@ public class DatafeedJobTests extends ESTestCase {
         FlushJobAction.Request flushRequest = new FlushJobAction.Request(jobId);
         flushRequest.setCalcInterim(true);
         flushRequest.setAdvanceTime("59000");
+        flushRequest.setWaitForNormalization(false);
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
 
@@ -489,7 +492,7 @@ public class DatafeedJobTests extends ESTestCase {
                                           long latestRecordTimeMs, boolean haveSeenDataPreviously) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(jobId, dataDescription.build(), frequencyMs, queryDelayMs, dataExtractorFactory, timingStatsReporter,
-            client, auditor, new AnnotationPersister(resultsPersisterService, auditor), currentTimeSupplier,
+            client, auditor, new AnnotationPersister(resultsPersisterService), currentTimeSupplier,
             delayedDataDetector, null, latestFinalBucketEndTimeMs, latestRecordTimeMs, haveSeenDataPreviously);
     }
 

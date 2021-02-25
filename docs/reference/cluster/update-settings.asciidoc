@@ -12,6 +12,11 @@ Updates cluster-wide settings.
 
 `PUT /_cluster/settings`
 
+[[cluster-update-settings-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cluster-update-settings-api-desc]]
 ==== {api-description-title}
@@ -47,7 +52,7 @@ difficult to notice these discrepancies.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
 `include_defaults`::
-    (Optional, boolean) If `true`, returns all default cluster settings. 
+    (Optional, Boolean) If `true`, returns all default cluster settings. 
     Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
@@ -62,9 +67,9 @@ An example of a persistent update:
 --------------------------------------------------
 PUT /_cluster/settings
 {
-    "persistent" : {
-        "indices.recovery.max_bytes_per_sec" : "50mb"
-    }
+  "persistent" : {
+    "indices.recovery.max_bytes_per_sec" : "50mb"
+  }
 }
 --------------------------------------------------
 
@@ -75,9 +80,9 @@ An example of a transient update:
 --------------------------------------------------
 PUT /_cluster/settings?flat_settings=true
 {
-    "transient" : {
-        "indices.recovery.max_bytes_per_sec" : "20mb"
-    }
+  "transient" : {
+    "indices.recovery.max_bytes_per_sec" : "20mb"
+  }
 }
 --------------------------------------------------
 
@@ -88,11 +93,11 @@ the transient example:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "persistent" : { },
-    "transient" : {
-        "indices.recovery.max_bytes_per_sec" : "20mb"
-    }
+  ...
+  "persistent" : { },
+  "transient" : {
+    "indices.recovery.max_bytes_per_sec" : "20mb"
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"acknowledged": true,/]
@@ -104,9 +109,9 @@ This example resets a setting:
 --------------------------------------------------
 PUT /_cluster/settings
 {
-    "transient" : {
-        "indices.recovery.max_bytes_per_sec" : null
-    }
+  "transient" : {
+    "indices.recovery.max_bytes_per_sec" : null
+  }
 }
 --------------------------------------------------
 
@@ -116,9 +121,9 @@ The response does not include settings that have been reset:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "persistent" : {},
-    "transient" : {}
+  ...
+  "persistent" : {},
+  "transient" : {}
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"acknowledged": true,/]
@@ -131,8 +136,8 @@ all dynamic `indices.recovery` settings:
 --------------------------------------------------
 PUT /_cluster/settings
 {
-    "transient" : {
-        "indices.recovery.*" : null
-    }
+  "transient" : {
+    "indices.recovery.*" : null
+  }
 }
 --------------------------------------------------

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
@@ -28,14 +29,14 @@ import java.util.Properties;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
-import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.assertNoSearchContexts;
+import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 
 public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
 
     @After
     public void checkSearchContent() throws Exception {
         // Some context might linger due to fire and forget nature of scroll cleanup
-        assertNoSearchContexts();
+        assertNoSearchContexts(client());
     }
 
     /**

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.translog;
@@ -29,6 +18,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -103,6 +93,23 @@ final class TranslogHeader {
         return size;
     }
 
+    static int readHeaderVersion(final Path path, final FileChannel channel, final StreamInput in) throws IOException {
+        final int version;
+        try {
+            version = CodecUtil.checkHeader(new InputStreamDataInput(in), TRANSLOG_CODEC, VERSION_CHECKSUMS, VERSION_PRIMARY_TERM);
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException e) {
+            tryReportOldVersionError(path, channel);
+            throw new TranslogCorruptedException(path.toString(), "translog header corrupted", e);
+        }
+        if (version == VERSION_CHECKSUMS) {
+            throw new IllegalStateException("pre-2.0 translog found [" + path + "]");
+        }
+        if (version == VERSION_CHECKPOINTS) {
+            throw new IllegalStateException("pre-6.3 translog found [" + path + "]");
+        }
+        return version;
+    }
+
     /**
      * Read a translog header from the given path and file channel
      */
@@ -113,19 +120,7 @@ final class TranslogHeader {
                 new BufferedChecksumStreamInput(
                     new InputStreamStreamInput(java.nio.channels.Channels.newInputStream(channel), channel.size()),
                     path.toString());
-            final int version;
-            try {
-                version = CodecUtil.checkHeader(new InputStreamDataInput(in), TRANSLOG_CODEC, VERSION_CHECKSUMS, VERSION_PRIMARY_TERM);
-            } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException e) {
-                tryReportOldVersionError(path, channel);
-                throw new TranslogCorruptedException(path.toString(), "translog header corrupted", e);
-            }
-            if (version == VERSION_CHECKSUMS) {
-                throw new IllegalStateException("pre-2.0 translog found [" + path + "]");
-            }
-            if (version == VERSION_CHECKPOINTS) {
-                throw new IllegalStateException("pre-6.3 translog found [" + path + "]");
-            }
+            final int version = readHeaderVersion(path, channel, in);
             // Read the translogUUID
             final int uuidLen = in.readInt();
             if (uuidLen > channel.size()) {

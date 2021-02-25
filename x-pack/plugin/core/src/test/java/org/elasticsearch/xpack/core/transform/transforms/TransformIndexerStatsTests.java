@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
@@ -21,6 +22,8 @@ public class TransformIndexerStatsTests extends AbstractSerializingTestCase<Tran
 
     public static TransformIndexerStats randomStats() {
         return new TransformIndexerStats(
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
@@ -98,6 +101,7 @@ public class TransformIndexerStatsTests extends AbstractSerializingTestCase<Tran
         xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_PAGES.getPreferredName(), stats.getNumPages());
         xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_INPUT_DOCUMENTS.getPreferredName(), stats.getNumDocuments());
         xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_OUTPUT_DOCUMENTS.getPreferredName(), stats.getOutputDocuments());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_DELETED_DOCUMENTS.getPreferredName(), stats.getNumDeletedDocuments());
         xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_INVOCATIONS.getPreferredName(), stats.getNumInvocations());
         xContentFieldIfNotZero(builder, TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName(), stats.getIndexTime());
         xContentFieldIfNotZero(builder, TransformIndexerStats.INDEX_TOTAL.getPreferredName(), stats.getIndexTotal());
@@ -107,6 +111,7 @@ public class TransformIndexerStatsTests extends AbstractSerializingTestCase<Tran
         xContentFieldIfNotZero(builder, TransformIndexerStats.PROCESSING_TIME_IN_MS.getPreferredName(), stats.getProcessingTime());
         xContentFieldIfNotZero(builder, TransformIndexerStats.PROCESSING_TOTAL.getPreferredName(), stats.getProcessingTotal());
         xContentFieldIfNotZero(builder, TransformIndexerStats.SEARCH_FAILURES.getPreferredName(), stats.getSearchFailures());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.DELETE_TIME_IN_MS.getPreferredName(), stats.getDeleteTime());
         xContentFieldIfNotZero(
             builder,
             TransformIndexerStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(),

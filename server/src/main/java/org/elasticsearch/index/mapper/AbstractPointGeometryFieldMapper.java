@@ -1,261 +1,156 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryFormat;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.index.mapper.TypeParsers.parseField;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /** Base class for for spatial fields that only support indexing points */
 public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extends AbstractGeometryFieldMapper<Parsed, Processed> {
 
-    public static class Names extends AbstractGeometryFieldMapper.Names {
-        public static final ParseField NULL_VALUE = new ParseField("null_value");
+    public static Parameter<ParsedPoint> nullValueParam(Function<FieldMapper, ParsedPoint> initializer,
+                                                        TriFunction<String, ParserContext, Object, ParsedPoint> parser,
+                                                        Supplier<ParsedPoint> def) {
+        return new Parameter<>("null_value", false, def, parser, initializer);
     }
 
-    public abstract static class Builder<T extends Builder,
-            FT extends AbstractPointGeometryFieldType> extends AbstractGeometryFieldMapper.Builder<T, FT> {
-        public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
-            super(name, fieldType, defaultFieldType);
-        }
+    protected final ParsedPoint nullValue;
 
-        public abstract AbstractPointGeometryFieldMapper build(BuilderContext context, String simpleName, MappedFieldType fieldType,
-                                MappedFieldType defaultFieldType, Settings indexSettings,
-                                MultiFields multiFields, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
-                                CopyTo copyTo);
-
-
-        @Override
-        public AbstractPointGeometryFieldMapper build(BuilderContext context) {
-            return build(context, name, fieldType, defaultFieldType, context.indexSettings(),
-                multiFieldsBuilder.build(this, context), ignoreMalformed(context),
-                ignoreZValue(context), copyTo);
-        }
-
-
-        @Override
-        public FT fieldType() {
-            return (FT)fieldType;
-        }
-    }
-
-    public abstract static class TypeParser<Processed, T extends Builder> extends AbstractGeometryFieldMapper.TypeParser<Builder> {
-        protected abstract Processed parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed);
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public T parse(String name, Map<String, Object> node, Map<String, Object> params, ParserContext parserContext) {
-            T builder = (T)(super.parse(name, node, params, parserContext));
-            parseField(builder, name, node, parserContext);
-            Object nullValue = null;
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String propName = entry.getKey();
-                Object propNode = entry.getValue();
-
-                if (Names.NULL_VALUE.match(propName, LoggingDeprecationHandler.INSTANCE)) {
-                    if (propNode == null) {
-                        throw new MapperParsingException("Property [null_value] cannot be null.");
-                    }
-                    nullValue = propNode;
-                    iterator.remove();
-                }
-            }
-
-            if (nullValue != null) {
-                builder.nullValue(parseNullValue(nullValue, (Boolean)builder.ignoreZValue().value(),
-                    (Boolean)builder.ignoreMalformed().value()));
-            }
-
-            return builder;
-        }
-    }
-
-    public abstract static class AbstractPointGeometryFieldType<Parsed, Processed>
-            extends AbstractGeometryFieldType<Parsed, Processed> {
-        protected AbstractPointGeometryFieldType() {
-            super();
-            setHasDocValues(true);
-            setDimensions(2, Integer.BYTES);
-        }
-
-        protected AbstractPointGeometryFieldType(AbstractPointGeometryFieldType ref) {
-            super(ref);
-        }
-    }
-
-    protected AbstractPointGeometryFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                               Settings indexSettings, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                                               Explicit<Boolean> ignoreZValue, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, ignoreMalformed, ignoreZValue, multiFields, copyTo);
+    protected AbstractPointGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                               MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                                               Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo,
+                                               Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
+        super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer, parser);
+        this.nullValue = nullValue;
     }
 
     @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        AbstractPointGeometryFieldMapper gpfm = (AbstractPointGeometryFieldMapper)other;
-        if (gpfm.fieldType().nullValue() != null) {
-            this.fieldType().setNullValue(gpfm.fieldType().nullValue());
-        }
+    public final boolean parsesArrayValue() {
+        return true;
     }
 
-    @Override
-    @SuppressWarnings("rawtypes")
-    public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-        if (includeDefaults || fieldType().nullValue() != null) {
-            builder.field(Names.NULL_VALUE.getPreferredName(), fieldType().nullValue());
-        }
+    public ParsedPoint getNullValue() {
+        return nullValue;
     }
-
-    protected abstract ParsedPoint newParsedPoint();
 
     /** represents a Point that has been parsed by {@link PointParser} */
     public interface ParsedPoint {
         void validate(String fieldName);
         void normalize(String fieldName);
         void resetCoords(double x, double y);
+        Point asGeometry();
         default boolean isNormalizable(double coord) {
             return Double.isNaN(coord) == false && Double.isInfinite(coord) == false;
         }
     }
 
-    protected void parsePointIgnoringMalformed(XContentParser parser, ParsedPoint point) throws IOException {
-        try {
-            if (ignoreMalformed.value() == false) {
-                point.validate(name());
-            } else {
-                point.normalize(name());
-            }
-        } catch (ElasticsearchParseException e) {
-            if (ignoreMalformed.value() == false) {
-                throw e;
-            }
-        }
-    }
-
     /** A parser implementation that can parse the various point formats */
-    public static class PointParser<P extends ParsedPoint> implements Parser<List<P>> {
+    public static class PointParser<P extends ParsedPoint> extends Parser<List<P>> {
+        /**
+         * Note that this parser is only used for formatting values.
+         */
+        private final GeometryParser geometryParser;
+        private final String field;
+        private final Supplier<P> pointSupplier;
+        private final CheckedBiFunction<XContentParser, P, P, IOException> objectParser;
+        private final P nullValue;
+        private final boolean ignoreZValue;
+        private final boolean ignoreMalformed;
+
+        public PointParser(String field,
+                           Supplier<P> pointSupplier,
+                           CheckedBiFunction<XContentParser, P, P, IOException> objectParser,
+                           P nullValue,
+                           boolean ignoreZValue,
+                           boolean ignoreMalformed) {
+            this.field = field;
+            this.pointSupplier = pointSupplier;
+            this.objectParser = objectParser;
+            this.nullValue = nullValue;
+            this.ignoreZValue = ignoreZValue;
+            this.ignoreMalformed = ignoreMalformed;
+            this.geometryParser = new GeometryParser(true, true, true);
+        }
+
+        private P process(P in) {
+            if (ignoreMalformed == false) {
+                in.validate(field);
+            } else {
+                in.normalize(field);
+            }
+            return in;
+        }
 
         @Override
-        public List<P> parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException {
-            return geometryFormat(parser, (AbstractPointGeometryFieldMapper)mapper).fromXContent(parser);
+        public List<P> parse(XContentParser parser) throws IOException, ParseException {
+
+            if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                XContentParser.Token token = parser.nextToken();
+                P point = pointSupplier.get();
+                ArrayList<P> points = new ArrayList<>();
+                if (token == XContentParser.Token.VALUE_NUMBER) {
+                    double x = parser.doubleValue();
+                    parser.nextToken();
+                    double y = parser.doubleValue();
+                    token = parser.nextToken();
+                    if (token == XContentParser.Token.VALUE_NUMBER) {
+                        GeoPoint.assertZValue(ignoreZValue, parser.doubleValue());
+                    } else if (token != XContentParser.Token.END_ARRAY) {
+                        throw new ElasticsearchParseException("field type does not accept > 3 dimensions");
+                    }
+
+                    point.resetCoords(x, y);
+                    points.add(process(point));
+                } else {
+                    while (token != XContentParser.Token.END_ARRAY) {
+                        points.add(process(objectParser.apply(parser, point)));
+                        point = pointSupplier.get();
+                        token = parser.nextToken();
+                    }
+                }
+                return points;
+            } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                if (nullValue == null) {
+                    return null;
+                } else {
+                    return Collections.singletonList(nullValue);
+                }
+            } else {
+                return Collections.singletonList(process(objectParser.apply(parser, pointSupplier.get())));
+            }
         }
 
-        public GeometryFormat<List<P>> geometryFormat(XContentParser parser, AbstractPointGeometryFieldMapper mapper) {
-            if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                return new GeometryFormat<List<P>>() {
-                    @Override
-                    public List<P> fromXContent(XContentParser parser) throws IOException {
-                        XContentParser.Token token = parser.nextToken();
-                        P point = (P)(mapper.newParsedPoint());
-                        ArrayList<P> points = new ArrayList();
-                        if (token == XContentParser.Token.VALUE_NUMBER) {
-                            double x = parser.doubleValue();
-                            parser.nextToken();
-                            double y = parser.doubleValue();
-                            token = parser.nextToken();
-                            if (token == XContentParser.Token.VALUE_NUMBER) {
-                                GeoPoint.assertZValue((Boolean)(mapper.ignoreZValue().value()), parser.doubleValue());
-                            } else if (token != XContentParser.Token.END_ARRAY) {
-                                throw new ElasticsearchParseException("[{}] field type does not accept > 3 dimensions",
-                                    mapper.contentType());
-                            }
-
-                            point.resetCoords(x, y);
-                            if ((Boolean)(mapper.ignoreMalformed().value()) == false) {
-                                point.validate(mapper.name());
-                            } else {
-                                point.normalize(mapper.name());
-                            }
-                            points.add(point);
-                        } else {
-                            while (token != XContentParser.Token.END_ARRAY) {
-                                mapper.parsePointIgnoringMalformed(parser, point);
-                                points.add(point);
-                                point = (P)(mapper.newParsedPoint());
-                                token = parser.nextToken();
-                            }
-                        }
-                        return points;
-                    }
-
-                    @Override
-                    public XContentBuilder toXContent(List<P> points, XContentBuilder builder, Params params) throws IOException {
-                        return null;
-                    }
-                };
-            } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                return new GeometryFormat<List<P>>() {
-                    @Override
-                    public List<P> fromXContent(XContentParser parser) throws IOException, ParseException {
-                        P point = null;
-                        ArrayList<P> points = null;
-                        if (mapper.fieldType().nullValue() != null) {
-                            point = (P)(mapper.fieldType().nullValue());
-                            if ((Boolean)(mapper.ignoreMalformed().value()) == false) {
-                                point.validate(mapper.name());
-                            } else {
-                                point.normalize(mapper.name());
-                            }
-                            points = new ArrayList<>();
-                            points.add(point);
-                        }
-                        return points;
-                    }
-
-                    @Override
-                    public XContentBuilder toXContent(List<P> points, XContentBuilder builder, Params params) throws IOException {
-                        return null;
-                    }
-                };
-            } else {
-                return new GeometryFormat<List<P>>() {
-                    @Override
-                    public List<P> fromXContent(XContentParser parser) throws IOException, ParseException {
-                        P point = (P)mapper.newParsedPoint();
-                        mapper.parsePointIgnoringMalformed(parser, point);
-                        ArrayList<P> points = new ArrayList();
-                        points.add(point);
-                        return points;
-                    }
-
-                    @Override
-                    public XContentBuilder toXContent(List<P> points, XContentBuilder builder, Params params) throws IOException {
-                        return null;
-                    }
-                };
+        @Override
+        public Object format(List<P> points, String format) {
+            List<Object> result = new ArrayList<>();
+            GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(format);
+            for (ParsedPoint point : points) {
+                Geometry geometry = point.asGeometry();
+                result.add(geometryFormat.toXContentAsObject(geometry));
             }
+            return result;
         }
     }
 }

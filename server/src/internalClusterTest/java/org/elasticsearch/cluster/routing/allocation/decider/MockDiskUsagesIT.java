@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -89,20 +79,19 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
         clusterInfoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
-        clusterInfoService.onMaster();
 
         // prevent any effects from in-flight recoveries, since we are only simulating a 100-byte disk
-        clusterInfoService.shardSizeFunction = shardRouting -> 0L;
+        clusterInfoService.setShardSizeFunctionAndRefresh(shardRouting -> 0L);
 
         // start with all nodes below the watermark
-        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100));
+        clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100)));
 
         final boolean watermarkBytes = randomBoolean(); // we have to consistently use bytes or percentage for the disk watermark settings
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
             .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), watermarkBytes ? "10b" : "90%")
             .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), watermarkBytes ? "10b" : "90%")
             .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), watermarkBytes ? "0b" : "100%")
-            .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "1ms")));
+            .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")));
         // Create an index with 10 shards so we can check allocation for it
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 10).put("number_of_replicas", 0)));
         ensureGreen("test");
@@ -115,8 +104,8 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         });
 
         // move node2 above high watermark
-        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100,
-            discoveryNode.getId().equals(nodeIds.get(2)) ? between(0, 9) : between(10, 100));
+        clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100,
+            discoveryNode.getId().equals(nodeIds.get(2)) ? between(0, 9) : between(10, 100)));
 
         logger.info("--> waiting for shards to relocate off node [{}]", nodeIds.get(2));
 
@@ -128,7 +117,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         });
 
         // move all nodes below watermark again
-        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100));
+        clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100)));
 
         logger.info("--> waiting for shards to rebalance back onto node [{}]", nodeIds.get(2));
 
@@ -151,13 +140,12 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
         clusterInfoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
-        clusterInfoService.onMaster();
 
         // prevent any effects from in-flight recoveries, since we are only simulating a 100-byte disk
-        clusterInfoService.shardSizeFunction = shardRouting -> 0L;
+        clusterInfoService.setShardSizeFunctionAndRefresh(shardRouting -> 0L);
 
         // start with all nodes below the low watermark
-        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(15, 100));
+        clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(15, 100)));
 
         final boolean watermarkBytes = randomBoolean(); // we have to consistently use bytes or percentage for the disk watermark settings
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
@@ -184,8 +172,8 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         // Move all nodes above the low watermark so no shard movement can occur, and at least one node above the flood stage watermark so
         // the index is blocked
-        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100,
-            discoveryNode.getId().equals(nodeIds.get(2)) ? between(0, 4) : between(0, 9));
+        clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100,
+            discoveryNode.getId().equals(nodeIds.get(2)) ? between(0, 4) : between(0, 9)));
 
         assertBusy(() -> assertBlocked(
             client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar"),
@@ -201,7 +189,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         logger.info("--> index is confirmed read-only, releasing disk space");
 
         // Move all nodes below the high watermark so that the index is unblocked
-        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100));
+        clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100)));
 
         // Attempt to create a new document until DiskUsageMonitor unblocks the index
         assertBusy(() -> {
@@ -225,21 +213,21 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final AtomicReference<ClusterState> masterAppliedClusterState = new AtomicReference<>();
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
-                masterAppliedClusterState.set(event.state());
-                clusterInfoService.refresh(); // so that a subsequent reroute sees disk usage according to the current state
-            });
+            masterAppliedClusterState.set(event.state());
+            ClusterInfoServiceUtils.refresh(clusterInfoService); // so that subsequent reroutes see disk usage according to current state
+        });
 
         // shards are 1 byte large
-        clusterInfoService.shardSizeFunction = shardRouting -> 1L;
+        clusterInfoService.setShardSizeFunctionAndRefresh(shardRouting -> 1L);
 
         // start with all nodes below the watermark
-        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 1000L, 1000L);
+        clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 1000L, 1000L));
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
             .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "90%")
             .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "90%")
             .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "100%")
-            .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "1ms")));
+            .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")));
 
         final List<String> nodeIds = StreamSupport.stream(client().admin().cluster().prepareState().get().getState()
             .getRoutingNodes().spliterator(), false).map(RoutingNode::nodeId).collect(Collectors.toList());
@@ -260,12 +248,12 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)));
 
         // node2 suddenly has 99 bytes free, less than 10%, but moving one shard is enough to bring it up to 100 bytes free:
-        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 1000L,
+        clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 1000L,
             discoveryNode.getId().equals(nodeIds.get(2))
                 ? 101L - masterAppliedClusterState.get().getRoutingNodes().node(nodeIds.get(2)).numberOfOwningShards()
-                : 1000L);
+                : 1000L));
 
-        clusterInfoService.refresh();
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
 
         logger.info("--> waiting for shards to relocate off node [{}]", nodeIds.get(2));
 
@@ -293,7 +281,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
             assertThat(event.state().getRoutingNodes().node(nodeIds.get(2)).size(), lessThanOrEqualTo(1));
             masterAppliedClusterState.set(event.state());
-            clusterInfoService.refresh(); // so that a subsequent reroute sees disk usage according to the current state
+            ClusterInfoServiceUtils.refresh(clusterInfoService); // so that subsequent reroutes see disk usage according to current state
         });
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
@@ -302,13 +290,13 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "100%")));
 
         // shards are 1 byte large
-        clusterInfoService.shardSizeFunction = shardRouting -> 1L;
+        clusterInfoService.setShardSizeFunctionAndRefresh(shardRouting -> 1L);
 
         // node 2 only has space for one shard
-        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 1000L,
+        clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 1000L,
             discoveryNode.getId().equals(nodeIds.get(2))
                 ? 150L - masterAppliedClusterState.get().getRoutingNodes().node(nodeIds.get(2)).numberOfOwningShards()
-                : 1000L);
+                : 1000L));
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
             .put("number_of_shards", 6)
@@ -352,10 +340,10 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
 
         // prevent any effects from in-flight recoveries, since we are only simulating a 100-byte disk
-        clusterInfoService.shardSizeFunction = shardRouting -> 0L;
+        clusterInfoService.setShardSizeFunctionAndRefresh(shardRouting -> 0L);
 
         // start with all paths below the watermark
-        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100));
+        clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100)));
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
             .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "90%")
@@ -381,15 +369,13 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 && shardStats.getDataPath().startsWith(pathOverWatermark.toString()) == false).count();
         logger.info("--> shards on good path: [{}]", shardsOnGoodPath);
 
-        // one of the paths on node0 suddenly exceeds the high watermark
-        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100L,
-            fsInfoPath.getPath().startsWith(pathOverWatermark.toString()) ? between(0, 9) : between(10, 100));
-
         // disable rebalancing, or else we might move shards back onto the over-full path since we're not faking that
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
             .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)));
 
-        clusterInfoService.refresh();
+        // one of the paths on node0 suddenly exceeds the high watermark
+        clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100L,
+            fsInfoPath.getPath().startsWith(pathOverWatermark.toString()) ? between(0, 9) : between(10, 100)));
 
         logger.info("--> waiting for shards to relocate off path [{}]", pathOverWatermark);
 

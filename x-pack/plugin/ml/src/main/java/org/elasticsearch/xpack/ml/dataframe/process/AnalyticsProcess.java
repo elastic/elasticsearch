@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.ml.process.NativeProcess;
 
 import java.io.IOException;
@@ -26,14 +27,6 @@ public interface AnalyticsProcess<ProcessResult> extends NativeProcess {
     Iterator<ProcessResult> readAnalyticsResults();
 
     /**
-     * Read anything left in the stream before
-     * closing the stream otherwise if the process
-     * tries to write more after the close it gets
-     * a SIGPIPE
-     */
-    void consumeAndCloseOutputStream();
-
-    /**
      *
      * @return the process config
      */
@@ -41,7 +34,8 @@ public interface AnalyticsProcess<ProcessResult> extends NativeProcess {
 
     /**
      * Restores the model state from a previously persisted one
-     * @param state the state to restore
+     * @param client the client to use for fetching the state documents
+     * @param stateDocIdPrefix the prefix of ids of the state documents
      */
-    void restoreState(BytesReference state) throws IOException;
+    void restoreState(Client client, String stateDocIdPrefix) throws IOException;
 }

@@ -1,5 +1,9 @@
 [[bytes-processor]]
-=== Bytes Processor
+=== Bytes processor
+++++
+<titleabbrev>Bytes</titleabbrev>
+++++
+
 Converts a human readable byte value (e.g. 1kb) to its value in bytes (e.g. 1024). If the field is an array of strings, all members of the array will be converted.
 
 Supported human readable units are "b", "kb", "mb", "gb", "tb", "pb" case insensitive. An error will occur if

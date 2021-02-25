@@ -1,16 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.util;
 
-import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.store.ByteBuffersDataOutput;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -30,31 +27,38 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeCoordinateEncoder;
-import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeReader;
-import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeWriter;
+import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueWriter;
+import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 
 public class GeoTestUtils {
 
-    public static ShapeField.DecodedTriangle[] toDecodedTriangles(Geometry geometry) throws IOException {
+    public static GeometryDocValueReader geometryDocValueReader(Geometry geometry, CoordinateEncoder encoder) throws IOException {
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         geometry = indexer.prepareForIndexing(geometry);
-        List<IndexableField> fields = indexer.indexShape(null, geometry);
-        ShapeField.DecodedTriangle[] triangles = new ShapeField.DecodedTriangle[fields.size()];
-        final byte[] scratch = new byte[7 * Integer.BYTES];
-        for (int i = 0; i < fields.size(); i++) {
-            BytesRef bytesRef = fields.get(i).binaryValue();
-            assert bytesRef.length == 7 * Integer.BYTES;
-            System.arraycopy(bytesRef.bytes, bytesRef.offset, scratch, 0, 7 * Integer.BYTES);
-            ShapeField.decodeTriangle(scratch, triangles[i] = new ShapeField.DecodedTriangle());
-        }
-        return triangles;
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(geometry);
+        GeometryDocValueReader reader = new GeometryDocValueReader();
+        reader.reset(GeometryDocValueWriter.write(indexer.indexShape(null, geometry), encoder, centroidCalculator));
+        return reader;
     }
 
+    public static BinaryGeoShapeDocValuesField binaryGeoShapeDocValuesField(String name, Geometry geometry) {
+        GeoShapeIndexer indexer = new GeoShapeIndexer(true, name);
+        geometry = indexer.prepareForIndexing(geometry);
+        BinaryGeoShapeDocValuesField field = new BinaryGeoShapeDocValuesField(name);
+        field.add(indexer.indexShape(null, geometry) , geometry);
+        return field;
+    }
+
+    public static GeoShapeValues.GeoShapeValue geoShapeValue(Geometry geometry) throws IOException {
+        GeometryDocValueReader reader = geometryDocValueReader(geometry, CoordinateEncoder.GEO);
+        return new GeoShapeValues.GeoShapeValue(reader);
+    }
 
     public static GeoBoundingBox randomBBox() {
         Rectangle rectangle = GeometryTestUtils.randomRectangle();
@@ -82,15 +86,5 @@ public class GeoTestUtils {
         parser.nextToken();
         Geometry geometry = new GeometryParser(true, true, true).parse(parser);
         return new GeoShapeIndexer(true, "indexer").prepareForIndexing(geometry);
-    }
-
-    public static TriangleTreeReader triangleTreeReader(Geometry geometry, GeoShapeCoordinateEncoder encoder) throws IOException {
-        ShapeField.DecodedTriangle[] triangles = toDecodedTriangles(geometry);
-        TriangleTreeWriter writer = new TriangleTreeWriter(Arrays.asList(triangles), encoder, new CentroidCalculator(geometry));
-        ByteBuffersDataOutput output = new ByteBuffersDataOutput();
-        writer.writeTo(output);
-        TriangleTreeReader reader = new TriangleTreeReader(encoder);
-        reader.reset(new BytesRef(output.toArrayCopy(), 0, Math.toIntExact(output.size())));
-        return reader;
     }
 }

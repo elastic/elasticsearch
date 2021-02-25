@@ -5,6 +5,10 @@
       "description":"Clears all or specific caches for one or more indices."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

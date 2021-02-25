@@ -1,6 +1,15 @@
 setup:
 
   - do:
+      indices.create:
+        index: utopia
+        body:
+          mappings:
+            properties:
+              ml.top_classes:
+                type: nested
+
+  - do:
       index:
         index: utopia
         body:  >
@@ -14,7 +23,11 @@ setup:
             "classification_field_act": "dog",
             "classification_field_pred": "dog",
             "all_true_field": true,
-            "all_false_field": false
+            "all_false_field": false,
+            "ml.top_classes": [
+              {"class_name": "dog", "class_probability": 0.9},
+              {"class_name": "cat", "class_probability": 0.1}
+            ]
           }
 
   - do:
@@ -31,7 +44,11 @@ setup:
             "classification_field_act": "cat",
             "classification_field_pred": "cat",
             "all_true_field": true,
-            "all_false_field": false
+            "all_false_field": false,
+            "ml.top_classes": [
+              {"class_name": "cat", "class_probability": 0.8},
+              {"class_name": "dog", "class_probability": 0.2}
+            ]
           }
 
   - do:
@@ -48,7 +65,11 @@ setup:
             "classification_field_act": "mouse",
             "classification_field_pred": "mouse",
             "all_true_field": true,
-            "all_false_field": false
+            "all_false_field": false,
+            "ml.top_classes": [
+              {"class_name": "cat", "class_probability": 0.3},
+              {"class_name": "dog", "class_probability": 0.1}
+            ]
           }
 
   - do:
@@ -65,7 +86,11 @@ setup:
             "classification_field_act": "dog",
             "classification_field_pred": "cat",
             "all_true_field": true,
-            "all_false_field": false
+            "all_false_field": false,
+            "ml.top_classes": [
+              {"class_name": "cat", "class_probability": 0.6},
+              {"class_name": "dog", "class_probability": 0.3}
+            ]
           }
 
   - do:
@@ -82,7 +107,11 @@ setup:
             "classification_field_act": "cat",
             "classification_field_pred": "dog",
             "all_true_field": true,
-            "all_false_field": false
+            "all_false_field": false,
+            "ml.top_classes": [
+              {"class_name": "dog", "class_probability": 0.7},
+              {"class_name": "cat", "class_probability": 0.3}
+            ]
           }
 
   - do:
@@ -99,7 +128,11 @@ setup:
             "classification_field_act": "dog",
             "classification_field_pred": "dog",
             "all_true_field": true,
-            "all_false_field": false
+            "all_false_field": false,
+            "ml.top_classes": [
+              {"class_name": "dog", "class_probability": 0.9},
+              {"class_name": "cat", "class_probability": 0.1}
+            ]
           }
 
   - do:
@@ -116,7 +149,11 @@ setup:
             "classification_field_act": "cat",
             "classification_field_pred": "cat",
             "all_true_field": true,
-            "all_false_field": false
+            "all_false_field": false,
+            "ml.top_classes": [
+              {"class_name": "cat", "class_probability": 0.8},
+              {"class_name": "dog", "class_probability": 0.2}
+            ]
           }
 
   - do:
@@ -133,7 +170,11 @@ setup:
             "classification_field_act": "mouse",
             "classification_field_pred": "cat",
             "all_true_field": true,
-            "all_false_field": false
+            "all_false_field": false,
+            "ml.top_classes": [
+              {"class_name": "cat", "class_probability": 0.8},
+              {"class_name": "dog", "class_probability": 0.2}
+            ]
           }
 
   # This document misses the required fields and should be ignored
@@ -149,14 +190,14 @@ setup:
       indices.refresh: {}
 
 ---
-"Test binary_soft_classification auc_roc":
+"Test outlier_detection auc_roc":
   - do:
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -165,18 +206,18 @@ setup:
               }
             }
           }
-  - match: { binary_soft_classification.auc_roc.score: 0.9899 }
-  - is_false: binary_soft_classification.auc_roc.curve
+  - match: { outlier_detection.auc_roc.value: 0.9899 }
+  - is_false: outlier_detection.auc_roc.curve
 
 ---
-"Test binary_soft_classification auc_roc given actual_field is int":
+"Test outlier_detection auc_roc given actual_field is int":
   - do:
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier_int",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -185,18 +226,18 @@ setup:
               }
             }
           }
-  - match: { binary_soft_classification.auc_roc.score: 0.9899 }
-  - is_false: binary_soft_classification.auc_roc.curve
+  - match: { outlier_detection.auc_roc.value: 0.9899 }
+  - is_false: outlier_detection.auc_roc.curve
 
 ---
-"Test binary_soft_classification auc_roc include curve":
+"Test outlier_detection auc_roc include curve":
   - do:
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -205,19 +246,19 @@ setup:
               }
             }
           }
-  - match: { binary_soft_classification.auc_roc.score: 0.9899 }
-  - is_true: binary_soft_classification.auc_roc.curve
+  - match: { outlier_detection.auc_roc.value: 0.9899 }
+  - is_true: outlier_detection.auc_roc.curve
 
 ---
-"Test binary_soft_classification auc_roc given actual_field is always true":
+"Test outlier_detection auc_roc given actual_field is always true":
   - do:
-      catch: /\[auc_roc\] requires at least one actual_field to have a different value than \[true\]/
+      catch: /\[auc_roc\] requires at least one \[all_true_field\] to have a different value than \[true\]/
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "all_true_field",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -228,15 +269,15 @@ setup:
           }
 
 ---
-"Test binary_soft_classification auc_roc given actual_field is always false":
+"Test outlier_detection auc_roc given actual_field is always false":
   - do:
-      catch: /\[auc_roc\] requires at least one actual_field to have the value \[true\]/
+      catch: /\[auc_roc\] requires at least one \[all_false_field\] to have the value \[true\]/
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "all_false_field",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -247,14 +288,14 @@ setup:
           }
 
 ---
-"Test binary_soft_classification precision":
+"Test outlier_detection precision":
   - do:
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -264,20 +305,20 @@ setup:
             }
           }
   - match:
-      binary_soft_classification:
+      outlier_detection:
         precision:
           '0.0': 0.625
           '0.5': 1.0
 
 ---
-"Test binary_soft_classification recall":
+"Test outlier_detection recall":
   - do:
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -287,21 +328,21 @@ setup:
             }
           }
   - match:
-      binary_soft_classification:
+      outlier_detection:
         recall:
           '0.0': 1.0
           '0.4': 0.8
           '0.5': 0.6
 
 ---
-"Test binary_soft_classification confusion_matrix":
+"Test outlier_detection confusion_matrix":
   - do:
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -311,7 +352,7 @@ setup:
             }
           }
   - match:
-      binary_soft_classification:
+      outlier_detection:
         confusion_matrix:
           '0.0':
             tp: 5
@@ -330,7 +371,7 @@ setup:
             fn: 2
 
 ---
-"Test binary_soft_classification with query":
+"Test outlier_detection with query":
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -338,7 +379,7 @@ setup:
             "index": "utopia",
             "query": { "bool": { "filter": { "term": { "dataset": "blue" } } } },
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -348,7 +389,7 @@ setup:
             }
           }
   - match:
-      binary_soft_classification:
+      outlier_detection:
         confusion_matrix:
           '0.5':
             tp: 0
@@ -357,29 +398,29 @@ setup:
             fn: 1
 
 ---
-"Test binary_soft_classification default metrics":
+"Test outlier_detection default metrics":
   - do:
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score"
               }
             }
           }
-  - is_true: binary_soft_classification.auc_roc.score
-  - is_true: binary_soft_classification.precision.0\.25
-  - is_true: binary_soft_classification.precision.0\.5
-  - is_true: binary_soft_classification.precision.0\.75
-  - is_true: binary_soft_classification.recall.0\.25
-  - is_true: binary_soft_classification.recall.0\.5
-  - is_true: binary_soft_classification.recall.0\.75
-  - is_true: binary_soft_classification.confusion_matrix.0\.25
-  - is_true: binary_soft_classification.confusion_matrix.0\.5
-  - is_true: binary_soft_classification.confusion_matrix.0\.75
+  - is_true: outlier_detection.auc_roc.value
+  - is_true: outlier_detection.precision.0\.25
+  - is_true: outlier_detection.precision.0\.5
+  - is_true: outlier_detection.precision.0\.75
+  - is_true: outlier_detection.recall.0\.25
+  - is_true: outlier_detection.recall.0\.5
+  - is_true: outlier_detection.recall.0\.75
+  - is_true: outlier_detection.confusion_matrix.0\.25
+  - is_true: outlier_detection.confusion_matrix.0\.5
+  - is_true: outlier_detection.confusion_matrix.0\.75
 
 ---
 "Test given missing index":
@@ -389,7 +430,7 @@ setup:
         body:  >
           {
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score"
               }
@@ -405,7 +446,7 @@ setup:
           {
             "index": "missing_index",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score"
               }
@@ -423,15 +464,15 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given evaluation with empty metrics":
+"Test outlier_detection given evaluation with empty metrics":
   - do:
-      catch: /\[binary_soft_classification\] must have one or more metrics/
+      catch: /\[outlier_detection\] must have one or more metrics/
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -441,15 +482,15 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given missing actual_field":
+"Test outlier_detection given missing actual_field":
   - do:
-      catch: /No documents found containing both \[missing, outlier_score\] fields/
+      catch: /No documents found containing all the required fields \[missing, outlier_score\]/
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "missing",
                 "predicted_probability_field": "outlier_score"
               }
@@ -457,15 +498,15 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given missing predicted_probability_field":
+"Test outlier_detection given missing predicted_probability_field":
   - do:
-      catch: /No documents found containing both \[is_outlier, missing\] fields/
+      catch: /No documents found containing all the required fields \[is_outlier, missing\]/
       ml.evaluate_data_frame:
         body:  >
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "missing"
               }
@@ -473,7 +514,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given precision with threshold less than zero":
+"Test outlier_detection given precision with threshold less than zero":
   - do:
       catch: /\[precision.at\] values must be in \[0.0, 1.0\]/
       ml.evaluate_data_frame:
@@ -481,7 +522,7 @@ setup:
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -492,7 +533,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given recall with threshold less than zero":
+"Test outlier_detection given recall with threshold less than zero":
   - do:
       catch: /\[recall.at\] values must be in \[0.0, 1.0\]/
       ml.evaluate_data_frame:
@@ -500,7 +541,7 @@ setup:
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -511,7 +552,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given confusion_matrix with threshold less than zero":
+"Test outlier_detection given confusion_matrix with threshold less than zero":
   - do:
       catch: /\[confusion_matrix.at\] values must be in \[0.0, 1.0\]/
       ml.evaluate_data_frame:
@@ -519,7 +560,7 @@ setup:
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -530,7 +571,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given precision with empty thresholds":
+"Test outlier_detection given precision with empty thresholds":
   - do:
       catch: /\[precision.at\] must have at least one value/
       ml.evaluate_data_frame:
@@ -538,7 +579,7 @@ setup:
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -549,7 +590,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given recall with empty thresholds":
+"Test outlier_detection given recall with empty thresholds":
   - do:
       catch: /\[recall.at\] must have at least one value/
       ml.evaluate_data_frame:
@@ -557,7 +598,7 @@ setup:
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -568,7 +609,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given confusion_matrix with empty thresholds":
+"Test outlier_detection given confusion_matrix with empty thresholds":
   - do:
       catch: /\[confusion_matrix.at\] must have at least one value/
       ml.evaluate_data_frame:
@@ -576,7 +617,7 @@ setup:
           {
             "index": "utopia",
             "evaluation": {
-              "binary_soft_classification": {
+              "outlier_detection": {
                 "actual_field": "is_outlier",
                 "predicted_probability_field": "outlier_score",
                 "metrics": {
@@ -598,7 +639,122 @@ setup:
               "classification": {
                 "actual_field": "classification_field_act.keyword",
                 "predicted_field": "classification_field_pred.keyword",
-                "metrics": { }
+                "metrics": {}
+              }
+            }
+          }
+---
+"Test classification auc_roc with missing class_name":
+  - do:
+      # TODO: Revisit this error message as it does not give any clue about which field is missing
+      catch: /Failed to build \[auc_roc\] after last required field arrived/
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "top_classes_field": "ml.top_classes",
+                "metrics": {
+                  "auc_roc": {}
+                }
+              }
+            }
+          }
+---
+"Test classification auc_roc given actual_field is never equal to fish":
+  - do:
+      catch: /\[auc_roc\] requires at least one \[classification_field_act.keyword\] to have the value \[fish\]/
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "top_classes_field": "ml.top_classes",
+                "metrics": {
+                  "auc_roc": {
+                    "class_name": "fish"
+                  }
+                }
+              }
+            }
+          }
+---
+"Test classification auc_roc given predicted_class_field is never equal to mouse":
+  - do:
+      catch: /\[auc_roc\] requires that \[mouse\] appears as one of the \[ml.top_classes.class_name\] for every document \(appeared in 0 out of 8\)./
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "top_classes_field": "ml.top_classes",
+                "metrics": {
+                  "auc_roc": {
+                    "class_name": "mouse"
+                  }
+                }
+              }
+            }
+          }
+---
+"Test classification auc_roc":
+  - do:
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "top_classes_field": "ml.top_classes",
+                "metrics": {
+                  "auc_roc": {
+                    "class_name": "cat"
+                  }
+                }
+              }
+            }
+          }
+  - match: { classification.auc_roc.value: 0.8050111095212122 }
+  - is_false: classification.auc_roc.curve
+---
+"Test classification auc_roc with default top_classes_field":
+  - do:
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "metrics": {
+                  "auc_roc": {
+                    "class_name": "cat"
+                  }
+                }
+              }
+            }
+          }
+  - match: { classification.auc_roc.value: 0.8050111095212122 }
+  - is_false: classification.auc_roc.curve
+---
+"Test classification accuracy with missing predicted_field":
+  - do:
+      catch: /\[classification\] must define \[predicted_field\] as required by the following metrics \[accuracy\]/
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "metrics": { "accuracy": {} }
               }
             }
           }
@@ -622,11 +778,11 @@ setup:
       classification.accuracy:
         classes:
           - class_name: "cat"
-            accuracy: 0.625  # 5 out of 8
+            value: 0.625  # 5 out of 8
           - class_name: "dog"
-            accuracy: 0.75  # 6 out of 8
+            value: 0.75  # 6 out of 8
           - class_name: "mouse"
-            accuracy: 0.875  # 7 out of 8
+            value: 0.875  # 7 out of 8
         overall_accuracy: 0.625  # 5 out of 8
 ---
 "Test classification precision":
@@ -648,11 +804,11 @@ setup:
       classification.precision:
         classes:
           - class_name: "cat"
-            precision: 0.5  # 2 out of 4
+            value: 0.5  # 2 out of 4
           - class_name: "dog"
-            precision: 0.6666666666666666  # 2 out of 3
+            value: 0.6666666666666666  # 2 out of 3
           - class_name: "mouse"
-            precision: 1.0  # 1 out of 1
+            value: 1.0  # 1 out of 1
         avg_precision: 0.7222222222222222
 ---
 "Test classification recall":
@@ -674,11 +830,11 @@ setup:
       classification.recall:
         classes:
           - class_name: "cat"
-            recall: 0.6666666666666666  # 2 out of 3
+            value: 0.6666666666666666  # 2 out of 3
           - class_name: "dog"
-            recall: 0.6666666666666666  # 2 out of 3
+            value: 0.6666666666666666  # 2 out of 3
           - class_name: "mouse"
-            recall: 0.5  # 1 out of 2
+            value: 0.5  # 1 out of 2
         avg_recall: 0.611111111111111
 ---
 "Test classification multiclass_confusion_matrix":
@@ -782,10 +938,14 @@ setup:
           }
 
   - is_true: classification.multiclass_confusion_matrix
+  - is_true: classification.accuracy
+  - is_true: classification.precision
+  - is_true: classification.recall
+  - is_false: classification.auc_roc
 ---
 "Test classification given missing actual_field":
   - do:
-      catch: /No documents found containing both \[missing, classification_field_pred.keyword\] fields/
+      catch: /No documents found containing all the required fields \[missing, classification_field_pred.keyword\]/
       ml.evaluate_data_frame:
         body:  >
           {
@@ -801,7 +961,7 @@ setup:
 ---
 "Test classification given missing predicted_field":
   - do:
-      catch: /No documents found containing both \[classification_field_act.keyword, missing\] fields/
+      catch: /No documents found containing all the required fields \[classification_field_act.keyword, missing\]/
       ml.evaluate_data_frame:
         body:  >
           {
@@ -814,6 +974,27 @@ setup:
             }
           }
 
+---
+"Test classification given missing top_classes_field":
+  - do:
+      catch: /No documents found containing all the required fields \[classification_field_act.keyword, missing.class_name, missing.class_probability\]/
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "predicted_field": "classification_field_pred.keyword",
+                "top_classes_field": "missing",
+                "metrics": {
+                  "auc_roc": {
+                    "class_name": "dummy"
+                  }
+                }
+              }
+            }
+          }
 ---
 "Test regression given evaluation with empty metrics":
   - do:
@@ -841,12 +1022,54 @@ setup:
               "regression": {
                 "actual_field": "regression_field_act",
                 "predicted_field": "regression_field_pred",
-                "metrics": { "mean_squared_error": {} }
+                "metrics": { "mse": {} }
               }
             }
           }
 
-  - match: { regression.mean_squared_error.error: 28.67749840974834 }
+  - match: { regression.mse.value: 28.67749840974834 }
+  - is_false: regression.msle.value
+  - is_false: regression.r_squared.value
+  - is_false: regression.huber.value
+---
+"Test regression mean_squared_logarithmic_error":
+  - do:
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "regression": {
+                "actual_field": "regression_field_act",
+                "predicted_field": "regression_field_pred",
+                "metrics": { "msle": { "offset": 6.0 } }
+              }
+            }
+          }
+
+  - match: { regression.msle.value: 0.08680568028334916 }
+  - is_false: regression.mse.value
+  - is_false: regression.r_squared.value
+  - is_false: regression.huber.value
+---
+"Test regression huber":
+  - do:
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "regression": {
+                "actual_field": "regression_field_act",
+                "predicted_field": "regression_field_pred",
+                "metrics": { "huber": { "delta": 2.0 } }
+              }
+            }
+          }
+
+  - match: { regression.huber.value: 3.5088110471730145 }
+  - is_false: regression.msle.value
+  - is_false: regression.mse.value
   - is_false: regression.r_squared.value
 ---
 "Test regression r_squared":
@@ -864,7 +1087,10 @@ setup:
             }
           }
   - match: { regression.r_squared.value: 0.8551031778603486 }
-  - is_false: regression.mean_squared_error
+  - is_false: regression.mse
+  - is_false: regression.msle.value
+  - is_false: regression.huber.value
+
 ---
 "Test regression with null metrics":
   - do:
@@ -880,12 +1106,14 @@ setup:
             }
           }
 
-  - match: { regression.mean_squared_error.error: 28.67749840974834 }
+  - match: { regression.mse.value: 28.67749840974834 }
   - match: { regression.r_squared.value: 0.8551031778603486 }
+  - match: { regression.huber.value: 1.9205280586939963 }
+  - is_false: regression.msle.value
 ---
 "Test regression given missing actual_field":
   - do:
-      catch: /No documents found containing both \[missing, regression_field_pred\] fields/
+      catch: /No documents found containing all the required fields \[missing, regression_field_pred\]/
       ml.evaluate_data_frame:
         body:  >
           {
@@ -901,7 +1129,7 @@ setup:
 ---
 "Test regression given missing predicted_field":
   - do:
-      catch: /No documents found containing both \[regression_field_act, missing\] fields/
+      catch: /No documents found containing all the required fields \[regression_field_act, missing\]/
       ml.evaluate_data_frame:
         body:  >
           {

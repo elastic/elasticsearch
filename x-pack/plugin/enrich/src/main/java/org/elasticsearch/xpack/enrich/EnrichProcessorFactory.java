@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
@@ -11,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.Processor;
@@ -35,7 +37,8 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     }
 
     @Override
-    public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) throws Exception {
+    public Processor create(Map<String, Processor.Factory> processorFactories, String tag, String description, Map<String, Object> config)
+        throws Exception {
         String policyName = ConfigurationUtils.readStringProperty(TYPE, tag, config, "policy_name");
         String policyAlias = EnrichPolicy.getBaseName(policyName);
         if (metadata == null) {
@@ -69,6 +72,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
             case EnrichPolicy.MATCH_TYPE:
                 return new MatchProcessor(
                     tag,
+                    description,
                     client,
                     policyName,
                     field,
@@ -81,8 +85,11 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
             case EnrichPolicy.GEO_MATCH_TYPE:
                 String relationStr = ConfigurationUtils.readStringProperty(TYPE, tag, config, "shape_relation", "intersects");
                 ShapeRelation shapeRelation = ShapeRelation.getRelationByName(relationStr);
+                String orientationStr = ConfigurationUtils.readStringProperty(TYPE, tag, config, "orientation", "CCW");
+                ShapeBuilder.Orientation orientation = ShapeBuilder.Orientation.fromString(orientationStr);
                 return new GeoMatchProcessor(
                     tag,
+                    description,
                     client,
                     policyName,
                     field,
@@ -91,7 +98,8 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
                     ignoreMissing,
                     matchField,
                     maxMatches,
-                    shapeRelation
+                    shapeRelation,
+                    orientation
                 );
             default:
                 throw new IllegalArgumentException("unsupported policy type [" + policyType + "]");

@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -61,6 +51,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public class SearchResponse extends ActionResponse implements StatusToXContentObject {
 
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
+    private static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
     private static final ParseField TOOK = new ParseField("took");
     private static final ParseField TIMED_OUT = new ParseField("timed_out");
     private static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
@@ -68,6 +59,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
     private final SearchResponseSections internalResponse;
     private final String scrollId;
+    private final String pointInTimeId;
     private final int totalShards;
     private final int successfulShards;
     private final int skippedShards;
@@ -93,12 +85,24 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            pointInTimeId = in.readOptionalString();
+        } else {
+            pointInTimeId = null;
+        }
     }
 
     public SearchResponse(SearchResponseSections internalResponse, String scrollId, int totalShards, int successfulShards,
                           int skippedShards, long tookInMillis, ShardSearchFailure[] shardFailures, Clusters clusters) {
+        this(internalResponse, scrollId, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures, clusters, null);
+    }
+
+    public SearchResponse(SearchResponseSections internalResponse, String scrollId, int totalShards, int successfulShards,
+                          int skippedShards, long tookInMillis, ShardSearchFailure[] shardFailures, Clusters clusters,
+                          String pointInTimeId) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
+        this.pointInTimeId = pointInTimeId;
         this.clusters = clusters;
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
@@ -106,6 +110,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         this.tookInMillis = tookInMillis;
         this.shardFailures = shardFailures;
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
+        assert scrollId == null || pointInTimeId == null :
+            "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
     }
 
     @Override
@@ -187,8 +193,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      * The failed number of shards the search was executed on.
      */
     public int getFailedShards() {
-        // we don't return totalShards - successfulShards, we don't count "no shards available" as a failed shard, just don't
-        // count it in the successful counter
         return shardFailures.length;
     }
 
@@ -205,6 +209,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      */
     public String getScrollId() {
         return scrollId;
+    }
+
+    /**
+     * Returns the encoded string of the search context that the search request is used to executed
+     */
+    public String pointInTimeId() {
+        return pointInTimeId;
     }
 
     /**
@@ -239,6 +250,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         if (scrollId != null) {
             builder.field(SCROLL_ID.getPreferredName(), scrollId);
         }
+        if (pointInTimeId != null) {
+            builder.field(POINT_IN_TIME_ID.getPreferredName(), pointInTimeId);
+        }
         builder.field(TOOK.getPreferredName(), tookInMillis);
         builder.field(TIMED_OUT.getPreferredName(), isTimedOut());
         if (isTerminatedEarly() != null) {
@@ -255,13 +269,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     public static SearchResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser);
         parser.nextToken();
         return innerFromXContent(parser);
     }
 
     public static SearchResponse innerFromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser);
         String currentFieldName = parser.currentName();
         SearchHits hits = null;
         Aggregations aggs = null;
@@ -275,6 +289,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         int totalShards = -1;
         int skippedShards = 0; // 0 for BWC
         String scrollId = null;
+        String searchContextId = null;
         List<ShardSearchFailure> failures = new ArrayList<>();
         Clusters clusters = Clusters.EMPTY;
         for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
@@ -283,6 +298,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             } else if (token.isValue()) {
                 if (SCROLL_ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     scrollId = parser.text();
+                } else if (POINT_IN_TIME_ID.match(currentFieldName, parser.getDeprecationHandler())) {
+                    searchContextId = parser.text();
                 } else if (TOOK.match(currentFieldName, parser.getDeprecationHandler())) {
                     tookInMillis = parser.longValue();
                 } else if (TIMED_OUT.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -361,7 +378,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         SearchResponseSections searchResponseSections = new SearchResponseSections(hits, aggs, suggest, timedOut, terminatedEarly,
                 profile, numReducePhases);
         return new SearchResponse(searchResponseSections, scrollId, totalShards, successfulShards, skippedShards, tookInMillis,
-                failures.toArray(ShardSearchFailure.EMPTY_ARRAY), clusters);
+                failures.toArray(ShardSearchFailure.EMPTY_ARRAY), clusters, searchContextId);
     }
 
     @Override
@@ -378,6 +395,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeOptionalString(pointInTimeId);
+        }
     }
 
     @Override
@@ -486,6 +506,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits,
             InternalAggregations.EMPTY, null, null, false, null, 0);
         return new SearchResponse(internalSearchResponse, null, 0, 0, 0, tookInMillisSupplier.get(),
-            ShardSearchFailure.EMPTY_ARRAY, clusters);
+            ShardSearchFailure.EMPTY_ARRAY, clusters, null);
     }
 }

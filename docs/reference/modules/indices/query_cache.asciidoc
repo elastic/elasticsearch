@@ -22,13 +22,18 @@ The following setting is _static_ and must be configured on every data node in
 the cluster:
 
 `indices.queries.cache.size`::
-    Controls the memory size for the filter cache , defaults to `10%`. Accepts
-    either a percentage value, like `5%`, or an exact value, like `512mb`.
+(<<static-cluster-setting,Static>>)
+Controls the memory size for the filter cache. Accepts
+either a percentage value, like `5%`, or an exact value, like `512mb`. Defaults to `10%`.
+
+[[query-cache-index-settings]]
+==== Query cache index settings
 
 The following setting is an _index_ setting that can be configured on a 
 per-index basis. Can only be set at index creation time or on a
 <<indices-open-close,closed index>>:
 
 `index.queries.cache.enabled`::
-    Controls whether to enable query caching. Accepts `true` (default) or
-    `false`.
+(<<index-modules-settings,Static>>)
+Controls whether to enable query caching. Accepts `true` (default) or
+`false`.

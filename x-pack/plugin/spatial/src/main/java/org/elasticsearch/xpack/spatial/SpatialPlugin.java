@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.ingest.Processor;
@@ -20,25 +22,26 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregati
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregator;
-import org.elasticsearch.search.aggregations.metrics.CardinalityAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregatorSupplier;
-import org.elasticsearch.search.aggregations.metrics.GeoGridAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregator;
-import org.elasticsearch.search.aggregations.metrics.ValueCountAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.spatial.aggregations.metrics.GeoShapeCentroidAggregator;
+import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
+import org.elasticsearch.xpack.spatial.action.SpatialInfoTransportAction;
+import org.elasticsearch.xpack.spatial.action.SpatialStatsTransportAction;
+import org.elasticsearch.xpack.spatial.action.SpatialUsageTransportAction;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
+import org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder;
+import org.elasticsearch.xpack.spatial.search.aggregations.InternalGeoLine;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoHashGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoGridTiler;
@@ -61,6 +64,7 @@ import java.util.function.Consumer;
 import static java.util.Collections.singletonList;
 
 public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlugin, SearchPlugin, IngestPlugin {
+   private final SpatialUsage usage = new SpatialUsage();
 
     // to be overriden by tests
     protected XPackLicenseState getLicenseState() {
@@ -71,15 +75,16 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
             new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.SPATIAL, SpatialUsageTransportAction.class),
-            new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.SPATIAL, SpatialInfoTransportAction.class));
+            new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.SPATIAL, SpatialInfoTransportAction.class),
+            new ActionPlugin.ActionHandler<>(SpatialStatsAction.INSTANCE, SpatialStatsTransportAction.class));
     }
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         Map<String, Mapper.TypeParser> mappers = new HashMap<>(super.getMappers());
-        mappers.put(ShapeFieldMapper.CONTENT_TYPE, new ShapeFieldMapper.TypeParser());
-        mappers.put(PointFieldMapper.CONTENT_TYPE, new PointFieldMapper.TypeParser());
-        mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, new GeoShapeWithDocValuesFieldMapper.TypeParser());
+        mappers.put(ShapeFieldMapper.CONTENT_TYPE, ShapeFieldMapper.PARSER);
+        mappers.put(PointFieldMapper.CONTENT_TYPE, PointFieldMapper.PARSER);
+        mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, GeoShapeWithDocValuesFieldMapper.PARSER);
         return Collections.unmodifiableMap(mappers);
     }
 
@@ -100,33 +105,49 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
     }
 
     @Override
+    public List<AggregationSpec> getAggregations() {
+        return List.of(
+            new AggregationSpec(
+                    GeoLineAggregationBuilder.NAME,
+                    GeoLineAggregationBuilder::new,
+                    usage.track(SpatialStatsAction.Item.GEOLINE,
+                        checkLicense(GeoLineAggregationBuilder.PARSER, XPackLicenseState.Feature.SPATIAL_GEO_LINE)))
+                .addResultReader(InternalGeoLine::new)
+                .setAggregatorRegistrar(GeoLineAggregationBuilder::registerUsage));
+    }
+
+    @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         return Map.of(CircleProcessor.TYPE, new CircleProcessor.Factory());
     }
 
     private static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(GeoBoundsAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
-            (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
-                -> new GeoShapeBoundsAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource,
-                wrapLongitude, metadata));
+        builder.register(
+            GeoBoundsAggregationBuilder.REGISTRY_KEY,
+            GeoShapeValuesSourceType.instance(),
+            GeoShapeBoundsAggregator::new,
+            true
+        );
     }
 
     private void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(GeoCentroidAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
-            (GeoCentroidAggregatorSupplier) (name, aggregationContext, parent, valuesSource, metadata)
+        builder.register(GeoCentroidAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(),
+            (name, valuesSourceConfig, context, parent, metadata)
                 -> {
-                if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_CENTROID)) {
-                    return new GeoShapeCentroidAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource, metadata);
+                if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL_GEO_CENTROID)) {
+                    return new GeoShapeCentroidAggregator(name, context, parent, valuesSourceConfig, metadata);
                 }
                 throw LicenseUtils.newComplianceException("geo_centroid aggregation on geo_shape fields");
-            });
+            },
+            true
+        );
     }
 
     private void registerGeoShapeGridAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(GeoHashGridAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
-            (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
+        builder.register(GeoHashGridAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(),
+            (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
                                          aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
-                if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
+                if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {
                         tiler = new GeoHashGridTiler();
@@ -141,12 +162,14 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                     return agg;
                 }
                 throw LicenseUtils.newComplianceException("geohash_grid aggregation on geo_shape fields");
-            });
+            },
+            true
+        );
 
-        builder.register(GeoTileGridAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
-            (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
-                                         aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
-                if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
+        builder.register(GeoTileGridAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(),
+            (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
+                                        context, parent, collectsFromSingleBucket, metadata) -> {
+                if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {
                         tiler = new GeoTileGridTiler();
@@ -155,23 +178,31 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                     }
                     GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, precision, tiler);
                     GeoShapeTileGridAggregator agg = new GeoShapeTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
-                        aggregationContext, parent, collectsFromSingleBucket, metadata);
+                        context, parent, collectsFromSingleBucket, metadata);
                     // this would ideally be something set in an immutable way on the ValuesSource
                     cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
                     return agg;
                 }
                 throw LicenseUtils.newComplianceException("geotile_grid aggregation on geo_shape fields");
-            });
-    }
-
-    private static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(ValueCountAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
-            (ValueCountAggregatorSupplier) ValueCountAggregator::new
+            },
+            true
         );
     }
 
+    private static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(ValueCountAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(), ValueCountAggregator::new, true);
+    }
+
     private static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(CardinalityAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
-            (CardinalityAggregatorSupplier) CardinalityAggregator::new);
+        builder.register(CardinalityAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(), CardinalityAggregator::new, true);
+    }
+
+    private <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser, XPackLicenseState.Feature feature) {
+        return (parser, name) -> {
+            if (getLicenseState().checkFeature(feature) == false) {
+                throw LicenseUtils.newComplianceException(feature.name());
+            }
+            return realParser.parse(parser, name);
+        };
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
@@ -15,7 +16,6 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableCollection;
 import static java.util.Collections.unmodifiableSet;
@@ -141,8 +141,8 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     @SuppressWarnings("rawtypes")
-    public static final AttributeMap EMPTY = new AttributeMap<>();
-    
+    private static final AttributeMap EMPTY = new AttributeMap<>();
+
     @SuppressWarnings("unchecked")
     public static final <E> AttributeMap<E> emptyAttributeMap() {
         return EMPTY;
@@ -155,19 +155,6 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
     public AttributeMap() {
         delegate = new LinkedHashMap<>();
-    }
-
-    public AttributeMap(Map<Attribute, E> attr) {
-        if (attr.isEmpty()) {
-            delegate = emptyMap();
-        }
-        else {
-            delegate = new LinkedHashMap<>(attr.size());
-
-            for (Entry<Attribute, E> entry : attr.entrySet()) {
-                delegate.put(new AttributeWrapper(entry.getKey()), entry.getValue());
-            }
-        }
     }
 
     public AttributeMap(Attribute key, E value) {
@@ -194,7 +181,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     public AttributeMap<E> subtract(AttributeMap<E> other) {
         AttributeMap<E> diff = new AttributeMap<>();
         for (Entry<AttributeWrapper, E> entry : this.delegate.entrySet()) {
-            if (!other.delegate.containsKey(entry.getKey())) {
+            if (other.delegate.containsKey(entry.getKey()) == false) {
                 diff.delegate.put(entry.getKey(), entry.getValue());
             }
         }
@@ -221,7 +208,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
             return false;
         }
         for (AttributeWrapper aw : delegate.keySet()) {
-            if (!other.delegate.containsKey(aw)) {
+            if (other.delegate.containsKey(aw) == false) {
                 return false;
             }
         }
@@ -367,5 +354,33 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     @Override
     public String toString() {
         return delegate.toString();
+    }
+
+    public static <E> Builder<E> builder() {
+        return new Builder<>();
+    }
+
+    public static <E> Builder<E> builder(AttributeMap<E> map) {
+        return new Builder<E>().putAll(map);
+    }
+
+    public static class Builder<E> {
+        private AttributeMap<E> map = new AttributeMap<>();
+
+        private Builder() {}
+
+        public Builder<E> put(Attribute attr, E value) {
+            map.add(attr, value);
+            return this;
+        }
+
+        public Builder<E> putAll(AttributeMap<E> m) {
+            map.addAll(m);
+            return this;
+        }
+
+        public AttributeMap<E> build() {
+            return map;
+        }
     }
 }

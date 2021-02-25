@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories.blobstore;
 
@@ -35,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -69,6 +59,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -93,18 +84,6 @@ public final class BlobStoreTestUtil {
         BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
     }
 
-    private static final byte[] SINK = new byte[1024];
-
-    public static boolean blobExists(BlobContainer container, String blobName) throws IOException {
-        try (InputStream input = container.readBlob(blobName)) {
-            // Drain input stream fully to avoid warnings from SDKs like S3 that don't like closing streams mid-way
-            while (input.read(SINK) >= 0);
-            return true;
-        } catch (NoSuchFileException e) {
-            return false;
-        }
-    }
-
     /**
      * Assert that there are no unreferenced indices or unreferenced root-level metadata blobs in any repository.
      * TODO: Expand the logic here to also check for unreferenced segment blobs and shard level metadata
@@ -126,10 +105,10 @@ public final class BlobStoreTestUtil {
                 }
                 assertIndexGenerations(blobContainer, latestGen);
                 final RepositoryData repositoryData;
-                try (InputStream blob = blobContainer.readBlob("index-" + latestGen);
+                try (InputStream blob = blobContainer.readBlob(BlobStoreRepository.INDEX_FILE_PREFIX + latestGen);
                      XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                          LoggingDeprecationHandler.INSTANCE, blob)) {
-                    repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);
+                    repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen, false);
                 }
                 assertIndexUUIDs(repository, repositoryData);
                 assertSnapshotUUIDs(repository, repositoryData);
@@ -146,8 +125,8 @@ public final class BlobStoreTestUtil {
     }
 
     private static void assertIndexGenerations(BlobContainer repoRoot, long latestGen) throws IOException {
-        final long[] indexGenerations = repoRoot.listBlobsByPrefix("index-").keySet().stream()
-            .map(s -> s.replace("index-", ""))
+        final long[] indexGenerations = repoRoot.listBlobsByPrefix(BlobStoreRepository.INDEX_FILE_PREFIX).keySet().stream()
+            .map(s -> s.replace(BlobStoreRepository.INDEX_FILE_PREFIX, ""))
             .mapToLong(Long::parseLong).sorted().toArray();
         assertEquals(latestGen, indexGenerations[indexGenerations.length - 1]);
         assertTrue(indexGenerations.length <= 2);
@@ -208,7 +187,7 @@ public final class BlobStoreTestUtil {
         final BlobContainer repoRoot = repository.blobContainer();
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         final List<String> expectedSnapshotUUIDs = snapshotIds.stream().map(SnapshotId::getUUID).collect(Collectors.toList());
-        for (String prefix : new String[]{"snap-", "meta-"}) {
+        for (String prefix : new String[]{BlobStoreRepository.SNAPSHOT_PREFIX, BlobStoreRepository.METADATA_PREFIX}) {
                 final Collection<String> foundSnapshotUUIDs = repoRoot.listBlobs().keySet().stream().filter(p -> p.startsWith(prefix))
                     .map(p -> p.replace(prefix, "").replace(".dat", ""))
                     .collect(Collectors.toSet());
@@ -302,7 +281,7 @@ public final class BlobStoreTestUtil {
      */
     public static ClusterService mockClusterService(RepositoryMetadata metadata) {
         return mockClusterService(ClusterState.builder(ClusterState.EMPTY_STATE).metadata(
-            Metadata.builder().putCustom(RepositoriesMetadata.TYPE,
+            Metadata.builder().clusterUUID(UUIDs.randomBase64UUID(random())).putCustom(RepositoriesMetadata.TYPE,
                 new RepositoriesMetadata(Collections.singletonList(metadata))).build()).build());
     }
 
@@ -317,6 +296,7 @@ public final class BlobStoreTestUtil {
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
         // Setting local node as master so it may update the repository metadata in the cluster state
         final DiscoveryNode localNode = new DiscoveryNode("", buildNewFakeTransportAddress(), Version.CURRENT);
+        when(clusterService.localNode()).thenReturn(localNode);
         final AtomicReference<ClusterState> currentState = new AtomicReference<>(
             ClusterState.builder(initialState).nodes(
                 DiscoveryNodes.builder().add(localNode).masterNodeId(localNode.getId()).localNodeId(localNode.getId()).build()).build());

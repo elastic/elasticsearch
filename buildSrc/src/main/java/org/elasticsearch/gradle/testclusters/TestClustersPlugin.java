@@ -1,26 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
+import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -28,12 +20,16 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
+import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskState;
+import org.gradle.process.ExecOperations;
 
+import javax.inject.Inject;
 import java.io.File;
 
 import static org.elasticsearch.gradle.util.GradleUtils.noop;
@@ -47,9 +43,27 @@ public class TestClustersPlugin implements Plugin<Project> {
     private static final String REGISTRY_SERVICE_NAME = "testClustersRegistry";
     private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
 
+    @Inject
+    protected FileSystemOperations getFileSystemOperations() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Inject
+    protected ArchiveOperations getArchiveOperations() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Inject
+    protected ExecOperations getExecOperations() {
+        throw new UnsupportedOperationException();
+    }
+
     @Override
     public void apply(Project project) {
-        project.getPlugins().apply(DistributionDownloadPlugin.class);
+        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        BuildParams.withInternalBuild(() -> project.getPlugins().apply(InternalDistributionDownloadPlugin.class))
+            .orElse(() -> project.getPlugins().apply(DistributionDownloadPlugin.class));
+
         project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
 
         ReaperService reaper = project.getRootProject().getExtensions().getByType(ReaperService.class);
@@ -80,19 +94,31 @@ public class TestClustersPlugin implements Plugin<Project> {
         // Create an extensions that allows describing clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(
             ElasticsearchCluster.class,
-            name -> new ElasticsearchCluster(project.getPath(), name, project, reaper, new File(project.getBuildDir(), "testclusters"))
+            name -> new ElasticsearchCluster(
+                project.getPath(),
+                name,
+                project,
+                reaper,
+                getFileSystemOperations(),
+                getArchiveOperations(),
+                getExecOperations(),
+                new File(project.getBuildDir(), "testclusters")
+            )
         );
         project.getExtensions().add(EXTENSION_NAME, container);
         return container;
     }
 
     private void createListClustersTask(Project project, NamedDomainObjectContainer<ElasticsearchCluster> container) {
-        Task listTask = project.getTasks().create(LIST_TASK_NAME);
-        listTask.setGroup("ES cluster formation");
-        listTask.setDescription("Lists all ES clusters configured for this project");
-        listTask.doLast(
-            (Task task) -> container.forEach(cluster -> logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getNumberOfNodes()))
-        );
+        // Task is never up to date so we can pass an lambda for the task action
+        project.getTasks().register(LIST_TASK_NAME, task -> {
+            task.setGroup("ES cluster formation");
+            task.setDescription("Lists all ES clusters configured for this project");
+            task.doLast(
+                (Task t) -> container.forEach(cluster -> logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getNumberOfNodes()))
+            );
+        });
+
     }
 
     static class TestClustersHookPlugin implements Plugin<Project> {

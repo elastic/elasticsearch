@@ -1,21 +1,11 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
+
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
@@ -28,36 +18,42 @@ import java.io.IOException;
 /**
  * A StreamInput that reads off a {@link BytesRefIterator}. This is used to provide
  * generic stream access to {@link BytesReference} instances without materializing the
- * underlying bytes reference.
+ * underlying bytes.
  */
-final class BytesReferenceStreamInput extends StreamInput {
-    private final BytesRefIterator iterator;
+class BytesReferenceStreamInput extends StreamInput {
+
+    protected final BytesReference bytesReference;
+    private BytesRefIterator iterator;
     private int sliceIndex;
     private BytesRef slice;
-    private final int length; // the total size of the stream
-    private int offset; // the current position of the stream
+    private int sliceStartOffset; // the offset on the stream at which the current slice starts
 
-    BytesReferenceStreamInput(BytesRefIterator iterator, final int length) throws IOException {
-        this.iterator = iterator;
+    private int mark = 0;
+
+    BytesReferenceStreamInput(BytesReference bytesReference) throws IOException {
+        this.bytesReference = bytesReference;
+        this.iterator = bytesReference.iterator();
         this.slice = iterator.next();
-        this.length = length;
-        this.offset = 0;
+        this.sliceStartOffset = 0;
         this.sliceIndex = 0;
     }
 
     @Override
     public byte readByte() throws IOException {
-        if (offset >= length) {
+        if (offset() >= bytesReference.length()) {
             throw new EOFException();
         }
         maybeNextSlice();
-        byte b = slice.bytes[slice.offset + (sliceIndex++)];
-        offset++;
-        return b;
+        return slice.bytes[slice.offset + (sliceIndex++)];
+    }
+
+    protected int offset() {
+        return sliceStartOffset + sliceIndex;
     }
 
     private void maybeNextSlice() throws IOException {
         while (sliceIndex == slice.length) {
+            sliceStartOffset += sliceIndex;
             slice = iterator.next();
             sliceIndex = 0;
             if (slice == null) {
@@ -68,15 +64,19 @@ final class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public void readBytes(byte[] b, int bOffset, int len) throws IOException {
+        final int length = bytesReference.length();
+        final int offset = offset();
         if (offset + len > length) {
-            throw new IndexOutOfBoundsException("Cannot read " + len + " bytes from stream with length " + length + " at offset " + offset);
+            throw new IndexOutOfBoundsException(
+                    "Cannot read " + len + " bytes from stream with length " + length + " at offset " + offset);
         }
-        read(b, bOffset, len);
+        final int bytesRead = read(b, bOffset, len);
+        assert bytesRead == len : bytesRead + " vs " + len;
     }
 
     @Override
     public int read() throws IOException {
-        if (offset >= length) {
+        if (offset() >= bytesReference.length()) {
             return -1;
         }
         return Byte.toUnsignedInt(readByte());
@@ -84,10 +84,12 @@ final class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public int read(final byte[] b, final int bOffset, final int len) throws IOException {
+        final int length = bytesReference.length();
+        final int offset = offset();
         if (offset >= length) {
             return -1;
         }
-        final int numBytesToCopy =  Math.min(len, length - offset);
+        final int numBytesToCopy = Math.min(len, length - offset);
         int remaining = numBytesToCopy; // copy the full length or the remaining part
         int destOffset = bOffset;
         while (remaining > 0) {
@@ -98,25 +100,24 @@ final class BytesReferenceStreamInput extends StreamInput {
             destOffset += currentLen;
             remaining -= currentLen;
             sliceIndex += currentLen;
-            offset += currentLen;
             assert remaining >= 0 : "remaining: " + remaining;
         }
         return numBytesToCopy;
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         // do nothing
     }
 
     @Override
-    public int available() throws IOException {
-        return length - offset;
+    public int available() {
+        return bytesReference.length() - offset();
     }
 
     @Override
     protected void ensureCanReadBytes(int bytesToRead) throws EOFException {
-        int bytesAvailable = length - offset;
+        int bytesAvailable = bytesReference.length() - offset();
         if (bytesAvailable < bytesToRead) {
             throw new EOFException("tried to read: " + bytesToRead + " bytes but only " + bytesAvailable + " remaining");
         }
@@ -124,21 +125,45 @@ final class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public long skip(long n) throws IOException {
-        final int skip = (int) Math.min(Integer.MAX_VALUE, n);
-        final int numBytesSkipped =  Math.min(skip, length - offset);
+        if (n <= 0L) {
+            return 0L;
+        }
+        assert offset() <= bytesReference.length() : offset() + " vs " + bytesReference.length();
+        // definitely >= 0 and <= Integer.MAX_VALUE so casting is ok
+        final int numBytesSkipped = (int) Math.min(n, bytesReference.length() - offset());
         int remaining = numBytesSkipped;
         while (remaining > 0) {
             maybeNextSlice();
             int currentLen = Math.min(remaining, slice.length - sliceIndex);
             remaining -= currentLen;
             sliceIndex += currentLen;
-            offset += currentLen;
             assert remaining >= 0 : "remaining: " + remaining;
         }
         return numBytesSkipped;
     }
 
-    int getOffset() {
-        return offset;
+    @Override
+    public void reset() throws IOException {
+        if (sliceStartOffset <= mark) {
+            sliceIndex = mark - sliceStartOffset;
+        } else {
+            iterator = bytesReference.iterator();
+            slice = iterator.next();
+            sliceStartOffset = 0;
+            sliceIndex = 0;
+            final long skipped = skip(mark);
+            assert skipped == mark : skipped + " vs " + mark;
+        }
+    }
+
+    @Override
+    public boolean markSupported() {
+        return true;
+    }
+
+    @Override
+    public void mark(int readLimit) {
+        // We ignore readLimit since the data is all in-memory and therefore we can reset the mark no matter how far we advance.
+        this.mark = offset();
     }
 }

@@ -1,48 +1,38 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
 apply plugin: 'elasticsearch.validate-rest-spec'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
   classname 'org.elasticsearch.painless.PainlessPlugin'
 }
 
-testClusters.integTest {
-  module project(':modules:mapper-extras').tasks.bundlePlugin.archiveFile
+testClusters.all {
+  module ':modules:mapper-extras'
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
 }
 
 dependencies {
-  compile 'org.antlr:antlr4-runtime:4.5.3'
-  compile 'org.ow2.asm:asm-util:7.2'
-  compile 'org.ow2.asm:asm-tree:7.2'
-  compile 'org.ow2.asm:asm-commons:7.2'
-  compile 'org.ow2.asm:asm-analysis:7.2'
-  compile 'org.ow2.asm:asm:7.2'
-  compile project('spi')
+  api 'org.antlr:antlr4-runtime:4.5.3'
+  api 'org.ow2.asm:asm-util:7.2'
+  api 'org.ow2.asm:asm-tree:7.2'
+  api 'org.ow2.asm:asm-commons:7.2'
+  api 'org.ow2.asm:asm-analysis:7.2'
+  api 'org.ow2.asm:asm:7.2'
+  api project('spi')
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
 }
 
@@ -53,27 +43,28 @@ restResources {
   }
 }
 
-test {
+tasks.named("test").configure {
   // in WhenThingsGoWrongTests we intentionally generate an out of memory error, this prevents the heap from being dumped to disk
   jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'
 }
 
 /* Build Javadoc for the Java classes in Painless's public API that are in the
  * Painless plugin */
-task apiJavadoc(type: Javadoc) {
+tasks.register("apiJavadoc", Javadoc) {
   source = sourceSets.main.allJava
   classpath = sourceSets.main.runtimeClasspath
   include '**/org/elasticsearch/painless/api/'
   destinationDir = new File(docsDir, 'apiJavadoc')
 }
 
-task apiJavadocJar(type: Jar) {
-  classifier = 'apiJavadoc'
+tasks.register("apiJavadocJar", Jar) {
+  archiveClassifier = 'apiJavadoc'
   from apiJavadoc
 }
 
-assemble.dependsOn apiJavadocJar
-
+tasks.named("assemble").configure {
+  dependsOn "apiJavadocJar"
+}
 /**********************************************
  *           Context API Generation           *
  **********************************************/
@@ -83,8 +74,19 @@ sourceSets {
 }
 
 dependencies {
-  docCompile project(':server')
-  docCompile project(':modules:lang-painless')
+  docImplementation project(':server')
+  docImplementation project(':modules:lang-painless')
+  docImplementation 'com.github.javaparser:javaparser-core:3.18.0'
+  docImplementation 'org.jsoup:jsoup:1.13.1'
+  if (isEclipse) {
+    /*
+     * Eclipse isn't quite "with it" enough to understand the different
+     * source sets. This adds the dependency to all source sets so it
+     * can compile the doc java files.
+     */
+    implementation 'com.github.javaparser:javaparser-core:3.18.0'
+    implementation 'org.jsoup:jsoup:1.13.1'
+  }
 }
 
 testClusters {
@@ -93,13 +95,36 @@ testClusters {
   }
 }
 
-task generateContextDoc(type: DefaultTestClustersTask) {
+tasks.register("generateContextDoc", DefaultTestClustersTask) {
+  dependsOn sourceSets.doc.runtimeClasspath
   useCluster testClusters.generateContextCluster
   doFirst {
     project.javaexec {
       main = 'org.elasticsearch.painless.ContextDocGenerator'
       classpath = sourceSets.doc.runtimeClasspath
-      systemProperty "cluster.uri", "${-> testClusters.generateContextCluster.singleNode().getAllHttpSocketURI()}"
+      systemProperty "cluster.uri", "${-> testClusters.generateContextCluster.singleNode().getAllHttpSocketURI().get(0)}"
+    }.assertNormalExitValue()
+  }
+}
+/**********************************************
+ *           Context JSON Generation          *
+ **********************************************/
+testClusters {
+  generateContextApiSpecCluster {
+    testDistribution = 'DEFAULT'
+  }
+}
+
+tasks.register("generateContextApiSpec", DefaultTestClustersTask) {
+  dependsOn sourceSets.doc.runtimeClasspath
+  useCluster testClusters.generateContextApiSpecCluster
+  doFirst {
+    project.javaexec {
+      main = 'org.elasticsearch.painless.ContextApiSpecGenerator'
+      classpath = sourceSets.doc.runtimeClasspath
+      systemProperty "cluster.uri", "${-> testClusters.generateContextApiSpecCluster.singleNode().getAllHttpSocketURI().get(0)}"
+      systemProperty "jdksrc", System.getProperty("jdksrc")
+      systemProperty "packageSources", System.getProperty("packageSources")
     }.assertNormalExitValue()
   }
 }
@@ -119,7 +144,7 @@ dependencies {
 String grammarPath = 'src/main/antlr'
 String outputPath = 'src/main/java/org/elasticsearch/painless/antlr'
 
-task cleanGenerated(type: Delete) {
+tasks.register("cleanGenerated", Delete) {
   delete fileTree(grammarPath) {
     include '*.tokens'
   }
@@ -128,8 +153,8 @@ task cleanGenerated(type: Delete) {
   }
 }
 
-task regenLexer(type: JavaExec) {
-  dependsOn cleanGenerated
+tasks.register("regenLexer", JavaExec) {
+  dependsOn "cleanGenerated"
   main = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
@@ -142,8 +167,8 @@ task regenLexer(type: JavaExec) {
     "${file(grammarPath)}/PainlessLexer.g4"
 }
 
-task regenParser(type: JavaExec) {
-  dependsOn regenLexer
+tasks.register("regenParser", JavaExec) {
+  dependsOn "regenLexer"
   main = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
@@ -159,8 +184,8 @@ task regenParser(type: JavaExec) {
     "${file(grammarPath)}/PainlessParser.g4"
 }
 
-task regen {
-  dependsOn regenParser
+tasks.register("regen") {
+  dependsOn "regenParser"
   doLast {
     // moves token files to grammar directory for use with IDE's
     ant.move(file: "${outputPath}/PainlessLexer.tokens", toDir: grammarPath)
@@ -193,4 +218,3 @@ task regen {
     }
   }
 }
-

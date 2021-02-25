@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.node.stats;
@@ -35,7 +24,7 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
 import org.elasticsearch.node.ResponseCollectorService;
-import org.elasticsearch.script.ScriptCacheStats;
+import org.elasticsearch.script.ScriptContextStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -46,9 +35,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -241,11 +232,35 @@ public class NodeStatsTests extends ESTestCase {
                     }
                 }
                 ScriptStats scriptStats = nodeStats.getScriptStats();
+                ScriptStats deserializedScriptStats = deserializedNodeStats.getScriptStats();
                 if (scriptStats == null) {
-                    assertNull(deserializedNodeStats.getScriptStats());
+                    assertNull(deserializedScriptStats);
                 } else {
-                    assertEquals(scriptStats.getCacheEvictions(), deserializedNodeStats.getScriptStats().getCacheEvictions());
-                    assertEquals(scriptStats.getCompilations(), deserializedNodeStats.getScriptStats().getCompilations());
+                    List<ScriptContextStats> deserialized = deserializedScriptStats.getContextStats();
+                    long evictions = 0;
+                    long limited = 0;
+                    long compilations = 0;
+                    List<ScriptContextStats> stats = scriptStats.getContextStats();
+                    for (ScriptContextStats generatedStats: stats) {
+                        List<ScriptContextStats> maybeDeserStats = deserialized.stream().filter(
+                            s -> s.getContext().equals(generatedStats.getContext())
+                        ).collect(Collectors.toList());
+
+                        assertEquals(1, maybeDeserStats.size());
+                        ScriptContextStats deserStats = maybeDeserStats.get(0);
+
+                        evictions += generatedStats.getCacheEvictions();
+                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
+
+                        limited += generatedStats.getCompilationLimitTriggered();
+                        assertEquals(generatedStats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
+
+                        compilations += generatedStats.getCompilations();
+                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
+                    }
+                    assertEquals(evictions, scriptStats.getCacheEvictions());
+                    assertEquals(limited, scriptStats.getCompilationLimitTriggered());
+                    assertEquals(compilations, scriptStats.getCompilations());
                 }
                 DiscoveryStats discoveryStats = nodeStats.getDiscoveryStats();
                 DiscoveryStats deserializedDiscoveryStats = deserializedNodeStats.getDiscoveryStats();
@@ -311,34 +326,6 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(aStats.serviceTime, bStats.serviceTime, 0.01);
                         assertEquals(aStats.responseTime, bStats.responseTime, 0.01);
                     });
-                }
-                ScriptCacheStats scriptCacheStats = nodeStats.getScriptCacheStats();
-                ScriptCacheStats deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
-                if (scriptCacheStats == null) {
-                    assertNull(deserializedScriptCacheStats);
-                } else {
-                    Map<String, ScriptStats> deserialized = deserializedScriptCacheStats.getContextStats();
-                    long evictions = 0;
-                    long limited = 0;
-                    long compilations = 0;
-                    Map<String, ScriptStats> stats = scriptCacheStats.getContextStats();
-                    for (String context: stats.keySet()) {
-                        ScriptStats deserStats = deserialized.get(context);
-                        ScriptStats generatedStats = stats.get(context);
-
-                        evictions += generatedStats.getCacheEvictions();
-                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
-
-                        limited += generatedStats.getCompilationLimitTriggered();
-                        assertEquals(generatedStats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
-
-                        compilations += generatedStats.getCompilations();
-                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
-                    }
-                    ScriptStats sum = deserializedScriptCacheStats.sum();
-                    assertEquals(evictions, sum.getCacheEvictions());
-                    assertEquals(limited, sum.getCompilationLimitTriggered());
-                    assertEquals(compilations, sum.getCompilations());
                 }
             }
         }
@@ -442,7 +429,7 @@ public class NodeStatsTests extends ESTestCase {
             fsInfo = new FsInfo(randomNonNegativeLong(), ioStats, paths);
         }
         TransportStats transportStats = frequently() ? new TransportStats(randomNonNegativeLong(), randomNonNegativeLong(),
-                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
+                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
         HttpStats httpStats = frequently() ? new HttpStats(randomNonNegativeLong(), randomNonNegativeLong()) : null;
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {
@@ -454,8 +441,21 @@ public class NodeStatsTests extends ESTestCase {
             }
             allCircuitBreakerStats = new AllCircuitBreakerStats(circuitBreakerStatsArray);
         }
-        ScriptStats scriptStats = frequently() ?
-                new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
+        ScriptStats scriptStats = null;
+        if (frequently()) {
+            int numContents = randomIntBetween(0, 20);
+            List<ScriptContextStats> stats = new ArrayList<>(numContents);
+            HashSet<String> contexts = new HashSet<>();
+            for (int i = 0; i < numContents; i++) {
+                stats.add(new ScriptContextStats(
+                    randomValueOtherThanMany(contexts::contains, () -> randomAlphaOfLength(12)),
+                    randomLongBetween(0, 1024),
+                    randomLongBetween(0, 1024),
+                    randomLongBetween(0, 1024))
+                );
+            }
+            scriptStats = new ScriptStats(stats);
+        }
         DiscoveryStats discoveryStats = frequently()
             ? new DiscoveryStats(
                 randomBoolean()
@@ -514,20 +514,10 @@ public class NodeStatsTests extends ESTestCase {
             }
             adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
         }
-        ScriptCacheStats scriptCacheStats = null;
-        if (frequently()) {
-            int numContents = randomIntBetween(0, 20);
-            Map<String,ScriptStats> stats = new HashMap<>(numContents);
-            for (int i = 0; i < numContents; i++) {
-                String context = randomValueOtherThanMany(stats::containsKey, () -> randomAlphaOfLength(12));
-                stats.put(context, new ScriptStats(randomLongBetween(0, 1024), randomLongBetween(0, 1024), randomLongBetween(0, 1024)));
-            }
-            scriptCacheStats = new ScriptCacheStats(stats);
-        }
         //TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
         return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats,
                 fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,
-                ingestStats, adaptiveSelectionStats, scriptCacheStats);
+                ingestStats, adaptiveSelectionStats, null);
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {

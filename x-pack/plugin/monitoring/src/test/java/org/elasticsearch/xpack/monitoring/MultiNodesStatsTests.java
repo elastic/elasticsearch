@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.After;
 
-
+import static org.elasticsearch.test.NodeRoles.noRoles;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -54,11 +54,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
         nodes += n;
 
         n = randomIntBetween(1, 2);
-        internalCluster().startNodes(n,
-                Settings.builder()
-                        .put(Node.NODE_DATA_SETTING.getKey(), false)
-                        .put(Node.NODE_MASTER_SETTING.getKey(), false)
-                        .put(Node.NODE_INGEST_SETTING.getKey(), false).build());
+        internalCluster().startNodes(n, noRoles());
         nodes += n;
 
         n = randomIntBetween(1, 2);

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
@@ -37,6 +38,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.XPackSettings.SECURITY_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_ENABLED;
+import static org.elasticsearch.xpack.monitoring.collector.TimeoutUtils.ensureNoTimeouts;
 
 /**
  * Collector for cluster stats.
@@ -82,13 +84,12 @@ public class ClusterStatsCollector extends Collector {
     @Override
     protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
                                                   final long interval,
-                                                  final ClusterState clusterState) throws Exception {
-        final Supplier<ClusterStatsResponse> clusterStatsSupplier =
-                () -> client.admin().cluster().prepareClusterStats().get(getCollectionTimeout());
+                                                  final ClusterState clusterState) {
         final Supplier<List<XPackFeatureSet.Usage>> usageSupplier =
                 () -> new XPackUsageRequestBuilder(client).get().getUsages();
 
-        final ClusterStatsResponse clusterStats = clusterStatsSupplier.get();
+        final ClusterStatsResponse clusterStats = client.admin().cluster().prepareClusterStats().setTimeout(getCollectionTimeout()).get();
+        ensureNoTimeouts(getCollectionTimeout(), clusterStats);
 
         final String clusterName = clusterService.getClusterName().value();
         final String clusterUuid = clusterUuid(clusterState);

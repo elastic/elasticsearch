@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-stats-bucket-aggregation]]
-=== Stats Bucket Aggregation
+=== Stats bucket aggregation
+++++
+<titleabbrev>Stats bucket</titleabbrev>
+++++
 
 A sibling pipeline aggregation which calculates a variety of stats across all bucket of a specified metric in a sibling aggregation.
 The specified metric must be numeric and the sibling aggregation must be a multi-bucket aggregation.
@@ -11,9 +14,9 @@ A `stats_bucket` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "stats_bucket": {
-        "buckets_path": "the_sum"
-    }
+  "stats_bucket": {
+    "buckets_path": "the_sum"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -36,27 +39,27 @@ The following snippet calculates the stats for monthly `sales`:
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            },
-            "aggs": {
-                "sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                }
-            }
-        },
-        "stats_monthly_sales": {
-            "stats_bucket": {
-                "buckets_path": "sales_per_month>sales" <1>
-            }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sales": {
+          "sum": {
+            "field": "price"
+          }
         }
+      }
+    },
+    "stats_monthly_sales": {
+      "stats_bucket": {
+        "buckets_path": "sales_per_month>sales" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]

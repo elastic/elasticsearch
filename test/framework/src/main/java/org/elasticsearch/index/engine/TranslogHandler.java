@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
@@ -65,13 +55,12 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
         SimilarityService similarityService = new SimilarityService(indexSettings, null, emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(emptyList()).getMapperRegistry();
         mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
-                () -> null, () -> false);
+                () -> null, () -> false, null);
     }
 
     private DocumentMapperForType docMapper(String type) {
-        RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type);
-        DocumentMapper.Builder b = new DocumentMapper.Builder(rootBuilder, mapperService);
-        return new DocumentMapperForType(b.build(mapperService), null);
+        RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type, Version.CURRENT);
+        return new DocumentMapperForType(new DocumentMapper(rootBuilder, mapperService), null);
     }
 
     private void applyOperation(Engine engine, Engine.Operation operation) throws IOException {
@@ -118,10 +107,8 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 return engineIndex;
             case DELETE:
                 final Translog.Delete delete = (Translog.Delete) operation;
-                final Engine.Delete engineDelete = new Engine.Delete(delete.id(), delete.uid(), delete.seqNo(),
-                    delete.primaryTerm(), delete.version(), versionType, origin, System.nanoTime(),
-                    SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
-                return engineDelete;
+                return IndexShard.prepareDelete(delete.id(), delete.seqNo(), delete.primaryTerm(), delete.version(), versionType,
+                    origin, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
             case NO_OP:
                 final Translog.NoOp noOp = (Translog.NoOp) operation;
                 final Engine.NoOp engineNoOp =

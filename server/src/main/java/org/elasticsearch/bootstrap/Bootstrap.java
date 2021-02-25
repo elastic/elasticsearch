@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
@@ -51,6 +40,7 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -179,6 +169,18 @@ final class Bootstrap {
                 BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings),
                 BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
 
+        final long cacheSize = SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
+        final long regionSize = SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
+        final int numRegions = Math.toIntExact(cacheSize / regionSize);
+        final long fileSize = numRegions * regionSize;
+        if (fileSize > 0) {
+            try {
+                Natives.tryCreateCacheFile(environment, fileSize);
+            } catch (Exception e) {
+                throw new BootstrapException(e);
+            }
+        }
+
         // initialize probes before the security manager is installed
         initializeProbes();
 
@@ -233,6 +235,10 @@ final class Bootstrap {
     }
 
     static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
+        return loadSecureSettings(initialEnv, System.in);
+    }
+
+    static SecureSettings loadSecureSettings(Environment initialEnv, InputStream stdin) throws BootstrapException {
         final KeyStoreWrapper keystore;
         try {
             keystore = KeyStoreWrapper.load(initialEnv.configFile());
@@ -243,7 +249,7 @@ final class Bootstrap {
         SecureString password;
         try {
             if (keystore != null && keystore.hasPassword()) {
-                password = readPassphrase(System.in, KeyStoreAwareCommand.MAX_PASSPHRASE_LENGTH);
+                password = readPassphrase(stdin, KeyStoreAwareCommand.MAX_PASSPHRASE_LENGTH);
             } else {
                 password = new SecureString(new char[0]);
             }

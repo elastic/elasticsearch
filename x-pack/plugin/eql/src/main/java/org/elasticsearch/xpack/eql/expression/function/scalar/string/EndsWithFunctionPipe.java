@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
@@ -17,74 +18,76 @@ import java.util.Objects;
 
 public class EndsWithFunctionPipe extends Pipe {
 
-    private final Pipe source;
-    private final Pipe pattern;
+    private final Pipe input, pattern;
+    private final boolean caseInsensitive;
 
-    public EndsWithFunctionPipe(Source source, Expression expression, Pipe src, Pipe pattern) {
-        super(source, expression, Arrays.asList(src, pattern));
-        this.source = src;
+    public EndsWithFunctionPipe(Source source, Expression expression, Pipe input, Pipe pattern, boolean caseInsensitive) {
+        super(source, expression, Arrays.asList(input, pattern));
+        this.input = input;
         this.pattern = pattern;
+        this.caseInsensitive = caseInsensitive;
     }
 
     @Override
     public final Pipe replaceChildren(List<Pipe> newChildren) {
-        if (newChildren.size() != 2) {
-            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
-        }
         return replaceChildren(newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
-        Pipe newSource = source.resolveAttributes(resolver);
+        Pipe newInput = input.resolveAttributes(resolver);
         Pipe newPattern = pattern.resolveAttributes(resolver);
-        if (newSource == source && newPattern == pattern) {
+        if (newInput == input && newPattern == pattern) {
             return this;
         }
-        return replaceChildren(newSource, newPattern);
+        return replaceChildren(newInput, newPattern);
     }
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return source.supportedByAggsOnlyQuery() && pattern.supportedByAggsOnlyQuery();
+        return input.supportedByAggsOnlyQuery() && pattern.supportedByAggsOnlyQuery();
     }
 
     @Override
     public boolean resolved() {
-        return source.resolved() && pattern.resolved();
+        return input.resolved() && pattern.resolved();
     }
 
-    protected Pipe replaceChildren(Pipe newSource, Pipe newPattern) {
-        return new EndsWithFunctionPipe(source(), expression(), newSource, newPattern);
+    protected EndsWithFunctionPipe replaceChildren(Pipe newInput, Pipe newPattern) {
+        return new EndsWithFunctionPipe(source(), expression(), newInput, newPattern, caseInsensitive);
     }
 
     @Override
     public final void collectFields(QlSourceBuilder sourceBuilder) {
-        source.collectFields(sourceBuilder);
+        input.collectFields(sourceBuilder);
         pattern.collectFields(sourceBuilder);
     }
 
     @Override
     protected NodeInfo<EndsWithFunctionPipe> info() {
-        return NodeInfo.create(this, EndsWithFunctionPipe::new, expression(), source, pattern);
+        return NodeInfo.create(this, EndsWithFunctionPipe::new, expression(), input, pattern, caseInsensitive);
     }
 
     @Override
     public EndsWithFunctionProcessor asProcessor() {
-        return new EndsWithFunctionProcessor(source.asProcessor(), pattern.asProcessor());
+        return new EndsWithFunctionProcessor(input.asProcessor(), pattern.asProcessor(), caseInsensitive);
     }
-    
-    public Pipe src() {
-        return source;
+
+    public Pipe input() {
+        return input;
     }
 
     public Pipe pattern() {
         return pattern;
     }
 
+    protected boolean isCaseInsensitive() {
+        return caseInsensitive;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(source, pattern);
+        return Objects.hash(input, pattern, caseInsensitive);
     }
 
     @Override
@@ -98,7 +101,8 @@ public class EndsWithFunctionPipe extends Pipe {
         }
 
         EndsWithFunctionPipe other = (EndsWithFunctionPipe) obj;
-        return Objects.equals(source, other.source)
-                && Objects.equals(pattern, other.pattern);
+        return Objects.equals(input(), other.input())
+            && Objects.equals(pattern(), other.pattern())
+            && Objects.equals(isCaseInsensitive(), other.isCaseInsensitive());
     }
 }

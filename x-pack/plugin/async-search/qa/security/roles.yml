@@ -31,3 +31,31 @@ user2:
         - write
         - create_index
         - indices:admin/refresh
+
+user-dls:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names:
+        - 'index*'
+      privileges:
+        - read
+      field_security:
+        grant:
+          - baz
+      query: |
+        {
+          "bool": {
+            "must_not": [
+              {
+                "match": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+        }
+
+user-cancel:
+  cluster:
+    - cancel_task

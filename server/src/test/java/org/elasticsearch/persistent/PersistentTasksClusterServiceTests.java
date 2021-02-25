@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.persistent;
@@ -466,6 +455,54 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             }
             assertThat(tasksInProgress.tasks().size(), equalTo(1));
         });
+    }
+
+    public void testPeriodicRecheckOffMaster() {
+        ClusterState initialState = initialState();
+        ClusterState.Builder builder = ClusterState.builder(initialState);
+        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
+            initialState.metadata().custom(PersistentTasksCustomMetadata.TYPE));
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(initialState.nodes());
+        addTestNodes(nodes, randomIntBetween(1, 3));
+        addTask(tasks, "assign_based_on_non_cluster_state_condition", null);
+        Metadata.Builder metadata = Metadata.builder(initialState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        ClusterState clusterState = builder.metadata(metadata).nodes(nodes).build();
+        nonClusterStateCondition = false;
+
+        ClusterService recheckTestClusterService = createRecheckTestClusterService(clusterState, false);
+        PersistentTasksClusterService service = createService(recheckTestClusterService,
+            (params, currentState) -> assignBasedOnNonClusterStateCondition(currentState.nodes()));
+
+        ClusterChangedEvent event = new ClusterChangedEvent("test", clusterState, initialState);
+        service.clusterChanged(event);
+        ClusterState newClusterState = recheckTestClusterService.state();
+
+        {
+            PersistentTasksCustomMetadata tasksInProgress = newClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            assertThat(tasksInProgress, notNullValue());
+            for (PersistentTask<?> task : tasksInProgress.tasks()) {
+                assertThat(task.getExecutorNode(), nullValue());
+                assertThat(task.isAssigned(), equalTo(false));
+                assertThat(task.getAssignment().getExplanation(), equalTo("non-cluster state condition prevents assignment"));
+            }
+            assertThat(tasksInProgress.tasks().size(), equalTo(1));
+        }
+
+        // The rechecker should recheck indefinitely on the master node as the
+        // task can never be assigned while nonClusterStateCondition = false
+        assertTrue(service.getPeriodicRechecker().isScheduled());
+
+        // Now simulate the node ceasing to be the master
+        builder = ClusterState.builder(clusterState);
+        nodes = DiscoveryNodes.builder(clusterState.nodes());
+        nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "a_new_master_node"));
+        nodes.masterNodeId("a_new_master_node");
+        ClusterState nonMasterClusterState = builder.nodes(nodes).build();
+        event = new ClusterChangedEvent("test", nonMasterClusterState, clusterState);
+        service.clusterChanged(event);
+
+        // The service should have cancelled the rechecker on learning it is no longer running on the master node
+        assertFalse(service.getPeriodicRechecker().isScheduled());
     }
 
     public void testUnassignTask() {

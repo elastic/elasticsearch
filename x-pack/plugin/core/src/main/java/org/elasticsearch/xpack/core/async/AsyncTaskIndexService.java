@@ -1,14 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.async;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -23,7 +20,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -34,80 +33,109 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 
 /**
  * A service that exposes the CRUD operations for the async task-specific index.
  */
 public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
-    private static final Logger logger = LogManager.getLogger(AsyncTaskIndexService.class);
 
     public static final String HEADERS_FIELD = "headers";
     public static final String RESPONSE_HEADERS_FIELD = "response_headers";
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
     public static final String RESULT_FIELD = "result";
 
-    private static Settings settings() {
+    // Usually the settings, mappings and system index descriptor below
+    // would be co-located with the SystemIndexPlugin implementation,
+    // however in this case this service is in a different project to
+    // AsyncResultsIndexPlugin, as are tests that need access to
+    // #settings().
+
+    static Settings settings() {
         return Settings.builder()
+            .put("index.codec", "best_compression")
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .build();
     }
 
-    private static XContentBuilder mappings() throws IOException {
-        XContentBuilder builder = jsonBuilder()
-            .startObject()
-                .startObject(SINGLE_MAPPING_NAME)
-                    .startObject("_meta")
-                        .field("version", Version.CURRENT)
+    private static XContentBuilder mappings() {
+        try {
+            XContentBuilder builder = jsonBuilder()
+                .startObject()
+                    .startObject(SINGLE_MAPPING_NAME)
+                        .startObject("_meta")
+                            .field("version", Version.CURRENT)
+                        .endObject()
+                        .field("dynamic", "strict")
+                        .startObject("properties")
+                            .startObject(HEADERS_FIELD)
+                                .field("type", "object")
+                                .field("enabled", "false")
+                            .endObject()
+                            .startObject(RESPONSE_HEADERS_FIELD)
+                                .field("type", "object")
+                                .field("enabled", "false")
+                            .endObject()
+                            .startObject(RESULT_FIELD)
+                                .field("type", "object")
+                                .field("enabled", "false")
+                            .endObject()
+                            .startObject(EXPIRATION_TIME_FIELD)
+                                .field("type", "long")
+                            .endObject()
+                        .endObject()
                     .endObject()
-                    .field("dynamic", "strict")
-                    .startObject("properties")
-                        .startObject(HEADERS_FIELD)
-                            .field("type", "object")
-                            .field("enabled", "false")
-                        .endObject()
-                        .startObject(RESPONSE_HEADERS_FIELD)
-                            .field("type", "object")
-                            .field("enabled", "false")
-                        .endObject()
-                        .startObject(RESULT_FIELD)
-                            .field("type", "object")
-                            .field("enabled", "false")
-                        .endObject()
-                        .startObject(EXPIRATION_TIME_FIELD)
-                            .field("type", "long")
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject();
-        return builder;
+                .endObject();
+            return builder;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to build mappings for " + XPackPlugin.ASYNC_RESULTS_INDEX, e);
+        }
+    }
+
+    public static SystemIndexDescriptor getSystemIndexDescriptor() {
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(XPackPlugin.ASYNC_RESULTS_INDEX)
+            .setDescription("Async search results")
+            .setPrimaryIndex(XPackPlugin.ASYNC_RESULTS_INDEX)
+            .setMappings(mappings())
+            .setSettings(settings())
+            .setVersionMetaKey("version")
+            .setOrigin(ASYNC_SEARCH_ORIGIN)
+            .build();
     }
 
     private final String index;
-    private final ClusterService clusterService;
     private final Client client;
+    private final Client clientWithOrigin;
     private final SecurityContext securityContext;
     private final NamedWriteableRegistry registry;
     private final Writeable.Reader<R> reader;
-
 
     public AsyncTaskIndexService(String index,
                                  ClusterService clusterService,
@@ -117,56 +145,42 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                  Writeable.Reader<R> reader,
                                  NamedWriteableRegistry registry) {
         this.index = index;
-        this.clusterService = clusterService;
         this.securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
-        this.client = new OriginSettingClient(client, origin);
+        this.client = client;
+        this.clientWithOrigin = new OriginSettingClient(client, origin);
         this.registry = registry;
         this.reader = reader;
     }
 
     /**
-     * Returns the internal client with origin.
+     * Returns the internal client wrapped with the async user origin.
+     */
+    public Client getClientWithOrigin() {
+        return clientWithOrigin;
+    }
+
+    /**
+     * Returns the internal client.
      */
     public Client getClient() {
         return client;
     }
 
     /**
-     * Creates the index with the expected settings and mappings if it doesn't exist.
-     */
-    void createIndexIfNecessary(ActionListener<Void> listener) {
-        if (clusterService.state().routingTable().hasIndex(index) == false) {
-            try {
-                client.admin().indices().prepareCreate(index)
-                    .setSettings(settings())
-                    .setMapping(mappings())
-                    .execute(ActionListener.wrap(
-                        resp -> listener.onResponse(null),
-                        exc -> {
-                            if (ExceptionsHelper.unwrapCause(exc) instanceof ResourceAlreadyExistsException) {
-                                listener.onResponse(null);
-                            } else {
-                                logger.error("failed to create " + index + " index", exc);
-                                listener.onFailure(exc);
-                            }
-                        }));
-            } catch (Exception exc) {
-                logger.error("failed to create " + index + " index", exc);
-                listener.onFailure(exc);
-            }
-        } else {
-            listener.onResponse(null);
-        }
+     * Returns the authentication information, or null if the current context has no authentication info.
+     **/
+    public Authentication getAuthentication() {
+        return securityContext.getAuthentication();
     }
 
     /**
      * Stores the initial response with the original headers of the authenticated user
      * and the expected expiration time.
      */
-    public void storeInitialResponse(String docId,
-                              Map<String, String> headers,
-                              R response,
-                              ActionListener<IndexResponse> listener) throws IOException {
+    public void createResponse(String docId,
+                               Map<String, String> headers,
+                               R response,
+                               ActionListener<IndexResponse> listener) throws IOException {
         Map<String, Object> source = new HashMap<>();
         source.put(HEADERS_FIELD, headers);
         source.put(EXPIRATION_TIME_FIELD, response.getExpirationTime());
@@ -175,24 +189,29 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .create(true)
             .id(docId)
             .source(source, XContentType.JSON);
-        createIndexIfNecessary(ActionListener.wrap(v -> client.index(indexRequest, listener), listener::onFailure));
+        clientWithOrigin.index(indexRequest, listener);
     }
 
     /**
      * Stores the final response if the place-holder document is still present (update).
      */
-    public void storeFinalResponse(String docId,
+    public void updateResponse(String docId,
                             Map<String, List<String>> responseHeaders,
                             R response,
-                            ActionListener<UpdateResponse> listener) throws IOException {
-        Map<String, Object> source = new HashMap<>();
-        source.put(RESPONSE_HEADERS_FIELD, responseHeaders);
-        source.put(RESULT_FIELD, encodeResponse(response));
-        UpdateRequest request = new UpdateRequest()
-            .index(index)
-            .id(docId)
-            .doc(source, XContentType.JSON);
-        client.update(request, listener);
+                            ActionListener<UpdateResponse> listener) {
+        try {
+            Map<String, Object> source = new HashMap<>();
+            source.put(RESPONSE_HEADERS_FIELD, responseHeaders);
+            source.put(RESULT_FIELD, encodeResponse(response));
+            UpdateRequest request = new UpdateRequest()
+                .index(index)
+                .id(docId)
+                .doc(source, XContentType.JSON)
+                .retryOnConflict(5);
+            clientWithOrigin.update(request, listener);
+        } catch(Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -205,8 +224,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         Map<String, Object> source = Collections.singletonMap(EXPIRATION_TIME_FIELD, expirationTimeMillis);
         UpdateRequest request = new UpdateRequest().index(index)
             .id(docId)
-            .doc(source, XContentType.JSON);
-        client.update(request, listener);
+            .doc(source, XContentType.JSON)
+            .retryOnConflict(5);
+        clientWithOrigin.update(request, listener);
     }
 
     /**
@@ -214,18 +234,21 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      */
     public void deleteResponse(AsyncExecutionId asyncExecutionId,
                                ActionListener<DeleteResponse> listener) {
-        DeleteRequest request = new DeleteRequest(index).id(asyncExecutionId.getDocId());
-        client.delete(request, listener);
+        try {
+            DeleteRequest request = new DeleteRequest(index).id(asyncExecutionId.getDocId());
+            clientWithOrigin.delete(request, listener);
+        } catch(Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
      * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
      * is registered in the task manager, <code>null</code> otherwise.
-     *
-     * This method throws a {@link ResourceNotFoundException} if the authenticated user
-     * is not the creator of the original task.
      */
-    public <T extends AsyncTask> T getTask(TaskManager taskManager, AsyncExecutionId asyncExecutionId, Class<T> tClass) throws IOException {
+    public <T extends AsyncTask> T getTask(TaskManager taskManager,
+                                           AsyncExecutionId asyncExecutionId,
+                                           Class<T> tClass) throws IOException {
         Task task = taskManager.getTask(asyncExecutionId.getTaskId().getId());
         if (tClass.isInstance(task) == false) {
             return null;
@@ -234,7 +257,24 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         if (asyncTask.getExecutionId().equals(asyncExecutionId) == false) {
             return null;
         }
+        return asyncTask;
+    }
 
+
+    /**
+     * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
+     * is registered in the task manager, <code>null</code> otherwise.
+     *
+     * This method throws a {@link ResourceNotFoundException} if the authenticated user
+     * is not the creator of the original task.
+     */
+    public <T extends AsyncTask> T getTaskAndCheckAuthentication(TaskManager taskManager,
+                                                                 AsyncExecutionId asyncExecutionId,
+                                                                 Class<T> tClass) throws IOException {
+        T asyncTask = getTask(taskManager, asyncExecutionId, tClass);
+        if (asyncTask == null) {
+            return null;
+        }
         // Check authentication for the user
         final Authentication auth = securityContext.getAuthentication();
         if (ensureAuthenticatedUserIsSame(asyncTask.getOriginHeaders(), auth) == false) {
@@ -243,20 +283,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         return asyncTask;
     }
 
-    /**
-     * Gets the response from the index if present, or delegate a {@link ResourceNotFoundException}
-     * failure to the provided listener if not.
-     * When the provided <code>restoreResponseHeaders</code> is <code>true</code>, this method also restores the
-     * response headers of the original request in the current thread context.
-     */
-    public void getResponse(AsyncExecutionId asyncExecutionId,
-                            boolean restoreResponseHeaders,
-                            ActionListener<R> listener) {
-        final Authentication current = securityContext.getAuthentication();
+    private void getEncodedResponse(AsyncExecutionId asyncExecutionId,
+                                    boolean restoreResponseHeaders,
+                                    ActionListener<Tuple<String, Long>> listener) {
         GetRequest internalGet = new GetRequest(index)
             .preference(asyncExecutionId.getEncoded())
             .id(asyncExecutionId.getDocId());
-        client.get(internalGet, ActionListener.wrap(
+        clientWithOrigin.get(internalGet, ActionListener.wrap(
             get -> {
                 if (get.isExists() == false) {
                     listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
@@ -266,7 +299,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 // check the authentication of the current user against the user that initiated the async task
                 @SuppressWarnings("unchecked")
                 Map<String, String> headers = (Map<String, String>) get.getSource().get(HEADERS_FIELD);
-                if (ensureAuthenticatedUserIsSame(headers, current) == false) {
+                if (ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication()) == false) {
                     listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
                     return;
                 }
@@ -280,13 +313,135 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 long expirationTime = (long) get.getSource().get(EXPIRATION_TIME_FIELD);
                 String encoded = (String) get.getSource().get(RESULT_FIELD);
                 if (encoded != null) {
-                    listener.onResponse(decodeResponse(encoded).withExpirationTime(expirationTime));
+                    listener.onResponse(new Tuple<>(encoded, expirationTime));
                 } else {
                     listener.onResponse(null);
                 }
             },
             listener::onFailure
         ));
+    }
+
+    /**
+     * Gets the response from the index if present, or delegate a {@link ResourceNotFoundException}
+     * failure to the provided listener if not.
+     * When the provided <code>restoreResponseHeaders</code> is <code>true</code>, this method also restores the
+     * response headers of the original request in the current thread context.
+     */
+    public void getResponse(AsyncExecutionId asyncExecutionId,
+                            boolean restoreResponseHeaders,
+                            ActionListener<R> listener) {
+        getEncodedResponse(asyncExecutionId, restoreResponseHeaders, ActionListener.wrap(
+            (t) -> listener.onResponse(decodeResponse(t.v1()).withExpirationTime(t.v2())),
+            listener::onFailure
+        ));
+    }
+
+    /**
+     * Retrieve the status of the async search or async or stored eql search.
+     * Retrieve from the task if the task is still available or from the index.
+     */
+     public <T extends AsyncTask, SR extends SearchStatusResponse> void retrieveStatus(
+            GetAsyncStatusRequest request,
+            TaskManager taskManager,
+            Class<T> tClass,
+            Function<T, SR> statusProducerFromTask,
+            TriFunction<R, Long, String, SR> statusProducerFromIndex,
+            ActionListener<SR> listener) {
+        AsyncExecutionId asyncExecutionId = AsyncExecutionId.decode(request.getId());
+        try {
+            T asyncTask = getTask(taskManager, asyncExecutionId, tClass);
+            if (asyncTask != null) { // get status response from task
+                SR response = statusProducerFromTask.apply(asyncTask);
+                sendFinalStatusResponse(request, response, listener);
+            } else { // get status response from index
+                getStatusResponseFromIndex(asyncExecutionId, statusProducerFromIndex,
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(SR searchStatusResponse) {
+                            sendFinalStatusResponse(request, searchStatusResponse, listener);
+                        }
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }
+                );
+            }
+        } catch (Exception exc) {
+            listener.onFailure(exc);
+        }
+    }
+
+    /**
+     * Gets the status response of the stored search from the index
+     * @param asyncExecutionId – id of the stored search (async search or stored eql search)
+     * @param statusProducer – a producer of a status from the stored search, expirationTime and async search id
+     * @param listener – listener to report result to
+     */
+    private <SR extends SearchStatusResponse> void getStatusResponseFromIndex(
+        AsyncExecutionId asyncExecutionId,
+        TriFunction<R, Long, String, SR> statusProducer,
+        ActionListener<SR> listener) {
+        String asyncId = asyncExecutionId.getEncoded();
+        GetRequest internalGet = new GetRequest(index)
+            .preference(asyncId)
+            .id(asyncExecutionId.getDocId());
+        clientWithOrigin.get(internalGet, ActionListener.wrap(
+            get -> {
+                if (get.isExists() == false) {
+                    listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
+                    return;
+                }
+                String encoded = (String) get.getSource().get(RESULT_FIELD);
+                if (encoded != null) {
+                    Long expirationTime = (Long) get.getSource().get(EXPIRATION_TIME_FIELD);
+                    listener.onResponse(statusProducer.apply(decodeResponse(encoded), expirationTime, asyncId));
+                } else {
+                    listener.onResponse(null);
+                }
+            },
+            listener::onFailure
+        ));
+    }
+
+    private static <SR extends SearchStatusResponse> void sendFinalStatusResponse(
+        GetAsyncStatusRequest request,
+        SR response,
+        ActionListener<SR> listener) {
+        if (response.getExpirationTime() < System.currentTimeMillis()) { // check if the result has expired
+            listener.onFailure(new ResourceNotFoundException(request.getId()));
+        } else {
+            listener.onResponse(response);
+        }
+    }
+
+    /**
+     * Checks if the current user's authentication matches the original authentication stored
+     * in the async search index.
+     **/
+    void ensureAuthenticatedUserCanDeleteFromIndex(AsyncExecutionId executionId, ActionListener<Void> listener) {
+        GetRequest internalGet = new GetRequest(index)
+            .preference(executionId.getEncoded())
+            .id(executionId.getDocId())
+            .fetchSourceContext(new FetchSourceContext(true, new String[] { HEADERS_FIELD }, new String[] {}));
+
+        clientWithOrigin.get(internalGet, ActionListener.wrap(
+            get -> {
+                if (get.isExists() == false) {
+                    listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()));
+                    return;
+                }
+                // Check authentication for the user
+                @SuppressWarnings("unchecked")
+                Map<String, String> headers = (Map<String, String>) get.getSource().get(HEADERS_FIELD);
+                if (ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication())) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()));
+                }
+            },
+            exc -> listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()))));
     }
 
     /**

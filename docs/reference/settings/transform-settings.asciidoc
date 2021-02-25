@@ -7,39 +7,33 @@
 <titleabbrev>{transforms-cap} settings</titleabbrev>
 ++++
 
-You do not need to configure any settings to use {transforms}. It is enabled by default.
+You do not need to configure any settings to use {transforms}. It is enabled by
+default.
 
-All of these settings can be added to the `elasticsearch.yml` configuration file.
-The dynamic settings can also be updated across a cluster with the
-<<cluster-update-settings,cluster update settings API>>.
-
-TIP: Dynamic settings take precedence over settings in the `elasticsearch.yml`
-file.
-
-[float]
+[discrete]
 [[general-transform-settings]]
 ==== General {transforms} settings
 
-`node.transform`::
-Set to `true` to identify the node as a _transform node_. If `node.data`
-is `false` for the node, the default value is `false`. Otherwise, the default
-value is `true`.
+`node.roles: [ transform ]`::
+(<<static-cluster-setting,Static>>) Set `node.roles` to contain `transform` to
+identify the node as a _transform node_. If you want to run {transforms}, there 
+must be at least one {transform} node in your cluster.
 +
-If set to `false` in `elasticsearch.yml`, the node cannot run transforms. If
-you want to run transforms, there must be at least one transform node in your
-cluster. +
-+
-IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, disable
-the node.transform role.
+If you set `node.roles`, you must explicitly specify all the required roles for
+the node. To learn more, refer to <<modules-node>>.
++ 
+IMPORTANT: It is strongly recommended that dedicated {transform} nodes also have 
+the `remote_cluster_client` role; otherwise, {ccs} fails when used in 
+{transforms}. See <<remote-node>>.
 
 `xpack.transform.enabled`::
-deprecated:[7.8.0,Basic License features should always be enabled] +
-This deprecated setting no longer has any effect.
+deprecated:[7.8.0,Basic License features should always be enabled]
+(<<static-cluster-setting,Static>>) This deprecated setting no longer has any
+effect.
 
-`xpack.transform.num_transform_failure_retries` (<<cluster-update-settings,Dynamic>>)::
-The number of times that a {transform} retries when it experiences a
-non-fatal error. Once the number of retries is exhausted, the {transform}
-task will be marked as `failed`. The default value is `10` with a valid minimum of `0`
-and maximum of `100`.
-If a {transform} is already running, it will have to be restarted
-to use the changed setting.
+`xpack.transform.num_transform_failure_retries`::
+(<<cluster-update-settings,Dynamic>>) The number of times that a {transform}
+retries when it experiences a non-fatal error. Once the number of retries is
+exhausted, the {transform} task is marked as `failed`. The default value is `10`
+with a valid minimum of `0` and maximum of `100`. If a {transform} is already
+running, it has to be restarted to use the changed setting.

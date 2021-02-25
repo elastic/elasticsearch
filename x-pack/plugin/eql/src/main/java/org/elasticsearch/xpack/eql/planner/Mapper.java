@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.planner;
 
+import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
+import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.FilterExec;
-import org.elasticsearch.xpack.eql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.eql.plan.physical.LimitWithOffsetExec;
 import org.elasticsearch.xpack.eql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.plan.physical.OrderExec;
@@ -21,14 +24,16 @@ import org.elasticsearch.xpack.eql.plan.physical.UnplannedExec;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 
 import java.util.ArrayList;
@@ -72,7 +77,10 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                         matches,
                         Expressions.asAttributes(s.until().keys()),
                         map(s.until().child()),
-                        s.timestampField());
+                        s.timestamp(),
+                        s.tiebreaker(),
+                        s.direction(),
+                        s.maxSpan());
             }
 
             if (p instanceof LocalRelation) {
@@ -94,9 +102,10 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                 return new OrderExec(p.source(), map(o.child()), o.order());
             }
 
-            if (p instanceof Limit) {
-                Limit l = (Limit) p;
-                return new LimitExec(p.source(), map(l.child()), l.limit());
+            if (p instanceof LimitWithOffset) {
+                LimitWithOffset l = (LimitWithOffset) p;
+                int limit = (Integer) DataTypeConverter.convert(Foldables.valueOf(l.limit()), DataTypes.INTEGER);
+                return new LimitWithOffsetExec(p.source(), map(l.child()), new Limit(limit, l.offset()));
             }
 
             if (p instanceof EsRelation) {
@@ -106,7 +115,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                 if (c.frozen()) {
                     container = container.withFrozen();
                 }
-                return new EsQueryExec(p.source(), c.index().name(), output, container);
+                return new EsQueryExec(p.source(), output, container);
             }
 
             return planLater(p);
@@ -119,7 +128,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
 
         @Override
         public final PhysicalPlan apply(PhysicalPlan plan) {
-            return plan.transformUp(this::rule, UnplannedExec.class);
+            return plan.transformUp(UnplannedExec.class, this::rule);
         }
 
         @SuppressWarnings("unchecked")

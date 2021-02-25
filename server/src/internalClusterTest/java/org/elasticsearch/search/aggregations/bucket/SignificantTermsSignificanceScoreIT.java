@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket;
 
@@ -540,11 +529,11 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
      * Ensure requests using nondeterministic scripts do not get cached.
      */
     public void testScriptCaching() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").setMapping("d", "type=long")
+        assertAcked(prepareCreate("cache_test_idx").setMapping("s", "type=long", "t", "type=text")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
-        indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
-                client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2));
+        indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1, "t", "foo"),
+                client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2, "t", "bar"));
 
         // Make sure we are starting with a clear cache
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -560,7 +549,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         SearchResponse r;
         if (useSigText) {
             r = client().prepareSearch("cache_test_idx").setSize(0)
-                    .addAggregation(significantText("foo", "s").significanceHeuristic(scriptHeuristic)).get();
+                    .addAggregation(significantText("foo", "t").significanceHeuristic(scriptHeuristic)).get();
         } else {
             r = client().prepareSearch("cache_test_idx").setSize(0)
                     .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic)).get();
@@ -577,7 +566,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         useSigText = randomBoolean();
         if (useSigText) {
             r = client().prepareSearch("cache_test_idx").setSize(0)
-                    .addAggregation(significantText("foo", "s").significanceHeuristic(scriptHeuristic)).get();
+                    .addAggregation(significantText("foo", "t").significanceHeuristic(scriptHeuristic)).get();
         } else {
             r = client().prepareSearch("cache_test_idx").setSize(0)
                     .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic)).get();
@@ -591,7 +580,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
         // Ensure that non-scripted requests are cached as normal
         if (useSigText) {
-            r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(significantText("foo", "s")).get();
+            r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(significantText("foo", "t")).get();
         } else {
             r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(significantTerms("foo").field("s")).get();
         }

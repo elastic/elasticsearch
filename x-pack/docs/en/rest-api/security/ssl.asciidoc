@@ -68,7 +68,7 @@ single certificate. The fields in each object are:
 `subject_dn`:: (string) The Distinguished Name of the certificate's subject.
 `serial_number`:: (string) The hexadecimal representation of the certificate's
 serial number.
-`has_private_key`:: (boolean) If {es} has access to the private key for this
+`has_private_key`:: (Boolean) If {es} has access to the private key for this
 certificate, this field has a value of `true`.
 `expiry`:: (string) The ISO formatted date of the certificate's expiry
 (not-after) date.

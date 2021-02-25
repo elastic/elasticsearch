@@ -15,7 +15,7 @@ provides:
 * Fast performance: Painless scripts https://benchmarks.elastic.co/index.html#search_qps_scripts[
 run several times faster] than the alternatives.
 
-* Safety: Fine-grained whitelist with method call/field granularity. See the
+* Safety: Fine-grained allowlists with method call/field granularity. See the
 {painless}/painless-api-reference.html[Painless API Reference] for a
 complete list of available classes and methods.
 

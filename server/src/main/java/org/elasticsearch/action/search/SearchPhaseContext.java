@@ -1,29 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 
@@ -56,11 +48,18 @@ interface SearchPhaseContext extends Executor {
     SearchRequest getRequest();
 
     /**
-     * Builds and sends the final search response back to the user.
-     * @param internalSearchResponse the internal search response
-     * @param scrollId an optional scroll ID if this search is a scroll search
+     * Checks if the given context id is part of the point in time of this search (if exists).
+     * We should not release search contexts that belong to the point in time during or after searches.
      */
-    void sendSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId);
+    boolean isPartOfPointInTime(ShardSearchContextId contextId);
+
+    /**
+     * Builds and sends the final search response back to the user.
+     *
+     * @param internalSearchResponse the internal search response
+     * @param queryResults           the results of the query phase
+     */
+    void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults);
 
     /**
      * Notifies the top-level listener of the provided exception
@@ -101,7 +100,10 @@ interface SearchPhaseContext extends Executor {
      * @see org.elasticsearch.search.fetch.FetchSearchResult#getContextId()
      *
      */
-    default void sendReleaseSearchContext(SearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
+    default void sendReleaseSearchContext(ShardSearchContextId contextId,
+                                          Transport.Connection connection,
+                                          OriginalIndices originalIndices) {
+        assert isPartOfPointInTime(contextId) == false : "Must not release point in time context [" + contextId + "]";
         if (connection != null) {
             getSearchTransport().sendFreeContext(connection, contextId, originalIndices);
         }
@@ -109,8 +111,12 @@ interface SearchPhaseContext extends Executor {
 
     /**
      * Builds an request for the initial search phase.
+     *
+     * @param shardIt the target {@link SearchShardIterator}
+     * @param shardIndex the index of the shard that is used in the coordinator node to
+     *                   tiebreak results with identical sort values
      */
-    ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt);
+    ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex);
 
     /**
      * Processes the phase transition from on phase to another. This method handles all errors that happen during the initial run execution
@@ -118,4 +124,9 @@ interface SearchPhaseContext extends Executor {
      * a response is returned to the user indicating that all shards have failed.
      */
     void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase);
+
+    /**
+     * Registers a {@link Releasable} that will be closed when the search request finishes or fails.
+     */
+    void addReleasable(Releasable releasable);
 }

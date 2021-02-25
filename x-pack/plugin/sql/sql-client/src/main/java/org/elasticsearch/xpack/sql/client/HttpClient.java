@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.client;
 
@@ -158,7 +159,7 @@ public class HttpClient {
 
     private Tuple<XContentType, byte[]> readFrom(InputStream inputStream, Function<String, String> headers) {
         String contentType = headers.apply("Content-Type");
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(contentType);
+        XContentType xContentType = XContentType.fromMediaType(contentType);
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + contentType);
         }

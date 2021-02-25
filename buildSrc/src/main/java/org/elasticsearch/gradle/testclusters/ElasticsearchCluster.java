@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gradle.testclusters;
 
@@ -25,18 +14,19 @@ import org.elasticsearch.gradle.http.WaitForHttpResource;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.RegularFile;
-import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
+import org.gradle.process.ExecOperations;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.GeneralSecurityException;
@@ -65,18 +55,43 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final Project project;
     private final ReaperService reaper;
+    private final FileSystemOperations fileSystemOperations;
+    private final ArchiveOperations archiveOperations;
+    private final ExecOperations execOperations;
     private int nodeIndex = 0;
 
-    public ElasticsearchCluster(String path, String clusterName, Project project, ReaperService reaper, File workingDirBase) {
+    public ElasticsearchCluster(
+        String path,
+        String clusterName,
+        Project project,
+        ReaperService reaper,
+        FileSystemOperations fileSystemOperations,
+        ArchiveOperations archiveOperations,
+        ExecOperations execOperations,
+        File workingDirBase
+    ) {
         this.path = path;
         this.clusterName = clusterName;
         this.project = project;
         this.reaper = reaper;
+        this.fileSystemOperations = fileSystemOperations;
+        this.archiveOperations = archiveOperations;
+        this.execOperations = execOperations;
         this.workingDirBase = workingDirBase;
         this.nodes = project.container(ElasticsearchNode.class);
-        this.nodes.add(new ElasticsearchNode(path, clusterName + "-0", project, reaper, workingDirBase));
-        // configure the cluster name eagerly so nodes know about it
-        this.nodes.all((node) -> node.defaultConfig.put("cluster.name", safeName(clusterName)));
+        this.nodes.add(
+            new ElasticsearchNode(
+                safeName(clusterName),
+                path,
+                clusterName + "-0",
+                project,
+                reaper,
+                fileSystemOperations,
+                archiveOperations,
+                execOperations,
+                workingDirBase
+            )
+        );
 
         addWaitForClusterHealth();
     }
@@ -95,7 +110,19 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         }
 
         for (int i = nodes.size(); i < numberOfNodes; i++) {
-            this.nodes.add(new ElasticsearchNode(path, clusterName + "-" + i, project, reaper, workingDirBase));
+            this.nodes.add(
+                new ElasticsearchNode(
+                    safeName(clusterName),
+                    path,
+                    clusterName + "-" + i,
+                    project,
+                    reaper,
+                    fileSystemOperations,
+                    archiveOperations,
+                    execOperations,
+                    workingDirBase
+                )
+            );
         }
     }
 
@@ -135,33 +162,23 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void plugin(URI plugin) {
+    public void plugin(Provider<RegularFile> plugin) {
         nodes.all(each -> each.plugin(plugin));
     }
 
     @Override
-    public void plugin(File plugin) {
-        nodes.all(each -> each.plugin(plugin));
-    }
-
-    @Override
-    public void plugin(Provider<URI> plugin) {
-        nodes.all(each -> each.plugin(plugin));
-    }
-
-    @Override
-    public void plugin(RegularFileProperty plugin) {
-        nodes.all(each -> each.plugin(plugin));
-    }
-
-    @Override
-    public void module(File module) {
-        nodes.all(each -> each.module(module));
+    public void plugin(String pluginProjectPath) {
+        nodes.all(each -> each.plugin(pluginProjectPath));
     }
 
     @Override
     public void module(Provider<RegularFile> module) {
         nodes.all(each -> each.module(module));
+    }
+
+    @Override
+    public void module(String moduleProjectPath) {
+        nodes.all(each -> each.module(moduleProjectPath));
     }
 
     @Override
@@ -252,6 +269,16 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void jvmArgs(String... values) {
         nodes.all(each -> each.jvmArgs(values));
+    }
+
+    @Internal
+    public boolean isPreserveDataDir() {
+        return nodes.stream().anyMatch(node -> node.isPreserveDataDir());
+    }
+
+    @Override
+    public void setPreserveDataDir(boolean preserveDataDir) {
+        nodes.all(each -> each.setPreserveDataDir(preserveDataDir));
     }
 
     @Override

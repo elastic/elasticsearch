@@ -1,18 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -25,8 +28,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.SortedSet;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 public class CacheFile {
 
@@ -35,44 +41,117 @@ public class CacheFile {
         void onEviction(CacheFile evictedCacheFile);
     }
 
+    /**
+     * {@link ModificationListener} can be used to be notified when a {@link CacheFile} needs to be fsynced or is deleted.
+     */
+    public interface ModificationListener {
+        void onCacheFileNeedsFsync(CacheFile cacheFile);
+
+        void onCacheFileDelete(CacheFile cacheFile);
+    }
+
     private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[] {
         StandardOpenOption.READ,
         StandardOpenOption.WRITE,
         StandardOpenOption.CREATE,
         StandardOpenOption.SPARSE };
 
+    /**
+     * Reference counter that counts the number of eviction listeners referencing this cache file plus the number of open file channels
+     * for it. Once this instance has been evicted, all listeners notified and all {@link FileChannelReference} for it released,
+     * it makes sure to delete the physical file backing this cache.
+     */
     private final AbstractRefCounted refCounter = new AbstractRefCounted("CacheFile") {
         @Override
         protected void closeInternal() {
-            CacheFile.this.finishEviction();
+            assert evicted.get();
+            assert assertNoPendingListeners();
+            try {
+                Files.deleteIfExists(file);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } finally {
+                listener.onCacheFileDelete(CacheFile.this);
+            }
         }
     };
 
-    private final ReleasableLock evictionLock;
-    private final ReleasableLock readLock;
-
     private final SparseFileTracker tracker;
-    private final String description;
+    private final CacheKey cacheKey;
     private final Path file;
 
-    private volatile Set<EvictionListener> listeners;
-    private volatile boolean evicted;
+    private final Set<EvictionListener> listeners = new HashSet<>();
 
-    @Nullable // if evicted, or there are no listeners
-    private volatile FileChannel channel;
+    /**
+     * Indicates whether the cache file requires to be synchronized with the storage device that contains it in order to persist in a
+     * durable manner its ranges of cached data. An empty cache file does not need to be fsync; and writing new data to the cache file
+     * will toggle the flag to {@code true}.
+     **/
+    private final AtomicBoolean needsFsync = new AtomicBoolean();
 
-    public CacheFile(String description, long length, Path file) {
-        this.tracker = new SparseFileTracker(file.toString(), length);
-        this.description = Objects.requireNonNull(description);
+    /**
+     * A {@link ModificationListener} that can be used to be notified when the cache file is updated or deleted.
+     */
+    private final ModificationListener listener;
+
+    /**
+     * A reference counted holder for the current channel to the physical file backing this cache file instance.
+     * By guarding access to the file channel by ref-counting and giving the channel its own life-cycle we remove all need for
+     * locking when dealing with file-channel closing and opening as this file is referenced and de-referenced via {@link #acquire}
+     * and {@link #release}.
+     * Background operations running for index inputs that get closed concurrently are tied to a specific instance of this reference and
+     * will simply fail once all references to the channel have been released since they won't be able to acquire a reference to the
+     * channel again.
+     * Each instance of this class also increments the count in {@link #refCounter} by one when instantiated and decrements it by one
+     * again when it is closed. This is done to ensure that the file backing this cache file instance is only deleted after all channels
+     * to it have been closed.
+     */
+    private final class FileChannelReference extends AbstractRefCounted {
+
+        private final FileChannel fileChannel;
+
+        FileChannelReference() throws IOException {
+            super("FileChannel[" + file + "]");
+            this.fileChannel = FileChannel.open(file, OPEN_OPTIONS);
+            refCounter.incRef();
+        }
+
+        @Override
+        protected void closeInternal() {
+            try {
+                fileChannel.close();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } finally {
+                decrementRefCount();
+            }
+        }
+    }
+
+    // If true this file has been evicted from the cache and should not be used any more
+    private final AtomicBoolean evicted = new AtomicBoolean(false);
+
+    @Nullable
+    private volatile FileChannelReference channelRef;
+
+    public CacheFile(CacheKey cacheKey, long length, Path file, ModificationListener listener) {
+        this(cacheKey, new SparseFileTracker(file.toString(), length), file, listener);
+    }
+
+    public CacheFile(CacheKey cacheKey, long length, Path file, SortedSet<ByteRange> ranges, ModificationListener listener) {
+        this(cacheKey, new SparseFileTracker(file.toString(), length, ranges), file, listener);
+    }
+
+    private CacheFile(CacheKey cacheKey, SparseFileTracker tracker, Path file, ModificationListener listener) {
+        this.cacheKey = Objects.requireNonNull(cacheKey);
+        this.tracker = Objects.requireNonNull(tracker);
         this.file = Objects.requireNonNull(file);
-        this.listeners = new HashSet<>();
-        this.evicted = false;
-
-        final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
-        this.evictionLock = new ReleasableLock(cacheLock.writeLock());
-        this.readLock = new ReleasableLock(cacheLock.readLock());
-
+        this.listener = Objects.requireNonNull(listener);
         assert invariant();
+    }
+
+    public CacheKey getCacheKey() {
+        return cacheKey;
     }
 
     public long getLength() {
@@ -83,138 +162,130 @@ public class CacheFile {
         return file;
     }
 
-    ReleasableLock fileLock() {
-        boolean success = false;
-        final ReleasableLock fileLock = readLock.acquire();
-        try {
-            ensureOpen();
-            // check if we have a channel while holding the read lock
-            if (channel == null) {
-                throw new AlreadyClosedException("Cache file channel has been released and closed");
-            }
-            success = true;
-            return fileLock;
-        } finally {
-            if (success == false) {
-                fileLock.close();
-            }
-        }
-    }
-
+    // Only used in tests
     @Nullable
-    public FileChannel getChannel() {
-        return channel;
+    FileChannel getChannel() {
+        final FileChannelReference reference = channelRef;
+        return reference == null ? null : reference.fileChannel;
     }
 
-    public boolean acquire(final EvictionListener listener) throws IOException {
+    // Only used in tests
+    SortedSet<ByteRange> getCompletedRanges() {
+        return tracker.getCompletedRanges();
+    }
+
+    /**
+     * Number of bytes that were present on the persistent when this cache file was created
+     */
+    public long getInitialLength() {
+        return tracker.getInitialLength();
+    }
+
+    public void acquire(final EvictionListener listener) throws IOException {
         assert listener != null;
 
         ensureOpen();
         boolean success = false;
         if (refCounter.tryIncRef()) {
-            try (ReleasableLock ignored = evictionLock.acquire()) {
-                try {
+            try {
+                synchronized (listeners) {
                     ensureOpen();
-                    final Set<EvictionListener> newListeners = new HashSet<>(listeners);
-                    final boolean added = newListeners.add(listener);
-                    assert added : "listener already exists " + listener;
-                    maybeOpenFileChannel(newListeners);
-                    listeners = Collections.unmodifiableSet(newListeners);
-                    success = true;
-                } finally {
-                    if (success == false) {
-                        refCounter.decRef();
+                    if (listeners.isEmpty()) {
+                        assert channelRef == null;
+                        channelRef = new FileChannelReference();
                     }
+                    final boolean added = listeners.add(listener);
+                    assert added : "listener already exists " + listener;
+                }
+                success = true;
+            } finally {
+                if (success == false) {
+                    decrementRefCount();
                 }
             }
+        } else {
+            assert evicted.get();
+            throwAlreadyEvicted();
         }
         assert invariant();
-        return success;
     }
 
-    public boolean release(final EvictionListener listener) {
+    public void release(final EvictionListener listener) {
         assert listener != null;
 
         boolean success = false;
-        try (ReleasableLock ignored = evictionLock.acquire()) {
-            try {
-                final Set<EvictionListener> newListeners = new HashSet<>(listeners);
-                final boolean removed = newListeners.remove(Objects.requireNonNull(listener));
+        try {
+            synchronized (listeners) {
+                final boolean removed = listeners.remove(Objects.requireNonNull(listener));
                 assert removed : "listener does not exist " + listener;
                 if (removed == false) {
                     throw new IllegalStateException("Cannot remove an unknown listener");
                 }
-                maybeCloseFileChannel(newListeners);
-                listeners = Collections.unmodifiableSet(newListeners);
-                success = true;
-            } finally {
-                if (success) {
-                    refCounter.decRef();
+                if (listeners.isEmpty()) {
+                    // nobody is using this file so we close the channel
+                    channelRef.decRef();
+                    channelRef = null;
                 }
+            }
+            success = true;
+        } finally {
+            if (success) {
+                decrementRefCount();
             }
         }
         assert invariant();
-        return success;
     }
 
-    private void finishEviction() {
-        assert evictionLock.isHeldByCurrentThread();
-        assert listeners.isEmpty();
-        assert channel == null;
-        try {
-            Files.deleteIfExists(file);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+    private boolean assertNoPendingListeners() {
+        synchronized (listeners) {
+            assert listeners.isEmpty();
+            assert channelRef == null;
         }
+        return true;
     }
 
+    private void decrementRefCount() {
+        final boolean released = refCounter.decRef();
+        assert assertRefCounted(released);
+    }
+
+    private boolean assertRefCounted(boolean isReleased) {
+        final boolean isEvicted = evicted.get();
+        final boolean fileExists = Files.exists(file);
+        assert isReleased == false || (isEvicted && fileExists == false) : "fully released cache file should be deleted from disk but got ["
+            + "released="
+            + isReleased
+            + ", evicted="
+            + isEvicted
+            + ", file exists="
+            + fileExists
+            + ']';
+        return true;
+    }
+
+    /**
+     * Evicts this file from the cache. Once this method has been called, subsequent use of this class with throw exceptions.
+     */
     public void startEviction() {
-        if (evicted == false) {
-            final Set<EvictionListener> evictionListeners = new HashSet<>();
-            try (ReleasableLock ignored = evictionLock.acquire()) {
-                if (evicted == false) {
-                    evicted = true;
-                    evictionListeners.addAll(listeners);
-                    refCounter.decRef();
-                }
+        if (evicted.compareAndSet(false, true)) {
+            final Set<EvictionListener> evictionListeners;
+            synchronized (listeners) {
+                evictionListeners = new HashSet<>(listeners);
             }
+            decrementRefCount();
             evictionListeners.forEach(listener -> listener.onEviction(this));
         }
         assert invariant();
     }
 
-    private void maybeOpenFileChannel(Set<EvictionListener> listeners) throws IOException {
-        assert evictionLock.isHeldByCurrentThread();
-        if (listeners.size() == 1) {
-            assert channel == null;
-            channel = FileChannel.open(file, OPEN_OPTIONS);
-        }
-    }
-
-    private void maybeCloseFileChannel(Set<EvictionListener> listeners) {
-        assert evictionLock.isHeldByCurrentThread();
-        if (listeners.size() == 0) {
-            assert channel != null;
-            try {
-                channel.close();
-            } catch (IOException e) {
-                throw new UncheckedIOException("Exception when closing channel", e);
-            } finally {
-                channel = null;
-            }
-        }
-    }
-
     private boolean invariant() {
-        try (ReleasableLock ignored = readLock.acquire()) {
-            assert listeners != null;
+        synchronized (listeners) {
             if (listeners.isEmpty()) {
-                assert channel == null;
-                assert evicted == false || refCounter.refCount() != 0 || Files.notExists(file);
+                assert channelRef == null;
             } else {
-                assert channel != null;
+                assert channelRef != null;
                 assert refCounter.refCount() > 0;
-                assert channel.isOpen();
+                assert channelRef.refCount() > 0;
                 assert Files.exists(file);
             }
         }
@@ -223,70 +294,237 @@ public class CacheFile {
 
     @Override
     public String toString() {
-        return "CacheFile{"
-            + "desc='"
-            + description
-            + "', file="
-            + file
-            + ", length="
-            + tracker.getLength()
-            + ", channel="
-            + (channel != null ? "yes" : "no")
-            + ", listeners="
-            + listeners.size()
-            + ", evicted="
-            + evicted
-            + ", tracker="
-            + tracker
-            + '}';
-    }
-
-    private void ensureOpen() {
-        if (evicted) {
-            throw new AlreadyClosedException("Cache file is evicted");
+        synchronized (listeners) {
+            return "CacheFile{"
+                + "key='"
+                + cacheKey
+                + "', file="
+                + file
+                + ", length="
+                + tracker.getLength()
+                + ", channel="
+                + (channelRef != null ? "yes" : "no")
+                + ", listeners="
+                + listeners.size()
+                + ", evicted="
+                + evicted
+                + ", tracker="
+                + tracker
+                + '}';
         }
     }
 
-    CompletableFuture<Integer> fetchRange(
-        long start,
-        long end,
-        CheckedBiFunction<Long, Long, Integer, IOException> onRangeAvailable,
-        CheckedBiConsumer<Long, Long, IOException> onRangeMissing
+    private void ensureOpen() {
+        if (evicted.get()) {
+            throwAlreadyEvicted();
+        }
+    }
+
+    private static void throwAlreadyEvicted() {
+        throw new AlreadyClosedException("Cache file is evicted");
+    }
+
+    @FunctionalInterface
+    interface RangeAvailableHandler {
+        int onRangeAvailable(FileChannel channel) throws IOException;
+    }
+
+    @FunctionalInterface
+    interface RangeMissingHandler {
+        void fillCacheRange(FileChannel channel, long from, long to, Consumer<Long> progressUpdater) throws IOException;
+    }
+
+    /**
+     * Populates any missing ranges within {@code rangeToWrite} using the {@link RangeMissingHandler}, and notifies the
+     * {@link RangeAvailableHandler} when {@code rangeToRead} is available to read from the file. If {@code rangeToRead} is already
+     * available then the {@link RangeAvailableHandler} is called synchronously by this method; if not then the given {@link Executor}
+     * processes the missing ranges and notifies the {@link RangeAvailableHandler}.
+     *
+     * @return a future which returns the result of the {@link RangeAvailableHandler} once it has completed.
+     */
+    Future<Integer> populateAndRead(
+        final ByteRange rangeToWrite,
+        final ByteRange rangeToRead,
+        final RangeAvailableHandler reader,
+        final RangeMissingHandler writer,
+        final Executor executor
     ) {
-        final CompletableFuture<Integer> future = new CompletableFuture<>();
+        final PlainActionFuture<Integer> future = PlainActionFuture.newFuture();
+        Releasable decrementRef = null;
         try {
-            if (start < 0 || start > tracker.getLength() || start > end || end > tracker.getLength()) {
-                throw new IllegalArgumentException(
-                    "Invalid range [start=" + start + ", end=" + end + "] for length [" + tracker.getLength() + ']'
-                );
-            }
-            ensureOpen();
+            final FileChannelReference reference = acquireFileChannelReference();
+            decrementRef = Releasables.releaseOnce(reference::decRef);
             final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                start,
-                end,
-                ActionListener.wrap(
-                    rangeReady -> future.complete(onRangeAvailable.apply(start, end)),
-                    rangeFailure -> future.completeExceptionally(rangeFailure)
-                )
+                rangeToWrite,
+                rangeToRead,
+                rangeListener(rangeToRead, reader, future, reference, decrementRef)
             );
 
             for (SparseFileTracker.Gap gap : gaps) {
-                try {
-                    ensureOpen();
-                    onRangeMissing.accept(gap.start, gap.end);
-                    gap.onResponse(null);
-                } catch (Exception e) {
-                    gap.onFailure(e);
-                }
+                executor.execute(new AbstractRunnable() {
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        if (reference.tryIncRef() == false) {
+                            assert false : "expected a non-closed channel reference";
+                            throw new AlreadyClosedException("Cache file channel has been released and closed");
+                        }
+                        try {
+                            ensureOpen();
+                            writer.fillCacheRange(reference.fileChannel, gap.start(), gap.end(), gap::onProgress);
+                            gap.onCompletion();
+                            markAsNeedsFSync();
+                        } finally {
+                            reference.decRef();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        gap.onFailure(e);
+                    }
+                });
             }
         } catch (Exception e) {
-            future.completeExceptionally(e);
+            releaseAndFail(future, decrementRef, e);
         }
         return future;
     }
 
-    public Tuple<Long, Long> getAbsentRangeWithin(long start, long end) {
+    /**
+     * Notifies the {@link RangeAvailableHandler} when {@code rangeToRead} is available to read from the file. If {@code rangeToRead} is
+     * already available then the {@link RangeAvailableHandler} is called synchronously by this method; if not, but it is pending, then the
+     * {@link RangeAvailableHandler} is notified when the pending ranges have completed. If it contains gaps that are not currently pending
+     * then no listeners are registered and this method returns {@code null}.
+     *
+     * @return a future which returns the result of the {@link RangeAvailableHandler} once it has completed, or {@code null} if the
+     *         target range is neither available nor pending.
+     */
+    @Nullable
+    Future<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
+        final PlainActionFuture<Integer> future = PlainActionFuture.newFuture();
+        Releasable decrementRef = null;
+        try {
+            final FileChannelReference reference = acquireFileChannelReference();
+            decrementRef = Releasables.releaseOnce(reference::decRef);
+            if (tracker.waitForRangeIfPending(rangeToRead, rangeListener(rangeToRead, reader, future, reference, decrementRef))) {
+                return future;
+            } else {
+                decrementRef.close();
+                return null;
+            }
+        } catch (Exception e) {
+            releaseAndFail(future, decrementRef, e);
+            return future;
+        }
+    }
+
+    private static void releaseAndFail(PlainActionFuture<Integer> future, Releasable decrementRef, Exception e) {
+        try {
+            Releasables.close(decrementRef);
+        } catch (Exception ex) {
+            e.addSuppressed(ex);
+        }
+        future.onFailure(e);
+    }
+
+    private static ActionListener<Void> rangeListener(
+        ByteRange rangeToRead,
+        RangeAvailableHandler reader,
+        PlainActionFuture<Integer> future,
+        FileChannelReference reference,
+        Releasable releasable
+    ) {
+        return ActionListener.runAfter(ActionListener.wrap(success -> {
+            final int read = reader.onRangeAvailable(reference.fileChannel);
+            assert read == rangeToRead.length() : "partial read ["
+                + read
+                + "] does not match the range to read ["
+                + rangeToRead.end()
+                + '-'
+                + rangeToRead.start()
+                + ']';
+            future.onResponse(read);
+        }, future::onFailure), releasable::close);
+    }
+
+    /**
+     * Get the reference to the currently open file channel for this cache file for a read operation
+     *
+     * @return file channel reference
+     */
+    private FileChannelReference acquireFileChannelReference() {
+        final FileChannelReference reference;
+        synchronized (listeners) {
+            ensureOpen();
+            reference = channelRef;
+            assert reference != null && reference.refCount() > 0
+                : "impossible to run into a fully released channel reference under the listeners mutex";
+            assert refCounter.refCount() > 0 : "file should not be fully released";
+            reference.incRef();
+        }
+        return reference;
+    }
+
+    public ByteRange getAbsentRangeWithin(ByteRange range) {
         ensureOpen();
-        return tracker.getAbsentRangeWithin(start, end);
+        return tracker.getAbsentRangeWithin(range);
+    }
+
+    // used in tests
+    boolean needsFsync() {
+        return needsFsync.get();
+    }
+
+    /**
+     * Marks the current cache file as "fsync needed" and notifies the corresponding listener.
+     */
+    private void markAsNeedsFSync() {
+        assert refCounter.refCount() > 0 : "file should not be fully released";
+        if (needsFsync.getAndSet(true) == false) {
+            listener.onCacheFileNeedsFsync(this);
+        }
+    }
+
+    /**
+     * Ensure that all ranges of data written to the cache file are written to the storage device that contains it. This method performs
+     * synchronization only if data has been written to the cache since the last time the method was called. If calling this method
+     * resulted in performing a synchronization, a sorted set of all successfully written ranges of data since the creation of the cache
+     * file is returned. If the cache file is evicted or if a concurrent thread is already fsyncing the file this method returns an empty
+     * set of ranges.
+     *
+     * @return a sorted set of ranges of data available in cache iff calling this method resulted in performing a fsync
+     * @throws IOException                       if the cache file failed to be fsync
+     * @throws java.nio.file.NoSuchFileException if the cache file does not exist
+     */
+    public SortedSet<ByteRange> fsync() throws IOException {
+        if (refCounter.tryIncRef()) {
+            try {
+                if (needsFsync.compareAndSet(true, false)) {
+                    boolean success = false;
+                    try {
+                        // Capture the completed ranges before fsyncing; ranges that are completed after this point won't be considered as
+                        // persisted on disk by the caller of this method, even if they are fully written to disk at the time the file
+                        // fsync is effectively executed
+                        final SortedSet<ByteRange> completedRanges = tracker.getCompletedRanges();
+                        assert completedRanges != null;
+                        assert completedRanges.isEmpty() == false;
+
+                        IOUtils.fsync(file, false, false);
+                        success = true;
+                        return completedRanges;
+                    } finally {
+                        if (success == false) {
+                            markAsNeedsFSync();
+                        }
+                    }
+                }
+            } finally {
+                decrementRefCount();
+            }
+        } else {
+            assert evicted.get();
+        }
+        return Collections.emptySortedSet();
     }
 }

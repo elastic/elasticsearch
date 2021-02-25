@@ -13,7 +13,7 @@ of documents into it.
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -28,19 +28,19 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_dense_vector": [0.5, 10, 6],
   "status" : "published"
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "my_dense_vector": [-0.5, 10, 10],
   "status" : "published"
 }
 
-POST my_index/_refresh
+POST my-index-000001/_refresh
 
 --------------------------------------------------
 // TESTSETUP
@@ -50,7 +50,7 @@ cosine similarity between a given query vector and document vectors.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {
@@ -86,7 +86,7 @@ dot product between a given query vector and document vectors.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {
@@ -121,7 +121,7 @@ document vectors.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {
@@ -160,7 +160,7 @@ document vectors.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {

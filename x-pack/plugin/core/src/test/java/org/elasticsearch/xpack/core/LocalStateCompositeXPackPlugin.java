@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core;
 
@@ -20,6 +21,8 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -41,8 +44,12 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.shard.IndexSettingProvider;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -52,6 +59,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -59,6 +67,7 @@ import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
@@ -87,6 +96,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -95,11 +105,13 @@ import java.util.stream.Collectors;
 import static java.util.stream.Collectors.toList;
 
 public class LocalStateCompositeXPackPlugin extends XPackPlugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin,
-        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin {
+        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin, IndexStorePlugin,
+        SystemIndexPlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
     private LicenseService licenseService;
+    private LongSupplier epochMillisSupplier;
     protected List<Plugin> plugins = new ArrayList<>();
 
     public LocalStateCompositeXPackPlugin(final Settings settings, final Path configPath) {
@@ -138,6 +150,16 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
+    protected LongSupplier getEpochMillisSupplier() {
+        return epochMillisSupplier;
+    }
+
+    @Override
+    protected void setEpochMillisSupplier(LongSupplier epochMillisSupplier) {
+        this.epochMillisSupplier = epochMillisSupplier;
+    }
+
+    @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
@@ -150,7 +172,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
         filterPlugins(Plugin.class).stream().forEach(p ->
             components.addAll(p.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
-                    xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, null))
+                    xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver,
+                repositoriesServiceSupplier))
         );
         return components;
     }
@@ -353,7 +376,17 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     public Set<DiscoveryNodeRole> getRoles() {
         Set<DiscoveryNodeRole> roles = new HashSet<>();
         filterPlugins(Plugin.class).stream().forEach(p -> roles.addAll(p.getRoles()));
+        roles.addAll(super.getRoles());
         return roles;
+    }
+
+    @Override
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+        Set<IndexSettingProvider> providers = new HashSet<>();
+        filterPlugins(Plugin.class).stream().forEach(p -> providers.addAll(p.getAdditionalIndexSettingProviders()));
+        providers.addAll(super.getAdditionalIndexSettingProviders());
+        return providers;
+
     }
 
     @Override
@@ -411,21 +444,22 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ClusterService clusterService) {
+                                                           ClusterService clusterService, BigArrays bigArrays,
+                                                           RecoverySettings recoverySettings) {
         HashMap<String, Repository.Factory> repositories =
-            new HashMap<>(super.getRepositories(env, namedXContentRegistry, clusterService));
+            new HashMap<>(super.getRepositories(env, namedXContentRegistry, clusterService, bigArrays, recoverySettings));
         filterPlugins(RepositoryPlugin.class).forEach(
-            r -> repositories.putAll(r.getRepositories(env, namedXContentRegistry, clusterService)));
+            r -> repositories.putAll(r.getRepositories(env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)));
         return repositories;
     }
 
     @Override
     public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                                   ClusterService clusterService) {
+                                                                   ClusterService clusterService, RecoverySettings recoverySettings) {
         HashMap<String, Repository.Factory> internalRepositories =
-            new HashMap<>(super.getInternalRepositories(env, namedXContentRegistry, clusterService));
+            new HashMap<>(super.getInternalRepositories(env, namedXContentRegistry, clusterService, recoverySettings));
         filterPlugins(RepositoryPlugin.class).forEach(r ->
-            internalRepositories.putAll(r.getInternalRepositories(env, namedXContentRegistry, clusterService)));
+            internalRepositories.putAll(r.getInternalRepositories(env, namedXContentRegistry, clusterService, recoverySettings)));
         return internalRepositories;
     }
 
@@ -464,9 +498,80 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        Set<AllocationDecider> deciders = new HashSet<>();
+        deciders.addAll(filterPlugins(ClusterPlugin.class)
+            .stream()
+            .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())
+            .collect(Collectors.toList()));
+        deciders.addAll(super.createAllocationDeciders(settings, clusterSettings));
+        return deciders;
+    }
+
+    @Override
+    public Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
+        final Map<String, ExistingShardsAllocator> allocators = new HashMap<>();
+        filterPlugins(ClusterPlugin.class).stream().forEach(p -> allocators.putAll(p.getExistingShardsAllocators()));
+        return allocators;
+    }
+
+    @Override
+    public Map<String, IndexStorePlugin.DirectoryFactory> getDirectoryFactories() {
+        final Map<String, IndexStorePlugin.DirectoryFactory> factories = new HashMap<>();
+        filterPlugins(IndexStorePlugin.class).stream().forEach(p -> factories.putAll(p.getDirectoryFactories()));
+        return factories;
+    }
+
+    @Override
+    public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
+        final Map<String, RecoveryStateFactory> factories = new HashMap<>();
+        filterPlugins(IndexStorePlugin.class).stream().forEach(p -> factories.putAll(p.getRecoveryStateFactories()));
+        return factories;
+    }
+
+    @Override
+    public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
+        final List<IndexFoldersDeletionListener> listeners = new ArrayList<>();
+        filterPlugins(IndexStorePlugin.class).forEach(p -> listeners.addAll(p.getIndexFoldersDeletionListeners()));
+        return Collections.unmodifiableList(listeners);
+    }
+
+    @Override
+    public Map<String, IndexStorePlugin.SnapshotCommitSupplier> getSnapshotCommitSuppliers() {
+        final Map<String, IndexStorePlugin.SnapshotCommitSupplier> suppliers = new HashMap<>();
+        filterPlugins(IndexStorePlugin.class).forEach(p -> suppliers.putAll(p.getSnapshotCommitSuppliers()));
+        return suppliers;
+    }
+
     private <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T)p))
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return this.filterPlugins(SystemIndexPlugin.class)
+            .stream()
+            .flatMap(p -> p.getSystemIndexDescriptors(this.settings).stream())
+            .collect(Collectors.toList());
+    }
+
+    @Override
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+        return filterPlugins(MapperPlugin.class).stream()
+            .map(MapperPlugin::getMetadataMappers)
+            .flatMap (map -> map.entrySet().stream())
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    @Override
+    public String getFeatureName() {
+        return this.getClass().getSimpleName();
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return this.getClass().getCanonicalName();
+    }
 }

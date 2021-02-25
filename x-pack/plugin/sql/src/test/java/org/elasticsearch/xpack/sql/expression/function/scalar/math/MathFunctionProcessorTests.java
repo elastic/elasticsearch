@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
@@ -55,7 +56,7 @@ public class MathFunctionProcessorTests extends AbstractWireSerializingTestCase<
         assertNotNull(proc.process(null));
         assertNotNull(proc.process(randomLong()));
     }
-    
+
     public void testFloor() {
         MathProcessor proc = new MathProcessor(MathOperation.FLOOR);
         assertNull(proc.process(null));
@@ -64,7 +65,7 @@ public class MathFunctionProcessorTests extends AbstractWireSerializingTestCase<
         assertEquals(3.0, proc.process(3.9));
         assertEquals(-13.0, proc.process(-12.1));
     }
-    
+
     public void testCeil() {
         MathProcessor proc = new MathProcessor(MathOperation.CEIL);
         assertNull(proc.process(null));

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
@@ -48,7 +49,7 @@ public class ProcessResultsParser<T> {
             if (token != XContentParser.Token.START_ARRAY) {
                 throw new ElasticsearchParseException("unexpected token [" + token + "]");
             }
-            return new ResultIterator(in, parser);
+            return new ResultIterator(parser);
         } catch (IOException e) {
             throw new ElasticsearchParseException(e.getMessage(), e);
         }
@@ -56,12 +57,10 @@ public class ProcessResultsParser<T> {
 
     private class ResultIterator implements Iterator<T> {
 
-        private final InputStream in;
         private final XContentParser parser;
         private XContentParser.Token token;
 
-        private ResultIterator(InputStream in, XContentParser parser) {
-            this.in = in;
+        private ResultIterator(XContentParser parser) {
             this.parser = parser;
             token = parser.currentToken();
         }

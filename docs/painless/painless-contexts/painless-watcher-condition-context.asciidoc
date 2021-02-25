@@ -18,6 +18,9 @@ The standard <<painless-api-reference-shared, Painless API>> is available.
 
 *Example*
 
+To run the examples, first follow the steps in
+<<painless-context-examples, context examples>>.
+
 [source,console]
 ----
 POST _watcher/watch/_execute
@@ -65,7 +68,7 @@ POST _watcher/watch/_execute
   }
 }
 ----
-// TEST[skip: requires setup from other pages]
+// TEST[setup:seats]
 
 <1> The Java Stream API is used in the condition. This API allows manipulation of
 the elements of the list in a pipeline.
@@ -75,7 +78,7 @@ the elements of the list in a pipeline.
 The following action condition script controls execution of the my_log action based
 on the value of the seats sold for the plays in the data set. The script aggregates
 the total sold seats for each play and returns true if there is at least one play
-that has sold over $50,000.
+that has sold over $10,000.
 
 [source,console]
 ----
@@ -91,12 +94,18 @@ POST _watcher/watch/_execute
             "query" : {
               "term": { "sold": "true"}
             },
+            "size": 0,
             "aggs" : {
               "theatres" : {
                 "terms" : { "field" : "play" },
                 "aggs" : {
                   "money" : {
-                    "sum": { "field" : "cost" }
+                    "sum": {
+                      "field" : "cost",
+                      "script": {
+                       "source": "doc.cost.value * doc.number.value"
+                      }
+                    }
                   }
                 }
               }
@@ -111,18 +120,18 @@ POST _watcher/watch/_execute
           "script" :
           """
             return ctx.payload.aggregations.theatres.buckets.stream()
-              .anyMatch(theatre -> theatre.money.value > 50000)       <2>
+              .anyMatch(theatre -> theatre.money.value > 10000)       <2>
           """
         },
         "logging" : {
-          "text" : "At least one play has grossed over $50,000: {{ctx.payload.aggregations.theatres.buckets}}"
+          "text" : "At least one play has grossed over $10,000: {{ctx.payload.aggregations.theatres.buckets}}"
         }
       }
     }
   }
 }
 ----
-// TEST[skip: requires setup from other pages]
+// TEST[setup:seats]
 
 This example uses a nearly identical condition as the previous example. The
 differences below are subtle and are worth calling out.
@@ -130,9 +139,3 @@ differences below are subtle and are worth calling out.
 <1> The location of the condition is no longer at the top level, but is within
 an individual action.
 <2> Instead of a filter, `anyMatch` is used to return a boolean value
-
-The following example shows scripted watch and action conditions within the
-context of a complete watch. This watch also uses a scripted
-<<painless-watcher-transform-context, transform>>.
-
-include::painless-watcher-context-example.asciidoc[]

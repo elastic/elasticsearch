@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 
 public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobAction.Request, FlushJobAction.Response> {
 
@@ -27,10 +29,10 @@ public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobActi
     }
 
     @Override
-    protected void taskOperation(FlushJobAction.Request request, TransportOpenJobAction.JobTask task,
-                                 ActionListener<FlushJobAction.Response> listener) {
+    protected void taskOperation(FlushJobAction.Request request, JobTask task, ActionListener<FlushJobAction.Response> listener) {
         FlushJobParams.Builder paramsBuilder = FlushJobParams.builder();
         paramsBuilder.calcInterim(request.getCalcInterim());
+        paramsBuilder.waitForNormalization(request.isWaitForNormalization());
         if (request.getAdvanceTime() != null) {
             paramsBuilder.advanceTime(request.getAdvanceTime());
         }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.action;
@@ -36,7 +37,7 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
 
     @Override
     protected void doExecute(Task task, InvalidateApiKeyRequest request, ActionListener<InvalidateApiKeyResponse> listener) {
-        String apiKeyId = request.getId();
+        String[] apiKeyIds = request.getIds();
         String apiKeyName = request.getName();
         String username = request.getUserName();
         String realm = request.getRealmName();
@@ -53,7 +54,7 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
             realm = ApiKeyService.getCreatorRealmName(authentication);
         }
 
-        apiKeyService.invalidateApiKeys(realm, username, apiKeyName, apiKeyId, listener);
+        apiKeyService.invalidateApiKeys(realm, username, apiKeyName, apiKeyIds, listener);
     }
 
 }

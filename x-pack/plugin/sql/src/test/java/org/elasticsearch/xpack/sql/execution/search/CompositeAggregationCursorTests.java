@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
@@ -22,7 +23,7 @@ import java.util.function.Supplier;
 public class CompositeAggregationCursorTests extends AbstractSqlWireSerializingTestCase<CompositeAggCursor> {
     public static CompositeAggCursor randomCompositeCursor() {
         int extractorsSize = between(1, 20);
-        ZoneId id = randomSafeZone();
+        ZoneId id = randomZone();
         List<BucketExtractor> extractors = new ArrayList<>(extractorsSize);
         for (int i = 0; i < extractorsSize; i++) {
             extractors.add(randomBucketExtractor(id));
@@ -45,7 +46,7 @@ public class CompositeAggregationCursorTests extends AbstractSqlWireSerializingT
         return new CompositeAggCursor(instance.next(), instance.extractors(),
                 randomValueOtherThan(instance.mask(), () -> randomBitSet(instance.extractors().size())),
                 randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 512)),
-                !instance.includeFrozen(),
+                instance.includeFrozen() == false,
                 instance.indices());
     }
 
@@ -70,7 +71,7 @@ public class CompositeAggregationCursorTests extends AbstractSqlWireSerializingT
                 return zoneId;
             }
         }
-        return randomSafeZone();
+        return randomZone();
     }
 
     static BitSet randomBitSet(int size) {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.stringstats;
 
@@ -92,7 +93,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertTrue(stats.getDistribution().isEmpty());
             assertEquals(0.0, stats.getEntropy(), 0);
 
-        }, null);
+        });
     }
 
     public void testUnmappedWithMissingField() throws IOException {
@@ -113,12 +114,11 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertEquals(0.25, stats.getDistribution().get("b"), 0);
             assertEquals(0.25, stats.getDistribution().get("c"), 0);
             assertEquals(1.5, stats.getEntropy(), 0);
-        }, null);
+        });
     }
 
     public void testMissing() throws IOException {
-        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType();
-        fieldType.setName("text");
+        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text");
         fieldType.setFielddata(true);
 
         final StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name")
@@ -195,8 +195,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47469")
     public void testSingleValuedFieldWithFormatter() throws IOException {
-        TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType();
-        fieldType.setName("text");
+        TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text");
         fieldType.setFielddata(true);
 
         StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name")
@@ -221,12 +220,9 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
      * Test a string_stats aggregation as a subaggregation of a terms aggregation
      */
     public void testNestedAggregation() throws IOException {
-        MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        numericFieldType.setName("value");
-        numericFieldType.setHasDocValues(true);
+        MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
 
-        TextFieldMapper.TextFieldType textFieldType = new TextFieldMapper.TextFieldType();
-        textFieldType.setName("text");
+        TextFieldMapper.TextFieldType textFieldType = new TextFieldMapper.TextFieldType("text");
         textFieldType.setFielddata(true);
 
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms")
@@ -283,8 +279,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testValueScriptSingleValuedField() throws IOException {
-        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType();
-        fieldType.setName("text");
+        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text");
         fieldType.setFielddata(true);
 
         final StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name")
@@ -307,8 +302,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testValueScriptMultiValuedField() throws IOException {
-        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType();
-        fieldType.setName("text");
+        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text");
         fieldType.setFielddata(true);
 
         final StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name")
@@ -338,8 +332,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFieldScriptSingleValuedField() throws IOException {
-        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType();
-        fieldType.setName("text");
+        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text");
         fieldType.setFielddata(true);
 
         final StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name")
@@ -361,8 +354,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFieldScriptMultiValuedField() throws IOException {
-        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType();
-        fieldType.setName("text");
+        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text");
         fieldType.setFielddata(true);
 
         final StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name")
@@ -393,8 +385,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
     private void testAggregation(Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalStringStats> verify) throws IOException {
-        TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType();
-        fieldType.setName("text");
+        TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("text");
         fieldType.setFielddata(true);
 
         AggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").field("text");
@@ -406,8 +397,9 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalStringStats> verify,
-        MappedFieldType fieldType)  throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
     }
 
     @Override
@@ -418,7 +410,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return singletonList(CoreValuesSourceType.BYTES);
+        return singletonList(CoreValuesSourceType.KEYWORD);
     }
 
     @Override

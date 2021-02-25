@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
@@ -17,62 +18,60 @@ import java.util.Objects;
 
 public class ToStringFunctionPipe extends Pipe {
 
-    private final Pipe source;
+    private final Pipe input;
 
-    public ToStringFunctionPipe(Source source, Expression expression, Pipe src) {
-        super(source, expression, Collections.singletonList(src));
-        this.source = src;
+    public ToStringFunctionPipe(Source source, Expression expression, Pipe input) {
+        super(source, expression, Collections.singletonList(input));
+        this.input = input;
     }
 
     @Override
-    public final Pipe replaceChildren(List<Pipe> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] children but received [" + newChildren.size() + "]");
-        }
+    public final ToStringFunctionPipe replaceChildren(List<Pipe> newChildren) {
         return new ToStringFunctionPipe(source(), expression(), newChildren.get(0));
     }
 
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
-        Pipe newSource = source.resolveAttributes(resolver);
-        if (newSource == source) {
-            return this;
-        }
-        return replaceChildren(Collections.singletonList(newSource));
+        Pipe newInput = input.resolveAttributes(resolver);
+        return newInput == input ? this : replaceChildren(newInput);
     }
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return source.supportedByAggsOnlyQuery();
+        return input.supportedByAggsOnlyQuery();
     }
 
     @Override
     public boolean resolved() {
-        return source.resolved();
+        return input.resolved();
+    }
+
+    protected ToStringFunctionPipe replaceChildren(Pipe newInput) {
+        return new ToStringFunctionPipe(source(), expression(), newInput);
     }
 
     @Override
     public final void collectFields(QlSourceBuilder sourceBuilder) {
-        source.collectFields(sourceBuilder);
+        input.collectFields(sourceBuilder);
     }
 
     @Override
     protected NodeInfo<ToStringFunctionPipe> info() {
-        return NodeInfo.create(this, ToStringFunctionPipe::new, expression(), source);
+        return NodeInfo.create(this, ToStringFunctionPipe::new, expression(), input);
     }
 
     @Override
     public ToStringFunctionProcessor asProcessor() {
-        return new ToStringFunctionProcessor(source.asProcessor());
+        return new ToStringFunctionProcessor(input.asProcessor());
     }
 
-    public Pipe src() {
-        return source;
+    public Pipe input() {
+        return input;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(source);
+        return Objects.hash(input());
     }
 
     @Override
@@ -85,6 +84,6 @@ public class ToStringFunctionPipe extends Pipe {
             return false;
         }
 
-        return Objects.equals(source, ((ToStringFunctionPipe) obj).source);
+        return Objects.equals(input(), ((ToStringFunctionPipe) obj).input());
     }
 }

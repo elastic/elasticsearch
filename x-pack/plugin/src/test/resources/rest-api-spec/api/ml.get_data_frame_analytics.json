@@ -4,7 +4,11 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-dfanalytics.html",
       "description":"Retrieves configuration information for data frame analytics jobs."
     },
-    "stability":"experimental",
+    "stability":"beta",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -43,6 +47,12 @@
         "type":"int",
         "description":"specifies a max number of analytics to get",
         "default":100
+      },
+      "exclude_generated": {
+        "required": false,
+        "type": "boolean",
+        "default": false,
+        "description": "Omits fields that are illegal to set on data frame analytics PUT"
       }
     }
   }

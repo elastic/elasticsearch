@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.lucene;
@@ -22,8 +11,10 @@ package org.elasticsearch.common.lucene;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
@@ -87,13 +78,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.search.sort.ShardDocSortField;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -103,12 +97,14 @@ import java.util.List;
 import java.util.Map;
 
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene84";
+    public static final String LATEST_CODEC = "Lucene87";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
     public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
+    public static final NamedAnalyzer WHITESPACE_ANALYZER
+        = new NamedAnalyzer("_whitespace", AnalyzerScope.GLOBAL, new WhitespaceAnalyzer());
 
     public static final ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
 
@@ -300,9 +296,15 @@ public class Lucene {
             TotalHits totalHits = readTotalHits(in);
             float maxScore = in.readFloat();
 
-            ScoreDoc[] scoreDocs = new ScoreDoc[in.readVInt()];
-            for (int i = 0; i < scoreDocs.length; i++) {
-                scoreDocs[i] = new ScoreDoc(in.readVInt(), in.readFloat());
+            final int scoreDocCount = in.readVInt();
+            final ScoreDoc[] scoreDocs;
+            if (scoreDocCount == 0) {
+                scoreDocs = EMPTY_SCORE_DOCS;
+            } else {
+                scoreDocs = new ScoreDoc[scoreDocCount];
+                for (int i = 0; i < scoreDocs.length; i++) {
+                    scoreDocs[i] = new ScoreDoc(in.readVInt(), in.readFloat());
+                }
             }
             return new TopDocsAndMaxScore(new TopDocs(totalHits, scoreDocs), maxScore);
         } else if (type == 1) {
@@ -357,6 +359,8 @@ public class Lucene {
                 cFields[j] = in.readBoolean();
             } else if (type == 9) {
                 cFields[j] = in.readBytesRef();
+            } else if (type == 10) {
+                cFields[j] = new BigInteger(in.readString());
             } else {
                 throw new IOException("Can't match type [" + type + "]");
             }
@@ -386,6 +390,8 @@ public class Lucene {
             return in.readBoolean();
         } else if (type == 9) {
             return in.readBytesRef();
+        } else if (type == 10) {
+            return new BigInteger(in.readString());
         } else {
             throw new IOException("Can't match type [" + type + "]");
         }
@@ -501,6 +507,10 @@ public class Lucene {
             } else if (type == BytesRef.class) {
                 out.writeByte((byte) 9);
                 out.writeBytesRef((BytesRef) field);
+            } else if (type == BigInteger.class) {
+                //TODO: improve serialization of BigInteger
+                out.writeByte((byte) 10);
+                out.writeString(field.toString());
             } else {
                 throw new IOException("Can't handle sort field value of type [" + type + "]");
             }
@@ -517,7 +527,7 @@ public class Lucene {
     }
 
     public static void writeScoreDoc(StreamOutput out, ScoreDoc scoreDoc) throws IOException {
-        if (!scoreDoc.getClass().equals(ScoreDoc.class)) {
+        if (scoreDoc.getClass().equals(ScoreDoc.class) == false) {
             throw new IllegalArgumentException("This method can only be used to serialize a ScoreDoc, not a " + scoreDoc.getClass());
         }
         out.writeVInt(scoreDoc.doc);
@@ -548,29 +558,35 @@ public class Lucene {
         out.writeVInt(sortType.ordinal());
     }
 
-    public static void writeSortField(StreamOutput out, SortField sortField) throws IOException {
+    /**
+     * Returns the generic version of the provided {@link SortField} that
+     * can be used to merge documents coming from different shards.
+     */
+    private static SortField rewriteMergeSortField(SortField sortField) {
         if (sortField.getClass() == GEO_DISTANCE_SORT_TYPE_CLASS) {
-            // for geo sorting, we replace the SortField with a SortField that assumes a double field.
-            // this works since the SortField is only used for merging top docs
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.DOUBLE);
             newSortField.setMissingValue(sortField.getMissingValue());
-            sortField = newSortField;
+            return newSortField;
         } else if (sortField.getClass() == SortedSetSortField.class) {
-            // for multi-valued sort field, we replace the SortedSetSortField with a simple SortField.
-            // It works because the sort field is only used to merge results from different shards.
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
             newSortField.setMissingValue(sortField.getMissingValue());
-            sortField = newSortField;
+            return newSortField;
         } else if (sortField.getClass() == SortedNumericSortField.class) {
-            // for multi-valued sort field, we replace the SortedSetSortField with a simple SortField.
-            // It works because the sort field is only used to merge results from different shards.
             SortField newSortField = new SortField(sortField.getField(),
                 ((SortedNumericSortField) sortField).getNumericType(),
                 sortField.getReverse());
             newSortField.setMissingValue(sortField.getMissingValue());
-            sortField = newSortField;
+            return newSortField;
+        } else if (sortField.getClass() == ShardDocSortField.class) {
+            SortField newSortField = new SortField(sortField.getField(), SortField.Type.LONG, sortField.getReverse());
+            return newSortField;
+        } else {
+            return sortField;
         }
+    }
 
+    public static void writeSortField(StreamOutput out, SortField sortField) throws IOException {
+        sortField = rewriteMergeSortField(sortField);
         if (sortField.getClass() != SortField.class) {
             throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
         }
@@ -892,7 +908,7 @@ public class Lucene {
     }
 
     private static final class DirectoryReaderWithAllLiveDocs extends FilterDirectoryReader {
-        static final class LeafReaderWithLiveDocs extends FilterLeafReader {
+        static final class LeafReaderWithLiveDocs extends SequentialStoredFieldsLeafReader {
             final Bits liveDocs;
             final int numDocs;
             LeafReaderWithLiveDocs(LeafReader in, Bits liveDocs, int  numDocs) {
@@ -915,6 +931,10 @@ public class Lucene {
             @Override
             public CacheHelper getReaderCacheHelper() {
                 return null; // Modifying liveDocs
+            }
+            @Override
+            protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+                return reader;
             }
         }
 

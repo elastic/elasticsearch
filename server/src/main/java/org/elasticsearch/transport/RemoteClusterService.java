@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
@@ -37,7 +26,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -118,8 +106,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
-        this.enabled = Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings);
+        this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
         this.transportService = transportService;
+    }
+
+    public DiscoveryNode getLocalNode() {
+        return transportService.getLocalNode();
     }
 
     /**
@@ -134,22 +126,18 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices) {
-        Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
-        if (isCrossClusterSearchEnabled()) {
-            final Map<String, List<String>> groupedIndices = groupClusterIndices(getRemoteClusterNames(), indices);
-            if (groupedIndices.isEmpty()) {
-                //search on _all in the local cluster if neither local indices nor remote indices were specified
-                originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(Strings.EMPTY_ARRAY, indicesOptions));
-            } else {
-                for (Map.Entry<String, List<String>> entry : groupedIndices.entrySet()) {
-                    String clusterAlias = entry.getKey();
-                    List<String> originalIndices = entry.getValue();
-                    originalIndicesMap.put(clusterAlias,
-                        new OriginalIndices(originalIndices.toArray(new String[0]), indicesOptions));
-                }
-            }
+        final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
+        final Map<String, List<String>> groupedIndices = groupClusterIndices(getRemoteClusterNames(), indices);
+        if (groupedIndices.isEmpty()) {
+            //search on _all in the local cluster if neither local indices nor remote indices were specified
+            originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(Strings.EMPTY_ARRAY, indicesOptions));
         } else {
-            originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(indices, indicesOptions));
+            for (Map.Entry<String, List<String>> entry : groupedIndices.entrySet()) {
+                String clusterAlias = entry.getKey();
+                List<String> originalIndices = entry.getValue();
+                originalIndicesMap.put(clusterAlias,
+                    new OriginalIndices(originalIndices.toArray(new String[0]), indicesOptions));
+            }
         }
         return originalIndicesMap;
     }
@@ -183,7 +171,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * will invoke the listener immediately.
      */
     void ensureConnected(String clusterAlias, ActionListener<Void> listener) {
-        getRemoteClusterConnection(clusterAlias).ensureConnected(listener);
+        final RemoteClusterConnection remoteClusterConnection;
+        try {
+            remoteClusterConnection = getRemoteClusterConnection(clusterAlias);
+        } catch (NoSuchRemoteClusterException e) {
+            listener.onFailure(e);
+            return;
+        }
+        remoteClusterConnection.ensureConnected(listener);
     }
 
     /**

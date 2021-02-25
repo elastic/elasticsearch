@@ -79,7 +79,7 @@ The following parameters can be specified in the body of a PUT or POST request
 and pertain to adding a role mapping:
 
 `enabled`::
-(Required, boolean) Mappings that have `enabled` set to `false` are ignored when
+(Required, Boolean) Mappings that have `enabled` set to `false` are ignored when
 role mapping is performed.
 
 `metadata`::
@@ -271,7 +271,7 @@ following mapping matches any user where *all* of these conditions are met:
 
 - the _Distinguished Name_ matches the pattern `*,ou=admin,dc=example,dc=com`,
   or the username is `es-admin`, or the username is `es-system`
-- the user in in the `cn=people,dc=example,dc=com` group
+- the user in the `cn=people,dc=example,dc=com` group
 - the user does not have a `terminated_date`
 
 

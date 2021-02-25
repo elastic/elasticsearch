@@ -5,6 +5,11 @@
       "description":"Returns results matching a query."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -225,6 +230,10 @@
         "type":"boolean",
         "description":"Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
         "default":false
+      },
+      "min_compatible_shard_node":{
+        "type":"string",
+        "description":"The minimum compatible version that all shards involved in search should have for this request to be successful"
       }
     },
     "body":{

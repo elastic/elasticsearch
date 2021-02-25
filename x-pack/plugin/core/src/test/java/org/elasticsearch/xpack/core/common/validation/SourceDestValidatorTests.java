@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.common.validation;
 
@@ -22,6 +23,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.ingest.ConfigurationUtils;
+import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
@@ -43,7 +50,9 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -55,10 +64,12 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.DESTINATION_IN_SOURCE_VALIDATION;
+import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.DESTINATION_PIPELINE_MISSING_VALIDATION;
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.DESTINATION_SINGLE_INDEX_VALIDATION;
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_SOURCE_VALIDATION;
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SOURCE_MISSING_VALIDATION;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 public class SourceDestValidatorTests extends ESTestCase {
@@ -78,6 +89,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         SOURCE_MISSING_VALIDATION,
         DESTINATION_IN_SOURCE_VALIDATION,
         DESTINATION_SINGLE_INDEX_VALIDATION,
+        DESTINATION_PIPELINE_MISSING_VALIDATION,
         REMOTE_SOURCE_VALIDATION
     );
 
@@ -90,10 +102,13 @@ public class SourceDestValidatorTests extends ESTestCase {
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
     private final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
+    private final IngestService ingestService = mock(IngestService.class);
+
     private final SourceDestValidator simpleNonRemoteValidator = new SourceDestValidator(
-        new IndexNameExpressionResolver(),
+        new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
         remoteClusterService,
         null,
+        ingestService,
         "node_id",
         "license"
     );
@@ -204,6 +219,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1 },
                 "dest",
+                null,
                 TEST_VALIDATIONS,
                 listener
             ),
@@ -218,6 +234,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] {},
                 "dest",
+                null,
                 TEST_VALIDATIONS,
                 listener
             ),
@@ -235,6 +252,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { "missing" },
                 "dest",
+                null,
                 TEST_VALIDATIONS,
                 listener
             ),
@@ -250,6 +268,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { "missing" },
                 "dest",
+                null,
                 Collections.emptyList(),
                 listener
             ),
@@ -264,6 +283,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1, "missing" },
                 "dest",
+                null,
                 TEST_VALIDATIONS,
                 listener
             ),
@@ -279,6 +299,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1, "missing" },
                 "dest",
+                null,
                 Collections.emptyList(),
                 listener
             ),
@@ -293,6 +314,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1, "wildcard*", "missing" },
                 "dest",
+                null,
                 TEST_VALIDATIONS,
                 listener
             ),
@@ -308,6 +330,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1, "wildcard*", "missing" },
                 "dest",
+                null,
                 Collections.emptyList(),
                 listener
             ),
@@ -322,6 +345,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { "wildcard*" },
                 "dest",
+                null,
                 TEST_VALIDATIONS,
                 listener
             ),
@@ -336,6 +360,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1 },
                 SOURCE_1,
+                null,
                 TEST_VALIDATIONS,
                 listener
             ),
@@ -354,6 +379,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1 },
                 SOURCE_1,
+                null,
                 Collections.emptyList(),
                 listener
             ),
@@ -368,6 +394,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { "source-*" },
                 SOURCE_2,
+                null,
                 TEST_VALIDATIONS,
                 listener
             ),
@@ -386,6 +413,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { "source-*" },
                 SOURCE_2,
+                null,
                 Collections.emptyList(),
                 listener
             ),
@@ -400,6 +428,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { "source-1", "source-*" },
                 SOURCE_2,
+                null,
                 TEST_VALIDATIONS,
                 listener
             ),
@@ -418,6 +447,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { "source-1", "source-*" },
                 SOURCE_2,
+                null,
                 Collections.emptyList(),
                 listener
             ),
@@ -432,6 +462,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { "source-1", "source-*", "sou*" },
                 SOURCE_2,
+                null,
                 TEST_VALIDATIONS,
                 listener
             ),
@@ -456,6 +487,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1 },
                 DEST_ALIAS,
+                null,
                 TEST_VALIDATIONS,
                 listener
             ),
@@ -478,6 +510,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1 },
                 DEST_ALIAS,
+                null,
                 Collections.emptyList(),
                 listener
             ),
@@ -492,6 +525,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1 },
                 ALIAS_READ_WRITE_DEST,
+                null,
                 TEST_VALIDATIONS,
                 listener
             ),
@@ -518,6 +552,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1 },
                 SOURCE_1_ALIAS,
+                null,
                 TEST_VALIDATIONS,
                 listener
             ),
@@ -536,7 +571,55 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1 },
                 SOURCE_1_ALIAS,
+                null,
                 Collections.emptyList(),
+                listener
+            ),
+            true,
+            null
+        );
+    }
+
+    public void testCheck_GivenMissingDestPipeline() throws Exception {
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { SOURCE_1 },
+                "some-dest",
+                "missing-pipeline",
+                TEST_VALIDATIONS,
+                listener
+            ),
+            (Boolean) null,
+            e -> {
+                assertEquals(1, e.validationErrors().size());
+                assertThat(
+                    e.validationErrors().get(0),
+                    equalTo("Pipeline with id [missing-pipeline] could not be found")
+                );
+            }
+        );
+
+        // Let's now pretend that pipeline exists
+        Map<String, Object> processorConfig0 = new HashMap<>();
+        Map<String, Object> processorConfig1 = new HashMap<>();
+        processorConfig0.put(ConfigurationUtils.TAG_KEY, "first-processor");
+        Map<String, Object> pipelineConfig = new HashMap<>();
+        pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
+        pipelineConfig.put(Pipeline.VERSION_KEY, "1");
+        pipelineConfig.put(Pipeline.PROCESSORS_KEY,
+            Arrays.asList(Collections.singletonMap("test", processorConfig0), Collections.singletonMap("test", processorConfig1)));
+        Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
+        Pipeline pipeline = Pipeline.create("missing-pipeline", pipelineConfig, processorRegistry, null);
+        when(ingestService.getPipeline("missing-pipeline")).thenReturn(pipeline);
+
+        assertValidation(
+            listener -> simpleNonRemoteValidator.validate(
+                CLUSTER_STATE,
+                new String[] { SOURCE_1 },
+                "some-dest",
+                "missing-pipeline",
+                TEST_VALIDATIONS,
                 listener
             ),
             true,
@@ -550,6 +633,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 new String[] { SOURCE_1, "missing" },
                 SOURCE_1_ALIAS,
+                null,
                 TEST_VALIDATIONS,
                 listener
             ),
@@ -571,11 +655,13 @@ public class SourceDestValidatorTests extends ESTestCase {
         Context context = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
-                new IndexNameExpressionResolver(),
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
                 remoteClusterService,
                 remoteClusterLicenseCheckerBasic,
+                ingestService,
                 new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
                 "dest",
+                null,
                 "node_id",
                 "license"
             )
@@ -595,12 +681,14 @@ public class SourceDestValidatorTests extends ESTestCase {
         final Context context = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
-                new IndexNameExpressionResolver(),
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithBasicLicense,
                     operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
+                ingestService,
                 new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
                 "dest",
+                null,
                 "node_id",
                 "platinum"
             )
@@ -625,12 +713,14 @@ public class SourceDestValidatorTests extends ESTestCase {
         final Context context2 = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
-                new IndexNameExpressionResolver(),
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithPlatinumLicense,
                     operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
+                ingestService,
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
+                null,
                 "node_id",
                 "license"
             )
@@ -646,13 +736,15 @@ public class SourceDestValidatorTests extends ESTestCase {
         final Context context3 = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
-                new IndexNameExpressionResolver(),
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithPlatinumLicense,
                     operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
+                ingestService,
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
                 "node_id",
+                null,
                 "platinum"
             )
         );
@@ -668,13 +760,15 @@ public class SourceDestValidatorTests extends ESTestCase {
         final Context context4 = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
-                new IndexNameExpressionResolver(),
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithTrialLicense,
                     operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
+                ingestService,
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
                 "node_id",
+                null,
                 "trial"
             )
         );
@@ -692,12 +786,14 @@ public class SourceDestValidatorTests extends ESTestCase {
         final Context context = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
-                new IndexNameExpressionResolver(),
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithExpiredBasicLicense,
                     operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
+                ingestService,
                 new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
                 "dest",
+                null,
                 "node_id",
                 "license"
             )
@@ -719,12 +815,14 @@ public class SourceDestValidatorTests extends ESTestCase {
         Context context = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
-                new IndexNameExpressionResolver(),
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithExpiredBasicLicense,
                     operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
+                ingestService,
                 new String[] { "non_existing_remote:" + "SOURCE_1" },
                 "dest",
+                null,
                 "node_id",
                 "license"
             )

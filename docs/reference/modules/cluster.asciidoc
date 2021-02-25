@@ -25,10 +25,6 @@ There are a number of settings available to control the shard allocation process
 
 Besides these, there are a few other <<misc-cluster-settings,miscellaneous cluster-level settings>>.
 
-All of these settings are _dynamic_ and can be
-updated on a live cluster with the
-<<cluster-update-settings,cluster-update-settings>> API.
-
 include::cluster/shards_allocation.asciidoc[]
 
 include::cluster/disk_allocator.asciidoc[]

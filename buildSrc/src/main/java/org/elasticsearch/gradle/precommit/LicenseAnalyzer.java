@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.precommit;
@@ -134,10 +123,33 @@ public class LicenseAnalyzer {
                 Pattern.DOTALL
             )
         ),
+        new LicenseMatcher(
+            "MIT-0",
+            true,
+            false,
+            Pattern.compile(
+                ("MIT No Attribution\n"
+                    + "Copyright .+\n"
+                    + "\n"
+                    + "Permission is hereby granted, free of charge, to any person obtaining a copy of "
+                    + "this software and associated documentation files \\(the \"Software\"\\), to deal in the Software without "
+                    + "restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, "
+                    + "and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so.\n"
+                    + "\n"
+                    + "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, "
+                    + "INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND "
+                    + "NONINFRINGEMENT\\. IN NO EVENT SHALL THE AUTHORS OR "
+                    + "COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR "
+                    + "OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n")
+                        .replaceAll("\\s+", "\\\\s*"),
+                Pattern.DOTALL
+            )
+        ),
         new LicenseMatcher("MPL-1.1", true, false, Pattern.compile("Mozilla Public License.*Version 1.1", Pattern.DOTALL)),
         new LicenseMatcher("MPL-2.0", true, false, Pattern.compile("Mozilla\\s*Public\\s*License\\s*Version\\s*2\\.0", Pattern.DOTALL)),
         new LicenseMatcher("XZ", false, false, Pattern.compile("Licensing of XZ for Java", Pattern.DOTALL)),
         new LicenseMatcher("EPL-2.0", true, false, Pattern.compile("Eclipse Public License - v 2.0", Pattern.DOTALL)),
+        new LicenseMatcher("EDL-1.0", true, false, Pattern.compile("Eclipse Distribution License - v 1.0", Pattern.DOTALL)),
         new LicenseMatcher("LGPL-2.1", true, true, Pattern.compile("GNU LESSER GENERAL PUBLIC LICENSE.*Version 2.1", Pattern.DOTALL)),
         new LicenseMatcher("LGPL-3.0", true, true, Pattern.compile("GNU LESSER GENERAL PUBLIC LICENSE.*Version 3", Pattern.DOTALL)) };
 

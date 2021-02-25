@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.ingest;
@@ -75,7 +64,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
     }
 
     public boolean isFound() {
-        return !pipelines.isEmpty();
+        return pipelines.isEmpty() == false;
     }
 
     @Override
@@ -100,7 +89,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
      * @throws IOException If the parsing fails
      */
     public static GetPipelineResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         List<PipelineConfiguration> pipelines = new ArrayList<>();
         while(parser.nextToken().equals(Token.FIELD_NAME)) {
             String pipelineId = parser.currentName();
@@ -112,7 +101,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
                 pipelines.add(pipeline);
             }
         }
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
         return new GetPipelineResponse(pipelines);
     }
 
@@ -132,7 +121,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
                 }
                 for (PipelineConfiguration pipeline: pipelines) {
                     PipelineConfiguration otherPipeline = otherPipelineMap.get(pipeline.getId());
-                    if (!pipeline.equals(otherPipeline)) {
+                    if (pipeline.equals(otherPipeline) == false) {
                         return false;
                     }
                 }

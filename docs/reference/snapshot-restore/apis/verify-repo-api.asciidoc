@@ -30,6 +30,12 @@ POST /_snapshot/my_repository/_verify
 
 `POST /_snapshot/<repository>/_verify`
 
+[[verify-snapshot-repo-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[verify-snapshot-repo-api-desc]]
 ==== {api-description-title}
 
@@ -88,7 +94,7 @@ The key is the ID of the node.
 (string)
 Human-readable name for the node.
 +
-You can set this name using the <<node.name,`node.name`>> property in
+You can set this name using the <<node-name,`node.name`>> property in
 `elasticsearch.yml`. Defaults to the machine's hostname.
 =====
 ====

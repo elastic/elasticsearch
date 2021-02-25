@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.topmetrics;
 
@@ -12,18 +13,24 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry.RegistryKey;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -33,6 +40,28 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.SORT_FIELD;
 public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<TopMetricsAggregationBuilder> {
     public static final String NAME = "top_metrics";
     public static final ParseField METRIC_FIELD = new ParseField("metrics");
+
+    static final RegistryKey<TopMetricsAggregator.MetricValuesSupplier> REGISTRY_KEY = new RegistryKey<>(
+        TopMetricsAggregationBuilder.NAME,
+        TopMetricsAggregator.MetricValuesSupplier.class
+    );
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder registry) {
+        registry.registerUsage(NAME);
+        registry.register(REGISTRY_KEY, List.of(CoreValuesSourceType.NUMERIC), TopMetricsAggregator::buildNumericMetricValues, false);
+        registry.register(
+            REGISTRY_KEY,
+            List.of(CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
+            TopMetricsAggregator.LongMetricValues::new,
+            false
+        );
+        registry.register(
+            REGISTRY_KEY,
+            List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
+            TopMetricsAggregator.GlobalOrdsValues::new,
+            false
+        );
+    }
 
     /**
      * Default to returning only a single top metric.
@@ -56,7 +85,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
                 ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
         PARSER.declareInt(optionalConstructorArg(), SIZE_FIELD);
         ContextParser<Void, MultiValuesSourceFieldConfig.Builder> metricParser =
-            MultiValuesSourceFieldConfig.parserBuilder(true, false, false);
+            MultiValuesSourceFieldConfig.parserBuilder(true, false, false, false);
         PARSER.declareObjectArray(constructorArg(), (p, n) -> metricParser.parse(p, null).build(), METRIC_FIELD);
     }
 
@@ -120,10 +149,9 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     }
 
     @Override
-    protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
+    protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
             throws IOException {
-        return new TopMetricsAggregatorFactory(name, queryShardContext, parent, subFactoriesBuilder, metadata, sortBuilders,
-                size, metricFields);
+        return new TopMetricsAggregatorFactory(name, context, parent, subFactoriesBuilder, metadata, sortBuilders, size, metricFields);
     }
 
     @Override
@@ -161,5 +189,10 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
 
     List<MultiValuesSourceFieldConfig> getMetricFields() {
         return metricFields;
+    }
+
+    @Override
+    public Optional<Set<String>> getOutputFieldNames() {
+        return Optional.of(metricFields.stream().map(mf -> mf.getFieldName()).collect(Collectors.toSet()));
     }
 }

@@ -1,4 +1,0 @@
-[[request-body-search-source-filtering]]
-==== Source filtering
-
-See <<search-fields>>.

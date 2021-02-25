@@ -1,29 +1,32 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="enterprise"]
 [[autoscaling-delete-autoscaling-policy]]
 === Delete autoscaling policy API
 ++++
 <titleabbrev>Delete autoscaling policy</titleabbrev>
 ++++
 
+include::../autoscaling-designed-for-note.asciidoc[]
+
 Delete autoscaling policy.
 
 [[autoscaling-delete-autoscaling-policy-request]]
 ==== {api-request-title}
 
+//////////////////////////
 [source,console]
 --------------------------------------------------
 PUT /_autoscaling/policy/my_autoscaling_policy
 {
-  "policy": {
-    "deciders": {
-      "always": {
-      }
+  "roles": [],
+  "deciders": {
+    "fixed": {
     }
   }
 }
 --------------------------------------------------
 // TESTSETUP
+//////////////////////////
 
 [source,console]
 --------------------------------------------------
@@ -46,11 +49,28 @@ This API deletes an autoscaling policy with the provided name.
 [[autoscaling-delete-autoscaling-policy-examples]]
 ==== {api-examples-title}
 
-This example deletes an autoscaling policy named `my_autosaling_policy`.
+This example deletes an autoscaling policy named `my_autoscaling_policy`.
 
 [source,console]
 --------------------------------------------------
 DELETE /_autoscaling/policy/my_autoscaling_policy
+--------------------------------------------------
+// TEST
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+
+This example deletes all autoscaling policies.
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/*
 --------------------------------------------------
 // TEST
 

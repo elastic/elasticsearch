@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
@@ -10,6 +11,8 @@ import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.client.StringUtils;
 
 import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.DriverPropertyInfo;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -37,6 +40,7 @@ import static org.elasticsearch.xpack.sql.client.UriUtils.removeQuery;
 //TODO: beef this up for Security/SSL
 public class JdbcConfiguration extends ConnectionConfiguration {
     static final String URL_PREFIX = "jdbc:es://";
+    static final String URL_FULL_PREFIX = "jdbc:elasticsearch://";
     public static URI DEFAULT_URI = URI.create("http://localhost:9200/");
 
 
@@ -111,22 +115,23 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     }
 
     private static URI parseUrl(String u) throws JdbcSQLException {
-        String url = u;
-        String format = "jdbc:es://[[http|https]://]?[host[:port]]?/[prefix]?[\\?[option=value]&]*";
-        if (!canAccept(u)) {
+        if (canAccept(u) == false) {
             throw new JdbcSQLException("Expected [" + URL_PREFIX + "] url, received [" + u + "]");
         }
 
         try {
             return parseURI(removeJdbcPrefix(u), DEFAULT_URI);
         } catch (IllegalArgumentException ex) {
-            throw new JdbcSQLException(ex, "Invalid URL [" + url + "], format should be [" + format + "]");
+            final String format = "jdbc:[es|elasticsearch]://[[http|https]://]?[host[:port]]?/[prefix]?[\\?[option=value]&]*";
+            throw new JdbcSQLException(ex, "Invalid URL: " + ex.getMessage() + "; format should be [" + format + "]");
         }
     }
 
     private static String removeJdbcPrefix(String connectionString) throws JdbcSQLException {
         if (connectionString.startsWith(URL_PREFIX)) {
             return connectionString.substring(URL_PREFIX.length());
+        } else if (connectionString.startsWith(URL_FULL_PREFIX)) {
+            return connectionString.substring(URL_FULL_PREFIX.length());
         } else {
             throw new JdbcSQLException("Expected [" + URL_PREFIX + "] url, received [" + connectionString + "]");
         }
@@ -143,8 +148,10 @@ public class JdbcConfiguration extends ConnectionConfiguration {
                     if (args.size() != 2) {
                         throw new JdbcSQLException("Invalid parameter [" + param + "], format needs to be key=value");
                     }
+                    final String key = URLDecoder.decode(args.get(0), StandardCharsets.UTF_8).trim();
+                    final String val = URLDecoder.decode(args.get(1), StandardCharsets.UTF_8);
                     // further validation happens in the constructor (since extra properties might be specified either way)
-                    props.setProperty(args.get(0).trim(), args.get(1).trim());
+                    props.setProperty(key, val);
                 }
             }
         } catch (JdbcSQLException e) {
@@ -208,7 +215,9 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     }
 
     public static boolean canAccept(String url) {
-        return (StringUtils.hasText(url) && url.trim().startsWith(JdbcConfiguration.URL_PREFIX));
+        String u = url.trim();
+        return (StringUtils.hasText(u) &&
+            (u.startsWith(JdbcConfiguration.URL_PREFIX) || u.startsWith(JdbcConfiguration.URL_FULL_PREFIX)));
     }
 
     public DriverPropertyInfo[] driverPropertyInfo() {

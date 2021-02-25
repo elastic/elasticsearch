@@ -16,7 +16,7 @@ auditing. For more information, see
 +
 --
 For more information, see https://www.elastic.co/subscriptions and
-{stack-ov}/license-management.html[License management].
+{kibana-ref}/managing-licenses.html[License management].
 --
 
 . Verify that the `xpack.security.enabled` setting is `true` on each node in

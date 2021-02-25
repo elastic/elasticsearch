@@ -13,29 +13,29 @@ Returns information about an <<enrich-policy,enrich policy>>.
 ----
 PUT /users
 {
-    "mappings" : {
-        "properties" : {
-            "email" : { "type" : "keyword" }
-        }
+  "mappings" : {
+    "properties" : {
+      "email" : { "type" : "keyword" }
     }
+  }
 }
 
 PUT /_enrich/policy/my-policy
 {
-    "match": {
-        "indices": "users",
-        "match_field": "email",
-        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
-    }
+  "match": {
+    "indices": "users",
+    "match_field": "email",
+    "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
+  }
 }
 
 PUT /_enrich/policy/other-policy
 {
-    "match": {
-        "indices": "users",
-        "match_field": "email",
-        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
-    }
+  "match": {
+    "indices": "users",
+    "match_field": "email",
+    "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
+  }
 }
 ----
 ////
@@ -96,24 +96,24 @@ The API returns the following response:
 [source,console-result]
 --------------------------------------------------
 {
-    "policies": [
-        {
-            "config": {
-                "match": {
-                    "name" : "my-policy",
-                    "indices" : ["users"],
-                    "match_field" : "email",
-                    "enrich_fields" : [
-                        "first_name",
-                        "last_name",
-                        "city",
-                        "zip",
-                        "state"
-                    ]
-                }
-            }
+  "policies": [
+    {
+      "config": {
+        "match": {
+          "name": "my-policy",
+          "indices": [ "users" ],
+          "match_field": "email",
+          "enrich_fields": [
+            "first_name",
+            "last_name",
+            "city",
+            "zip",
+            "state"
+          ]
         }
-    ]
+      }
+    }
+  ]
 }
 --------------------------------------------------
 
@@ -132,40 +132,40 @@ The API returns the following response:
 [source,console-result]
 --------------------------------------------------
 {
-    "policies": [
-        {
-            "config": {
-                "match": {
-                    "name" : "my-policy",
-                    "indices" : ["users"],
-                    "match_field" : "email",
-                    "enrich_fields" : [
-                        "first_name",
-                        "last_name",
-                        "city",
-                        "zip",
-                        "state"
-                    ]
-                }
-            }
-        },
-        {
-            "config": {
-                "match": {
-                    "name" : "other-policy",
-                    "indices" : ["users"],
-                    "match_field" : "email",
-                    "enrich_fields" : [
-                        "first_name",
-                        "last_name",
-                        "city",
-                        "zip",
-                        "state"
-                    ]
-                }
-            }
+  "policies": [
+    {
+      "config": {
+        "match": {
+          "name": "my-policy",
+          "indices": [ "users" ],
+          "match_field": "email",
+          "enrich_fields": [
+            "first_name",
+            "last_name",
+            "city",
+            "zip",
+            "state"
+          ]
         }
-    ]
+      }
+    },
+    {
+      "config": {
+        "match": {
+          "name": "other-policy",
+          "indices": [ "users" ],
+          "match_field": "email",
+          "enrich_fields": [
+            "first_name",
+            "last_name",
+            "city",
+            "zip",
+            "state"
+          ]
+        }
+      }
+    }
+  ]
 }
 --------------------------------------------------
 
@@ -184,40 +184,40 @@ The API returns the following response:
 [source,console-result]
 --------------------------------------------------
 {
-    "policies": [
-        {
-            "config": {
-                "match": {
-                    "name" : "my-policy",
-                    "indices" : ["users"],
-                    "match_field" : "email",
-                    "enrich_fields" : [
-                        "first_name",
-                        "last_name",
-                        "city",
-                        "zip",
-                        "state"
-                    ]
-                }
-            }
-        },
-        {
-            "config": {
-                "match": {
-                    "name" : "other-policy",
-                    "indices" : ["users"],
-                    "match_field" : "email",
-                    "enrich_fields" : [
-                        "first_name",
-                        "last_name",
-                        "city",
-                        "zip",
-                        "state"
-                    ]
-                }
-            }
+  "policies": [
+    {
+      "config": {
+        "match": {
+          "name": "my-policy",
+          "indices": [ "users" ],
+          "match_field": "email",
+          "enrich_fields": [
+            "first_name",
+            "last_name",
+            "city",
+            "zip",
+            "state"
+          ]
         }
-    ]
+      }
+    },
+    {
+      "config": {
+        "match": {
+          "name": "other-policy",
+          "indices": [ "users" ],
+          "match_field": "email",
+          "enrich_fields": [
+            "first_name",
+            "last_name",
+            "city",
+            "zip",
+            "state"
+          ]
+        }
+      }
+    }
+  ]
 }
 --------------------------------------------------
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.store;
 
@@ -9,35 +10,49 @@ import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.cache.TestUtils;
+import org.elasticsearch.index.store.cache.TestUtils.NoopBlobStoreCacheService;
+import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.index.store.cache.TestUtils.assertCounter;
-import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
 import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.CacheService.resolveSnapshotCache;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -47,7 +62,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase {
+public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSnapshotsTestCase {
 
     private static final int MAX_FILE_LENGTH = 10_000;
 
@@ -56,7 +71,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
      */
     private static final long FAKE_CLOCK_ADVANCE_NANOS = TimeValue.timeValueMillis(100).nanos();
 
-    public void testOpenCount() {
+    public void testOpenCount() throws Exception {
         executeTestCase((fileName, fileContent, directory) -> {
             try {
                 for (long i = 0L; i < randomLongBetween(1L, 20L); i++) {
@@ -74,7 +89,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testCloseCount() {
+    public void testCloseCount() throws Exception {
         executeTestCase((fileName, fileContent, directory) -> {
             try {
                 for (long i = 0L; i < randomLongBetween(1L, 20L); i++) {
@@ -93,10 +108,10 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testCachedBytesReadsAndWrites() {
+    public void testCachedBytesReadsAndWrites() throws Exception {
         // a cache service with a low range size but enough space to not evict the cache file
-        final ByteSizeValue rangeSize = new ByteSizeValue(randomIntBetween(512, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
-        final ByteSizeValue cacheSize = new ByteSizeValue(1, ByteSizeUnit.GB);
+        final ByteSizeValue rangeSize = new ByteSizeValue(randomLongBetween(MAX_FILE_LENGTH, MAX_FILE_LENGTH * 2), ByteSizeUnit.BYTES);
+        final ByteSizeValue cacheSize = new ByteSizeValue(10, ByteSizeUnit.MB);
 
         executeTestCaseWithCache(cacheSize, rangeSize, (fileName, fileContent, directory) -> {
             try (IndexInput input = directory.openInput(fileName, newIOContext(random()))) {
@@ -105,38 +120,36 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 final IndexInputStats inputStats = directory.getStats(fileName);
                 assertThat(inputStats, notNullValue());
 
-                final byte[] result = randomReadAndSlice(input, Math.toIntExact(length));
+                final byte[] result = randomReadAndSlice(input, toIntBytes(length));
                 assertArrayEquals(fileContent, result);
 
                 final long cachedBytesWriteCount = TestUtils.numberOfRanges(length, rangeSize.getBytes());
 
-                assertThat(inputStats.getCachedBytesWritten(), notNullValue());
-                assertThat(inputStats.getCachedBytesWritten().total(), equalTo(length));
-                assertThat(inputStats.getCachedBytesWritten().count(), equalTo(cachedBytesWriteCount));
-                assertThat(inputStats.getCachedBytesWritten().min(), greaterThan(0L));
-                assertThat(
-                    inputStats.getCachedBytesWritten().max(),
-                    (length < rangeSize.getBytes()) ? equalTo(length) : equalTo(rangeSize.getBytes())
-                );
-                assertThat(
-                    inputStats.getCachedBytesWritten().totalNanoseconds(),
-                    allOf(
-                        // each read takes at least FAKE_CLOCK_ADVANCE_NANOS time
-                        greaterThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * cachedBytesWriteCount),
+                // cache writes are executed in a different thread pool and can take some time to be processed
+                assertBusy(() -> {
+                    assertThat(inputStats.getCachedBytesWritten(), notNullValue());
+                    assertThat(inputStats.getCachedBytesWritten().total(), equalTo(length));
+                    final long actualWriteCount = inputStats.getCachedBytesWritten().count();
+                    assertThat(actualWriteCount, lessThanOrEqualTo(cachedBytesWriteCount));
+                    assertThat(inputStats.getCachedBytesWritten().min(), greaterThan(0L));
+                    assertThat(inputStats.getCachedBytesWritten().max(), lessThanOrEqualTo(length));
+                    assertThat(
+                        inputStats.getCachedBytesWritten().totalNanoseconds(),
+                        allOf(
+                            // each read takes at least FAKE_CLOCK_ADVANCE_NANOS time
+                            greaterThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * actualWriteCount),
 
-                        // worst case: we start all reads before finishing any of them
-                        lessThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * cachedBytesWriteCount * cachedBytesWriteCount)
-                    )
-                );
+                            // worst case: we start all reads before finishing any of them
+                            lessThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * actualWriteCount * actualWriteCount)
+                        )
+                    );
+                });
 
                 assertThat(inputStats.getCachedBytesRead(), notNullValue());
                 assertThat(inputStats.getCachedBytesRead().total(), greaterThanOrEqualTo(length));
                 assertThat(inputStats.getCachedBytesRead().count(), greaterThan(0L));
                 assertThat(inputStats.getCachedBytesRead().min(), greaterThan(0L));
-                assertThat(
-                    inputStats.getCachedBytesRead().max(),
-                    (length < rangeSize.getBytes()) ? lessThanOrEqualTo(length) : lessThanOrEqualTo(rangeSize.getBytes())
-                );
+                assertThat(inputStats.getCachedBytesRead().max(), lessThanOrEqualTo(length));
 
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
                 assertThat(inputStats.getDirectBytesRead().totalNanoseconds(), equalTo(0L));
@@ -144,13 +157,13 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 assertCounter(inputStats.getOptimizedBytesRead(), 0L, 0L, 0L, 0L);
                 assertThat(inputStats.getOptimizedBytesRead().totalNanoseconds(), equalTo(0L));
 
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new AssertionError(e);
             }
         });
     }
 
-    public void testCachedBytesReadsAndWritesNoCache() {
+    public void testCachedBytesReadsAndWritesNoCache() throws Exception {
         final ByteSizeValue uncachedChunkSize = new ByteSizeValue(randomIntBetween(512, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
         executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
             try (IndexInput input = directory.openInput(fileName, newIOContext(random()))) {
@@ -159,7 +172,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 final IndexInputStats inputStats = directory.getStats(fileName);
                 assertThat(inputStats, notNullValue());
 
-                final byte[] result = randomReadAndSlice(input, Math.toIntExact(length));
+                final byte[] result = randomReadAndSlice(input, toIntBytes(length));
                 assertArrayEquals(fileContent, result);
 
                 assertThat(inputStats.getCachedBytesWritten(), notNullValue());
@@ -174,9 +187,9 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testDirectBytesReadsWithCache() {
+    public void testDirectBytesReadsWithCache() throws Exception {
         // Cache service always evicts files
-        executeTestCaseWithCache(ByteSizeValue.ZERO, ByteSizeValue.ZERO, (fileName, fileContent, directory) -> {
+        executeTestCaseWithCache(ByteSizeValue.ZERO, randomCacheRangeSize(), (fileName, fileContent, directory) -> {
             assertThat(directory.getStats(fileName), nullValue());
 
             final IOContext ioContext = newIOContext(random());
@@ -201,7 +214,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 // read all index input sequentially as it simplifies testing
                 final byte[] readBuffer = new byte[512];
                 for (long i = 0L; i < input.length();) {
-                    int size = between(1, Math.toIntExact(Math.min(readBuffer.length, input.length() - input.getFilePointer())));
+                    int size = between(1, toIntBytes(Math.min(readBuffer.length, input.length() - input.getFilePointer())));
                     input.readBytes(readBuffer, 0, size);
                     i += size;
 
@@ -227,7 +240,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testDirectBytesReadsWithoutCache() {
+    public void testDirectBytesReadsWithoutCache() throws Exception {
         final ByteSizeValue uncachedChunkSize = new ByteSizeValue(randomIntBetween(512, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
         executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
             assertThat(directory.getStats(fileName), nullValue());
@@ -263,7 +276,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testOptimizedBytesReads() {
+    public void testOptimizedBytesReads() throws Exception {
         // use a large uncached chunk size that allows to read the file in a single operation
         final ByteSizeValue uncachedChunkSize = new ByteSizeValue(1, ByteSizeUnit.GB);
         executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
@@ -300,7 +313,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testReadBytesContiguously() {
+    public void testReadBytesContiguously() throws Exception {
         executeTestCaseWithDefaultCache((fileName, fileContent, cacheDirectory) -> {
             final IOContext ioContext = newIOContext(random());
 
@@ -308,7 +321,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 final IndexInputStats inputStats = cacheDirectory.getStats(fileName);
 
                 // account for the CacheBufferedIndexInput internal buffer
-                final long bufferSize = (long) BufferedIndexInput.bufferSize(ioContext);
+                final long bufferSize = BufferedIndexInput.bufferSize(ioContext);
                 final long remaining = input.length() % bufferSize;
                 final long expectedTotal = input.length();
                 final long expectedCount = input.length() / bufferSize + (remaining > 0L ? 1L : 0L);
@@ -319,7 +332,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
 
                 // read the input input sequentially
                 for (long bytesRead = 0L; bytesRead < input.length();) {
-                    int size = between(1, Math.toIntExact(Math.min(readBuffer.length, input.length() - bytesRead)));
+                    int size = between(1, toIntBytes(Math.min(readBuffer.length, input.length() - bytesRead)));
                     input.readBytes(readBuffer, 0, size);
                     bytesRead += size;
 
@@ -335,21 +348,23 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                     }
                 }
 
-                // cache file has been written in a single chunk
-                assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
-                assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                // cache file has been written in a single chunk in a different thread pool and can take some time to be processed
+                assertBusy(() -> {
+                    assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
+                    assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                });
 
                 assertCounter(inputStats.getNonContiguousReads(), 0L, 0L, 0L, 0L);
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
                 assertThat(inputStats.getDirectBytesRead().totalNanoseconds(), equalTo(0L));
 
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new AssertionError(e);
             }
         });
     }
 
-    public void testReadBytesNonContiguously() {
+    public void testReadBytesNonContiguously() throws Exception {
         executeTestCaseWithDefaultCache((fileName, fileContent, cacheDirectory) -> {
             final IOContext ioContext = newIOContext(random());
 
@@ -367,7 +382,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                     input.seek(randomPosition);
 
                     final byte[] readBuffer = new byte[512];
-                    int size = between(1, Math.toIntExact(Math.min(readBuffer.length, input.length() - randomPosition)));
+                    int size = between(1, toIntBytes(Math.min(readBuffer.length, input.length() - randomPosition)));
                     input.readBytes(readBuffer, 0, size);
 
                     // BufferedIndexInput tries to read as much bytes as possible
@@ -383,21 +398,24 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                     input.seek(0L);
                 }
 
-                // cache file has been written in a single chunk
-                assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
-                assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                // Use assertBusy() here to wait for the cache write to be processed in the searchable snapshot thread pool
+                assertBusy(() -> {
+                    // cache file has been written in a single chunk
+                    assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
+                    assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                });
 
                 assertCounter(inputStats.getContiguousReads(), 0L, 0L, 0L, 0L);
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
                 assertThat(inputStats.getDirectBytesRead().totalNanoseconds(), equalTo(0L));
 
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new AssertionError(e);
             }
         });
     }
 
-    public void testForwardSeeks() {
+    public void testForwardSeeks() throws Exception {
         executeTestCaseWithDefaultCache((fileName, fileContent, cacheDirectory) -> {
             final IOContext ioContext = newIOContext(random());
             try (IndexInput indexInput = cacheDirectory.openInput(fileName, ioContext)) {
@@ -455,7 +473,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testBackwardSeeks() {
+    public void testBackwardSeeks() throws Exception {
         executeTestCaseWithDefaultCache((fileName, fileContent, cacheDirectory) -> {
             final IOContext ioContext = newIOContext(random());
             try (IndexInput indexInput = cacheDirectory.openInput(fileName, ioContext)) {
@@ -491,20 +509,20 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
 
                 do {
                     long moveBackward = -1L * randomLongBetween(1L, input.getFilePointer());
+                    long moveBackwardAbs = Math.abs(moveBackward);
                     input.seek(input.getFilePointer() + moveBackward);
 
                     if (inputStats.isLargeSeek(moveBackward)) {
-                        minLargeSeeks = (moveBackward < minLargeSeeks) ? moveBackward : minLargeSeeks;
-                        maxLargeSeeks = (moveBackward > maxLargeSeeks) ? moveBackward : maxLargeSeeks;
-                        totalLargeSeeks += moveBackward;
+                        minLargeSeeks = (moveBackwardAbs < minLargeSeeks) ? moveBackwardAbs : minLargeSeeks;
+                        maxLargeSeeks = (moveBackwardAbs > maxLargeSeeks) ? moveBackwardAbs : maxLargeSeeks;
+                        totalLargeSeeks += moveBackwardAbs;
                         countLargeSeeks += 1;
 
                         assertCounter(backwardLargeSeeks, totalLargeSeeks, countLargeSeeks, minLargeSeeks, maxLargeSeeks);
-
                     } else {
-                        minSmallSeeks = (moveBackward < minSmallSeeks) ? moveBackward : minSmallSeeks;
-                        maxSmallSeeks = (moveBackward > maxSmallSeeks) ? moveBackward : maxSmallSeeks;
-                        totalSmallSeeks += moveBackward;
+                        minSmallSeeks = (moveBackwardAbs < minSmallSeeks) ? moveBackwardAbs : minSmallSeeks;
+                        maxSmallSeeks = (moveBackwardAbs > maxSmallSeeks) ? moveBackwardAbs : maxSmallSeeks;
+                        totalSmallSeeks += moveBackwardAbs;
                         countSmallSeeks += 1;
 
                         assertCounter(backwardSmallSeeks, totalSmallSeeks, countSmallSeeks, minSmallSeeks, maxSmallSeeks);
@@ -517,61 +535,76 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    private static void executeTestCase(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) {
+    private void executeTestCase(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) throws Exception {
         executeTestCase(
-            createCacheService(random()),
+            randomCacheService(),
+            randomFrozenCacheService(),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean())
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
+                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
     }
 
-    private static void executeTestCaseWithoutCache(
+    private void executeTestCaseWithoutCache(
         final ByteSizeValue uncachedChunkSize,
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
-    ) {
+    ) throws Exception {
         executeTestCase(
-            createCacheService(random()),
+            defaultCacheService(),
+            defaultFrozenCacheService(),
             Settings.builder()
                 .put(SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.getKey(), uncachedChunkSize)
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), false)
+                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
     }
 
-    private static void executeTestCaseWithDefaultCache(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) {
-        executeTestCaseWithCache(
-            CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getDefault(Settings.EMPTY),
-            CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getDefault(Settings.EMPTY),
-            test
-        );
-    }
-
-    private static void executeTestCaseWithCache(
-        final ByteSizeValue cacheSize,
-        final ByteSizeValue cacheRangeSize,
-        final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
-    ) {
+    private void executeTestCaseWithDefaultCache(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) throws Exception {
         executeTestCase(
-            new CacheService(cacheSize, cacheRangeSize),
+            defaultCacheService(),
+            createFrozenCacheService(
+                ByteSizeValue.ofMb(10),
+                new ByteSizeValue(randomLongBetween(MAX_FILE_LENGTH, MAX_FILE_LENGTH * 2), ByteSizeUnit.BYTES)
+            ),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
+                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
     }
 
-    private static void executeTestCase(
+    private void executeTestCaseWithCache(
+        final ByteSizeValue cacheSize,
+        final ByteSizeValue cacheRangeSize,
+        final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
+    ) throws Exception {
+        executeTestCase(
+            createCacheService(cacheSize, cacheRangeSize),
+            createFrozenCacheService(cacheSize, cacheRangeSize),
+            Settings.builder()
+                .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
+                .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
+                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
+                .build(),
+            test
+        );
+    }
+
+    private void executeTestCase(
         final CacheService cacheService,
+        final FrozenCacheService frozenCacheService,
         final Settings indexSettings,
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
-    ) {
+    ) throws Exception {
 
-        final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(10, MAX_FILE_LENGTH)).getBytes(StandardCharsets.UTF_8);
+        final byte[] fileContent = randomByteArrayOfLength(randomIntBetween(10, MAX_FILE_LENGTH));
         final String fileExtension = randomAlphaOfLength(3);
         final String fileName = randomAlphaOfLength(10) + '.' + fileExtension;
         final SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
@@ -579,50 +612,78 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         final ShardId shardId = new ShardId("_name", "_uuid", 0);
         final AtomicLong fakeClock = new AtomicLong();
         final LongSupplier statsCurrentTimeNanos = () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS);
-        final ThreadPool threadPool = new TestThreadPool(getTestClass().getSimpleName());
 
         final Long seekingThreshold = randomBoolean() ? randomLongBetween(1L, fileContent.length) : null;
 
+        // Passing a wrong checksum here disables the BaseSearchableSnapshotIndexInput#maybeReadChecksumFromFileInfo(ByteBuffer)
+        // optimisation which, if it was enabled, would makes the stats tests much more complicated in order to accommodate for
+        // potential footer checksum reads.
+        final String fileChecksum = "_checksum";
+
         final String blobName = randomUnicodeOfLength(10);
         final BlobContainer blobContainer = singleBlobContainer(blobName, fileContent);
-        final StoreFileMetadata metadata = new StoreFileMetadata(fileName, fileContent.length, "_checksum", Version.CURRENT.luceneVersion);
+        final StoreFileMetadata metadata = new StoreFileMetadata(fileName, fileContent.length, fileChecksum, Version.CURRENT.luceneVersion);
         final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, new ByteSizeValue(fileContent.length)));
         final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
+        final Path shardDir = randomShardPath(shardId);
+        final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
+        final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
 
         try (
             CacheService ignored = cacheService;
+            FrozenCacheService ignored2 = frozenCacheService;
             SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                 () -> blobContainer,
                 () -> snapshot,
+                new NoopBlobStoreCacheService(),
+                "_repo",
                 snapshotId,
                 indexId,
                 shardId,
                 indexSettings,
                 statsCurrentTimeNanos,
                 cacheService,
-                createTempDir(),
-                threadPool
+                cacheDir,
+                shardPath,
+                threadPool,
+                frozenCacheService
             ) {
                 @Override
-                protected IndexInputStats createIndexInputStats(long fileLength) {
+                protected IndexInputStats createIndexInputStats(final int numFiles, final long totalSize) {
                     if (seekingThreshold == null) {
-                        return super.createIndexInputStats(fileLength);
+                        return super.createIndexInputStats(numFiles, totalSize);
                     }
-                    return new IndexInputStats(fileLength, seekingThreshold, statsCurrentTimeNanos);
+                    return new IndexInputStats(numFiles, totalSize, seekingThreshold, statsCurrentTimeNanos);
                 }
             }
         ) {
             cacheService.start();
             assertThat(directory.getStats(fileName), nullValue());
 
-            final boolean loaded = directory.loadSnapshot();
+            ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                new ShardId(randomAlphaOfLength(10), randomAlphaOfLength(10), 0),
+                randomAlphaOfLength(10),
+                true,
+                ShardRoutingState.INITIALIZING,
+                new RecoverySource.SnapshotRecoverySource(
+                    UUIDs.randomBase64UUID(),
+                    new Snapshot("repo", new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())),
+                    Version.CURRENT,
+                    new IndexId("some_index", UUIDs.randomBase64UUID(random()))
+                )
+            );
+            DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+            RecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
+            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            final boolean loaded = directory.loadSnapshot(recoveryState, future);
+            future.get();
             assertThat("Failed to load snapshot", loaded, is(true));
             assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
             assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());
 
             test.apply(fileName, fileContent, directory);
         } finally {
-            terminate(threadPool);
+            assertThreadPoolNotBusy(threadPool);
         }
     }
 }

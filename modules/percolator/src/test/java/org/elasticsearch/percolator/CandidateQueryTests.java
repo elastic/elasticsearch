@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.percolator;
@@ -77,7 +66,6 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -88,13 +76,12 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -128,7 +115,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     private MapperService mapperService;
 
     private PercolatorFieldMapper fieldMapper;
-    private PercolatorFieldMapper.FieldType fieldType;
+    private PercolatorFieldMapper.PercolatorFieldType fieldType;
 
     private List<Query> queries;
     private PercolateQuery.QueryStore queryStore;
@@ -167,7 +154,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
         mapperService.merge("type", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
         fieldMapper = (PercolatorFieldMapper) mapperService.documentMapper().mappers().getMapper(queryField);
-        fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
 
         queries = new ArrayList<>();
         queryStore = ctx -> docId -> this.queries.get(docId);
@@ -199,7 +186,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
         Collections.sort(intValues);
 
-        QueryShardContext context = createSearchContext(indexService).getQueryShardContext();
+        SearchExecutionContext context = createSearchContext(indexService).getSearchExecutionContext();
         MappedFieldType intFieldType = mapperService.fieldType("int_field");
 
         List<Supplier<Query>> queryFunctions = new ArrayList<>();
@@ -338,7 +325,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         ranges.add(new int[]{0, 10});
         ranges.add(new int[]{15, 50});
 
-        QueryShardContext context = createSearchContext(indexService).getQueryShardContext();
+        SearchExecutionContext context = createSearchContext(indexService).getSearchExecutionContext();
         List<ParseContext.Document> documents = new ArrayList<>();
         {
             addQuery(new TermQuery(new Term("string_field", randomFrom(stringValues))), documents);
@@ -393,7 +380,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     private BooleanQuery randomBQ(int depth, List<String> stringValues, List<int[]> ranges,
-                                  MappedFieldType intFieldType, QueryShardContext context) {
+                                  MappedFieldType intFieldType, SearchExecutionContext context) {
         final int numClauses = randomIntBetween(1, 4);
         final boolean onlyShouldClauses = randomBoolean();
         final BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -1115,12 +1102,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     private void addQuery(Query query, List<ParseContext.Document> docs) {
-        IndexMetadata build = IndexMetadata.builder("")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-            .numberOfShards(1).numberOfReplicas(0).build();
-        IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
-        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(settings,
-                mapperService.documentMapperParser(), documentMapper, null, null);
+        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(
+            documentMapper.mappers(), null, null, null);
         fieldMapper.processQuery(query, parseContext);
         ParseContext.Document queryDocument = parseContext.doc();
         // Add to string representation of the query to make debugging easier:

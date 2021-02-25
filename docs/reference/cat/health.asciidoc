@@ -13,6 +13,11 @@ health>> API.
 
 `GET /_cat/health`
 
+[[cat-health-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cat-health-api-desc]]
 ==== {api-description-title}
@@ -25,7 +30,7 @@ track cluster health alongside log files and alerting systems, the API returns
 timestamps in two formats:
 
 * `HH:MM:SS`, which is human-readable but includes no date information.
-* https://en.wikipedia.org/wiki/Unix_time[Unix `epoch` time], which is
+* {wikipedia}/Unix_time[Unix `epoch` time], which is
 machine-sortable and includes date information. This is useful for cluster
 recoveries that take multiple days.
 
@@ -50,8 +55,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
 
 `ts` (timestamps)::
-(Optional, boolean) If `true`, returns `HH:MM:SS` and
-https://en.wikipedia.org/wiki/Unix_time[Unix `epoch`] timestamps. Defaults to
+(Optional, Boolean) If `true`, returns `HH:MM:SS` and
+{wikipedia}/Unix_time[Unix `epoch`] timestamps. Defaults to
 `true`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
@@ -63,13 +68,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 [[cat-health-api-example-timestamp]]
 ===== Example with a timestamp
 By default, the cat health API returns `HH:MM:SS` and
-https://en.wikipedia.org/wiki/Unix_time[Unix `epoch`] timestamps. For example:
+{wikipedia}/Unix_time[Unix `epoch`] timestamps. For example:
 
 [source,console,id=cat-health-example]
 --------------------------------------------------
-GET /_cat/health?v
+GET /_cat/health?v=true
 --------------------------------------------------
-// TEST[s/^/PUT twitter\n{"settings":{"number_of_replicas": 0}}\n/]
+// TEST[s/^/PUT my-index-000001\n{"settings":{"number_of_replicas": 0}}\n/]
 
 The API returns the following response:
 
@@ -87,9 +92,9 @@ You can use the `ts` (timestamps) parameter to disable timestamps. For example:
 
 [source,console,id=cat-health-no-timestamp-example]
 --------------------------------------------------
-GET /_cat/health?v&ts=false
+GET /_cat/health?v=true&ts=false
 --------------------------------------------------
-// TEST[s/^/PUT twitter\n{"settings":{"number_of_replicas": 0}}\n/]
+// TEST[s/^/PUT my-index-000001\n{"settings":{"number_of_replicas": 0}}\n/]
 
 The API returns the following response:
 

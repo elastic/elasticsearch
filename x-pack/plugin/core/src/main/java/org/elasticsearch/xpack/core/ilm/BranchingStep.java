@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -49,17 +50,22 @@ public class BranchingStep extends ClusterStateActionStep {
         this.predicateValue = new SetOnce<>();
     }
 
-   @Override
-   public ClusterState performAction(Index index, ClusterState clusterState) {
-       IndexMetadata indexMetadata = clusterState.metadata().index(index);
-       if (indexMetadata == null) {
-           // Index must have been since deleted, ignore it
-           logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
-           return clusterState;
-       }
-       predicateValue.set(predicate.test(index, clusterState));
-       return clusterState;
-   }
+    @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
+    public ClusterState performAction(Index index, ClusterState clusterState) {
+        IndexMetadata indexMetadata = clusterState.metadata().index(index);
+        if (indexMetadata == null) {
+            // Index must have been since deleted, ignore it
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            return clusterState;
+        }
+        predicateValue.set(predicate.test(index, clusterState));
+        return clusterState;
+    }
 
     /**
      * This method returns the next step to execute based on the predicate. If
@@ -100,7 +106,7 @@ public class BranchingStep extends ClusterStateActionStep {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         BranchingStep that = (BranchingStep) o;
         return super.equals(o)
             && Objects.equals(nextStepKeyOnFalse, that.nextStepKeyOnFalse)

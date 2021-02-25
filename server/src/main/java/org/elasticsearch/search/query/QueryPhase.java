@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.query;
@@ -22,7 +11,6 @@ package org.elasticsearch.search.query;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -56,8 +44,9 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -67,6 +56,7 @@ import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescorePhase;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -93,7 +83,7 @@ import static org.elasticsearch.search.query.TopDocsCollectorContext.shortcutTot
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
  * (document ids and score or sort criteria) so that matches can be reduced on the coordinating node
  */
-public class QueryPhase implements SearchPhase {
+public class QueryPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
     // TODO: remove this property in 8.0
     public static final boolean SYS_PROP_REWRITE_SORT = Booleans.parseBoolean(System.getProperty("es.search.rewrite_sort", "true"));
@@ -108,7 +98,6 @@ public class QueryPhase implements SearchPhase {
         this.rescorePhase = new RescorePhase();
     }
 
-    @Override
     public void preProcess(SearchContext context) {
         final Runnable cancellation;
         if (context.lowLevelCancellation()) {
@@ -130,7 +119,6 @@ public class QueryPhase implements SearchPhase {
         }
     }
 
-    @Override
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
             suggestPhase.execute(searchContext);
@@ -355,8 +343,6 @@ public class QueryPhase implements SearchPhase {
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             queryResult.searchTimedOut(true);
-        } finally {
-            searchContext.clearReleasables(SearchContext.Lifetime.COLLECTION);
         }
         if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER && queryResult.terminatedEarly() == null) {
             queryResult.terminatedEarly(false);
@@ -411,8 +397,6 @@ public class QueryPhase implements SearchPhase {
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             searchContext.queryResult().searchTimedOut(true);
-        } finally {
-            searchContext.clearReleasables(SearchContext.Lifetime.COLLECTION);
         }
         return false; // no rescoring when sorting by field
     }
@@ -435,12 +419,12 @@ public class QueryPhase implements SearchPhase {
 
         // check if this is a field of type Long or Date, that is indexed and has doc values
         String fieldName = sortField.getField();
+        SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
         if (fieldName == null) return null; // happens when _score or _doc is the 1st sort field
-        if (searchContext.mapperService() == null) return null; // mapperService can be null in tests
-        final MappedFieldType fieldType = searchContext.mapperService().fieldType(fieldName);
+        final MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
         if (fieldType == null) return null; // for unmapped fields, default behaviour depending on "unmapped_type" flag
         if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldType == false)) return null;
-        if (fieldType.indexOptions() == IndexOptions.NONE) return null; //TODO: change to pointDataDimensionCount() when implemented
+        if (fieldType.isSearchable() == false) return null;
         if (fieldType.hasDocValues() == false) return null;
 
 
@@ -449,10 +433,14 @@ public class QueryPhase implements SearchPhase {
             SortField sField = sort.getSort()[i];
             String sFieldName = sField.getField();
             if (sFieldName == null) {
-                if (SortField.FIELD_DOC.equals(sField) == false) return null;
-            } else {
+                if (SortField.FIELD_DOC.equals(sField) == false) {
+                    return null;
+                }
+            } else if (FieldSortBuilder.SHARD_DOC_FIELD_NAME.equals(sFieldName) == false) {
                 //TODO: find out how to cover _script sort that don't use _score
-                if (searchContext.mapperService().fieldType(sFieldName) == null) return null; // could be _script sort that uses _score
+                if (searchExecutionContext.getFieldType(sFieldName) == null) {
+                    return null; // could be _script sort that uses _score
+                }
             }
         }
 

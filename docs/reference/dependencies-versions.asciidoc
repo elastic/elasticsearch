@@ -1,0 +1,7 @@
+["appendix",id="dependencies-versions"]
+= Dependencies and versions
+
+[source, text]
+----
+include::{dependencies-dir}/version.properties[]
+----

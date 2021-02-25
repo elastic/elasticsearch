@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.action;
 
@@ -100,7 +101,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
     @Override
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
-        String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request.indices());
+        String[] indices = resolver.concreteIndexNames(clusterService.state(), request);
         RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetadata().indices());
 
         MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);
@@ -310,7 +311,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             TermsQueryBuilder terms = (TermsQueryBuilder) builder;
             String fieldName = terms.fieldName();
             String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName);
-            return new TermsQueryBuilder(rewrittenFieldName, terms.values());
+            return new TermsQueryBuilder(rewrittenFieldName, terms.getValues());
         } else if (builder.getWriteableName().equals(MatchAllQueryBuilder.NAME)) {
             // no-op
             return builder;

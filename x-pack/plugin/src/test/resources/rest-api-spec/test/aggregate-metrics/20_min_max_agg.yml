@@ -1,0 +1,81 @@
+###############################################################################################################
+# Test min and max aggregations on an index that contains aggregate_metric_double fields
+###############################################################################################################
+
+setup:
+  - do:
+      indices.create:
+        index:  aggregate_metric_test
+        body:
+          mappings:
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [min, max]
+                default_metric: max
+
+  - do:
+      bulk:
+        index: aggregate_metric_test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"metric": {"min": 0, "max": 100} }'
+          - '{"index": {}}'
+          - '{"metric": {"min": 60, "max": 100} }'
+          - '{"index": {}}'
+          - '{"metric": {"min": -400.50, "max": 1000} }'
+          - '{"index": {}}'
+          - '{"metric": {"min": 1, "max": 99.3} }'
+          - '{"index": {}}'
+          - '{"metric": {"min": -100, "max": -40} }'
+---
+"Test min_max aggs":
+  - skip:
+      version: " - 7.10.99"
+      reason: "Aggregate metric fields have been added in 7.11"
+
+  - do:
+      search:
+        index: aggregate_metric_test
+        size: 0
+        body:
+          aggs:
+            max_agg:
+              max:
+                field: metric
+            min_agg:
+              min:
+                field: metric
+
+  - match: { hits.total.value: 5 }
+  - match: { aggregations.max_agg.value: 1000}
+  - match: { aggregations.min_agg.value: -400.50}
+
+
+---
+"Test min_max aggs with query":
+  - skip:
+      version: " - 7.10.99"
+      reason: "Aggregate metric fields have been added in 7.11"
+
+  - do:
+      search:
+        index: aggregate_metric_test
+        size: 0
+        body:
+          query:
+            term:
+              metric:
+                value: 100
+          aggs:
+            max_agg:
+              max:
+                field: metric
+            min_agg:
+              min:
+                field: metric
+
+  - match: { hits.total.value: 2 }
+  - match: { aggregations.max_agg.value: 100}
+  - match: { aggregations.min_agg.value: 0}

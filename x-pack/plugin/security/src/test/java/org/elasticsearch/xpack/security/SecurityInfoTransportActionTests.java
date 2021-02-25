@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security;
 
@@ -71,11 +72,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     public void testAvailable() {
         SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), licenseState);
-        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
         assertThat(featureSet.available(), is(true));
-
-        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(false);
-        assertThat(featureSet.available(), is(false));
     }
 
     public void testEnabled() {
@@ -91,11 +88,11 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsage() throws Exception {
-        final boolean authcAuthzAvailable = randomBoolean();
         final boolean explicitlyDisabled = randomBoolean();
         final boolean enabled = explicitlyDisabled == false && randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(authcAuthzAvailable);
+        final boolean operatorPrivilegesAvailable = randomBoolean();
         when(licenseState.isSecurityEnabled()).thenReturn(enabled);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(operatorPrivilegesAvailable);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
 
@@ -160,6 +157,10 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         if (fips140Enabled) {
             settings.put("xpack.security.fips_mode.enabled", true);
         }
+        final boolean operatorPrivilegesEnabled = randomBoolean();
+        if (operatorPrivilegesEnabled) {
+            settings.put("xpack.security.operator_privileges.enabled", true);
+        }
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
@@ -172,18 +173,14 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
             assertThat(usage, is(notNullValue()));
             assertThat(usage.name(), is(XPackField.SECURITY));
             assertThat(usage.enabled(), is(enabled));
-            assertThat(usage.available(), is(authcAuthzAvailable));
+            assertThat(usage.available(), is(true));
             XContentSource source = getXContentSource(usage);
 
             if (enabled) {
-                if (authcAuthzAvailable) {
-                    for (int i = 0; i < 5; i++) {
-                        assertThat(source.getValue("realms.type" + i + ".key1"), contains("value" + i));
-                        assertThat(source.getValue("realms.type" + i + ".key2"), contains(i));
-                        assertThat(source.getValue("realms.type" + i + ".key3"), contains(i % 2 == 0));
-                    }
-                } else {
-                    assertThat(source.getValue("realms"), is(notNullValue()));
+                for (int i = 0; i < 5; i++) {
+                    assertThat(source.getValue("realms.type" + i + ".key1"), contains("value" + i));
+                    assertThat(source.getValue("realms.type" + i + ".key2"), contains(i));
+                    assertThat(source.getValue("realms.type" + i + ".key3"), contains(i % 2 == 0));
                 }
 
                 // check SSL
@@ -229,6 +226,10 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
                 // FIPS 140
                 assertThat(source.getValue("fips_140.enabled"), is(fips140Enabled));
+
+                // operator privileges
+                assertThat(source.getValue("operator_privileges.available"), is(operatorPrivilegesAvailable));
+                assertThat(source.getValue("operator_privileges.enabled"), is(operatorPrivilegesEnabled));
             } else {
                 if (explicitlyDisabled) {
                     assertThat(source.getValue("ssl"), is(nullValue()));
@@ -243,12 +244,12 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                 assertThat(source.getValue("anonymous"), is(nullValue()));
                 assertThat(source.getValue("ipfilter"), is(nullValue()));
                 assertThat(source.getValue("roles"), is(nullValue()));
+                assertThat(source.getValue("operator_privileges"), is(nullValue()));
             }
         }
     }
 
     public void testUsageOnTrialLicenseWithSecurityDisabledByDefault() throws Exception {
-        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
         when(licenseState.isSecurityEnabled()).thenReturn(false);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
@@ -296,6 +297,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("anonymous"), is(nullValue()));
             assertThat(source.getValue("ipfilter"), is(nullValue()));
             assertThat(source.getValue("roles"), is(nullValue()));
+            assertThat(source.getValue("operator_privileges"), is(nullValue()));
         }
     }
 

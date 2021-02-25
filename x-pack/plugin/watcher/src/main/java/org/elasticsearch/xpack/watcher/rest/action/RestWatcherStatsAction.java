@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -24,8 +24,7 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestWatcherStatsAction extends BaseRestHandler {
-    private static final Logger logger = LogManager.getLogger(RestWatcherStatsAction.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestWatcherStatsAction.class);
 
     @Override
     public List<Route> routes() {
@@ -53,7 +52,8 @@ public class RestWatcherStatsAction extends BaseRestHandler {
         }
 
         if (metrics.contains("pending_watches")) {
-            deprecationLogger.deprecate("pending_watches", "The pending_watches parameter is deprecated, use queued_watches instead");
+            deprecationLogger.deprecate(DeprecationCategory.API, "pending_watches",
+                "The pending_watches parameter is deprecated, use queued_watches instead");
         }
 
 

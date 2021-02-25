@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.history;
 
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionResult;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
+import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
@@ -46,13 +48,10 @@ import java.time.ZonedDateTime;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.xpack.core.watcher.history.HistoryStoreField.getHistoryIndexNameForTime;
-import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -80,7 +79,6 @@ public class HistoryStoreTests extends ESTestCase {
     public void testPut() throws Exception {
         ZonedDateTime now = Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC);
         Wid wid = new Wid("_name", now);
-        String index = getHistoryIndexNameForTime(now);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(wid.watchId(), now, now);
         WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(wid, event, ExecutionState.EXECUTED, null, randomAlphaOfLength(10));
 
@@ -92,7 +90,7 @@ public class HistoryStoreTests extends ESTestCase {
 
             IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
             if (indexRequest.id().equals(wid.value()) &&
-                indexRequest.opType() == OpType.CREATE && indexRequest.index().equals(index)) {
+                indexRequest.opType() == OpType.CREATE && indexRequest.index().equals(HistoryStoreField.DATA_STREAM)) {
                 listener.onResponse(new BulkResponse(new BulkItemResponse[]{ new BulkItemResponse(1, OpType.CREATE, indexResponse) }, 1));
             } else {
                 listener.onFailure(new ElasticsearchException("test issue"));
@@ -102,18 +100,6 @@ public class HistoryStoreTests extends ESTestCase {
 
         historyStore.put(watchRecord);
         verify(client).bulk(any(), any());
-    }
-
-    public void testIndexNameGeneration() {
-        String indexTemplateVersion = Integer.toString(INDEX_TEMPLATE_VERSION);
-        assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli((long) 0).atZone(ZoneOffset.UTC)),
-            equalTo(".watcher-history-"+ indexTemplateVersion +"-1970.01.01"));
-        assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli(100000000000L).atZone(ZoneOffset.UTC)),
-            equalTo(".watcher-history-" + indexTemplateVersion + "-1973.03.03"));
-        assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli(1416582852000L).atZone(ZoneOffset.UTC)),
-            equalTo(".watcher-history-" + indexTemplateVersion + "-2014.11.21"));
-        assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli(2833165811000L).atZone(ZoneOffset.UTC)),
-            equalTo(".watcher-history-" + indexTemplateVersion + "-2059.10.12"));
     }
 
     public void testStoreWithHideSecrets() throws Exception {

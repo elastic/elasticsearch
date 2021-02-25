@@ -72,7 +72,13 @@ setup:
 ---
 "Test cat anomaly detector jobs":
 
+  - skip:
+      features:
+        - "warnings"
+
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: job-stats-test
         body: >

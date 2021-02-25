@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.time;
@@ -105,18 +94,30 @@ class JavaDateFormatter implements DateFormatter {
         } else {
             this.parsers = Arrays.asList(parsers);
         }
-        //this is when the RoundUp Formatter is created. In further merges (with ||) it will only append this one to a list.
         List<DateTimeFormatter> roundUp = createRoundUpParser(format, roundupParserConsumer);
         this.roundupParser = new RoundUpFormatter(format, roundUp) ;
     }
 
+    /**
+     * This is when the RoundUp Formatters are created. In further merges (with ||) it will only append them to a list.
+     * || is not expected to be provided as format when a RoundUp formatter is created. It will be splitted before in
+     * <code>DateFormatter.forPattern</code>
+     * JavaDateFormatter created with a custom format like <code>DateFormatter.forPattern("YYYY")</code> will only have one parser
+     * It is however possible to have a JavaDateFormatter with multiple parsers. For instance see a "date_time" formatter in
+     * <code>DateFormatters</code>.
+     * This means that we need to also have multiple RoundUp parsers.
+     */
     private List<DateTimeFormatter> createRoundUpParser(String format,
                                                         Consumer<DateTimeFormatterBuilder> roundupParserConsumer) {
         if (format.contains("||") == false) {
-            DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
-            builder.append(this.parsers.get(0));
-            roundupParserConsumer.accept(builder);
-            return Arrays.asList(builder.toFormatter(locale()));
+            List<DateTimeFormatter> roundUpParsers = new ArrayList<>();
+            for (DateTimeFormatter parser : this.parsers) {
+                DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
+                builder.append(parser);
+                roundupParserConsumer.accept(builder);
+                roundUpParsers.add(builder.toFormatter(locale()));
+            }
+            return roundUpParsers;
         }
         return null;
     }

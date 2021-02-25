@@ -1,9 +1,8 @@
 /*
- *
- *  Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- *  or more contributor license agreements. Licensed under the Elastic License;
- *  you may not use this file except in compliance with the Elastic License.
- *
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
@@ -18,6 +17,8 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
+import java.util.Arrays;
+
 /**
  * Named cluster privilege for managing API keys owned by the current authenticated user.
  */
@@ -26,7 +27,10 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
     private static final String PRIVILEGE_NAME = "manage_own_api_key";
     private static final String API_KEY_ID_KEY = "_security_api_key_id";
 
+    private final ClusterPermission permission;
+
     private ManageOwnApiKeyClusterPrivilege() {
+        permission = this.buildPermission(ClusterPermission.builder()).build();
     }
 
     @Override
@@ -37,6 +41,11 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
     @Override
     public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
         return builder.add(this, ManageOwnClusterPermissionCheck.INSTANCE);
+    }
+
+    @Override
+    public ClusterPermission permission() {
+        return permission;
     }
 
     private static final class ManageOwnClusterPermissionCheck extends ClusterPermission.ActionBasedPermissionCheck {
@@ -56,9 +65,16 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                     getApiKeyRequest.getRealmName(), getApiKeyRequest.ownedByAuthenticatedUser());
             } else if (request instanceof InvalidateApiKeyRequest) {
                 final InvalidateApiKeyRequest invalidateApiKeyRequest = (InvalidateApiKeyRequest) request;
-                return checkIfUserIsOwnerOfApiKeys(authentication, invalidateApiKeyRequest.getId(),
-                    invalidateApiKeyRequest.getUserName(), invalidateApiKeyRequest.getRealmName(),
-                    invalidateApiKeyRequest.ownedByAuthenticatedUser());
+                final String[] apiKeyIds = invalidateApiKeyRequest.getIds();
+                if (apiKeyIds == null) {
+                    return checkIfUserIsOwnerOfApiKeys(authentication, null,
+                        invalidateApiKeyRequest.getUserName(), invalidateApiKeyRequest.getRealmName(),
+                        invalidateApiKeyRequest.ownedByAuthenticatedUser());
+                } else {
+                    return Arrays.stream(apiKeyIds).allMatch(id -> checkIfUserIsOwnerOfApiKeys(authentication, id,
+                        invalidateApiKeyRequest.getUserName(), invalidateApiKeyRequest.getRealmName(),
+                        invalidateApiKeyRequest.ownedByAuthenticatedUser()));
+                }
             }
             throw new IllegalArgumentException(
                 "manage own api key privilege only supports API key requests (not " + request.getClass().getName() + ")");

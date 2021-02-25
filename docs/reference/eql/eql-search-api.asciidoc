@@ -186,8 +186,8 @@ returned.
 A greater `fetch_size` value often increases search speed but uses more memory.
 
 `filter`::
-(Optional, <<query-dsl,query DSL object>>)
-Query, written in query DSL, used to filter the events on which the EQL query
+(Optional, <<query-dsl,Query DSL object>>)
+Query, written in Query DSL, used to filter the events on which the EQL query
 runs.
 
 `keep_alive`::

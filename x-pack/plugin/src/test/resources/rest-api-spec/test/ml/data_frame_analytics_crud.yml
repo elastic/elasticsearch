@@ -2100,3 +2100,39 @@ setup:
   }}
   - is_false: data_frame_analytics.0.create_time
   - is_false: data_frame_analytics.0.version
+
+---
+"Test put with runtime mappings":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "with-runtime-mappings"
+        body: >
+          {
+            "source": {
+              "index": "index-source",
+              "runtime_mappings": {
+                "runtime_field": {
+                  "type": "double",
+                  "script": ""
+                }
+              }
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "outlier_detection": {
+              }
+            }
+          }
+  - match: { id: "with-runtime-mappings" }
+  - match: { source.index: ["index-source"] }
+  - match: { source.runtime_mappings: {
+      "runtime_field": {
+        "type": "double",
+        "script": ""
+      }
+    }
+  }
+  - match: { dest.index: "index-dest" }

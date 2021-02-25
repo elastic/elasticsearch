@@ -23,11 +23,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * tasks to be forked off in a loop with the same listener and respond to a
  * higher level listener once all tasks responded.
  */
-public final class GroupedActionListener<T> implements ActionListener<T> {
+public final class GroupedActionListener<T> extends ActionListener.Delegating<T, Collection<T>> {
     private final CountDown countDown;
     private final AtomicInteger pos = new AtomicInteger();
     private final AtomicArray<T> results;
-    private final ActionListener<Collection<T>> delegate;
     private final AtomicReference<Exception> failure = new AtomicReference<>();
 
     /**
@@ -36,12 +35,12 @@ public final class GroupedActionListener<T> implements ActionListener<T> {
      * @param groupSize the group size
      */
     public GroupedActionListener(ActionListener<Collection<T>> delegate, int groupSize) {
+        super(delegate);
         if (groupSize <= 0) {
             throw new IllegalArgumentException("groupSize must be greater than 0 but was " + groupSize);
         }
         results = new AtomicArray<>(groupSize);
         countDown = new CountDown(groupSize);
-        this.delegate = delegate;
     }
 
     @Override

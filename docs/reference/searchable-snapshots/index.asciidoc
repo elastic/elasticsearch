@@ -72,6 +72,20 @@ For more complex or time-consuming searches, you can use <<async-search>> with
 {search-snaps}.
 ====
 
+[[searchable-snapshots-repository-types]]
+You can use any of the following repository types with searchable snapshots:
+
+* {plugins}/repository-s3.html[AWS S3]
+* {plugins}/repository-gcs.html[Google Cloud Storage]
+* {plugins}/repository-azure.html[Azure Blob Storage]
+* {plugins}/repository-hdfs.html[Hadoop Distributed File Store (HDFS)]
+* <<snapshots-filesystem-repository,Shared filesystems>> such as NFS
+
+You can also use alternative implementations of these repository types, for
+instance
+{plugins}/repository-s3-client.html#repository-s3-compatible-services[Minio],
+as long as they are fully compatible.
+
 [discrete]
 [[how-searchable-snapshots-work]]
 === How {search-snaps} work

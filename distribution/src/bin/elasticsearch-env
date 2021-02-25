@@ -39,11 +39,6 @@ ES_CLASSPATH="$ES_HOME/lib/*"
 if [ ! -z "$ES_JAVA_HOME" ]; then
   JAVA="$ES_JAVA_HOME/bin/java"
   JAVA_TYPE="ES_JAVA_HOME"
-elif [ ! -z "$JAVA_HOME" ]; then
-  # fallback to JAVA_HOME
-  echo "warning: usage of JAVA_HOME is deprecated, use ES_JAVA_HOME" >&2
-  JAVA="$JAVA_HOME/bin/java"
-  JAVA_TYPE="JAVA_HOME"
 else
   # use the bundled JDK (default)
   if [ "$(uname -s)" = "Darwin" ]; then
@@ -64,6 +59,11 @@ fi
 if [ ! -z "$JAVA_TOOL_OPTIONS" ]; then
   echo "warning: ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
   unset JAVA_TOOL_OPTIONS
+fi
+
+# warn that we are not observing the value of JAVA_HOME
+if [ ! -z "$JAVA_HOME" ]; then
+  echo "warning: ignoring JAVA_HOME=$JAVA_HOME; using $JAVA_TYPE" >&2
 fi
 
 # JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we

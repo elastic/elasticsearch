@@ -58,7 +58,11 @@ public abstract class SourceValueFetcher implements ValueFetcher {
             while (queue.isEmpty() == false) {
                 Object value = queue.poll();
                 if (value instanceof List) {
-                    queue.addAll((List<?>) value);
+                    for (Object o : (List<?>) value) {
+                        if (o != null) {
+                            queue.add(o);
+                        }
+                    }
                 } else {
                     try {
                         Object parsedValue = parseSourceValue(value);

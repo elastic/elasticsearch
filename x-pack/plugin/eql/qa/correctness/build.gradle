@@ -6,13 +6,6 @@ tasks.named("test").configure { enabled = false }
 import org.elasticsearch.gradle.testclusters.RunTask
 import org.elasticsearch.gradle.info.BuildParams
 
-restResources {
-  restApi {
-    includeCore '_common', 'bulk', 'indices', 'snapshot'
-    includeXpack 'eql', 'indices'
-  }
-}
-
 dependencies {
   javaRestTestImplementation project(':test:framework')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))

@@ -63,7 +63,9 @@ public class SSLOutboundBuffer implements AutoCloseable {
             try {
                 IOUtils.close(pagesToClose);
             } catch (Exception ex) {
-                ex.addSuppressed(e);
+                if (e != null) {
+                    ex.addSuppressed(e);
+                }
                 assert false : ex;
                 throw new ElasticsearchException(ex);
             }

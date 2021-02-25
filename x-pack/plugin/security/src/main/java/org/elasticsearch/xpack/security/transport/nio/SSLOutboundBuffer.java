@@ -59,7 +59,15 @@ public class SSLOutboundBuffer implements AutoCloseable {
             byteBuffers[i] = page.byteBuffer();
         }
 
-        return new FlushOperation(byteBuffers, (r, e) -> IOUtils.closeWhileHandlingException(pagesToClose));
+        return new FlushOperation(byteBuffers, (r, e) -> {
+            try {
+                IOUtils.close(pagesToClose);
+            } catch (Exception ex) {
+                ex.addSuppressed(e);
+                assert false : ex;
+                throw new ElasticsearchException(ex);
+            }
+        });
     }
 
     boolean hasEncryptedBytesToFlush() {
@@ -84,7 +92,7 @@ public class SSLOutboundBuffer implements AutoCloseable {
             }
         }
         if (closeException != null) {
-            assert false : new AssertionError(closeException);
+            assert false : closeException;
             throw new ElasticsearchException(closeException);
         }
     }

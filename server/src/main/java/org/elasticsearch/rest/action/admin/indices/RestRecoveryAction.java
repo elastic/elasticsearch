@@ -29,8 +29,9 @@ public class RestRecoveryAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_recovery"),
-            new Route(GET, "/{index}/_recovery"));
+            Route.of(GET, "/_recovery"),
+            Route.of(GET, "/{index}/_recovery")
+        );
     }
 
     @Override

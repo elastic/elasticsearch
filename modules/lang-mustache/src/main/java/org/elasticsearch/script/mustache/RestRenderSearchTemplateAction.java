@@ -26,10 +26,11 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_render/template"),
-            new Route(POST, "/_render/template"),
-            new Route(GET, "/_render/template/{id}"),
-            new Route(POST, "/_render/template/{id}"));
+            Route.of(GET, "/_render/template"),
+            Route.of(POST, "/_render/template"),
+            Route.of(GET, "/_render/template/{id}"),
+            Route.of(POST, "/_render/template/{id}")
+        );
     }
 
     @Override

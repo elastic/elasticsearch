@@ -33,7 +33,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(Method.PUT, "/_logstash/pipeline/{id}"));
+        return List.of(Route.of(Method.PUT, "/_logstash/pipeline/{id}"));
     }
 
     @Override

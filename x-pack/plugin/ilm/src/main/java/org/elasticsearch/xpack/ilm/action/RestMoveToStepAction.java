@@ -24,7 +24,7 @@ public class RestMoveToStepAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_ilm/move/{name}"));
+        return List.of(Route.of(POST, "/_ilm/move/{name}"));
     }
 
     @Override

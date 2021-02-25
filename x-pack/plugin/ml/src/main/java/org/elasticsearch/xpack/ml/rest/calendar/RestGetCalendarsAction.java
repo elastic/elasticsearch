@@ -28,10 +28,10 @@ public class RestGetCalendarsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
-            new Route(GET, MachineLearning.BASE_PATH + "calendars/"),
-            new Route(POST, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
-            new Route(POST, MachineLearning.BASE_PATH + "calendars/")
+            Route.of(GET, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
+            Route.of(GET, MachineLearning.BASE_PATH + "calendars/"),
+            Route.of(POST, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
+            Route.of(POST, MachineLearning.BASE_PATH + "calendars/")
         );
     }
 

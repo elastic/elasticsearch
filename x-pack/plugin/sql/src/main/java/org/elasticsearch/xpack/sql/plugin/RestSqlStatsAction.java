@@ -21,7 +21,7 @@ public class RestSqlStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, Protocol.SQL_STATS_REST_ENDPOINT));
+        return List.of(Route.of(GET, Protocol.SQL_STATS_REST_ENDPOINT));
     }
 
     @Override

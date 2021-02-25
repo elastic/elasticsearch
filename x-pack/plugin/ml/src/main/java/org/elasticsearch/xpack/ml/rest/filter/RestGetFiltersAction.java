@@ -26,8 +26,8 @@ public class RestGetFiltersAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}"),
-            new Route(GET, MachineLearning.BASE_PATH + "filters/")
+            Route.of(GET, MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}"),
+            Route.of(GET, MachineLearning.BASE_PATH + "filters/")
         );
     }
 

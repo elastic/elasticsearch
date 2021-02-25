@@ -31,8 +31,8 @@ public class RestGetJobsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}"),
-            new Route(GET, MachineLearning.BASE_PATH + "anomaly_detectors")
+            Route.of(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}"),
+            Route.of(GET, MachineLearning.BASE_PATH + "anomaly_detectors")
         );
     }
 

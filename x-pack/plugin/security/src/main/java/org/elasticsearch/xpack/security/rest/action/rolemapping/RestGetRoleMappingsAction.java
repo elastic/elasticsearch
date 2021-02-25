@@ -38,10 +38,12 @@ public class RestGetRoleMappingsAction extends SecurityBaseRestHandler {
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new Route(GET, "/_security/role_mapping/")
-                .replaces(GET, "/_xpack/security/role_mapping/"),
-            new Route(GET, "/_security/role_mapping/{name}")
-                .replaces(GET, "/_xpack/security/role_mapping/{name}")
+            Route.replaces(
+                GET, "/_security/role_mapping/",
+                GET, "/_xpack/security/role_mapping/"),
+            Route.replaces(
+                GET, "/_security/role_mapping/{name}",
+                GET, "/_xpack/security/role_mapping/{name}")
         );
     }
 

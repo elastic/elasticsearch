@@ -33,8 +33,9 @@ public class RestGetIndicesAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/{index}"),
-            new Route(HEAD, "/{index}"));
+            Route.of(GET, "/{index}"),
+            Route.of(HEAD, "/{index}")
+        );
     }
 
     @Override

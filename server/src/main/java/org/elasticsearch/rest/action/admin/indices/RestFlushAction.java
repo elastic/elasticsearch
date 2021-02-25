@@ -27,10 +27,11 @@ public class RestFlushAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_flush"),
-            new Route(POST, "/_flush"),
-            new Route(GET, "/{index}/_flush"),
-            new Route(POST, "/{index}/_flush"));
+            Route.of(GET, "/_flush"),
+            Route.of(POST, "/_flush"),
+            Route.of(GET, "/{index}/_flush"),
+            Route.of(POST, "/{index}/_flush")
+        );
     }
 
     @Override

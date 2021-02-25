@@ -25,8 +25,9 @@ public class RestSimulateTemplateAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, "/_index_template/_simulate"),
-            new Route(POST, "/_index_template/_simulate/{name}"));
+            Route.of(POST, "/_index_template/_simulate"),
+            Route.of(POST, "/_index_template/_simulate/{name}")
+        );
     }
 
     @Override

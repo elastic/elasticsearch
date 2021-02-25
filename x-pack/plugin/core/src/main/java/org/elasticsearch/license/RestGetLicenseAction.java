@@ -36,7 +36,7 @@ public class RestGetLicenseAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_license"));
+        return List.of(Route.of(GET, "/_license"));
     }
 
     @Override

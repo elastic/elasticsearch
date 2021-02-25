@@ -26,7 +26,7 @@ public class RestPutFilterAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            new Route(PUT, MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}")
+            Route.of(PUT, MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}")
         );
     }
 

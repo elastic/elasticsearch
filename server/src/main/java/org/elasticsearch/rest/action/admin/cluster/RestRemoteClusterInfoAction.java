@@ -23,7 +23,7 @@ public final class RestRemoteClusterInfoAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "_remote/info"));
+        return List.of(Route.of(GET, "_remote/info"));
     }
 
     @Override

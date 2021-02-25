@@ -27,8 +27,8 @@ public class RestPutTransformActionDeprecated extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(PUT, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED)
-                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT)
+            Route.deprecated(PUT, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED,
+                TransformMessages.REST_DEPRECATED_ENDPOINT)
         );
     }
 

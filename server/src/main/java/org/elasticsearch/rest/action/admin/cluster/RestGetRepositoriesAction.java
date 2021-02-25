@@ -43,8 +43,9 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_snapshot"),
-            new Route(GET, "/_snapshot/{repository}"));
+            Route.of(GET, "/_snapshot"),
+            Route.of(GET, "/_snapshot/{repository}")
+        );
     }
 
     @Override

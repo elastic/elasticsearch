@@ -38,10 +38,11 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_search/template"),
-            new Route(POST, "/_search/template"),
-            new Route(GET, "/{index}/_search/template"),
-            new Route(POST, "/{index}/_search/template"));
+            Route.of(GET, "/_search/template"),
+            Route.of(POST, "/_search/template"),
+            Route.of(GET, "/{index}/_search/template"),
+            Route.of(POST, "/{index}/_search/template")
+        );
     }
 
     @Override

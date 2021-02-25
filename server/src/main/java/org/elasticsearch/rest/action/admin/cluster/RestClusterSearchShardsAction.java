@@ -28,10 +28,11 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_search_shards"),
-            new Route(POST, "/_search_shards"),
-            new Route(GET, "/{index}/_search_shards"),
-            new Route(POST, "/{index}/_search_shards"));
+            Route.of(GET, "/_search_shards"),
+            Route.of(POST, "/_search_shards"),
+            Route.of(GET, "/{index}/_search_shards"),
+            Route.of(POST, "/{index}/_search_shards")
+        );
     }
 
     @Override

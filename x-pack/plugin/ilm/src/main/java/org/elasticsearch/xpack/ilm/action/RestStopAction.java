@@ -22,7 +22,7 @@ public class RestStopAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_ilm/stop"));
+        return List.of(Route.of(POST, "/_ilm/stop"));
     }
 
     @Override

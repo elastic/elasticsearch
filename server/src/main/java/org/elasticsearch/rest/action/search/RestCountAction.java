@@ -36,10 +36,11 @@ public class RestCountAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_count"),
-            new Route(POST, "/_count"),
-            new Route(GET, "/{index}/_count"),
-            new Route(POST, "/{index}/_count"));
+            Route.of(GET, "/_count"),
+            Route.of(POST, "/_count"),
+            Route.of(GET, "/{index}/_count"),
+            Route.of(POST, "/{index}/_count")
+        );
     }
 
     @Override

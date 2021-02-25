@@ -82,10 +82,11 @@ public class RestRankEvalAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/" + ENDPOINT),
-            new Route(POST, "/" + ENDPOINT),
-            new Route(GET, "/{index}/" + ENDPOINT),
-            new Route(POST, "/{index}/" + ENDPOINT));
+            Route.of(GET, "/" + ENDPOINT),
+            Route.of(POST, "/" + ENDPOINT),
+            Route.of(GET, "/{index}/" + ENDPOINT),
+            Route.of(POST, "/{index}/" + ENDPOINT)
+        );
     }
 
     @Override

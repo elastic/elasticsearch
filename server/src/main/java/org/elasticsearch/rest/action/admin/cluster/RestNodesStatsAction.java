@@ -34,12 +34,13 @@ public class RestNodesStatsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_nodes/stats"),
-            new Route(GET, "/_nodes/{nodeId}/stats"),
-            new Route(GET, "/_nodes/stats/{metric}"),
-            new Route(GET, "/_nodes/{nodeId}/stats/{metric}"),
-            new Route(GET, "/_nodes/stats/{metric}/{index_metric}"),
-            new Route(GET, "/_nodes/{nodeId}/stats/{metric}/{index_metric}"));
+            Route.of(GET, "/_nodes/stats"),
+            Route.of(GET, "/_nodes/{nodeId}/stats"),
+            Route.of(GET, "/_nodes/stats/{metric}"),
+            Route.of(GET, "/_nodes/{nodeId}/stats/{metric}"),
+            Route.of(GET, "/_nodes/stats/{metric}/{index_metric}"),
+            Route.of(GET, "/_nodes/{nodeId}/stats/{metric}/{index_metric}")
+        );
     }
 
     static final Map<String, Consumer<NodesStatsRequest>> METRICS;

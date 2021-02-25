@@ -27,8 +27,8 @@ public class RestUpdateModelSnapshotAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            new Route(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
-                + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID +"}/_update")
+            Route.of(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+                    + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID +"}/_update")
         );
     }
 

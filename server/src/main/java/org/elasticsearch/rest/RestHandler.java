@@ -93,39 +93,56 @@ public interface RestHandler {
         private final Method method;
         private final String path;
 
+        private final RestApiCompatibleVersion restApiCompatibleVersion;
+
         private final String deprecationMessage;
 
-        private final Method deprecatedMethod;
-        private final String deprecatedPath;
+        private final Method replacedMethod;
+        private final String replacedPath;
 
-        // see .deprecated()
-        private Route(Method method, String path, String deprecationMessage) {
+        private Route(Method method, String path,
+                      RestApiCompatibleVersion restApiCompatibleVersion,
+                      String deprecationMessage,
+                      Method replacedMethod, String replacedPath) {
             this.method = Objects.requireNonNull(method);
             this.path = Objects.requireNonNull(path);
 
-            this.deprecationMessage = Objects.requireNonNull(deprecationMessage);
-            this.deprecatedMethod = null;
-            this.deprecatedPath = null;
+            this.restApiCompatibleVersion = restApiCompatibleVersion;
+            this.deprecationMessage = deprecationMessage;
+            this.replacedMethod = replacedMethod;
+            this.replacedPath = replacedPath;
         }
 
-        // see .replaces()
-        private Route(Method method, String path, Method deprecatedMethod, String deprecatedPath) {
-            this.method = Objects.requireNonNull(method);
-            this.path = Objects.requireNonNull(path);
-
-            this.deprecationMessage = null;
-            this.deprecatedMethod = Objects.requireNonNull(deprecatedMethod);
-            this.deprecatedPath = Objects.requireNonNull(deprecatedPath);
+        // bog standard
+        public static Route of(Method method, String path) {
+            return new Route(method, path,
+                null, null, null, null);
         }
 
-        // in the *trivial* case, you can just construct a Route
-        public Route(Method method, String path) {
-            this.method = Objects.requireNonNull(method);
-            this.path = Objects.requireNonNull(path);
+        // deprecated without replacement
+        public static Route deprecated(Method method, String path, String deprecationMessage) {
+            return new Route(method, path,
+                null, Objects.requireNonNull(deprecationMessage), null, null);
+        }
 
-            this.deprecationMessage = null;
-            this.deprecatedMethod = null;
-            this.deprecatedPath = null;
+        // a route that replaces a previous one
+        public static Route replaces(Method method, String path, Method replacedMethod, String replacedPath) {
+            return new Route(method, path,
+                null, null, Objects.requireNonNull(replacedMethod), Objects.requireNonNull(replacedPath));
+        }
+
+        // a route that is only available via compatibility
+        public static Route of(Method method, String path, RestApiCompatibleVersion restApiCompatibleVersion) {
+            return new Route(method, path,
+                Objects.requireNonNull(restApiCompatibleVersion), null, null, null);
+        }
+
+        // a replacement route where the replaced route is still available via compatibility
+        public static Route replaces(Method method, String path,
+                                     Method replacedMethod, String replacedPath, RestApiCompatibleVersion restApiCompatibleVersion) {
+            return new Route(method, path,
+                Objects.requireNonNull(restApiCompatibleVersion), null,
+                Objects.requireNonNull(replacedMethod), Objects.requireNonNull(replacedPath));
         }
 
         public String getPath() {
@@ -136,9 +153,8 @@ public interface RestHandler {
             return method;
         }
 
-        public Route deprecated(String deprecationMessage) {
-            assert isReplacement() == false; // either deprecated or a replacement, but not both
-            return new Route(this.method, this.path, deprecationMessage);
+        public RestApiCompatibleVersion getRestApiCompatibleVersion() {
+            return restApiCompatibleVersion;
         }
 
         public String getDeprecationMessage() {
@@ -149,21 +165,16 @@ public interface RestHandler {
             return deprecationMessage != null;
         }
 
-        public Route replaces(Method deprecatedMethod, String deprecatedPath) {
-            assert isDeprecated() == false; // either deprecated or a replacement, but not both
-            return new Route(this.method, this.path, deprecatedMethod, deprecatedPath);
+        public String getReplacedPath() {
+            return replacedPath;
         }
 
-        public String getDeprecatedPath() {
-            return deprecatedPath;
-        }
-
-        public Method getDeprecatedMethod() {
-            return deprecatedMethod;
+        public Method getReplacedMethod() {
+            return replacedMethod;
         }
 
         public boolean isReplacement() {
-            return deprecatedPath != null || deprecatedMethod != null;
+            return replacedPath != null || replacedMethod != null;
         }
     }
 }

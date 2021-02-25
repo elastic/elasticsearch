@@ -38,8 +38,9 @@ public class RestCatJobsAction extends AbstractCatAction {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "_cat/ml/anomaly_detectors/{" + Job.ID.getPreferredName() + "}"),
-            new Route(GET, "_cat/ml/anomaly_detectors"));
+            Route.of(GET, "_cat/ml/anomaly_detectors/{" + Job.ID.getPreferredName() + "}"),
+            Route.of(GET, "_cat/ml/anomaly_detectors")
+        );
     }
 
     @Override

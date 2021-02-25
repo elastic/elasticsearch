@@ -26,7 +26,7 @@ public class RestGetRollupIndexCapsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/{index}/_rollup/data"));
+        return List.of(Route.of(GET, "/{index}/_rollup/data"));
     }
 
     @Override

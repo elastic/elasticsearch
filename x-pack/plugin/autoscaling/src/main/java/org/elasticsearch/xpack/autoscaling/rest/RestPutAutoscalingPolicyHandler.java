@@ -23,7 +23,7 @@ public class RestPutAutoscalingPolicyHandler extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/_autoscaling/policy/{name}"));
+        return List.of(Route.of(PUT, "/_autoscaling/policy/{name}"));
     }
 
     @Override

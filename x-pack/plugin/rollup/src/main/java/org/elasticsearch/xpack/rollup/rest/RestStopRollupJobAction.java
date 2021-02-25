@@ -23,7 +23,7 @@ public class RestStopRollupJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_rollup/job/{id}/_stop"));
+        return List.of(Route.of(POST, "/_rollup/job/{id}/_stop"));
     }
 
     @Override

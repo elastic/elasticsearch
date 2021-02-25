@@ -26,10 +26,10 @@ public class RestGetTransformStatsActionDeprecated extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED + "_stats")
-                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT),
-            new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_stats")
-                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT)
+            Route.deprecated(GET, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED + "_stats",
+                TransformMessages.REST_DEPRECATED_ENDPOINT),
+            Route.deprecated(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_stats",
+                TransformMessages.REST_DEPRECATED_ENDPOINT)
         );
     }
 

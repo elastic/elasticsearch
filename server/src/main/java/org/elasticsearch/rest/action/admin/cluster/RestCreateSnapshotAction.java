@@ -29,8 +29,9 @@ public class RestCreateSnapshotAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(PUT, "/_snapshot/{repository}/{snapshot}"),
-            new Route(POST, "/_snapshot/{repository}/{snapshot}"));
+            Route.of(PUT, "/_snapshot/{repository}/{snapshot}"),
+            Route.of(POST, "/_snapshot/{repository}/{snapshot}")
+        );
     }
 
     @Override

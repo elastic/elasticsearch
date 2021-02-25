@@ -46,7 +46,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_cluster/settings"));
+        return List.of(Route.of(GET, "/_cluster/settings"));
     }
     @Override
     public String getName() {

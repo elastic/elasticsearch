@@ -30,7 +30,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/{index}"));
+        return List.of(Route.of(PUT, "/{index}"));
     }
 
     @Override

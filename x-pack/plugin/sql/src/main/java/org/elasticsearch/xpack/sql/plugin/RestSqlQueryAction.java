@@ -43,8 +43,9 @@ public class RestSqlQueryAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, Protocol.SQL_QUERY_REST_ENDPOINT),
-            new Route(POST, Protocol.SQL_QUERY_REST_ENDPOINT));
+            Route.of(GET, Protocol.SQL_QUERY_REST_ENDPOINT),
+            Route.of(POST, Protocol.SQL_QUERY_REST_ENDPOINT)
+        );
     }
 
     public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {

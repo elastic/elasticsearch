@@ -23,7 +23,7 @@ public class RestResumeFollowAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/{index}/_ccr/resume_follow"));
+        return List.of(Route.of(POST, "/{index}/_ccr/resume_follow"));
     }
 
     @Override

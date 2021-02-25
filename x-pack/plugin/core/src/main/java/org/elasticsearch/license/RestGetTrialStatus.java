@@ -22,7 +22,7 @@ public class RestGetTrialStatus extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_license/trial_status"));
+        return List.of(Route.of(GET, "/_license/trial_status"));
     }
 
     @Override

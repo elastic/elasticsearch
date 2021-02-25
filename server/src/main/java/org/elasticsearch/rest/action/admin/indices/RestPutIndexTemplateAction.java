@@ -29,8 +29,9 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, "/_template/{name}"),
-            new Route(PUT, "/_template/{name}"));
+            Route.of(POST, "/_template/{name}"),
+            Route.of(PUT, "/_template/{name}")
+        );
     }
 
     @Override

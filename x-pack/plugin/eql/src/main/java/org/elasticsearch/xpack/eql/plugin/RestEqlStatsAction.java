@@ -24,7 +24,7 @@ public class RestEqlStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_eql/stats"));
+        return List.of(Route.of(GET, "/_eql/stats"));
     }
 
     @Override

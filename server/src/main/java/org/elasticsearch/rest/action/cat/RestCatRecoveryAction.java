@@ -41,8 +41,9 @@ public class RestCatRecoveryAction extends AbstractCatAction {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_cat/recovery"),
-            new Route(GET, "/_cat/recovery/{index}"));
+            Route.of(GET, "/_cat/recovery"),
+            Route.of(GET, "/_cat/recovery/{index}")
+        );
     }
 
     @Override

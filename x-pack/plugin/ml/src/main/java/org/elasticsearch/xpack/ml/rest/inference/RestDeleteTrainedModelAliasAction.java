@@ -25,16 +25,16 @@ public class RestDeleteTrainedModelAliasAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return singletonList(
-            new Route(
-                DELETE,
-                MachineLearning.BASE_PATH
-                    + "trained_models/{"
-                    + TrainedModelConfig.MODEL_ID.getPreferredName()
-                    + "}/model_aliases/{"
-                    + DeleteTrainedModelAliasAction.Request.MODEL_ALIAS
-                    + "}"
+            Route.of(
+                    DELETE,
+                    MachineLearning.BASE_PATH
+                        + "trained_models/{"
+                        + TrainedModelConfig.MODEL_ID.getPreferredName()
+                        + "}/model_aliases/{"
+                        + DeleteTrainedModelAliasAction.Request.MODEL_ALIAS
+                        + "}"
 
-            )
+                )
         );
     }
 

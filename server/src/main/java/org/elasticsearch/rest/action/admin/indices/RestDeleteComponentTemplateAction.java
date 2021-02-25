@@ -23,7 +23,7 @@ public class RestDeleteComponentTemplateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "/_component_template/{name}"));
+        return List.of(Route.of(DELETE, "/_component_template/{name}"));
     }
 
     @Override

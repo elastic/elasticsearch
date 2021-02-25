@@ -27,13 +27,13 @@ public class RestUpgradeJobModelSnapshotAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            new Route(POST,
-                MachineLearning.BASE_PATH
-                    + "anomaly_detectors/{"
-                    + Job.ID.getPreferredName()
-                    + "}/model_snapshots/{"
-                    + UpgradeJobModelSnapshotAction.Request.SNAPSHOT_ID.getPreferredName()
-                    + "}/_upgrade")
+            Route.of(POST,
+                    MachineLearning.BASE_PATH
+                        + "anomaly_detectors/{"
+                        + Job.ID.getPreferredName()
+                        + "}/model_snapshots/{"
+                        + UpgradeJobModelSnapshotAction.Request.SNAPSHOT_ID.getPreferredName()
+                        + "}/_upgrade")
         );
     }
 

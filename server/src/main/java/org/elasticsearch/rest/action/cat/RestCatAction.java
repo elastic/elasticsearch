@@ -36,7 +36,7 @@ public class RestCatAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_cat"));
+        return List.of(Route.of(GET, "/_cat"));
     }
 
     @Override

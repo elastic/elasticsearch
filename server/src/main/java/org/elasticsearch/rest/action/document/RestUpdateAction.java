@@ -30,7 +30,7 @@ public class RestUpdateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/{index}/_update/{id}"));
+        return List.of(Route.of(POST, "/{index}/_update/{id}"));
     }
 
     @Override

@@ -25,7 +25,7 @@ public class RestStopDataFrameAnalyticsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return singletonList(
-            new Route(
+            Route.of(
                 POST, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_stop"));
     }
 

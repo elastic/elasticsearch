@@ -22,7 +22,7 @@ public class RestExecuteEnrichPolicyAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_enrich/policy/{name}/_execute"), new Route(PUT, "/_enrich/policy/{name}/_execute"));
+        return List.of(Route.of(POST, "/_enrich/policy/{name}/_execute"), Route.of(PUT, "/_enrich/policy/{name}/_execute"));
     }
 
     @Override

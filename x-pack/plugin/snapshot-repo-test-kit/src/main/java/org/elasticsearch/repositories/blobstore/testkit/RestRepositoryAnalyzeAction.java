@@ -23,7 +23,7 @@ public class RestRepositoryAnalyzeAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_snapshot/{repository}/_analyze"));
+        return List.of(Route.of(POST, "/_snapshot/{repository}/_analyze"));
     }
 
     @Override

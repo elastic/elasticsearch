@@ -24,7 +24,7 @@ public class RestClearVotingConfigExclusionsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "/_cluster/voting_config_exclusions"));
+        return List.of(Route.of(DELETE, "/_cluster/voting_config_exclusions"));
     }
 
     @Override

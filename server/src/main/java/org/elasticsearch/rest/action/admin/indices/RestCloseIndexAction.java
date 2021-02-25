@@ -32,8 +32,9 @@ public class RestCloseIndexAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, "/_close"),
-            new Route(POST, "/{index}/_close"));
+            Route.of(POST, "/_close"),
+            Route.of(POST, "/{index}/_close")
+        );
     }
 
     @Override

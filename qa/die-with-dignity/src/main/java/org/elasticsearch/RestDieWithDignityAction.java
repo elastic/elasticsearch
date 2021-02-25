@@ -22,7 +22,7 @@ public class RestDieWithDignityAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_die_with_dignity"));
+        return List.of(Route.of(GET, "/_die_with_dignity"));
     }
 
     @Override

@@ -34,10 +34,11 @@ public class RestAckWatchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, "/_watcher/watch/{id}/_ack"),
-            new Route(PUT, "/_watcher/watch/{id}/_ack"),
-            new Route(POST, "/_watcher/watch/{id}/_ack/{actions}"),
-            new Route(PUT, "/_watcher/watch/{id}/_ack/{actions}"));
+            Route.of(POST, "/_watcher/watch/{id}/_ack"),
+            Route.of(PUT, "/_watcher/watch/{id}/_ack"),
+            Route.of(POST, "/_watcher/watch/{id}/_ack/{actions}"),
+            Route.of(PUT, "/_watcher/watch/{id}/_ack/{actions}")
+        );
     }
 
     @Override

@@ -40,8 +40,9 @@ public class RestDeletePrivilegesAction extends SecurityBaseRestHandler {
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new Route(DELETE, "/_security/privilege/{application}/{privilege}")
-                .replaces(DELETE, "/_xpack/security/privilege/{application}/{privilege}")
+            Route.replaces(
+                DELETE, "/_security/privilege/{application}/{privilege}",
+                DELETE, "/_xpack/security/privilege/{application}/{privilege}")
         );
     }
 

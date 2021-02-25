@@ -52,8 +52,9 @@ public class RestSamlPrepareAuthenticationAction extends SamlBaseRestHandler {
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new Route(POST, "/_security/saml/prepare")
-                .replaces(POST, "/_xpack/security/saml/prepare")
+            Route.replaces(
+                POST, "/_security/saml/prepare",
+                POST, "/_xpack/security/saml/prepare")
         );
     }
 

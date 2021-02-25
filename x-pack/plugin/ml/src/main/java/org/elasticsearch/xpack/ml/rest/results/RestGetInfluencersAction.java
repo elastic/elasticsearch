@@ -27,10 +27,10 @@ public class RestGetInfluencersAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(
-                GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/influencers"),
-            new Route(
-                POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/influencers")
+            Route.of(
+                    GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/influencers"),
+            Route.of(
+                    POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/influencers")
         );
     }
 

@@ -31,7 +31,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/_cluster/settings"));
+        return List.of(Route.of(PUT, "/_cluster/settings"));
     }
 
     @Override

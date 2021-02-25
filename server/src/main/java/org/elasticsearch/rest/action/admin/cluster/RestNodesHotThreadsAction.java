@@ -31,8 +31,8 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_nodes/hot_threads"),
-            new Route(GET, "/_nodes/{nodeId}/hot_threads")
+            Route.of(GET, "/_nodes/hot_threads"),
+            Route.of(GET, "/_nodes/{nodeId}/hot_threads")
         );
     }
 

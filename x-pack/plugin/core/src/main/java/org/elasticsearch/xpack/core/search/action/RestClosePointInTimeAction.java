@@ -22,7 +22,7 @@ public class RestClosePointInTimeAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "/_pit"));
+        return List.of(Route.of(DELETE, "/_pit"));
     }
 
     @Override

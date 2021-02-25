@@ -42,10 +42,11 @@ public class RestGetMappingAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_mapping"),
-            new Route(GET, "/_mappings"),
-            new Route(GET, "/{index}/_mapping"),
-            new Route(GET, "/{index}/_mappings"));
+            Route.of(GET, "/_mapping"),
+            Route.of(GET, "/_mappings"),
+            Route.of(GET, "/{index}/_mapping"),
+            Route.of(GET, "/{index}/_mappings")
+        );
     }
 
     @Override

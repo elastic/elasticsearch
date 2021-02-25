@@ -31,7 +31,7 @@ public class RestMonitoringMigrateAlertsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, "/_monitoring/migrate/alerts")
+            Route.of(POST, "/_monitoring/migrate/alerts")
         );
     }
 

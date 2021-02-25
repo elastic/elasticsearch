@@ -23,8 +23,9 @@ public class RestGetLifecycleAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_ilm/policy"),
-            new Route(GET, "/_ilm/policy/{name}"));
+            Route.of(GET, "/_ilm/policy"),
+            Route.of(GET, "/_ilm/policy/{name}")
+        );
     }
 
     @Override

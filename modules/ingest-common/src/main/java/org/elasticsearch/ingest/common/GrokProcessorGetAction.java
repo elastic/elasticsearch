@@ -137,7 +137,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         @Override
         public List<Route> routes() {
-            return List.of(new Route(GET, "/_ingest/processor/grok"));
+            return List.of(Route.of(GET, "/_ingest/processor/grok"));
         }
 
         @Override

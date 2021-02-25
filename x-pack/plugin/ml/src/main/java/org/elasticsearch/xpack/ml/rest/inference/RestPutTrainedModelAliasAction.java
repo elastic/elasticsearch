@@ -25,16 +25,16 @@ public class RestPutTrainedModelAliasAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return singletonList(
-            new Route(
-                PUT,
-                MachineLearning.BASE_PATH
-                    + "trained_models/{"
-                    + TrainedModelConfig.MODEL_ID.getPreferredName()
-                    + "}/model_aliases/{"
-                    + PutTrainedModelAliasAction.Request.MODEL_ALIAS
-                    + "}"
+            Route.of(
+                    PUT,
+                    MachineLearning.BASE_PATH
+                        + "trained_models/{"
+                        + TrainedModelConfig.MODEL_ID.getPreferredName()
+                        + "}/model_aliases/{"
+                        + PutTrainedModelAliasAction.Request.MODEL_ALIAS
+                        + "}"
 
-            )
+                )
         );
     }
 

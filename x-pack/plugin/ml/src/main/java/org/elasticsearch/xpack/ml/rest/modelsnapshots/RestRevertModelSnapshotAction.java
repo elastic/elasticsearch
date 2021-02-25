@@ -28,9 +28,9 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            new Route(
-                POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/model_snapshots/{" +
-                RevertModelSnapshotAction.Request.SNAPSHOT_ID.getPreferredName() + "}/_revert")
+            Route.of(
+                    POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/model_snapshots/{" +
+                    RevertModelSnapshotAction.Request.SNAPSHOT_ID.getPreferredName() + "}/_revert")
         );
     }
 

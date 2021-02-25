@@ -28,10 +28,11 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_ingest/pipeline/{id}/_simulate"),
-            new Route(POST, "/_ingest/pipeline/{id}/_simulate"),
-            new Route(GET, "/_ingest/pipeline/_simulate"),
-            new Route(POST, "/_ingest/pipeline/_simulate"));
+            Route.of(GET, "/_ingest/pipeline/{id}/_simulate"),
+            Route.of(POST, "/_ingest/pipeline/{id}/_simulate"),
+            Route.of(GET, "/_ingest/pipeline/_simulate"),
+            Route.of(POST, "/_ingest/pipeline/_simulate")
+        );
     }
 
     @Override

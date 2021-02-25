@@ -24,7 +24,7 @@ public class RestMlInfoAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            new Route(GET, MachineLearning.BASE_PATH + "info")
+            Route.of(GET, MachineLearning.BASE_PATH + "info")
         );
     }
 

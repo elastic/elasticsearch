@@ -38,8 +38,9 @@ public class RestGetAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/{index}/_doc/{id}"),
-            new Route(HEAD, "/{index}/_doc/{id}"));
+            Route.of(GET, "/{index}/_doc/{id}"),
+            Route.of(HEAD, "/{index}/_doc/{id}")
+        );
     }
 
     @Override

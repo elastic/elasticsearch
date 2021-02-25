@@ -24,7 +24,7 @@ public class RestGetScriptContextAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_script_context"));
+        return List.of(Route.of(GET, "/_script_context"));
     }
 
     @Override public String getName() {

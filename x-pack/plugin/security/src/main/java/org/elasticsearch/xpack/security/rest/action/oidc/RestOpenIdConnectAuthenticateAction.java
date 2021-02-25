@@ -53,7 +53,7 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_security/oidc/authenticate"));
+        return List.of(Route.of(POST, "/_security/oidc/authenticate"));
     }
 
     @Override

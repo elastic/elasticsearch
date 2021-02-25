@@ -38,10 +38,10 @@ public class RestPutRoleAction extends SecurityBaseRestHandler {
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new Route(POST, "/_security/role/{name}")
-                .replaces(POST, "/_xpack/security/role/{name}"),
-            new Route(PUT, "/_security/role/{name}")
-                .replaces(PUT, "/_xpack/security/role/{name}")
+            Route.replaces(POST, "/_security/role/{name}",
+                POST, "/_xpack/security/role/{name}"),
+            Route.replaces(PUT, "/_security/role/{name}",
+                PUT, "/_xpack/security/role/{name}")
         );
     }
 

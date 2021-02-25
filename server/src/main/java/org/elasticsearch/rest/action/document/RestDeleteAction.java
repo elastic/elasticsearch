@@ -26,7 +26,7 @@ public class RestDeleteAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "/{index}/_doc/{id}"));
+        return List.of(Route.of(DELETE, "/{index}/_doc/{id}"));
     }
 
     @Override

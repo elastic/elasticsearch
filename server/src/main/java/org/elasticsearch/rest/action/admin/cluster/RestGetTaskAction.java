@@ -25,7 +25,7 @@ public class RestGetTaskAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_tasks/{task_id}"));
+        return List.of(Route.of(GET, "/_tasks/{task_id}"));
     }
 
     @Override

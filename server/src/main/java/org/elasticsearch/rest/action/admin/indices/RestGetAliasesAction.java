@@ -46,14 +46,15 @@ public class RestGetAliasesAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_alias"),
-            new Route(GET, "/_aliases"),
-            new Route(GET, "/_alias/{name}"),
-            new Route(HEAD, "/_alias/{name}"),
-            new Route(GET, "/{index}/_alias"),
-            new Route(HEAD, "/{index}/_alias"),
-            new Route(GET, "/{index}/_alias/{name}"),
-            new Route(HEAD, "/{index}/_alias/{name}"));
+            Route.of(GET, "/_alias"),
+            Route.of(GET, "/_aliases"),
+            Route.of(GET, "/_alias/{name}"),
+            Route.of(HEAD, "/_alias/{name}"),
+            Route.of(GET, "/{index}/_alias"),
+            Route.of(HEAD, "/{index}/_alias"),
+            Route.of(GET, "/{index}/_alias/{name}"),
+            Route.of(HEAD, "/{index}/_alias/{name}")
+        );
     }
 
     @Override

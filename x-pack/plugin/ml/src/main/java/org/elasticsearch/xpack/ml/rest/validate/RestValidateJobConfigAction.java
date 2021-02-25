@@ -25,7 +25,7 @@ public class RestValidateJobConfigAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            new Route(POST, MachineLearning.BASE_PATH + "anomaly_detectors/_validate")
+            Route.of(POST, MachineLearning.BASE_PATH + "anomaly_detectors/_validate")
         );
     }
 

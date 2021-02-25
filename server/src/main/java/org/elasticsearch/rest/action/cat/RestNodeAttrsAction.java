@@ -33,7 +33,7 @@ public class RestNodeAttrsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_cat/nodeattrs"));
+        return List.of(Route.of(GET, "/_cat/nodeattrs"));
     }
 
     @Override

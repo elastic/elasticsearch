@@ -28,17 +28,18 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, "/{index}/_alias/{name}"),
-            new Route(PUT, "/{index}/_alias/{name}"),
-            new Route(POST, "/_alias/{name}"),
-            new Route(PUT, "/_alias/{name}"),
-            new Route(POST, "/{index}/_aliases/{name}"),
-            new Route(PUT, "/{index}/_aliases/{name}"),
-            new Route(POST, "/_aliases/{name}"),
-            new Route(PUT, "/_aliases/{name}"),
-            new Route(PUT, "/{index}/_alias"),
-            new Route(PUT, "/{index}/_aliases"),
-            new Route(PUT, "/_alias"));
+            Route.of(POST, "/{index}/_alias/{name}"),
+            Route.of(PUT, "/{index}/_alias/{name}"),
+            Route.of(POST, "/_alias/{name}"),
+            Route.of(PUT, "/_alias/{name}"),
+            Route.of(POST, "/{index}/_aliases/{name}"),
+            Route.of(PUT, "/{index}/_aliases/{name}"),
+            Route.of(POST, "/_aliases/{name}"),
+            Route.of(PUT, "/_aliases/{name}"),
+            Route.of(PUT, "/{index}/_alias"),
+            Route.of(PUT, "/{index}/_aliases"),
+            Route.of(PUT, "/_alias")
+        );
     }
 
     @Override

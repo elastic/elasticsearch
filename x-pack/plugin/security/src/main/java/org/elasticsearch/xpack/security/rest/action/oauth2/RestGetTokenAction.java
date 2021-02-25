@@ -72,8 +72,9 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new Route(POST, "/_security/oauth2/token")
-                .replaces(POST, "/_xpack/security/oauth2/token")
+            Route.replaces(
+                POST, "/_security/oauth2/token",
+                POST, "/_xpack/security/oauth2/token")
         );
     }
 

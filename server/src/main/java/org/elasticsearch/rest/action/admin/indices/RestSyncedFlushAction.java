@@ -37,10 +37,11 @@ public class RestSyncedFlushAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_flush/synced"),
-            new Route(POST, "/_flush/synced"),
-            new Route(GET, "/{index}/_flush/synced"),
-            new Route(POST, "/{index}/_flush/synced"));
+            Route.of(GET, "/_flush/synced"),
+            Route.of(POST, "/_flush/synced"),
+            Route.of(GET, "/{index}/_flush/synced"),
+            Route.of(POST, "/{index}/_flush/synced")
+        );
     }
 
     @Override

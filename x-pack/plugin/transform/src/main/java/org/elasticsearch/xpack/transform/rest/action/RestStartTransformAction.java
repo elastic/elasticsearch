@@ -23,7 +23,7 @@ public class RestStartTransformAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_start"));
+        return List.of(Route.of(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_start"));
     }
 
     @Override

@@ -25,8 +25,8 @@ public class RestStopTransformActionDeprecated extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_stop")
-                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT)
+            Route.deprecated(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_stop",
+                TransformMessages.REST_DEPRECATED_ENDPOINT)
         );
     }
 

@@ -32,8 +32,9 @@ public class RestExplainAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/{index}/_explain/{id}"),
-            new Route(POST, "/{index}/_explain/{id}"));
+            Route.of(GET, "/{index}/_explain/{id}"),
+            Route.of(POST, "/{index}/_explain/{id}")
+        );
     }
 
     @Override

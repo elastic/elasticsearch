@@ -25,7 +25,7 @@ public class RestMigrateToDataStreamAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.POST, "/_data_stream/_migrate/{name}"));
+        return List.of(Route.of(RestRequest.Method.POST, "/_data_stream/_migrate/{name}"));
     }
 
     @Override

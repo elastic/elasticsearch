@@ -22,7 +22,7 @@ public class RestDeleteTransformAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID));
+        return List.of(Route.of(DELETE, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID));
     }
 
     @Override

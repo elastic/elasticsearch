@@ -29,10 +29,11 @@ public class RestRefreshAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_refresh"),
-            new Route(POST, "/_refresh"),
-            new Route(GET, "/{index}/_refresh"),
-            new Route(POST, "/{index}/_refresh"));
+            Route.of(GET, "/_refresh"),
+            Route.of(POST, "/_refresh"),
+            Route.of(GET, "/{index}/_refresh"),
+            Route.of(POST, "/{index}/_refresh")
+        );
     }
 
     @Override

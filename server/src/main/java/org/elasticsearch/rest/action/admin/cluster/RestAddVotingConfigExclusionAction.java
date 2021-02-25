@@ -32,7 +32,7 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_cluster/voting_config_exclusions"));
+        return List.of(Route.of(POST, "/_cluster/voting_config_exclusions"));
     }
 
     @Override

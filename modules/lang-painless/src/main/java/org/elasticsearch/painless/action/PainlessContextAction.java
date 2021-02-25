@@ -184,7 +184,7 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
 
         @Override
         public List<Route> routes() {
-            return List.of(new Route(GET, "/_scripts/painless/_context"));
+            return List.of(Route.of(GET, "/_scripts/painless/_context"));
         }
 
         @Override

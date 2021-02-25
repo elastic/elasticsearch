@@ -35,10 +35,11 @@ public class RestValidateQueryAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_validate/query"),
-            new Route(POST, "/_validate/query"),
-            new Route(GET, "/{index}/_validate/query"),
-            new Route(POST, "/{index}/_validate/query"));
+            Route.of(GET, "/_validate/query"),
+            Route.of(POST, "/_validate/query"),
+            Route.of(GET, "/{index}/_validate/query"),
+            Route.of(POST, "/{index}/_validate/query")
+        );
     }
 
     @Override

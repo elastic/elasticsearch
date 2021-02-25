@@ -46,10 +46,11 @@ public class RestBulkAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, "/_bulk"),
-            new Route(PUT, "/_bulk"),
-            new Route(POST, "/{index}/_bulk"),
-            new Route(PUT, "/{index}/_bulk"));
+            Route.of(POST, "/_bulk"),
+            Route.of(PUT, "/_bulk"),
+            Route.of(POST, "/{index}/_bulk"),
+            Route.of(PUT, "/{index}/_bulk")
+        );
     }
 
     @Override

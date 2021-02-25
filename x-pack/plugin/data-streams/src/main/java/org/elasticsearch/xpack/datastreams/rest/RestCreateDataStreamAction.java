@@ -24,7 +24,7 @@ public class RestCreateDataStreamAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.PUT, "/_data_stream/{name}"));
+        return List.of(Route.of(RestRequest.Method.PUT, "/_data_stream/{name}"));
     }
 
     @Override

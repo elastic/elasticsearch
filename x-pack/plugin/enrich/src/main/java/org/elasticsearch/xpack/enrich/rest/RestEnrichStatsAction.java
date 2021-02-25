@@ -21,7 +21,7 @@ public class RestEnrichStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_enrich/_stats"));
+        return List.of(Route.of(GET, "/_enrich/_stats"));
     }
 
     @Override

@@ -50,14 +50,18 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new Route(GET, "/_security/user/{username}/_has_privileges")
-                .replaces(GET, "/_xpack/security/user/{username}/_has_privileges"),
-            new Route(POST, "/_security/user/{username}/_has_privileges")
-                .replaces(POST, "/_xpack/security/user/{username}/_has_privileges"),
-            new Route(GET, "/_security/user/_has_privileges")
-                .replaces(GET, "/_xpack/security/user/_has_privileges"),
-            new Route(POST, "/_security/user/_has_privileges")
-                .replaces(POST, "/_xpack/security/user/_has_privileges")
+            Route.replaces(
+                GET, "/_security/user/{username}/_has_privileges",
+                GET, "/_xpack/security/user/{username}/_has_privileges"),
+            Route.replaces(
+                POST, "/_security/user/{username}/_has_privileges",
+                POST, "/_xpack/security/user/{username}/_has_privileges"),
+            Route.replaces(
+                GET, "/_security/user/_has_privileges",
+                GET, "/_xpack/security/user/_has_privileges"),
+            Route.replaces(
+                POST, "/_security/user/_has_privileges",
+                POST, "/_xpack/security/user/_has_privileges")
         );
     }
 

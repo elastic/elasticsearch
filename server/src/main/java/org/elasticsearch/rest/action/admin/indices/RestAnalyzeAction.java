@@ -25,10 +25,11 @@ public class RestAnalyzeAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_analyze"),
-            new Route(POST, "/_analyze"),
-            new Route(GET, "/{index}/_analyze"),
-            new Route(POST, "/{index}/_analyze"));
+            Route.of(GET, "/_analyze"),
+            Route.of(POST, "/_analyze"),
+            Route.of(GET, "/{index}/_analyze"),
+            Route.of(POST, "/{index}/_analyze")
+        );
     }
 
     @Override

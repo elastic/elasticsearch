@@ -22,7 +22,7 @@ public class RestPutRollupJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/_rollup/job/{id}"));
+        return List.of(Route.of(PUT, "/_rollup/job/{id}"));
     }
 
     @Override

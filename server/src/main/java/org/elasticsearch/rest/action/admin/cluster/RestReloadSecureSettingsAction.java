@@ -50,8 +50,9 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler implem
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, "/_nodes/reload_secure_settings"),
-            new Route(POST, "/_nodes/{nodeId}/reload_secure_settings"));
+            Route.of(POST, "/_nodes/reload_secure_settings"),
+            Route.of(POST, "/_nodes/{nodeId}/reload_secure_settings")
+        );
     }
 
     @Override

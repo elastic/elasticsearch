@@ -71,10 +71,11 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_search"),
-            new Route(POST, "/_search"),
-            new Route(GET, "/{index}/_search"),
-            new Route(POST, "/{index}/_search"));
+            Route.of(GET, "/_search"),
+            Route.of(POST, "/_search"),
+            Route.of(GET, "/{index}/_search"),
+            Route.of(POST, "/{index}/_search")
+        );
     }
 
     @Override

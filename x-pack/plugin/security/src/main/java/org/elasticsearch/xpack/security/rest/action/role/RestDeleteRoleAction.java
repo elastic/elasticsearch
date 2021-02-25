@@ -37,7 +37,9 @@ public class RestDeleteRoleAction extends SecurityBaseRestHandler {
     public List<Route> routes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new Route(DELETE, "/_security/role/{name}").replaces(DELETE, "/_xpack/security/role/{name}")
+            Route.replaces(
+                DELETE, "/_security/role/{name}",
+                DELETE, "/_xpack/security/role/{name}")
         );
     }
 

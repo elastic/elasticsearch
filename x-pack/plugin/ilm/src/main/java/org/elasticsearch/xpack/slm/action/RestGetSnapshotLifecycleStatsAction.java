@@ -21,7 +21,7 @@ public class RestGetSnapshotLifecycleStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_slm/stats"));
+        return List.of(Route.of(GET, "/_slm/stats"));
     }
 
     @Override

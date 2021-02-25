@@ -38,7 +38,7 @@ public final class RestGetApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_security/api_key"));
+        return List.of(Route.of(GET, "/_security/api_key"));
     }
 
     @Override

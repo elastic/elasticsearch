@@ -21,7 +21,7 @@ public class RestStopSLMAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_slm/stop"));
+        return List.of(Route.of(POST, "/_slm/stop"));
     }
 
     @Override

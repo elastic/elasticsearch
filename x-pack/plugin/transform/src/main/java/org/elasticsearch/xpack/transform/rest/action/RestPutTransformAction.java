@@ -24,7 +24,7 @@ public class RestPutTransformAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID));
+        return List.of(Route.of(PUT, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID));
     }
 
     @Override

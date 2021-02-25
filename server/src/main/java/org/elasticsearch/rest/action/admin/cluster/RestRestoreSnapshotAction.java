@@ -27,7 +27,7 @@ public class RestRestoreSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_snapshot/{repository}/{snapshot}/_restore"));
+        return List.of(Route.of(POST, "/_snapshot/{repository}/{snapshot}/_restore"));
     }
 
     @Override

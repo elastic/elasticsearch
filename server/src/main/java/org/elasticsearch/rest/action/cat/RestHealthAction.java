@@ -25,7 +25,7 @@ public class RestHealthAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_cat/health"));
+        return List.of(Route.of(GET, "/_cat/health"));
     }
 
     @Override

@@ -26,7 +26,7 @@ public class RestGetFeatureUsageAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_license/feature_usage"));
+        return List.of(Route.of(GET, "/_license/feature_usage"));
     }
 
     @Override

@@ -24,7 +24,7 @@ public class RestPutFollowAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/{index}/_ccr/follow"));
+        return List.of(Route.of(PUT, "/{index}/_ccr/follow"));
     }
 
     @Override

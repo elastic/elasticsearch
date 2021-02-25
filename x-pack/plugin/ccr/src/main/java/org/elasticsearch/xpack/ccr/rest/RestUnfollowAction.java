@@ -22,7 +22,7 @@ public class RestUnfollowAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/{index}/_ccr/unfollow"));
+        return List.of(Route.of(POST, "/{index}/_ccr/unfollow"));
     }
 
     @Override

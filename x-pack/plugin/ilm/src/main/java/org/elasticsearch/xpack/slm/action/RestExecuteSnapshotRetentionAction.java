@@ -21,7 +21,7 @@ public class RestExecuteSnapshotRetentionAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_slm/_execute_retention"));
+        return List.of(Route.of(POST, "/_slm/_execute_retention"));
     }
 
     @Override

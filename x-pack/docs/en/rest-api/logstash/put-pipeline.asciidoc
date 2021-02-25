@@ -64,8 +64,7 @@ settings documentation].
 
 `username`::
 (Required, string)
-User who last updated the pipeline. This username is not generated or used by
-{es} or {ls}.
+User who last updated the pipeline.
 
 [[logstash-api-put-pipeline-example]]
 ==== {api-examples-title}

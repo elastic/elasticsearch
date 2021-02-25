@@ -11,12 +11,12 @@ They may evolve in future releases, but are otherwise fixed in a given {es} vers
 
 [[operator-only-apis]]
 ==== Operator-only APIs
-* <<voting-config-exclusions,Voting exclusions APIs>>
-* <<delete-license,Delete license API>>
-* <<update-license,Update license API>>
-* <<autoscaling-put-autoscaling-policy,Put autoscaling policy API>>
+* <<voting-config-exclusions>>
+* <<delete-license>>
+* <<update-license>>
+* <<autoscaling-put-autoscaling-policy>>
 * <<autoscaling-delete-autoscaling-policy>>
-* <<repo-analysis-api,Repository analysis API>>
+* <<repo-analysis-api>>
 
 [[operator-only-dynamic-cluster-settings]]
 ==== Operator-only dynamic cluster settings

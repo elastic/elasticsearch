@@ -7,7 +7,7 @@ allprojects {
   apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
 
   repositories {
-    jcenter()
+    mavenCentral()
   }
   dependencies {
     testImplementation "junit:junit:4.12"

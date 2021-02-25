@@ -18,7 +18,6 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -29,13 +28,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregator over a geo point field. It creates the vector tiles commands manually
+ * in order to keep object allocation to a minimum.
+ */
 public class VectorTileGeoPointAggregator extends AbstractVectorTileAggregator {
 
     private static int extent = 256;
     private final double height;
     private final double width;
-    private final double minX;
-    private final double minY;
+    private final Rectangle rectangle;
 
     public VectorTileGeoPointAggregator(
         String name,
@@ -48,11 +50,9 @@ public class VectorTileGeoPointAggregator extends AbstractVectorTileAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, valuesSourceConfig, z, x, y, extent, context, parent, metadata);
-        Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
-        this.minX = VectorTileUtils.lonToSphericalMercator(rectangle.getMinLon());
-        this.minY = VectorTileUtils.latToSphericalMercator(rectangle.getMinLat());
-        this.height = VectorTileUtils.latToSphericalMercator(rectangle.getMaxLat()) - minY;
-        this.width = VectorTileUtils.lonToSphericalMercator(rectangle.getMaxLon()) - minX;
+        this.rectangle = VectorTileUtils.getTileBounds(z, x, y);
+        this.height = rectangle.getMaxLat() - rectangle.getMinLat();
+        this.width = rectangle.getMaxLon() - rectangle.getMinLon();
     }
 
     @Override
@@ -70,8 +70,8 @@ public class VectorTileGeoPointAggregator extends AbstractVectorTileAggregator {
                     int numPoints = values.docValueCount();
                     if (numPoints == 1) {
                         GeoPoint point = values.nextValue();
-                        int x = (int) (xScale * (VectorTileUtils.lonToSphericalMercator(point.lon()) - minX));
-                        int y = (int) (yScale * (VectorTileUtils.latToSphericalMercator(point.lat()) - minY)) + extent;
+                        int x = (int) (xScale * (VectorTileUtils.lonToSphericalMercator(point.lon()) - rectangle.getMinX()));
+                        int y = (int) (yScale * (VectorTileUtils.latToSphericalMercator(point.lat()) - rectangle.getMinY())) + extent;
                         if (x >= 0 && x <= extent && y >= 0 && y <= extent) {
                             commands.add(GeomCmdHdr.cmdHdr(GeomCmd.MoveTo, 1));
                             commands.add(BitUtil.zigZagEncode(x));
@@ -83,8 +83,8 @@ public class VectorTileGeoPointAggregator extends AbstractVectorTileAggregator {
                         commands.add(GeomCmdHdr.cmdHdr(GeomCmd.MoveTo, numPoints));
                         for (int i = 0; i < numPoints; i++) {
                             GeoPoint point = values.nextValue();
-                            int x = (int) (xScale * (VectorTileUtils.lonToSphericalMercator(point.lon()) - minX));
-                            int y = (int) (yScale * (VectorTileUtils.latToSphericalMercator(point.lat()) - minY)) + extent;
+                            int x = (int) (xScale * (VectorTileUtils.lonToSphericalMercator(point.lon()) - rectangle.getMinX()));
+                            int y = (int) (yScale * (VectorTileUtils.latToSphericalMercator(point.lat()) - rectangle.getMinY())) + extent;
                             if (x >= 0 && x <= extent && y >= 0 && y <= extent) {
                                 commands.add(BitUtil.zigZagEncode(x - prevX));
                                 commands.add(BitUtil.zigZagEncode(y - prevY));

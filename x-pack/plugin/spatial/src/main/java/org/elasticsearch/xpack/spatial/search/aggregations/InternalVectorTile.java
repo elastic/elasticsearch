@@ -55,6 +55,8 @@ public class InternalVectorTile extends InternalAggregation {
         final VectorTile.Tile.Builder tileBuilder = VectorTile.Tile.newBuilder();
         for (InternalAggregation aggregation : aggregations) {
             try {
+                // TODO: This might not work as expected when merging two layers with the same name.
+                // In that case  we might need to do it manually
                 tileBuilder.mergeFrom(((InternalVectorTile) aggregation).getVectorTile());
             } catch (InvalidProtocolBufferException ex) {
                 throw new IllegalArgumentException("");

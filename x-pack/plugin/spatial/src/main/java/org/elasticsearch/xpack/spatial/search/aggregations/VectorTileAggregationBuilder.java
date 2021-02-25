@@ -29,9 +29,13 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregates geo data in a vector tile.It currently only supports to be o the top-level (e.g  cannot have a parent)
+ * but it can change.
+ */
 public class VectorTileAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, VectorTileAggregationBuilder> {
     public static final String NAME = "vector-tile";
-    public static final ParseField ZOOM_FIELD = new ParseField("zoom");
+    public static final ParseField ZOOM_FIELD = new ParseField("z");
     public static final ParseField X_FIELD = new ParseField("x");
     public static final ParseField Y_FIELD = new ParseField("y");
     public static final ValuesSourceRegistry.RegistryKey<VectorTileAggregatorSupplier> REGISTRY_KEY =
@@ -44,7 +48,7 @@ public class VectorTileAggregationBuilder extends ValuesSourceAggregationBuilder
 
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, false, false, false, false);
-        PARSER.declareInt(VectorTileAggregationBuilder::zoom, ZOOM_FIELD);
+        PARSER.declareInt(VectorTileAggregationBuilder::z, ZOOM_FIELD);
         PARSER.declareInt(VectorTileAggregationBuilder::x, X_FIELD);
         PARSER.declareInt(VectorTileAggregationBuilder::x, Y_FIELD);
     }
@@ -121,12 +125,10 @@ public class VectorTileAggregationBuilder extends ValuesSourceAggregationBuilder
             ValuesSourceConfig config,
             AggregatorFactory parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-//        if (field() == null && script() == null) {
-//            if (rateMode != null) {
-//                throw new IllegalArgumentException("The mode parameter is only supported with field or script");
-//            }
-//        }
-
+        if (parent != null) {
+            // we don't allow vector-tile aggregations to be the child of a bucketing aggregation
+            throw new IllegalArgumentException(NAME + " aggregation must be at the top level");
+        }
         VectorTileAggregatorSupplier aggregatorSupplier =
             context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         return new VectorTileAggregatorFactory(name, config, z, x, y, context, parent,
@@ -146,8 +148,8 @@ public class VectorTileAggregationBuilder extends ValuesSourceAggregationBuilder
         return NAME;
     }
 
-    public VectorTileAggregationBuilder zoom(int zoom) {
-        this.z = zoom;
+    public VectorTileAggregationBuilder z(int z) {
+        this.z = z;
         return this;
     }
 
@@ -163,7 +165,7 @@ public class VectorTileAggregationBuilder extends ValuesSourceAggregationBuilder
 
     @Override
     protected ValuesSourceConfig resolveConfig(AggregationContext context) {
-        // TODO: make sure this is right
+        // TODO: make this behavior right
         if (field() == null && script() == null) {
             return new ValuesSourceConfig(CoreValuesSourceType.GEOPOINT, null, true, null, null, 1.0, null, DocValueFormat.RAW, context);
         } else {

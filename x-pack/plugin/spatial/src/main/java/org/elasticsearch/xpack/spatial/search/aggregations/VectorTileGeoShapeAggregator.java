@@ -34,6 +34,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregator over a geo shape field. It skips shapes where bounding box is smaller
+ * than the distance between two pixels. It reads Geometry from source which can
+ * be really slow.
+ */
 public class VectorTileGeoShapeAggregator extends AbstractVectorTileAggregator {
 
     private static final int extent = 4096;

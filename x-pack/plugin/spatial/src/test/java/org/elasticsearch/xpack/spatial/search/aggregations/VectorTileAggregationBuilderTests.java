@@ -39,7 +39,7 @@ public class VectorTileAggregationBuilderTests extends AbstractSerializingTestCa
     @Override
     protected VectorTileAggregationBuilder createTestInstance() {
         VectorTileAggregationBuilder vectorTileAggregationBuilder = new VectorTileAggregationBuilder("_name");
-        vectorTileAggregationBuilder.zoom(0).x(0).y(0);
+        vectorTileAggregationBuilder.z(0).x(0).y(0);
         return vectorTileAggregationBuilder;
     }
 }

@@ -43,6 +43,7 @@ public abstract class AbstractVectorTileAggregator extends MetricsAggregator {
         this.x = x;
         this.y = y;
         layerBuilder.setVersion(2);
+        // TODO: maybe we should use a static name here
         layerBuilder.setName(name);
         layerBuilder.setExtent(extent);
     }
@@ -55,7 +56,7 @@ public abstract class AbstractVectorTileAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null) {
+        if (valuesSource == null || layerBuilder.getFeaturesCount() == 0) {
             return buildEmptyAggregation();
         }
         final VectorTile.Tile.Builder tileBuilder = VectorTile.Tile.newBuilder();

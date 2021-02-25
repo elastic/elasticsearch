@@ -19,16 +19,16 @@ public class VectorTileUtils {
     /**
      * Gets the JTS envelope for z/x/y/ tile in  spherical mercator projection.
      */
-    public static Envelope getJTSTileBounds(int x, int y, int zoom) {
-        return new Envelope(getLong(x, zoom), getLong(x + 1, zoom), getLat(y, zoom), getLat(y + 1, zoom));
+    public static Envelope getJTSTileBounds(int z, int x, int y) {
+        return new Envelope(getLong(x, z), getLong(x + 1, z), getLat(y, z), getLat(y + 1, z));
     }
 
     /**
      * Gets the {@link org.elasticsearch.geometry.Geometry} envelope for z/x/y/ tile
      * in spherical mercator projection.
      */
-    public static Rectangle getTileBounds(int x, int y, int zoom) {
-        return new Rectangle(getLong(x, zoom), getLong(x + 1, zoom), getLat(y + 1, zoom), getLat(y, zoom));
+    public static Rectangle getTileBounds(int z, int x, int y) {
+        return new Rectangle(getLong(x, z), getLong(x + 1, z), getLat(y, z), getLat(y + 1, z));
     }
 
     private static double getLong(int x, int zoom)

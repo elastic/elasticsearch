@@ -20,7 +20,7 @@ public interface VectorTileAggregatorSupplier {
     AbstractVectorTileAggregator build(
         String name,
         ValuesSourceConfig valuesSourceConfig,
-        int zoom,
+        int z,
         int x,
         int y,
         AggregationContext context,

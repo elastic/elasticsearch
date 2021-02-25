@@ -28,6 +28,8 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
@@ -44,6 +46,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+
+import static org.hamcrest.Matchers.equalTo;
 
 
 public class VectorTileAggregatorTests extends AggregatorTestCase {
@@ -146,7 +150,6 @@ public class VectorTileAggregatorTests extends AggregatorTestCase {
     }
 
     private void assertVectorTile(RandomIndexWriter w, VectorTile.Tile tile, MappedFieldType fieldType) throws IOException {
-
         MappedFieldType sourceFieldType = new SourceFieldMapper.Builder().build().fieldType();
         VectorTileAggregationBuilder aggBuilder = new VectorTileAggregationBuilder("my_agg")
             .field("field");
@@ -164,9 +167,26 @@ public class VectorTileAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testInvalidChildAggregation() throws Exception {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+             IndexReader reader = w.getReader()) {
+            VectorTileAggregationBuilder aggBuilder = new VectorTileAggregationBuilder("my_agg")
+                .field("field");
+            GeoGridAggregationBuilder parent = new GeoTileGridAggregationBuilder("my_parent")
+                .field("field").subAggregation(aggBuilder);
+            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field",
+                true, true, ShapeBuilder.Orientation.RIGHT, null, Collections.emptyMap());
+            IndexSearcher searcher = new IndexSearcher(reader);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, ()
+                ->  searchAndReduce(searcher, new MatchAllDocsQuery(), parent, fieldType));
+            assertThat(e.getMessage(), equalTo("vector-tile aggregation must be at the top level"));
+        }
+    }
+
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new VectorTileAggregationBuilder("foo").field(fieldName).y(0).x(0).zoom(0);
+        return new VectorTileAggregationBuilder("foo").field(fieldName).y(0).x(0).z(0);
     }
 
     @Override

@@ -46,7 +46,7 @@ public class FeatureFactory {
     private final Envelope tileEnvelope;
 
     public FeatureFactory(int z, int x, int y, int extent) {
-        this.tileEnvelope = VectorTileUtils.getJTSTileBounds(x, y, z);
+        this.tileEnvelope = VectorTileUtils.getJTSTileBounds(z, x, y);
         this.builder = new JTSGeometryBuilder(geomFactory);
         // TODO: Not sure what is the difference between extent and tile size?
         this.layerParams  = new MvtLayerParams(extent, extent);

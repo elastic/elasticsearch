@@ -16,7 +16,7 @@ import org.apache.lucene.store.ByteArrayDataInput;
  * The tree structure is navigated using a {@link Visitor}.
  *
  */
-public class TriangleTreeReader {
+class TriangleTreeReader {
 
     private TriangleTreeReader() {
     }
@@ -113,7 +113,7 @@ public class TriangleTreeReader {
     }
 
     /** Visitor for triangle interval tree */
-   public interface Visitor {
+   interface Visitor {
 
         /** visit a node point. */
         void visitPoint(int x, int y);

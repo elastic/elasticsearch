@@ -41,10 +41,11 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
-import org.elasticsearch.xpack.core.spatial.action.VectorTileAction;
 import org.elasticsearch.xpack.spatial.action.SpatialInfoTransportAction;
 import org.elasticsearch.xpack.spatial.action.SpatialStatsTransportAction;
 import org.elasticsearch.xpack.spatial.action.SpatialUsageTransportAction;
+import org.elasticsearch.xpack.spatial.search.aggregations.InternalVectorTile;
+import org.elasticsearch.xpack.spatial.search.aggregations.VectorTileAggregationBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
@@ -65,7 +66,6 @@ import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBound
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.vectortile.RestVectorTileAction;
-import org.elasticsearch.xpack.spatial.vectortile.TransportVectorTileAction;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -90,8 +90,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
         return Arrays.asList(
             new ActionHandler<>(XPackUsageFeatureAction.SPATIAL, SpatialUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.SPATIAL, SpatialInfoTransportAction.class),
-            new ActionHandler<>(SpatialStatsAction.INSTANCE, SpatialStatsTransportAction.class),
-            new ActionHandler<>(VectorTileAction.INSTANCE, TransportVectorTileAction.class));
+            new ActionHandler<>(SpatialStatsAction.INSTANCE, SpatialStatsTransportAction.class));
     }
 
     @Override
@@ -144,7 +143,15 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                     usage.track(SpatialStatsAction.Item.GEOLINE,
                         checkLicense(GeoLineAggregationBuilder.PARSER, XPackLicenseState.Feature.SPATIAL_GEO_LINE)))
                 .addResultReader(InternalGeoLine::new)
-                .setAggregatorRegistrar(GeoLineAggregationBuilder::registerUsage));
+                .setAggregatorRegistrar(GeoLineAggregationBuilder::registerUsage),
+            new AggregationSpec(
+                VectorTileAggregationBuilder.NAME,
+                VectorTileAggregationBuilder::new,
+                VectorTileAggregationBuilder.PARSER)
+              //  usage.track(SpatialStatsAction.Item.GEOLINE,
+              //      checkLicense(VectorTileAggregationBuilder.PARSER, XPackLicenseState.Feature.SPATIAL_GEO_LINE)))
+                .addResultReader(InternalVectorTile::new)
+                .setAggregatorRegistrar(VectorTileAggregationBuilder::registerAggregators));
     }
 
     @Override

@@ -11,6 +11,7 @@ package org.elasticsearch.plugin.repository.url;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.http.ssl.SSLContexts;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -33,6 +34,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -79,6 +81,7 @@ public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
         PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager();
         final CloseableHttpClient apacheHttpClient = HttpClients.custom()
             .disableAutomaticRetries()
+            .setSSLContext(SSLContexts.createSystemDefault())
             .setConnectionManager(connManager)
             .build();
         final URLHttpClient apacheURLHttpClient = new URLHttpClient(apacheHttpClient, connManager);

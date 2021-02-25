@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -85,35 +86,38 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected ShardStats shardOperation(IndicesStatsRequest request, ShardRouting shardRouting, Task task) {
-        assert task instanceof CancellableTask;
-        IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
-        IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-        // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
-        if (indexShard.routingEntry() == null) {
-            throw new ShardNotFoundException(indexShard.shardId());
-        }
+    protected void shardOperation(IndicesStatsRequest request, ShardRouting shardRouting, Task task,
+                                  ActionListener<ShardStats> listener) {
+        ActionListener.completeWith(listener, () -> {
+            assert task instanceof CancellableTask;
+            IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
+            IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
+            // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
+            if (indexShard.routingEntry() == null) {
+                throw new ShardNotFoundException(indexShard.shardId());
+            }
 
-        CommonStats commonStats = new CommonStats(indicesService.getIndicesQueryCache(), indexShard, request.flags());
-        CommitStats commitStats;
-        SeqNoStats seqNoStats;
-        RetentionLeaseStats retentionLeaseStats;
-        try {
-            commitStats = indexShard.commitStats();
-            seqNoStats = indexShard.seqNoStats();
-            retentionLeaseStats = indexShard.getRetentionLeaseStats();
-        } catch (final AlreadyClosedException e) {
-            // shard is closed - no stats is fine
-            commitStats = null;
-            seqNoStats = null;
-            retentionLeaseStats = null;
-        }
-        return new ShardStats(
+            CommonStats commonStats = new CommonStats(indicesService.getIndicesQueryCache(), indexShard, request.flags());
+            CommitStats commitStats;
+            SeqNoStats seqNoStats;
+            RetentionLeaseStats retentionLeaseStats;
+            try {
+                commitStats = indexShard.commitStats();
+                seqNoStats = indexShard.seqNoStats();
+                retentionLeaseStats = indexShard.getRetentionLeaseStats();
+            } catch (final AlreadyClosedException e) {
+                // shard is closed - no stats is fine
+                commitStats = null;
+                seqNoStats = null;
+                retentionLeaseStats = null;
+            }
+            return new ShardStats(
                 indexShard.routingEntry(),
                 indexShard.shardPath(),
                 commonStats,
                 commitStats,
                 seqNoStats,
                 retentionLeaseStats);
+        });
     }
 }

@@ -1070,8 +1070,7 @@ public class ObjectParserTests extends ESTestCase {
             StructWithCompatibleFields o = StructWithCompatibleFields.PARSER.parse(parser, null);
             assertEquals(1, o.intField);
             assertWarnings(false, "[struct_with_compatible_fields][1:14] " +
-                "Deprecated field [old_name] used, expected [new_name] instead",
-                "[Compatible REST Api] [struct_with_compatible_fields][1:14] A field [old_name] was removed. Check deprecation warnings");
+                "Deprecated field [old_name] used, expected [new_name] instead");
 
         }
     }

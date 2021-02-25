@@ -623,7 +623,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 RestApiCompatibleVersion.minimumSupported());
             StructWithCompatibleFields o = StructWithCompatibleFields.PARSER.parse(parser, null);
             assertEquals(1, o.intField);
-            assertWarnings(false, "[Compatible REST Api] [struct_with_compatible_fields][1:14] " +
+            assertWarnings(false, "[struct_with_compatible_fields][1:14] " +
                 "Deprecated field [old_name] used, expected [new_name] instead");
         }
     }

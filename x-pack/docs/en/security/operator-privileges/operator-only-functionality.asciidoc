@@ -15,7 +15,7 @@ They may evolve in future releases, but are otherwise fixed in a given {es} vers
 * <<delete-license,Delete license API>>
 * <<update-license,Update license API>>
 * <<autoscaling-put-autoscaling-policy,Put autoscaling policy API>>
-* <<autoscaling-delete-autoscaling-policy,Delete autoscaling policy>>
+* <<autoscaling-delete-autoscaling-policy>>
 * <<repo-analysis-api,Repository analysis API>>
 
 [[operator-only-dynamic-cluster-settings]]

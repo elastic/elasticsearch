@@ -162,18 +162,6 @@ tasks.named("yamlRestCompatTest").configure {
     'get_source/81_missing_with_types/Missing document with ignore',
     'get_source/86_source_missing_with_types/Missing document source with catch',
     'get_source/86_source_missing_with_types/Missing document source with ignore',
-//    'index/10_with_id/Index with ID',
-//    'index/11_with_id_with_types/Index with ID',
-//    'index/13_result_with_types/Index result field',
-//    'index/15_without_id/Index without ID',
-//    'index/16_without_id_with_types/Index without ID',
-//    'index/21_optype_with_types/Optype',
-//    'index/37_external_version_with_types/External version',
-//    'index/38_external_gte_version_with_types/External GTE version',
-//    'index/41_routing_with_types/Routing',
-//    'index/61_refresh_with_types/Refresh',
-//    'index/61_refresh_with_types/When refresh url parameter is an empty string that means "refresh immediately"',
-//    'index/61_refresh_with_types/refresh=wait_for waits until changes are visible in search',
     'index/70_mix_typeless_typeful/Index call that introduces new field mappings',
     'index/70_mix_typeless_typeful/Index with typeless API on an index that has types',
     'indices.clone/10_basic/Clone index via API',
@@ -371,11 +359,4 @@ tasks.named("yamlRestCompatTest").configure {
 
 tasks.named("transformV7RestTests").configure({ task ->
   task.replaceMatch("_type", "_doc")
-//  task.replaceMatch("_source.values", ["z", "x", "y"], "one")
-//  task.removeMatch("_source.blah")
-//  task.removeMatch("_source.junk", "two")
-//  task.addMatch("_source.added", [name: 'jake', likes: 'cheese'], "one")
-//  task.addWarning("one", "warning1", "warning2")
-//  task.addAllowedWarning("added allowed warning")
-//  task.removeWarning("one", "warning to remove")
 })

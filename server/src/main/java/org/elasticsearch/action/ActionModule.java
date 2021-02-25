@@ -779,7 +779,8 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
-//
+
+        // Rest Compatible API
         if(RestApiCompatibleVersion.minimumSupported() == RestApiCompatibleVersion.V_7){
             registerHandler.accept(new RestIndexActionV7.CompatibleRestIndexAction());
             registerHandler.accept(new RestIndexActionV7.CompatibleCreateHandler());

@@ -8,9 +8,6 @@
 
 package org.elasticsearch.common.blobstore.url;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -29,21 +26,16 @@ import java.net.URL;
 
 @SuppressForbidden(reason = "use a http server")
 public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase {
-    private static URLHttpClient httpClient;
+    private static URLHttpClient.Factory factory;
 
     @BeforeClass
     public static void setUpHttpClient() {
-        final PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager();
-        final CloseableHttpClient apacheHttpClient = HttpClients.custom()
-            .setConnectionManager(connManager)
-            .disableAutomaticRetries()
-            .build();
-        httpClient = new URLHttpClient(apacheHttpClient, connManager);
+        factory = new URLHttpClient.Factory();
     }
 
     @AfterClass
     public static void tearDownHttpClient() throws IOException {
-        httpClient.close();
+        factory.close();
     }
 
     @Override
@@ -58,7 +50,7 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
 
     @Override
     protected Class<? extends Exception> unresponsiveExceptionType() {
-        return IOException.class;
+        return URLHttpClientException.class;
     }
 
     @Override
@@ -66,21 +58,24 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
                                                 TimeValue readTimeout,
                                                 Boolean disableChunkedEncoding,
                                                 ByteSizeValue bufferSize) {
-        Settings.Builder settings = Settings.builder();
+        Settings.Builder settingsBuilder = Settings.builder();
 
         if (maxRetries != null) {
-            settings.put("repositories.uri.http.max_retries", maxRetries);
+            settingsBuilder.put("http_max_retries", maxRetries);
         }
 
         if (readTimeout != null) {
-            settings.put("repositories.uri.http.socket_timeout", readTimeout);
+            settingsBuilder.put("http_socket_timeout", readTimeout);
         }
 
         try {
-            URLBlobStore urlBlobStore = new URLBlobStore(settings.build(), new URL(getEndpointForServer()), httpClient);
+            final Settings settings = settingsBuilder.build();
+            final URLHttpClientSettings httpClientSettings = URLHttpClientSettings.fromSettings(settings);
+            URLBlobStore urlBlobStore =
+                new URLBlobStore(settings, new URL(getEndpointForServer()), factory.create(httpClientSettings), httpClientSettings);
             return urlBlobStore.blobContainer(new BlobPath());
         } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Unable to create URLBlobStore", e);
         }
     }
 

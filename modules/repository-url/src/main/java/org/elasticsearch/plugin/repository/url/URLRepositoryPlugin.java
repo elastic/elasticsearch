@@ -8,10 +8,6 @@
 
 package org.elasticsearch.plugin.repository.url;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
-import org.apache.http.ssl.SSLContexts;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -43,7 +39,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
-    private final SetOnce<URLHttpClient> httpClient = new SetOnce<>();
+    private final SetOnce<URLHttpClient.Factory> httpClientFactory = new SetOnce<>();
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -60,8 +56,14 @@ public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
                                                            RecoverySettings recoverySettings) {
         return Collections.singletonMap(URLRepository.TYPE,
             metadata ->  {
-            assert httpClient.get() != null : "Expected to get a configured http client";
-            return new URLRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, httpClient.get());
+            assert httpClientFactory.get() != null : "Expected to get a configured http client factory";
+            return new URLRepository(metadata,
+                env,
+                namedXContentRegistry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                httpClientFactory.get());
         });
     }
 
@@ -77,20 +79,16 @@ public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
                                                NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver indexNameExpressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
-        PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager();
-        final CloseableHttpClient apacheHttpClient = HttpClients.custom()
-            .disableAutomaticRetries()
-            .setSSLContext(SSLContexts.createSystemDefault())
-            .setConnectionManager(connManager)
-            .build();
-        final URLHttpClient apacheURLHttpClient = new URLHttpClient(apacheHttpClient, connManager);
-        httpClient.set(apacheURLHttpClient);
-        return List.of(apacheURLHttpClient);
+
+        final URLHttpClient.Factory apacheURLHttpClientFactory = new URLHttpClient.Factory();
+
+        httpClientFactory.set(apacheURLHttpClientFactory);
+        return List.of(apacheURLHttpClientFactory);
     }
 
     @Override
     public void close() throws IOException {
         super.close();
-        IOUtils.closeWhileHandlingException(httpClient.get());
+        IOUtils.closeWhileHandlingException(httpClientFactory.get());
     }
 }

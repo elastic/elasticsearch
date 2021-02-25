@@ -10,16 +10,12 @@ package org.elasticsearch.common.blobstore.url;
 
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpServer;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.rest.RestStatus;
 import org.junit.AfterClass;
@@ -42,6 +38,7 @@ public class HttpURLBlobStoreTests extends AbstractURLBlobStoreTests {
     private static String blobName;
     private static byte[] content;
     private static URLHttpClient httpClient;
+    private static URLHttpClient.Factory httpClientFactory;
 
     private URLBlobStore urlBlobStore;
 
@@ -88,24 +85,22 @@ public class HttpURLBlobStoreTests extends AbstractURLBlobStoreTests {
 
         httpServer.start();
 
-        final PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager();
-        final CloseableHttpClient apacheHttpClient = HttpClients.custom()
-            .setConnectionManager(connManager)
-            .disableAutomaticRetries()
-            .build();
-        httpClient = new URLHttpClient(apacheHttpClient, connManager);
+        httpClientFactory = new URLHttpClient.Factory();
+        httpClient = httpClientFactory.create(URLHttpClientSettings.fromSettings(Settings.EMPTY));
     }
 
     @AfterClass
     public static void stopHttp() throws IOException {
         httpServer.stop(0);
         httpServer = null;
-        IOUtils.closeWhileHandlingException(httpClient);
+        httpClient.close();
+        httpClientFactory.close();
     }
 
     @Before
     public void storeSetup() throws MalformedURLException {
-        urlBlobStore = new URLBlobStore(Settings.EMPTY, new URL(getEndpointForServer()), httpClient);
+        final URLHttpClientSettings httpClientSettings = URLHttpClientSettings.fromSettings(Settings.EMPTY);
+        urlBlobStore = new URLBlobStore(Settings.EMPTY, new URL(getEndpointForServer()), httpClient, httpClientSettings);
     }
 
     @Override

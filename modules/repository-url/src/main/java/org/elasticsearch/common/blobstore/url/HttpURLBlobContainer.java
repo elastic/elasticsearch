@@ -17,13 +17,13 @@ import java.net.URL;
 
 public class HttpURLBlobContainer extends URLBlobContainer {
     private final URLHttpClient httpClient;
-    private final HttpClientSettings httpClientSettings;
+    private final URLHttpClientSettings httpClientSettings;
 
     public HttpURLBlobContainer(URLBlobStore blobStore,
                                 BlobPath blobPath,
                                 URL path,
                                 URLHttpClient httpClient,
-                                HttpClientSettings httpClientSettings) {
+                                URLHttpClientSettings httpClientSettings) {
         super(blobStore, blobPath, path);
         this.httpClient = httpClient;
         this.httpClientSettings = httpClientSettings;
@@ -36,17 +36,12 @@ public class HttpURLBlobContainer extends URLBlobContainer {
             position,
             Math.addExact(position, length) - 1,
             httpClient,
-            httpClientSettings);
+            httpClientSettings.getMaxRetries());
     }
 
     @Override
     public InputStream readBlob(String name) throws IOException {
-        return new RetryingHttpInputStream(name,
-            getURIForBlob(name),
-            0,
-            RetryingHttpInputStream.MAX_RANGE_VAL,
-            httpClient,
-            httpClientSettings);
+        return new RetryingHttpInputStream(name, getURIForBlob(name), httpClient, httpClientSettings.getMaxRetries());
     }
 
     private URI getURIForBlob(String name) throws IOException {

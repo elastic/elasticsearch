@@ -12,26 +12,46 @@ import org.apache.http.Header;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.conn.HttpClientConnectionManager;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.http.ssl.SSLContexts;
 import org.elasticsearch.common.Nullable;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 public class URLHttpClient implements Closeable {
     private final CloseableHttpClient client;
-    private final HttpClientConnectionManager connectionManager;
+    private final URLHttpClientSettings httpClientSettings;
 
-    public URLHttpClient(CloseableHttpClient client, HttpClientConnectionManager connectionManager) {
-        this.client = client;
-        this.connectionManager = connectionManager;
+    public static class Factory implements Closeable {
+        private final PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager();
+
+        public URLHttpClient create(URLHttpClientSettings settings) {
+            final CloseableHttpClient apacheHttpClient = HttpClients.custom()
+                .setSSLContext(SSLContexts.createSystemDefault())
+                .setConnectionManager(connManager)
+                .disableAutomaticRetries()
+                .build();
+
+            return new URLHttpClient(apacheHttpClient, settings);
+        }
+
+        @Override
+        public void close() {
+            connManager.close();
+        }
     }
 
-    public HttpResponse get(URI uri, Map<String, String> headers, HttpClientSettings httpClientSettings) throws IOException {
+    public URLHttpClient(CloseableHttpClient client, URLHttpClientSettings httpClientSettings) {
+        this.client = client;
+        this.httpClientSettings = httpClientSettings;
+    }
+
+    public HttpResponse get(URI uri, Map<String, String> headers) throws IOException {
         final HttpGet request = new HttpGet(uri);
         for (Map.Entry<String, String> headerEntry : headers.entrySet()) {
             request.setHeader(headerEntry.getKey(), headerEntry.getValue());
@@ -44,11 +64,19 @@ public class URLHttpClient implements Closeable {
             .build();
         request.setConfig(requestConfig);
 
+        try {
+            return executeRequest(request);
+        } catch (IOException e) {
+            throw new URLHttpClientException("Unable to execute HTTP request: " + e.getMessage(), e);
+        }
+    }
+
+    private HttpResponse executeRequest(HttpGet request) throws IOException {
         final CloseableHttpResponse response = client.execute(request);
 
         return new HttpResponse() {
             @Override
-            public HttpResponseInputStream getInputStream() throws IOException{
+            public HttpResponseInputStream getInputStream() throws IOException {
                 return new HttpResponseInputStream(request, response);
             }
 
@@ -73,8 +101,6 @@ public class URLHttpClient implements Closeable {
     @Override
     public void close() throws IOException {
         client.close();
-        connectionManager.closeExpiredConnections();
-        connectionManager.closeIdleConnections(1, TimeUnit.SECONDS);
     }
 
     interface HttpResponse extends Closeable {

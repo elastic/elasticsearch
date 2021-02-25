@@ -9,10 +9,7 @@
 package org.elasticsearch.common.blobstore.url;
 
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.io.Streams;
 
-import java.io.BufferedInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 
@@ -22,12 +19,7 @@ public class FileURLBlobContainer extends URLBlobContainer {
     }
 
     @Override
-    public InputStream readBlob(String blobName, long position, long length) throws IOException {
-        final InputStream inputStream = getInputStream(new URL(path, blobName));
-        // This can be extremely inefficient for jar and ftp URLs
-        if (position > 0) {
-            inputStream.skip(position);
-        }
-        return Streams.limitStream(new BufferedInputStream(inputStream, blobStore.bufferSizeInBytes()), length);
+    public InputStream readBlob(String blobName, long position, long length) {
+        throw new UnsupportedOperationException("URL repository doesn't support this operation. Please use a 'fs' repository instead");
     }
 }

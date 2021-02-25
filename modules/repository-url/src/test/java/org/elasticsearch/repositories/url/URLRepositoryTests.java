@@ -37,7 +37,7 @@ public class URLRepositoryTests extends ESTestCase {
             new NamedXContentRegistry(Collections.emptyList()), BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(baseSettings, new ClusterSettings(baseSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            mock(URLHttpClient.class)) {
+            mock(URLHttpClient.Factory.class)) {
             @Override
             protected void assertSnapshotOrGenericThread() {
                 // eliminate thread name check as we create repo manually on test/main threads

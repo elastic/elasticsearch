@@ -8,48 +8,71 @@
 
 package org.elasticsearch.common.blobstore.url;
 
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+
 import java.util.concurrent.TimeUnit;
 
-class HttpClientSettings {
+public class URLHttpClientSettings {
     public static final int DEFAULT_MAX_RETRIES = 5;
     public static final int DEFAULT_CONNECTION_POOL_TIMEOUT_MILLIS = (int) TimeUnit.SECONDS.toMillis(10);
     public static final int DEFAULT_CONNECTION_TIMEOUT_MILLIS = (int) TimeUnit.SECONDS.toMillis(10);
     public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = (int) TimeUnit.SECONDS.toMillis(50);
+
+    static final Setting<TimeValue> SOCKET_TIMEOUT_SETTING = Setting.timeSetting(
+        "http_socket_timeout",
+        TimeValue.timeValueMillis(URLHttpClientSettings.DEFAULT_SOCKET_TIMEOUT_MILLIS),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueMinutes(60));
+
+    static final Setting<Integer> HTTP_MAX_RETRIES_SETTING = Setting.intSetting(
+        "http_max_retries",
+        URLHttpClientSettings.DEFAULT_MAX_RETRIES,
+        0,
+        Integer.MAX_VALUE);
 
     private int maxRetries = DEFAULT_MAX_RETRIES;
     private int connectionPoolTimeoutMs = DEFAULT_CONNECTION_POOL_TIMEOUT_MILLIS;
     private int connectionTimeoutMs = DEFAULT_CONNECTION_TIMEOUT_MILLIS;
     private int socketTimeoutMs = DEFAULT_SOCKET_TIMEOUT_MILLIS;
 
-    void setMaxRetries(int maxRetries) {
+    public static URLHttpClientSettings fromSettings(Settings settings) {
+        final URLHttpClientSettings httpClientSettings = new URLHttpClientSettings();
+        httpClientSettings.setSocketTimeoutMs((int) SOCKET_TIMEOUT_SETTING.get(settings).millis());
+        httpClientSettings.setMaxRetries(HTTP_MAX_RETRIES_SETTING.get(settings));
+        return httpClientSettings;
+    }
+
+    public void setMaxRetries(int maxRetries) {
         this.maxRetries = maxRetries;
     }
 
-    void setConnectionPoolTimeoutMs(int connectionPoolTimeoutMs) {
+    public void setConnectionPoolTimeoutMs(int connectionPoolTimeoutMs) {
         this.connectionPoolTimeoutMs = connectionPoolTimeoutMs;
     }
 
-    void setConnectionTimeoutMs(int connectionTimeoutMs) {
+    public void setConnectionTimeoutMs(int connectionTimeoutMs) {
         this.connectionTimeoutMs = connectionTimeoutMs;
     }
 
-    void setSocketTimeoutMs(int socketTimeoutMs) {
+    public void setSocketTimeoutMs(int socketTimeoutMs) {
         this.socketTimeoutMs = socketTimeoutMs;
     }
 
-    int getMaxRetries() {
+    public int getMaxRetries() {
         return maxRetries;
     }
 
-    int getConnectionPoolTimeoutMs() {
+    public int getConnectionPoolTimeoutMs() {
         return connectionPoolTimeoutMs;
     }
 
-    int getConnectionTimeoutMs() {
+    public int getConnectionTimeoutMs() {
         return connectionTimeoutMs;
     }
 
-    int getSocketTimeoutMs() {
+    public int getSocketTimeoutMs() {
         return socketTimeoutMs;
     }
 }

@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -26,20 +25,6 @@ import java.net.URL;
  * Read-only URL-based blob store
  */
 public class URLBlobStore implements BlobStore {
-
-    static final Setting<Integer> HTTP_MAX_RETRIES_SETTING = Setting.intSetting(
-        "repositories.uri.http.max_retries",
-        HttpClientSettings.DEFAULT_MAX_RETRIES,
-        0,
-        Integer.MAX_VALUE,
-        Setting.Property.NodeScope);
-
-    static final Setting<TimeValue> SOCKET_TIMEOUT_SETTING = Setting.timeSetting(
-        "repositories.uri.http.socket_timeout",
-        TimeValue.timeValueMillis(HttpClientSettings.DEFAULT_SOCKET_TIMEOUT_MILLIS),
-        TimeValue.timeValueMillis(1),
-        TimeValue.timeValueMinutes(60),
-        Setting.Property.NodeScope);
 
     static final Setting<ByteSizeValue> BUFFER_SIZE_SETTING = Setting.byteSizeSetting(
         "repositories.uri.buffer_size",
@@ -65,12 +50,9 @@ public class URLBlobStore implements BlobStore {
      * @param settings settings
      * @param path     base URL
      */
-    public URLBlobStore(Settings settings, URL path, URLHttpClient httpClient) {
+    public URLBlobStore(Settings settings, URL path, URLHttpClient httpClient, URLHttpClientSettings httpClientSettings) {
         this.path = path;
         this.bufferSizeInBytes = (int) BUFFER_SIZE_SETTING.get(settings).getBytes();
-        final HttpClientSettings httpClientSettings = new HttpClientSettings();
-        httpClientSettings.setMaxRetries(HTTP_MAX_RETRIES_SETTING.get(settings));
-        httpClientSettings.setSocketTimeoutMs((int) SOCKET_TIMEOUT_SETTING.get(settings).millis());
 
         final String protocol = this.path.getProtocol();
         if (protocol.equals("http") || protocol.equals("https")) {

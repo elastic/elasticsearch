@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -31,7 +32,8 @@ public class FileURLBlobStoreTests extends AbstractURLBlobStoreTests {
         file = createTempFile();
         blobName = file.getFileName().toString();
         Files.write(file, data);
-        blobStore = new URLBlobStore(Settings.EMPTY, file.getParent().toUri().toURL(), mock(URLHttpClient.class));
+        blobStore = new URLBlobStore(Settings.EMPTY, file.getParent().toUri().toURL(), mock(URLHttpClient.class),
+            mock(URLHttpClientSettings.class));
     }
 
     @Override
@@ -47,5 +49,10 @@ public class FileURLBlobStoreTests extends AbstractURLBlobStoreTests {
     @Override
     String getBlobName() {
         return blobName;
+    }
+
+    @Override
+    public void testURLBlobStoreCanReadBlobRange() throws IOException {
+        expectThrows(UnsupportedOperationException.class, () -> getBlobContainer().readBlob("test", 0, 12));
     }
 }

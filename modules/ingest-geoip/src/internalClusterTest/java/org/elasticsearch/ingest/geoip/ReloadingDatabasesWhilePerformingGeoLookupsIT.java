@@ -20,6 +20,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -103,15 +104,16 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                 for (int i = 0; i < numberOfDatabaseUpdates; i++) {
                     try {
                         DatabaseReaderLazyLoader previous1 = localDatabases.configDatabases.get("GeoLite2-City.mmdb");
-                        if (Files.exists(geoIpConfigDir.resolve("GeoLite2-City.mmdb")) && randomBoolean()) {
+                        if (Files.exists(geoIpConfigDir.resolve("GeoLite2-City.mmdb"))) {
                             Files.delete(geoIpConfigDir.resolve("GeoLite2-City.mmdb"));
                         } else {
                             Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
                                 geoIpConfigDir.resolve("GeoLite2-City.mmdb"), StandardCopyOption.REPLACE_EXISTING);
                         }
                         DatabaseReaderLazyLoader previous2 = localDatabases.configDatabases.get("GeoLite2-City-Test.mmdb");
-                        Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
-                            geoIpConfigDir.resolve("GeoLite2-City-Test.mmdb"), StandardCopyOption.REPLACE_EXISTING);
+                        InputStream source = LocalDatabases.class.getResourceAsStream(i % 2 == 0 ? "/GeoIP2-City-Test.mmdb" :
+                            "/GeoLite2-City-Test.mmdb");
+                        Files.copy(source, geoIpConfigDir.resolve("GeoLite2-City-Test.mmdb"), StandardCopyOption.REPLACE_EXISTING);
                         assertBusy(() -> {
                             DatabaseReaderLazyLoader current1 = localDatabases.configDatabases.get("GeoLite2-City.mmdb");
                             DatabaseReaderLazyLoader current2 = localDatabases.configDatabases.get("GeoLite2-City-Test.mmdb");

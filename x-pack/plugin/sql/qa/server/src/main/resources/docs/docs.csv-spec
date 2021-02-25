@@ -2849,7 +2849,7 @@ SELECT DATE_DIFF('minutes', '2019-09-04'::date, '2015-08-17T22:33:11.567Z'::date
 
 dateTimeFormatDate
 // tag::dateTimeFormatDate
-SELECT DATETIME_FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/YYYY') AS "date";
+SELECT DATETIME_FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/yyyy') AS "date";
 
       date
 ------------------
@@ -2859,7 +2859,7 @@ SELECT DATETIME_FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/YYYY') AS "date";
 
 dateTimeFormatDateTime
 // tag::dateTimeFormatDateTime
-SELECT DATETIME_FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'dd/MM/YYYY HH:mm:ss.SS') AS "datetime";
+SELECT DATETIME_FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'dd/MM/yyyy HH:mm:ss.SS') AS "datetime";
 
       datetime
 ------------------
@@ -2911,7 +2911,7 @@ SELECT TO_CHAR(CAST('23:22:33.987' AS TIME), 'HH12 MI SS.FF1') AS "time";
 dateTimeParse1-Ignore
 schema::datetime:ts
 // tag::dateTimeParse1
-SELECT DATETIME_PARSE('07/04/2020 10:20:30.123', 'dd/MM/uuuu HH:mm:ss.SSS') AS "datetime";
+SELECT DATETIME_PARSE('07/04/2020 10:20:30.123', 'dd/MM/yyyy HH:mm:ss.SSS') AS "datetime";
 
       datetime
 ------------------------
@@ -2922,7 +2922,7 @@ SELECT DATETIME_PARSE('07/04/2020 10:20:30.123', 'dd/MM/uuuu HH:mm:ss.SSS') AS "
 dateTimeParse2
 schema::datetime:ts
 // tag::dateTimeParse2
-SELECT DATETIME_PARSE('10:20:30 07/04/2020 Europe/Berlin', 'HH:mm:ss dd/MM/uuuu VV') AS "datetime";
+SELECT DATETIME_PARSE('10:20:30 07/04/2020 Europe/Berlin', 'HH:mm:ss dd/MM/yyyy VV') AS "datetime";
 
       datetime
 ------------------------
@@ -2934,7 +2934,7 @@ dateTimeParse3-Ignore
 schema::datetime:ts
 // tag::dateTimeParse3
 {
-    "query" : "SELECT DATETIME_PARSE('10:20:30 07/04/2020', 'HH:mm:ss dd/MM/uuuu') AS \"datetime\"",
+    "query" : "SELECT DATETIME_PARSE('10:20:30 07/04/2020', 'HH:mm:ss dd/MM/yyyy') AS \"datetime\"",
     "time_zone" : "Europe/Athens"
 }
 
@@ -2983,7 +2983,7 @@ schema::time:time
 dateParse1
 schema::date:date
 // tag::dateParse1
-SELECT DATE_PARSE('07/04/2020', 'dd/MM/uuuu') AS "date";
+SELECT DATE_PARSE('07/04/2020', 'dd/MM/yyyy') AS "date";
 
    date
 -----------
@@ -2995,7 +2995,7 @@ dateParse2-Ignore
 schema::date:date
 // tag::dateParse2
 {
-    "query" : "SELECT DATE_PARSE('07/04/2020', 'dd/MM/uuuu') AS \"date\"",
+    "query" : "SELECT DATE_PARSE('07/04/2020', 'dd/MM/yyyy') AS \"date\"",
     "time_zone" : "Europe/Athens"
 }
 

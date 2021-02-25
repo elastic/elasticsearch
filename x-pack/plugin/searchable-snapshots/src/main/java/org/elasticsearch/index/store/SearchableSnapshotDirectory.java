@@ -453,10 +453,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return stage == RecoveryState.Stage.DONE || stage == RecoveryState.Stage.FINALIZE;
     }
 
-    public ByteSizeValue getBlobStoreCacheMaxLength() {
-        return blobStoreCacheMaxLength;
-    }
-
     @Override
     public String toString() {
         return this.getClass().getSimpleName() + "(snapshotId=" + snapshotId + ", indexId=" + indexId + " shardId=" + shardId + ')';
@@ -681,16 +677,17 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return null;
     }
 
+    public ByteRange getBlobCacheByteRange(String fileName, long fileLength) {
+        return blobStoreCacheService.computeBlobCacheByteRange(fileName, fileLength, blobStoreCacheMaxLength);
+    }
+
     public CachedBlob getCachedBlob(String name, ByteRange range) {
         final CachedBlob cachedBlob = blobStoreCacheService.get(repository, name, blobStoreCachePath, range.start());
         if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
             return cachedBlob;
-        }
-        assert cachedBlob.from() <= range.start() : cachedBlob.from() + " vs " + range.start();
-        assert range.end() <= cachedBlob.to() : range.end() + " vs " + cachedBlob.to();
-        if (cachedBlob.from() != range.start() || cachedBlob.to() != range.end()) {
+        } else if (cachedBlob.from() != range.start() || cachedBlob.to() != range.end()) {
             // expected range in cache might differ with the returned cached blob; this can happen if the range to put in cache is changed
-            // between versions or through the index setting. In this case we assume it is a cache miss to force the blob to be cache again
+            // between versions or through the index setting. In this case we assume it is a cache miss to force the blob to be cached again
             return CachedBlob.CACHE_MISS;
         }
         return cachedBlob;

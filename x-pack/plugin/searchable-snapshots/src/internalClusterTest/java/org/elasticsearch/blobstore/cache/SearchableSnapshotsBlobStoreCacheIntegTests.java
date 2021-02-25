@@ -65,7 +65,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.blobstore.cache.BlobStoreCacheService.computeBlobCacheByteRange;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX_SHARD_SNAPSHOT_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -396,6 +395,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
     private void assertCachedBlobsInSystemIndex(final String repositoryName, final Map<String, BlobStoreIndexShardSnapshot> blobsInSnapshot)
         throws Exception {
+        final BlobStoreCacheService blobCacheService = internalCluster().getDataNodeInstance(BlobStoreCacheService.class);
         assertBusy(() -> {
             refreshSystemIndex();
 
@@ -407,7 +407,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
                     }
 
                     final String fileName = fileInfo.physicalName();
-                    final ByteRange expectedByteRange = computeBlobCacheByteRange(fileName, fileInfo.length(), blobCacheMaxLength);
+                    final long length = fileInfo.length();
+                    final ByteRange expectedByteRange = blobCacheService.computeBlobCacheByteRange(fileName, length, blobCacheMaxLength);
                     final String path = String.join("/", repositoryName, blob.getKey(), fileName, "@" + expectedByteRange.start());
 
                     final GetResponse getResponse = systemClient().prepareGet(SNAPSHOT_BLOB_CACHE_INDEX, path).get();

@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -50,17 +51,24 @@ public class BlobStoreCacheService {
 
     private static final Logger logger = LogManager.getLogger(BlobStoreCacheService.class);
 
+    /**
+     * Before 7.13.0 blobs were cached using a 4KB or 8KB maximum length.
+     */
+    private static final Version OLD_CACHED_BLOB_SIZE_VERSION = Version.V_7_13_0;
+
     public static final int DEFAULT_CACHED_BLOB_SIZE = ByteSizeUnit.KB.toIntBytes(1);
     private static final Cache<String, String> LOG_EXCEEDING_FILES_CACHE = CacheBuilder.<String, String>builder()
         .setExpireAfterAccess(TimeValue.timeValueMinutes(60L))
         .build();
 
+    private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final Client client;
     private final String index;
 
-    public BlobStoreCacheService(ThreadPool threadPool, Client client, String index) {
+    public BlobStoreCacheService(ClusterService clusterService, ThreadPool threadPool, Client client, String index) {
         this.client = new OriginSettingClient(client, SEARCHABLE_SNAPSHOTS_ORIGIN);
+        this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.index = index;
     }
@@ -222,10 +230,18 @@ public class BlobStoreCacheService {
      *
      * @return the header {@link ByteRange}
      */
-    public static ByteRange computeBlobCacheByteRange(String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
+    public ByteRange computeBlobCacheByteRange(String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
         final String fileExtension = IndexFileNames.getExtension(fileName);
         assert fileExtension == null || METADATA_FILES_EXTENSIONS.contains(fileExtension) || OTHER_FILES_EXTENSIONS.contains(fileExtension)
             : "unknown Lucene file extension [" + fileExtension + "] - should it be considered a metadata file?";
+
+        if (useLegacyCachedBlobSizes()) {
+            if (fileLength <= ByteSizeUnit.KB.toBytes(8L)) {
+                return ByteRange.of(0L, fileLength);
+            } else {
+                return ByteRange.of(0L, ByteSizeUnit.KB.toBytes(4L));
+            }
+        }
 
         if (METADATA_FILES_EXTENSIONS.contains(fileExtension)) {
             final long maxAllowedLengthInBytes = maxMetadataLength.getBytes();
@@ -235,6 +251,11 @@ public class BlobStoreCacheService {
             return ByteRange.of(0L, Math.min(fileLength, maxAllowedLengthInBytes));
         }
         return ByteRange.of(0L, Math.min(fileLength, DEFAULT_CACHED_BLOB_SIZE));
+    }
+
+    protected boolean useLegacyCachedBlobSizes() {
+        final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
+        return minNodeVersion.before(OLD_CACHED_BLOB_SIZE_VERSION);
     }
 
     private static void logExceedingFile(String extension, long length, ByteSizeValue maxAllowedLength) {

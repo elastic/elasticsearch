@@ -42,7 +42,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.blobstore.cache.BlobStoreCacheService.computeBlobCacheByteRange;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexInput {
@@ -85,7 +84,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()),
             rangeSize,
             recoveryRangeSize,
-            computeBlobCacheByteRange(fileInfo.physicalName(), fileInfo.length(), directory.getBlobStoreCacheMaxLength())
+            directory.getBlobCacheByteRange(fileInfo.physicalName(), fileInfo.length())
         );
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
         stats.incrementOpenCount();
@@ -181,17 +180,15 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         position
                     );
                     stats.addIndexCacheBytesRead(cachedBlob.length());
-
-                    final BytesRefIterator cachedBytesIterator = cachedBlob.bytes()
-                        .slice(toIntBytes(position - cachedBlob.from()), length)
-                        .iterator();
-                    BytesRef bytesRef;
-                    while ((bytesRef = cachedBytesIterator.next()) != null) {
-                        b.put(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-                    }
-                    assert b.position() == length : "copied " + b.position() + " but expected " + length;
-
                     try {
+                        final int sliceOffset = toIntBytes(position - cachedBlob.from());
+                        final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(sliceOffset, length).iterator();
+                        BytesRef bytesRef;
+                        while ((bytesRef = cachedBytesIterator.next()) != null) {
+                            b.put(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                        }
+                        assert b.position() == length : "copied " + b.position() + " but expected " + length;
+
                         final ByteRange cachedRange = ByteRange.of(cachedBlob.from(), cachedBlob.to());
                         cacheFile.populateAndRead(
                             cachedRange,

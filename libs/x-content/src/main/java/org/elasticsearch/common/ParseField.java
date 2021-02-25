@@ -159,28 +159,24 @@ public class ParseField {
         if (fullyDeprecated == false && allReplacedWith == null && fieldName.equals(name)) {
             return true;
         }
+        boolean isCompatibleDeprecation = restApiCompatibleVersions.size() == 1 &&
+            restApiCompatibleVersions.contains(RestApiCompatibleVersion.minimumSupported());
+        DeprecationHandler deprecationHandlerInstance = deprecationHandler.getInstance(isCompatibleDeprecation);
         // Now try to match against one of the deprecated names. Note that if
         // the parse field is entirely deprecated (allReplacedWith != null) all
         // fields will be in the deprecatedNames array
         for (String depName : deprecatedNames) {
             if (fieldName.equals(depName)) {
                 if (fullyDeprecated) {
-                    deprecationHandler.usedDeprecatedField(parserName, location, fieldName);
+                    deprecationHandlerInstance.usedDeprecatedField(parserName, location, fieldName);
                 } else if (allReplacedWith == null) {
-                    deprecationHandler.usedDeprecatedName(parserName, location, fieldName, name);
+                    deprecationHandlerInstance.usedDeprecatedName(parserName, location, fieldName, name);
                 } else {
-                    deprecationHandler.usedDeprecatedField(parserName, location, fieldName, allReplacedWith);
-                }
-
-                if(restApiCompatibleVersions.size() == 1 &&
-                    restApiCompatibleVersions.contains(RestApiCompatibleVersion.minimumSupported())) {
-                    deprecationHandler.usedCompatibleField(parserName, location, fieldName);
+                    deprecationHandlerInstance.usedDeprecatedField(parserName, location, fieldName, allReplacedWith);
                 }
                 return true;
             }
         }
-
-
         return false;
     }
 

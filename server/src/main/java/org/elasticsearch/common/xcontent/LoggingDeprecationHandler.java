@@ -12,6 +12,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -24,8 +25,6 @@ import java.util.function.Supplier;
  * though the user sent them.
  */
 public class LoggingDeprecationHandler implements DeprecationHandler {
-    public static final String COMPATIBLE_API_WARNING_PREFIX = "[Compatible REST Api]";
-    public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler();
     /**
      * The logger to which to send deprecation messages.
      *
@@ -36,35 +35,48 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
      */
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParseField.class);
 
+    public static final String COMPATIBLE_API_WARNING_PREFIX = "[Compatible REST Api] ";
+    public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler(( message, params) ->
+        deprecationLogger.deprecate(DeprecationCategory.API,"deprecated_field", message, params));
+
+
+    public static final LoggingDeprecationHandler COMPATIBLE_REST_API_INSTANCE = new LoggingDeprecationHandler((message, params) ->
+        deprecationLogger.compatibleApiWarning("deprecated_field",COMPATIBLE_API_WARNING_PREFIX+ message, params));
+
+
+    private BiConsumer<String, Object[]> loggingFunction;
+
     private LoggingDeprecationHandler() {
         // Singleton
     }
-
+    private LoggingDeprecationHandler(BiConsumer<String,Object[]> loggingFunction) {
+        // Singleton
+        this.loggingFunction = loggingFunction;
+    }
     @Override
     public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
         String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_field",
-            "{}Deprecated field [{}] used, expected [{}] instead", prefix, usedName, modernName);
+        loggingFunction.accept("{}Deprecated field [{}] used, expected [{}] instead", new Object[]{prefix, usedName, modernName});
     }
 
     @Override
     public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
         String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_field",
-            "{}Deprecated field [{}] used, replaced by [{}]", prefix, usedName, replacedWith);
+        loggingFunction.accept("{}Deprecated field [{}] used, replaced by [{}]", new Object[] {prefix, usedName, replacedWith});
     }
 
     @Override
     public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
         String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_field",
-            "{}Deprecated field [{}] used, this field is unused and will be removed entirely", prefix, usedName);
+        loggingFunction.accept("{}Deprecated field [{}] used, this field is unused and will be removed entirely",
+            new Object[]{prefix, usedName});
     }
 
     @Override
-    public void usedCompatibleField(String parserName, Supplier<XContentLocation> location, String fieldName) {
-        String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecationLogger.compatibleApiWarning("deprecated_field",
-            COMPATIBLE_API_WARNING_PREFIX+ " {}A field [{}] was removed. Check deprecation warnings", prefix, fieldName);
+    public DeprecationHandler getInstance(boolean compatibleWarnings) {
+        if (compatibleWarnings) {
+            return COMPATIBLE_REST_API_INSTANCE;
+        }
+        return INSTANCE;
     }
 }

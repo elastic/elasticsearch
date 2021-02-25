@@ -77,18 +77,15 @@ public class ParseFieldTests extends ESTestCase {
 
         assertTrue(field.match("new_name", LoggingDeprecationHandler.INSTANCE));
         assertTrue(field.match("old_name", LoggingDeprecationHandler.INSTANCE));
-        assertWarnings("Deprecated field [old_name] used, expected [new_name] instead",
-            "A field [old_name] was removed. Check deprecation warnings");
+        assertWarnings("[Compatible REST Api] Deprecated field [old_name] used, expected [new_name] instead");
 
         ParseField allDepField = new ParseField("dep", "old_name")
             .withAllDeprecated()
             .withRestApiCompatibilityVersions(RestApiCompatibleVersion.V_7);
 
         assertTrue(allDepField.match("dep", LoggingDeprecationHandler.INSTANCE));
-        assertWarnings("Deprecated field [dep] used, this field is unused and will be removed entirely",
-            "[Compatible REST Api] A field [dep] was removed. Check deprecation warnings");
+        assertWarnings("[Compatible REST Api] Deprecated field [dep] used, this field is unused and will be removed entirely");
         assertTrue(allDepField.match("old_name", LoggingDeprecationHandler.INSTANCE));
-        assertWarnings("Deprecated field [old_name] used, this field is unused and will be removed entirely",
-            "[Compatible REST Api] A field [old_name] was removed. Check deprecation warnings");
+        assertWarnings("[Compatible REST Api] Deprecated field [old_name] used, this field is unused and will be removed entirely");
     }
 }

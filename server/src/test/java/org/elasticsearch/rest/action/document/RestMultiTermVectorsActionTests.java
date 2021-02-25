@@ -8,6 +8,8 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
+import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -36,7 +38,7 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
             .build();
 
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
+        verifyingClient.setExecuteVerifier((action, r) -> new MultiTermVectorsResponse(new MultiTermVectorsItemResponse[0]));
 
         dispatchRequest(request);
         assertWarnings(RestMultiTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
@@ -53,7 +55,7 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
             .build();
 
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
+        verifyingClient.setExecuteVerifier((action, r) -> new MultiTermVectorsResponse(new MultiTermVectorsItemResponse[0]));
 
         dispatchRequest(request);
         assertWarnings(RestMultiTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
@@ -76,7 +78,7 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
             .build();
 
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
+        verifyingClient.setExecuteVerifier((action, r) -> new MultiTermVectorsResponse(new MultiTermVectorsItemResponse[0]));
 
         dispatchRequest(request);
         assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);

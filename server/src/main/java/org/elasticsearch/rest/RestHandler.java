@@ -120,13 +120,15 @@ public interface RestHandler {
         }
 
         // deprecated without replacement
-        public static Route deprecated(Method method, String path, String deprecationMessage) {
+        public static Route deprecated(Method method, String path,
+                                       RestApiCompatibleVersion restApiCompatibleVersion, String deprecationMessage) {
             return new Route(method, path,
-                null, Objects.requireNonNull(deprecationMessage), null, null);
+                Objects.requireNonNull(restApiCompatibleVersion), Objects.requireNonNull(deprecationMessage), null, null);
         }
 
         // a route that is only available via compatibility
-        public static Route of(Method method, String path, RestApiCompatibleVersion restApiCompatibleVersion) {
+        public static Route of(Method method, String path,
+                               RestApiCompatibleVersion restApiCompatibleVersion) {
             return new Route(method, path,
                 Objects.requireNonNull(restApiCompatibleVersion), null, null, null);
         }

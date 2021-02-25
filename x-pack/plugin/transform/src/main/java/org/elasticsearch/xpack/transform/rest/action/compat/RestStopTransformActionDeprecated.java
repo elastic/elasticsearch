@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.transform.rest.action.compat;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -25,7 +26,7 @@ public class RestStopTransformActionDeprecated extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.deprecated(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_stop",
+            Route.deprecated(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_stop", RestApiCompatibleVersion.V_7,
                 TransformMessages.REST_DEPRECATED_ENDPOINT)
         );
     }

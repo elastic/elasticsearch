@@ -76,7 +76,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     private final Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappings;
 
-    GetFieldMappingsResponse(Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappings) {
+    public GetFieldMappingsResponse(Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappings) {
         this.mappings = mappings;
     }
 

@@ -8,7 +8,9 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
@@ -68,7 +70,7 @@ public class RestGetMappingActionTests extends RestActionTestCase {
             .build();
 
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
+        verifyingClient.setExecuteVerifier((action, r) -> new GetMappingsResponse(ImmutableOpenMap.of()));
 
         FakeRestChannel channel = new FakeRestChannel(request, false, 1);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -91,7 +93,7 @@ public class RestGetMappingActionTests extends RestActionTestCase {
             .build();
 
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
+        verifyingClient.setExecuteVerifier((action, r) -> new GetMappingsResponse(ImmutableOpenMap.of()));
 
         FakeRestChannel channel = new FakeRestChannel(request, false, 1);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

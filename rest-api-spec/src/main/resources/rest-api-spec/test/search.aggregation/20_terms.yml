@@ -946,8 +946,8 @@ setup:
 ---
 "min_doc_count":
   - skip:
-      version: " - 7.99.99"
-      reason: broken in 7.9.1, not yet backported
+      version: " - 7.9.2"
+      reason: broken in 7.9.1, was fixed in 7.9.2
 
   - do:
       bulk:
@@ -1111,8 +1111,8 @@ setup:
 ---
 "order by sub agg containing nested":
   - skip:
-        version: " - 7.99.99"
-        reason: "https://github.com/elastic/elasticsearch/issues/66876"
+        version: " - 7.11.2"
+        reason: "It was fixed in 7.11.2"
   - do:
       indices.put_mapping:
           index: test_1

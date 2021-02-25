@@ -23,7 +23,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.repositories.*;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.IndexMetaDataGenerations;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 

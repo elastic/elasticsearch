@@ -35,7 +35,7 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
      */
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParseField.class);
 
-    public static final String COMPATIBLE_API_WARNING_PREFIX = "[Compatible REST Api] ";
+    public static final String COMPATIBLE_API_WARNING_PREFIX = "";
     public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler(( message, params) ->
         deprecationLogger.deprecate(DeprecationCategory.API,"deprecated_field", message, params));
 
@@ -55,23 +55,26 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
     }
     @Override
     public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
-        String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+        String prefix = parserLocation(parserName, location);
         loggingFunction.accept("{}Deprecated field [{}] used, expected [{}] instead", new Object[]{prefix, usedName, modernName});
     }
 
     @Override
     public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
-        String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+        String prefix = parserLocation(parserName, location);
         loggingFunction.accept("{}Deprecated field [{}] used, replaced by [{}]", new Object[] {prefix, usedName, replacedWith});
     }
 
     @Override
     public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
-        String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+        String prefix = parserLocation(parserName, location);
         loggingFunction.accept("{}Deprecated field [{}] used, this field is unused and will be removed entirely",
             new Object[]{prefix, usedName});
     }
 
+    private String parserLocation(String parserName, Supplier<XContentLocation> location) {
+        return parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+    }
     @Override
     public DeprecationHandler getInstance(boolean compatibleWarnings) {
         if (compatibleWarnings) {

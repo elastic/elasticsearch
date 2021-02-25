@@ -161,7 +161,8 @@ public class ParseField {
         }
         boolean isCompatibleDeprecation = restApiCompatibleVersions.size() == 1 &&
             restApiCompatibleVersions.contains(RestApiCompatibleVersion.minimumSupported());
-        DeprecationHandler deprecationHandlerInstance = deprecationHandler.getInstance(isCompatibleDeprecation);
+        DeprecationHandler deprecationHandlerInstance = deprecationHandler != null ?
+            deprecationHandler.getInstance(isCompatibleDeprecation) : null;
         // Now try to match against one of the deprecated names. Note that if
         // the parse field is entirely deprecated (allReplacedWith != null) all
         // fields will be in the deprecatedNames array

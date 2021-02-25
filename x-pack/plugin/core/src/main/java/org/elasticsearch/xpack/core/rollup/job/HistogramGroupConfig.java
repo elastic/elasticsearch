@@ -90,7 +90,7 @@ public class HistogramGroupConfig implements Writeable, ToXContentObject {
                 fieldCaps.forEach((key, value) -> {
                     if (RollupField.NUMERIC_FIELD_MAPPER_TYPES.contains(key)) {
                         if (value.isAggregatable() == false) {
-                            validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
+                            validationException.addValidationError("The field [" + field + "] must be aggregatable, " +
                                     "but is not.");
                         }
                     } else {

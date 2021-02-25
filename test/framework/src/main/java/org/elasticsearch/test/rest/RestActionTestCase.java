@@ -28,7 +28,6 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
 /**
@@ -78,7 +77,7 @@ public abstract class RestActionTestCase extends ESTestCase {
      * {@link #setExecuteVerifier} or {@link #setExecuteLocallyVerifier}.
      */
     public static class VerifyingClient extends NoOpNodeClient {
-        AtomicReference<BiConsumer<ActionType<?>, ActionRequest>> executeVerifier = new AtomicReference<>();
+        AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeVerifier = new AtomicReference<>();
         AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeLocallyVerifier = new AtomicReference<>();
 
         public VerifyingClient(String testName) {
@@ -107,18 +106,32 @@ public abstract class RestActionTestCase extends ESTestCase {
 
         /**
          * Sets the function that will be called when {@link #doExecute(ActionType, ActionRequest, ActionListener)} is called. The given
-         * function should return either a subclass of {@link ActionResponse} or {@code null}.
+         * function should return a subclass of {@link ActionResponse} that is appropriate for the action.
          * @param verifier A function which is called in place of {@link #doExecute(ActionType, ActionRequest, ActionListener)}
          */
-        public void setExecuteVerifier(BiConsumer<ActionType<?>, ActionRequest> verifier) {
-            executeVerifier.set(verifier);
+        public <R extends ActionResponse> void setExecuteVerifier(BiFunction<ActionType<R>, ActionRequest, R> verifier) {
+            /*
+             * Perform a little generics dance to force the callers to mock
+             * a return type appropriate for the action even though we can't
+             * declare such types. We have force the caller to be specific
+             * and then throw away their specificity. Then we case back
+             * to the specific erased type in the method below.
+             */
+            BiFunction<?, ?, ?> dropTypeInfo = (BiFunction<?, ?, ?>) verifier;
+            @SuppressWarnings("unchecked")
+            BiFunction<ActionType<?>, ActionRequest, ActionResponse> pasteGenerics = (BiFunction<
+                ActionType<?>,
+                ActionRequest,
+                ActionResponse>) dropTypeInfo;
+            executeVerifier.set(pasteGenerics);
         }
 
         @Override
         public <Request extends ActionRequest, Response extends ActionResponse>
         void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-            executeVerifier.get().accept(action, request);
-            listener.onResponse(null);
+            @SuppressWarnings("unchecked") // The method signature of setExecuteVerifier forces this case to work
+            Response response = (Response) executeVerifier.get().apply(action, request);
+            listener.onResponse(response);
         }
 
         /**

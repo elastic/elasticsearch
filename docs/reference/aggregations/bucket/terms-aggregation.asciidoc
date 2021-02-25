@@ -477,7 +477,7 @@ non-runtime `keyword` fields that we have to give up for for runtime
 `keyword` fields. If you need the speed, you can index the
 `normalized_genre` field.
 
-# TODO when we have calculated fields we can link to them here.
+// TODO when we have calculated fields we can link to them here.
 
 
 ==== Filtering Values

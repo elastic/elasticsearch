@@ -82,7 +82,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
-    public static final Pattern BACKING_INDEX_SUFFIX = Pattern.compile("(\\d{4}\\.\\d{2}\\.\\d{2}-)?[0-9]+$");
+    public static final Pattern BACKING_INDEX_SUFFIX = Pattern.compile("^(\\d{4}\\.\\d{2}\\.\\d{2}-)?[0-9]+$");
 
     public enum XContentContext {
         /* Custom metadata should be returns as part of API call */
@@ -1587,6 +1587,23 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                             .keySet().stream()
                             .filter(s -> BACKING_INDEX_SUFFIX.matcher(s.substring(prefix.length())).matches())
                             .filter(s -> IndexMetadata.parseIndexNameCounter(s) > ds.getGeneration())
+                            .filter(indexName -> {
+                                // Logic to avoid marking backing indices of other data streams as conflict:
+
+                                // Backing index pattern is either .ds-[ds-name]-[date]-[generation] for 7.11 and up or
+                                // .ds-[ds-name]-[generation] for 7.9 to 7.10.2. So two step process to capture the data stream name:
+                                String dataStreamName =
+                                    indexName.substring(DataStream.BACKING_INDEX_PREFIX.length(), indexName.lastIndexOf('-'));
+                                if (dsMetadata.dataStreams().containsKey(dataStreamName)) {
+                                    return false;
+                                }
+                                dataStreamName = indexName.substring(0, indexName.lastIndexOf('-'));
+                                if (dsMetadata.dataStreams().containsKey(dataStreamName)) {
+                                    return false;
+                                } else {
+                                    return true;
+                                }
+                            })
                             .collect(Collectors.toSet());
 
                     if (conflicts.size() > 0) {

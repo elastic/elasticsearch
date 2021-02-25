@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.textstructure.rest;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -30,7 +31,7 @@ public class RestFindStructureAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.replaces(POST, BASE_PATH + "find_structure", POST, "/_ml/find_file_structure"));
+        return List.of(Route.replaces(POST, BASE_PATH + "find_structure", POST, "/_ml/find_file_structure", RestApiCompatibleVersion.V_7));
     }
 
     @Override

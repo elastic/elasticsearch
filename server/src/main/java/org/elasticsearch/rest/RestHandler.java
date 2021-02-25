@@ -125,12 +125,6 @@ public interface RestHandler {
                 null, Objects.requireNonNull(deprecationMessage), null, null);
         }
 
-        // a route that replaces a previous one
-        public static Route replaces(Method method, String path, Method replacedMethod, String replacedPath) {
-            return new Route(method, path,
-                null, null, Objects.requireNonNull(replacedMethod), Objects.requireNonNull(replacedPath));
-        }
-
         // a route that is only available via compatibility
         public static Route of(Method method, String path, RestApiCompatibleVersion restApiCompatibleVersion) {
             return new Route(method, path,

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -41,16 +42,16 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
         return List.of(
             Route.replaces(
                 POST, "/_security/user/{username}/_enable",
-                POST, "/_xpack/security/user/{username}/_enable"),
+                POST, "/_xpack/security/user/{username}/_enable", RestApiCompatibleVersion.V_7),
             Route.replaces(
                 PUT, "/_security/user/{username}/_enable",
-                PUT, "/_xpack/security/user/{username}/_enable"),
+                PUT, "/_xpack/security/user/{username}/_enable", RestApiCompatibleVersion.V_7),
             Route.replaces(
                 POST, "/_security/user/{username}/_disable",
-                POST, "/_xpack/security/user/{username}/_disable"),
+                POST, "/_xpack/security/user/{username}/_disable", RestApiCompatibleVersion.V_7),
             Route.replaces(
                 PUT, "/_security/user/{username}/_disable",
-                PUT, "/_xpack/security/user/{username}/_disable")
+                PUT, "/_xpack/security/user/{username}/_disable", RestApiCompatibleVersion.V_7)
         );
     }
 

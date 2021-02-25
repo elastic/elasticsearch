@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,7 +52,7 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
         return List.of(
             Route.replaces(
                 GET, "/_security/user/_privileges",
-                GET, "/_xpack/security/user/_privileges")
+                GET, "/_xpack/security/user/_privileges", RestApiCompatibleVersion.V_7)
         );
     }
 

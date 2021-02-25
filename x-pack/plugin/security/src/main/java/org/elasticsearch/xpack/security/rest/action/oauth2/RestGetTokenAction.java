@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -74,7 +75,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
         return List.of(
             Route.replaces(
                 POST, "/_security/oauth2/token",
-                POST, "/_xpack/security/oauth2/token")
+                POST, "/_xpack/security/oauth2/token", RestApiCompatibleVersion.V_7)
         );
     }
 

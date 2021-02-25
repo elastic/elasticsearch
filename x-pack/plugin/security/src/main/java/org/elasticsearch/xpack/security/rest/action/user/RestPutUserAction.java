@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -49,10 +50,10 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
         return List.of(
             Route.replaces(
                 POST, "/_security/user/{username}",
-                POST, "/_xpack/security/user/{username}"),
+                POST, "/_xpack/security/user/{username}", RestApiCompatibleVersion.V_7),
             Route.replaces(
                 PUT, "/_security/user/{username}",
-                PUT, "/_xpack/security/user/{username}")
+                PUT, "/_xpack/security/user/{username}", RestApiCompatibleVersion.V_7)
         );
     }
 

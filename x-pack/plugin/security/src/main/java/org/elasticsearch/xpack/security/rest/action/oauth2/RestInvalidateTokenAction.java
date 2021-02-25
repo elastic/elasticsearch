@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.rest.action.oauth2;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -72,7 +73,7 @@ public final class RestInvalidateTokenAction extends TokenBaseRestHandler implem
         return List.of(
             Route.replaces(
                 DELETE, "/_security/oauth2/token",
-                DELETE, "/_xpack/security/oauth2/token")
+                DELETE, "/_xpack/security/oauth2/token", RestApiCompatibleVersion.V_7)
         );
     }
 

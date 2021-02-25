@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.rest.action.user;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -50,16 +51,16 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
         return List.of(
             Route.replaces(
                 PUT, "/_security/user/{username}/_password",
-                PUT, "/_xpack/security/user/{username}/_password"),
+                PUT, "/_xpack/security/user/{username}/_password", RestApiCompatibleVersion.V_7),
             Route.replaces(
                 POST, "/_security/user/{username}/_password",
-                POST, "/_xpack/security/user/{username}/_password"),
+                POST, "/_xpack/security/user/{username}/_password", RestApiCompatibleVersion.V_7),
             Route.replaces(
                 PUT, "/_security/user/_password",
-                PUT, "/_xpack/security/user/_password"),
+                PUT, "/_xpack/security/user/_password", RestApiCompatibleVersion.V_7),
             Route.replaces(
                 POST, "/_security/user/_password",
-                POST, "/_xpack/security/user/_password")
+                POST, "/_xpack/security/user/_password", RestApiCompatibleVersion.V_7)
         );
     }
 

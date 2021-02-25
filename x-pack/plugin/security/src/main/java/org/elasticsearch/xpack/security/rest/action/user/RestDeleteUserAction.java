@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -39,7 +40,7 @@ public class RestDeleteUserAction extends SecurityBaseRestHandler {
         return List.of(
             Route.replaces(
                 DELETE, "/_security/user/{username}",
-                DELETE, "/_xpack/security/user/{username}")
+                DELETE, "/_xpack/security/user/{username}", RestApiCompatibleVersion.V_7)
         );
     }
 

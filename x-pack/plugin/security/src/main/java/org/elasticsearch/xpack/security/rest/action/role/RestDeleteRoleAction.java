@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.rest.action.role;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -39,7 +40,7 @@ public class RestDeleteRoleAction extends SecurityBaseRestHandler {
         return List.of(
             Route.replaces(
                 DELETE, "/_security/role/{name}",
-                DELETE, "/_xpack/security/role/{name}")
+                DELETE, "/_xpack/security/role/{name}", RestApiCompatibleVersion.V_7)
         );
     }
 

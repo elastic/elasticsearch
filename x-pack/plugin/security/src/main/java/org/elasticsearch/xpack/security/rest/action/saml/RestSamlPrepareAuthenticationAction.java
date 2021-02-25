@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.saml;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,7 +55,7 @@ public class RestSamlPrepareAuthenticationAction extends SamlBaseRestHandler {
         return List.of(
             Route.replaces(
                 POST, "/_security/saml/prepare",
-                POST, "/_xpack/security/saml/prepare")
+                POST, "/_xpack/security/saml/prepare", RestApiCompatibleVersion.V_7)
         );
     }
 

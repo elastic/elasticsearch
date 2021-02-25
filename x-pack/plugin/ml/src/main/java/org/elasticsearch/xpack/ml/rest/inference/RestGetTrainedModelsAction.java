@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.rest.inference;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -47,10 +48,11 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
         return List.of(
             Route.replaces(
                 GET, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
-                GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"),
+                GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
+                RestApiCompatibleVersion.V_7),
             Route.replaces(
                 GET, MachineLearning.BASE_PATH + "trained_models",
-                GET, MachineLearning.BASE_PATH + "inference")
+                GET, MachineLearning.BASE_PATH + "inference", RestApiCompatibleVersion.V_7)
         );
     }
 

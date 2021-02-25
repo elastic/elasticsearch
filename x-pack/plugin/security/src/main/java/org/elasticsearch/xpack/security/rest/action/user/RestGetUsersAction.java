@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -41,10 +42,10 @@ public class RestGetUsersAction extends SecurityBaseRestHandler {
         return List.of(
             Route.replaces(
                 GET, "/_security/user/",
-                GET, "/_xpack/security/user/"),
+                GET, "/_xpack/security/user/", RestApiCompatibleVersion.V_7),
             Route.replaces(
                 GET, "/_security/user/{username}",
-                GET, "/_xpack/security/user/{username}")
+                GET, "/_xpack/security/user/{username}", RestApiCompatibleVersion.V_7)
         );
     }
 

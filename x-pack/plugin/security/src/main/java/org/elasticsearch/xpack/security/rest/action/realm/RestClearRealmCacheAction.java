@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.rest.action.realm;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
@@ -31,7 +32,7 @@ public final class RestClearRealmCacheAction extends SecurityBaseRestHandler {
         return List.of(
             Route.replaces(
                 POST, "/_security/realm/{realms}/_clear_cache",
-                POST, "/_xpack/security/realm/{realms}/_clear_cache")
+                POST, "/_xpack/security/realm/{realms}/_clear_cache", RestApiCompatibleVersion.V_7)
         );
     }
 

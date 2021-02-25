@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.role;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -41,10 +42,10 @@ public class RestGetRolesAction extends SecurityBaseRestHandler {
         return List.of(
             Route.replaces(
                 GET, "/_security/role/",
-                GET, "/_xpack/security/role/"),
+                GET, "/_xpack/security/role/", RestApiCompatibleVersion.V_7),
             Route.replaces(
                 GET, "/_security/role/{name}",
-                GET, "/_xpack/security/role/{name}")
+                GET, "/_xpack/security/role/{name}", RestApiCompatibleVersion.V_7)
         );
     }
 

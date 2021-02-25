@@ -523,7 +523,7 @@ setting, an error occurs when you try to create {dfanalytics-jobs} that have
 `source`::
 (object)
 The configuration of how to source the analysis data. It requires an `index`.
-Optionally, `query` and `_source` may be specified.
+Optionally, `query`, `runtime_mappings`, and `_source` may be specified.
 +
 .Properties of `source`
 [%collapsible%open]
@@ -542,6 +542,10 @@ This value corresponds to the query object in an {es} search POST body. All the
 options that are supported by {es} can be used, as this object is passed
 verbatim to {es}. By default, this property has the following value:
 `{"match_all": {}}`.
+
+`runtime_mappings`:::
+(Optional, object) Definitions of runtime fields that will become part of the
+mapping of the destination index.
 
 `_source`:::
 (Optional, object) Specify `includes` and/or `excludes` patterns to select which

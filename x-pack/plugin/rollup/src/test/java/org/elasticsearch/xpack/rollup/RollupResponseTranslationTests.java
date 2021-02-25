@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordField;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -1155,7 +1156,9 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
     private Document stringValueDoc(String stringValue) {
         Document doc = new Document();
-        doc.add(new SortedSetDocValuesField("stringField", new BytesRef(stringValue)));
+        BytesRef bytes = new BytesRef(stringValue);
+        doc.add(new SortedSetDocValuesField("stringField", bytes));
+        doc.add(new KeywordField("stringField", bytes, KeywordFieldMapper.Defaults.FIELD_TYPE));
         return doc;
     }
 

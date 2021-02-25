@@ -77,7 +77,7 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
         DataFrameAnalyticsConfig analyticsConfig = new DataFrameAnalyticsConfig.Builder()
             .setId(JOB_ID)
             .setDescription(JOB_DESCRIPTION)
-            .setSource(new DataFrameAnalyticsSource(new String[] {"my_source"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"my_source"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("my_dest", null))
             .setAnalysis(randomBoolean() ? new Regression("foo") : new Classification("foo"))
             .build();

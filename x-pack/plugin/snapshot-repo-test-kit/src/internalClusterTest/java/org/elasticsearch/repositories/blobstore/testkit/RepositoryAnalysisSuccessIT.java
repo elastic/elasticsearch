@@ -98,7 +98,9 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         if (usually()) {
-            request.maxTotalDataSize(new ByteSizeValue(between(1, 1 << 20)));
+            request.maxTotalDataSize(
+                new ByteSizeValue(request.getMaxBlobSize().getBytes() + request.getBlobCount() - 1 + between(0, 1 << 20))
+            );
             blobStore.ensureMaxTotalBlobSize(request.getMaxTotalDataSize().getBytes());
         }
 

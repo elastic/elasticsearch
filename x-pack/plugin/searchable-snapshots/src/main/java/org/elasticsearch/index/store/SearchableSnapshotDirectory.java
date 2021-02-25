@@ -56,8 +56,8 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
@@ -620,13 +620,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             assert repository.getMetadata().name().equals(repositoryName) : repository.getMetadata().name() + " vs " + repositoryName;
         }
 
-        if (repository instanceof SourceOnlySnapshotRepository) {
-            repository = ((SourceOnlySnapshotRepository) repository).getDelegate();
-        }
-        if (repository instanceof BlobStoreRepository == false) {
-            throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
-        }
-        final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
+        final BlobStoreRepository blobStoreRepository = SearchableSnapshots.getSearchableRepository(repository);
 
         final IndexId indexId = new IndexId(
             SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),

@@ -20,4 +20,5 @@ public class IndicesSegmentsRestCancellationIT extends BlockedSearcherRestCancel
     public void testCatSegmentsRestCancellation() throws Exception {
         runTest(new Request(HttpGet.METHOD_NAME, "/_cat/segments"), IndicesSegmentsAction.NAME);
     }
+
 }

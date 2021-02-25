@@ -7,14 +7,17 @@ Use an ingest node to pre-process documents before the actual document indexing 
 The ingest node intercepts bulk and index requests, it applies transformations, and it then
 passes the documents back to the index or bulk APIs.
 
-All nodes enable ingest by default, so any node can handle ingest tasks. You can also create
-dedicated ingest nodes. To disable ingest for a node, configure the following setting in the
-elasticsearch.yml file:
+All nodes enable ingest by default, so any node can handle ingest tasks. To
+create a dedicated ingest node, configure the <<modules-node,`node.roles`>>
+setting in `elasticsearch.yml` as follows:
 
 [source,yaml]
 ----
 node.roles: [ ingest ]
 ----
+
+To disable ingest for a node, specify the `node.roles` setting and exclude
+`ingest` from the listed roles.
 
 To pre-process documents before indexing, <<pipeline,define a pipeline>> that specifies a series of
 <<ingest-processors,processors>>. Each processor transforms the document in some specific way. For example, a

@@ -2560,7 +2560,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
         GetTrainedModelsResponse getTrainedModelsResponse = execute(
-            new GetTrainedModelsRequest("lang_ident_model_1"),
+            new GetTrainedModelsRequest("lang_ident_model_1").includeDefinition(),
             machineLearningClient::getTrainedModels,
             machineLearningClient::getTrainedModelsAsync);
 

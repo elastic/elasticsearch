@@ -165,7 +165,7 @@ Dirty reads:: An isolated primary can expose writes that will not be acknowledge
 [discrete]
 ==== The Tip of the Iceberg
 
-This document provides a high level overview of how Elasticsearch deals with data. Of course, there is much much more
+This document provides a high level overview of how Elasticsearch deals with data. Of course, there is much more
 going on under the hood. Things like primary terms, cluster state publishing, and master election all play a role in
 keeping this system behaving correctly. This document also doesn't cover known and important
 bugs (both closed and open). We recognize that https://github.com/elastic/elasticsearch/issues?q=label%3Aresiliency[GitHub is hard to keep up with].

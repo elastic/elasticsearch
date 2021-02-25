@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.store;
@@ -529,7 +518,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             // throw exception if the file is corrupt
             String checksum = Store.digestToString(CodecUtil.checksumEntireFile(input));
             // throw exception if metadata is inconsistent
-            if (!checksum.equals(md.checksum())) {
+            if (checksum.equals(md.checksum()) == false) {
                 throw new CorruptIndexException("inconsistent metadata: lucene checksum=" + checksum +
                         ", metadata checksum=" + md.checksum(), input);
             }
@@ -1190,7 +1179,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         private void readAndCompareChecksum() throws IOException {
             actualChecksum = digestToString(getChecksum());
-            if (!metadata.checksum().equals(actualChecksum)) {
+            if (metadata.checksum().equals(actualChecksum) == false) {
                 throw new CorruptIndexException("checksum failed (hardware problem?) : expected=" + metadata.checksum() +
                         " actual=" + actualChecksum +
                         " (resource=" + metadata.toString() + ")", "VerifyingIndexOutput(" + metadata.name() + ")");
@@ -1360,7 +1349,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void markStoreCorrupted(IOException exception) throws IOException {
         ensureOpen();
-        if (!isMarkedCorrupted()) {
+        if (isMarkedCorrupted() == false) {
             final String corruptionMarkerName = CORRUPTED_MARKER_NAME_PREFIX + UUIDs.randomBase64UUID();
             try (IndexOutput output = this.directory().createOutput(corruptionMarkerName, IOContext.DEFAULT)) {
                 CodecUtil.writeHeader(output, CODEC, CORRUPTED_MARKER_CODEC_VERSION);
@@ -1371,7 +1360,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 BytesRef ref = bytes.toBytesRef();
                 output.writeBytes(ref.bytes, ref.offset, ref.length);
                 CodecUtil.writeFooter(output);
-            } catch (IOException ex) {
+            } catch (IOException | ImmutableDirectoryException ex) {
                 logger.warn("Can't mark store as corrupted", ex);
             }
             directory().sync(Collections.singleton(corruptionMarkerName));

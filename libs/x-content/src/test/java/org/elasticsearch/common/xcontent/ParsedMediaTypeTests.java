@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
@@ -147,5 +136,49 @@ public class ParsedMediaTypeTests extends ESTestCase {
             "image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9";
         ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(mediaType);
         assertThat(parsedMediaType, equalTo(null));
+    }
+
+    public void testParseMediaTypeFromXContentType() {
+
+        assertThat(ParsedMediaType.parseMediaType(XContentType.YAML, Collections.emptyMap())
+            .toMediaType(mediaTypeRegistry), equalTo(XContentType.YAML));
+        assertThat(ParsedMediaType.parseMediaType(XContentType.SMILE, Collections.emptyMap())
+            .toMediaType(mediaTypeRegistry), equalTo(XContentType.SMILE));
+        assertThat(ParsedMediaType.parseMediaType(XContentType.CBOR, Collections.emptyMap())
+            .toMediaType(mediaTypeRegistry), equalTo(XContentType.CBOR));
+
+        assertThat(ParsedMediaType.parseMediaType(XContentType.VND_JSON, Map.of("compatible-with", "7"))
+            .toMediaType(mediaTypeRegistry), equalTo(XContentType.VND_JSON));
+        assertThat(ParsedMediaType.parseMediaType(XContentType.VND_YAML, Map.of("compatible-with", "7"))
+            .toMediaType(mediaTypeRegistry), equalTo(XContentType.VND_YAML));
+        assertThat(ParsedMediaType.parseMediaType(XContentType.VND_SMILE, Map.of("compatible-with", "7"))
+            .toMediaType(mediaTypeRegistry), equalTo(XContentType.VND_SMILE));
+        assertThat(ParsedMediaType.parseMediaType(XContentType.VND_CBOR, Map.of("compatible-with", "7"))
+            .toMediaType(mediaTypeRegistry), equalTo(XContentType.VND_CBOR));
+    }
+
+    public void testResponseContentTypeHeader() {
+        assertThat(ParsedMediaType.parseMediaType(XContentType.JSON, Collections.emptyMap())
+            .responseContentTypeHeader(), equalTo("application/json"));
+        assertThat(ParsedMediaType.parseMediaType(XContentType.YAML, Collections.emptyMap())
+            .responseContentTypeHeader(), equalTo("application/yaml"));
+        assertThat(ParsedMediaType.parseMediaType(XContentType.SMILE, Collections.emptyMap())
+            .responseContentTypeHeader(), equalTo("application/smile"));
+        assertThat(ParsedMediaType.parseMediaType(XContentType.CBOR, Collections.emptyMap())
+            .responseContentTypeHeader(), equalTo("application/cbor"));
+
+        assertThat(ParsedMediaType.parseMediaType(XContentType.VND_JSON, Map.of("compatible-with", "7"))
+            .responseContentTypeHeader(), equalTo("application/vnd.elasticsearch+json;compatible-with=7"));
+        assertThat(ParsedMediaType.parseMediaType(XContentType.VND_YAML, Map.of("compatible-with", "7"))
+            .responseContentTypeHeader(), equalTo("application/vnd.elasticsearch+yaml;compatible-with=7"));
+        assertThat(ParsedMediaType.parseMediaType(XContentType.VND_SMILE, Map.of("compatible-with", "7"))
+            .responseContentTypeHeader(), equalTo("application/vnd.elasticsearch+smile;compatible-with=7"));
+        assertThat(ParsedMediaType.parseMediaType(XContentType.VND_CBOR, Map.of("compatible-with", "7"))
+            .responseContentTypeHeader(), equalTo("application/vnd.elasticsearch+cbor;compatible-with=7"));
+
+        assertThat(ParsedMediaType.parseMediaType(XContentType.JSON, Map.of("charset", "utf-8"))
+            .responseContentTypeHeader(), equalTo("application/json;charset=utf-8"));
+        assertThat(ParsedMediaType.parseMediaType(XContentType.JSON, Map.of("charset", "UTF-8"))
+            .responseContentTypeHeader(), equalTo("application/json;charset=UTF-8"));
     }
 }

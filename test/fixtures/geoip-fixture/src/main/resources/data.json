@@ -1,0 +1,20 @@
+[
+  {
+    "md5_hash": "dd3ac893b3b858d8f45674345dfe6fe9",
+    "name": "GeoLite2-City.mmdb.gz",
+    "url": "endpoint/db.mmdb.gz",
+    "provider": "maxmind"
+  },
+  {
+    "md5_hash": "dd3ac893b3b858d8f45674345dfe6fe9",
+    "name": "GeoLite2-ASN.mmdb.gz",
+    "url": "endpoint/db.mmdb.gz",
+    "provider": "maxmind"
+  },
+  {
+    "md5_hash": "dd3ac893b3b858d8f45674345dfe6fe9",
+    "name": "GeoLite2-Country.mmdb.gz",
+    "url": "endpoint/db.mmdb.gz",
+    "provider": "maxmind"
+  }
+]

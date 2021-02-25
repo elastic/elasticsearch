@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
@@ -47,29 +48,29 @@ public class LengthFunctionProcessor implements Processor {
 
         return input.toString().length();
     }
-    
+
     protected Processor input() {
         return input;
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         return Objects.equals(input(), ((LengthFunctionProcessor) obj).input());
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(input());
     }
-    
+
 
     @Override
     public String getWriteableName() {

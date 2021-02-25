@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -396,10 +397,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     }
 
     public void testJobRelocationIsMemoryAware() throws Exception {
-
-        // see: https://github.com/elastic/elasticsearch/issues/66885#issuecomment-758790179
-        assumeFalse("cannot run on debian 8 prior to java 15", willSufferDebian8MemoryProblem());
-
         internalCluster().ensureAtLeastNumDataNodes(1);
         ensureStableCluster();
 
@@ -455,6 +452,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67756")
     public void testClusterWithTwoMlNodes_RunsDatafeed_GivenOriginalNodeGoesDown() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting dedicated master node...");

@@ -62,6 +62,7 @@ A successful call returns an object with "cluster" and "index" fields.
 {
   "cluster" : [
     "all",
+    "cancel_task",
     "create_snapshot",
     "delegate_pki",
     "grant_api_key",

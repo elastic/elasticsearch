@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.searchablesnapshots.cache;
@@ -112,10 +113,10 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         }
         assertFalse("no cache files found", cacheFiles.isEmpty());
 
-        CacheService cacheService = internalCluster().getInstance(CacheService.class, dataNode);
+        final CacheService cacheService = internalCluster().getInstance(CacheService.class, dataNode);
         cacheService.synchronizeCache();
 
-        PersistentCache persistentCache = cacheService.getPersistentCache();
+        final PersistentCache persistentCache = cacheService.getPersistentCache();
         assertThat(persistentCache.getNumDocs(), equalTo((long) cacheFiles.size()));
 
         internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
@@ -142,21 +143,19 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
             }
         });
 
-        cacheService = internalCluster().getInstance(CacheService.class, dataNode);
-        persistentCache = cacheService.getPersistentCache();
+        final CacheService cacheServiceAfterRestart = internalCluster().getInstance(CacheService.class, dataNode);
+        final PersistentCache persistentCacheAfterRestart = cacheServiceAfterRestart.getPersistentCache();
         ensureGreen(restoredIndexName);
 
         cacheFiles.forEach(cacheFile -> assertTrue(cacheFile + " should have survived node restart", Files.exists(cacheFile)));
-        assertThat("Cache files should be repopulated in cache", persistentCache.getNumDocs(), equalTo((long) cacheFiles.size()));
+        assertThat("Cache files should be loaded in cache", persistentCacheAfterRestart.getNumDocs(), equalTo((long) cacheFiles.size()));
 
         assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
 
         assertBusy(() -> {
             cacheFiles.forEach(cacheFile -> assertFalse(cacheFile + " should have been cleaned up", Files.exists(cacheFile)));
-            assertTrue(internalCluster().getInstance(CacheService.class, dataNode).getPersistentCache().hasDeletions());
+            cacheServiceAfterRestart.synchronizeCache();
+            assertThat(persistentCacheAfterRestart.getNumDocs(), equalTo(0L));
         });
-        cacheService.synchronizeCache();
-
-        assertThat(persistentCache.getNumDocs(), equalTo(0L));
     }
 }

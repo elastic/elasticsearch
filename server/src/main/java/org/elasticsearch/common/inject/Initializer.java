@@ -102,7 +102,7 @@ class Initializer {
             }
         }
 
-        if (!pendingInjection.isEmpty()) {
+        if (pendingInjection.isEmpty() == false) {
             throw new AssertionError("Failed to satisfy " + pendingInjection);
         }
 

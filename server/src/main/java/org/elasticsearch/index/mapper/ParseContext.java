@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -26,7 +15,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -296,11 +284,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
-            return in.getDynamicRuntimeFieldsBuilder();
-        }
-
-        @Override
         public void addIgnoredField(String field) {
             in.addIgnoredField(field);
         }
@@ -323,7 +306,6 @@ public abstract class ParseContext {
         private final List<Mapper> dynamicMappers = new ArrayList<>();
         private final Map<String, ObjectMapper> dynamicObjectMappers = new HashMap<>();
         private final List<RuntimeFieldType> dynamicRuntimeFields = new ArrayList<>();
-        private final DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder;
         private final Set<String> ignoredFields = new HashSet<>();
         private Field version;
         private SeqNoFieldMapper.SequenceIDFields seqID;
@@ -332,12 +314,10 @@ public abstract class ParseContext {
 
         public InternalParseContext(MappingLookup mappingLookup,
                                     Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction,
-                                    DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder,
                                     SourceToParse source,
                                     XContentParser parser) {
             this.mappingLookup = mappingLookup;
             this.parserContextFunction = parserContextFunction;
-            this.dynamicRuntimeFieldsBuilder = dynamicRuntimeFieldsBuilder;
             this.parser = parser;
             this.document = new Document();
             this.documents.add(document);
@@ -464,11 +444,6 @@ public abstract class ParseContext {
         @Override
         public List<RuntimeFieldType> getDynamicRuntimeFields() {
             return Collections.unmodifiableList(dynamicRuntimeFields);
-        }
-
-        @Override
-        public DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
-            return dynamicRuntimeFieldsBuilder;
         }
 
         @Override
@@ -661,11 +636,11 @@ public abstract class ParseContext {
      * @return null if no external value has been set or the value
      */
     public final <T> T parseExternalValue(Class<T> clazz) {
-        if (!externalValueSet() || externalValue() == null) {
+        if (externalValueSet() == false || externalValue() == null) {
             return null;
         }
 
-        if (!clazz.isInstance(externalValue())) {
+        if (clazz.isInstance(externalValue()) == false) {
             throw new IllegalArgumentException("illegal external value class ["
                     + externalValue().getClass().getName() + "]. Should be " + clazz.getName());
         }
@@ -693,10 +668,4 @@ public abstract class ParseContext {
      * Get dynamic runtime fields created while parsing.
      */
     public abstract List<RuntimeFieldType> getDynamicRuntimeFields();
-
-    /**
-     * Retrieve the builder for dynamically created runtime fields
-     * @see MapperPlugin#getDynamicRuntimeFieldsBuilder()
-     */
-    public abstract DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder();
 }

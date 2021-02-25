@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.geo.builders;
@@ -272,16 +261,16 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
      */
     protected static int intersections(double dateline, Edge[] edges) {
         int numIntersections = 0;
-        assert !Double.isNaN(dateline);
+        assert Double.isNaN(dateline) == false;
         int maxComponent = 0;
         for (int i = 0; i < edges.length; i++) {
             Coordinate p1 = edges[i].coordinate;
             Coordinate p2 = edges[i].next.coordinate;
-            assert !Double.isNaN(p2.x) && !Double.isNaN(p1.x);
+            assert Double.isNaN(p2.x) == false && Double.isNaN(p1.x) == false;
             edges[i].intersect = Edge.MAX_COORDINATE;
 
             double position = intersection(p1, p2, dateline);
-            if (!Double.isNaN(position)) {
+            if (Double.isNaN(position) == false) {
                 edges[i].intersection(position);
                 numIntersections++;
                 maxComponent = Math.max(maxComponent, edges[i].component);
@@ -517,7 +506,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof ShapeBuilder)) return false;
+        if ((o instanceof ShapeBuilder) == false) return false;
 
         ShapeBuilder<?,?,?> that = (ShapeBuilder<?,?,?>) o;
 

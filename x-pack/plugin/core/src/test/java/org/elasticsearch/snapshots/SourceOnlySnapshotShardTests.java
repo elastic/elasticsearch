@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.snapshots;
 
@@ -227,9 +228,9 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
                     new SnapshotInfo(snapshotId,
                         shardGenerations.indices().stream()
-                        .map(IndexId::getName).collect(Collectors.toList()), Collections.emptyList(), 0L, null, 1L,
-                        shardGenerations.totalShards(),
-                        Collections.emptyList(), true, Collections.emptyMap()),
+                        .map(IndexId::getName).collect(Collectors.toList()), Collections.emptyList(), Collections.emptyList(), null, 1L,
+                        shardGenerations.totalShards(), Collections.emptyList(), true, Collections.emptyMap(), 0L
+                    ),
                     Version.CURRENT, Function.identity(), finFuture);
                 finFuture.actionGet();
             });

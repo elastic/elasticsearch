@@ -8,17 +8,17 @@ esplugin {
 }
 archivesBaseName = 'x-pack-runtime-fields'
 
-tasks.withType(JavaCompile).configureEach {
-  options.compilerArgs << "-Xlint:-rawtypes"
-}
-
 dependencies {
   compileOnly project(":server")
   compileOnly project(':modules:lang-painless:spi')
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  api project(':libs:elasticsearch-grok')
+  api project(':libs:elasticsearch-dissect')
+  compileOnly project(path: xpackModule('core'))
 }
 
 tasks.named("dependencyLicenses").configure {
   ignoreSha 'x-pack-core'
 }
 
+//this plugin is here only for the painless extension, there are no unit tests
+tasks.named("testingConventions").configure { enabled = false }

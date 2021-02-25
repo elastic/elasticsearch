@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
@@ -133,6 +122,28 @@ public class KeyStoreWrapperTests extends ESTestCase {
         } else {
             assertThat(exception.getMessage(), containsString("Provided keystore password was incorrect"));
         }
+    }
+
+    public void testDecryptKeyStoreWithShortPasswordInFips() throws Exception {
+        assumeTrue("This should run only in FIPS mode", inFipsJvm());
+        KeyStoreWrapper keystore = KeyStoreWrapper.create();
+        keystore.save(env.configFile(), "alongenoughpassword".toCharArray());
+        final KeyStoreWrapper loadedkeystore = KeyStoreWrapper.load(env.configFile());
+        final GeneralSecurityException exception = expectThrows(
+            GeneralSecurityException.class,
+            () -> loadedkeystore.decrypt("shortpwd".toCharArray()) // shorter than 14 characters
+        );
+        assertThat(exception.getMessage(), containsString("Error generating an encryption key from the provided password"));
+    }
+
+    public void testCreateKeyStoreWithShortPasswordInFips() throws Exception {
+        assumeTrue("This should run only in FIPS mode", inFipsJvm());
+        KeyStoreWrapper keystore = KeyStoreWrapper.create();
+        final GeneralSecurityException exception = expectThrows(
+            GeneralSecurityException.class,
+            () -> keystore.save(env.configFile(), "shortpwd".toCharArray()) // shorter than 14 characters
+        );
+        assertThat(exception.getMessage(), containsString("Error generating an encryption key from the provided password"));
     }
 
     public void testCannotReadStringFromClosedKeystore() throws Exception {

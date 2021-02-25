@@ -1,5 +1,8 @@
 ---
 "Basic test for index open/close":
+  - skip:
+      features: ["allowed_warnings"]
+
   - do:
       indices.create:
         index: test_index
@@ -14,6 +17,8 @@
   - do:
       indices.close:
         index: test_index
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
   - is_true: acknowledged
 
   - do:
@@ -38,6 +43,8 @@
 
 ---
 "Open index with wait_for_active_shards set to all":
+  - skip:
+      features: ["allowed_warnings"]
 
   - do:
       indices.create:
@@ -49,6 +56,8 @@
   - do:
       indices.close:
         index: test_index
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
   - is_true: acknowledged
 
   - do:
@@ -81,6 +90,9 @@
   - match: { shards_acknowledged: true }
 ---
 "Close index response with result per index":
+  - skip:
+      features: ["allowed_warnings"]
+
   - do:
       indices.create:
         index: index_1
@@ -105,6 +117,8 @@
   - do:
       indices.close:
         index: "index_*"
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - match: { acknowledged: true }
   - match: { shards_acknowledged: true }

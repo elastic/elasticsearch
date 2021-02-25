@@ -46,6 +46,16 @@ POST my-index-000001/_update_by_query?conflicts=proceed
 
 `POST /<target>/_update_by_query`
 
+[[docs-update-by-query-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the following
+<<privileges-list-indices,index privileges>> for the target data stream, index,
+or index alias:
+
+** `read`
+** `index` or `write`
+
 [[docs-update-by-query-api-desc]]
 ==== {api-description-title}
 

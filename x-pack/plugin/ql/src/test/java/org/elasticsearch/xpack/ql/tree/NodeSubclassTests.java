@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.tree;
 
@@ -155,7 +156,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     }
 
     /**
-     * Test {@link Node#replaceChildren} implementation on {@link #subclass}.
+     * Test {@link Node#replaceChildren(List)} implementation on {@link #subclass}.
      */
     public void testReplaceChildren() throws Exception {
         Constructor<T> ctor = longestCtor(subclass);

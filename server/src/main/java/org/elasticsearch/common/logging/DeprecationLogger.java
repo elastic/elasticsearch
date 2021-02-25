@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.logging;
@@ -46,10 +35,6 @@ public class DeprecationLogger {
 
     private final Logger logger;
 
-    private DeprecationLogger(Logger parentLogger) {
-        this.logger = parentLogger;
-    }
-
     /**
      * Creates a new deprecation logger for the supplied class. Internally, it delegates to
      * {@link #getLogger(String)}, passing the full class name.
@@ -65,16 +50,20 @@ public class DeprecationLogger {
      * the "org.elasticsearch" namespace.
      */
     public static DeprecationLogger getLogger(String name) {
-        return new DeprecationLogger(getDeprecatedLoggerForName(name));
+        return new DeprecationLogger(name);
     }
 
-    private static Logger getDeprecatedLoggerForName(String name) {
+    private DeprecationLogger(String parentLoggerName) {
+        this.logger = LogManager.getLogger(getLoggerName(parentLoggerName));
+    }
+
+    private static String getLoggerName(String name) {
         if (name.startsWith("org.elasticsearch")) {
             name = name.replace("org.elasticsearch.", "org.elasticsearch.deprecation.");
         } else {
             name = "deprecation." + name;
         }
-        return LogManager.getLogger(name);
+        return name;
     }
 
     private static String toLoggerName(final Class<?> cls) {
@@ -86,18 +75,27 @@ public class DeprecationLogger {
      * Logs a message at the {@link #DEPRECATION} level. The message is also sent to the header warning logger,
      * so that it can be returned to the client.
      */
-    public DeprecationLoggerBuilder deprecate(final String key, final String msg, final Object... params) {
-        return new DeprecationLoggerBuilder().withDeprecation(key, msg, params);
+    public DeprecationLogger deprecate(
+        final DeprecationCategory category,
+        final String key,
+        final String msg,
+        final Object... params
+    ) {
+        assert category != DeprecationCategory.COMPATIBLE_API :
+            "DeprecationCategory.COMPATIBLE_API should be logged with compatibleApiWarning method";
+        ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, HeaderWarning.getXOpaqueId(), msg, params);
+        logger.log(DEPRECATION, deprecationMessage);
+        return this;
     }
 
-    public class DeprecationLoggerBuilder {
-
-        public DeprecationLoggerBuilder withDeprecation(String key, String msg, Object[] params) {
-            ESLogMessage deprecationMessage = DeprecatedMessage.of(key, HeaderWarning.getXOpaqueId(), msg, params);
-
-            logger.log(DEPRECATION, deprecationMessage);
-
-            return this;
-        }
+    public DeprecationLogger compatibleApiWarning(
+        final String key,
+        final String msg,
+        final Object... params) {
+        String opaqueId = HeaderWarning.getXOpaqueId();
+        ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(key, opaqueId, msg, params);
+        logger.log(DEPRECATION, deprecationMessage);
+        return this;
     }
+
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.planner;
 
@@ -86,8 +87,8 @@ import static org.elasticsearch.xpack.ql.expression.Foldables.valueOf;
 
 final class QueryTranslator {
 
-    public static final String DATE_FORMAT = "strict_date_time";
-    public static final String TIME_FORMAT = "strict_hour_minute_second_millis";
+    public static final String DATE_FORMAT = "strict_date_optional_time_nanos";
+    public static final String TIME_FORMAT = "strict_hour_minute_second_fraction";
 
     private QueryTranslator() {}
 
@@ -472,7 +473,7 @@ final class QueryTranslator {
             if (onAggs) {
                 aggFilter = new AggFilter(id(f), f.asScript());
             } else {
-                query = org.elasticsearch.xpack.ql.planner.ExpressionTranslators.Scalars.doTranslate(f, handler);
+                query = ExpressionTranslators.Scalars.doTranslate(f, handler);
             }
 
             return new QueryTranslation(query, aggFilter);

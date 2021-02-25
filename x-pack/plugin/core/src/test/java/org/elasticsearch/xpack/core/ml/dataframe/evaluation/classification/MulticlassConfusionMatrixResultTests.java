@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
@@ -62,7 +63,7 @@ public class MulticlassConfusionMatrixResultTests extends AbstractSerializingTes
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // allow unknown fields in the root of the object only
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     public void testConstructor_ValidationFailures() {

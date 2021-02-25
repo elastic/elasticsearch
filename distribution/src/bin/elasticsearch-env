@@ -36,28 +36,34 @@ ES_HOME=`dirname "$ES_HOME"`
 ES_CLASSPATH="$ES_HOME/lib/*"
 
 # now set the path to java
-if [ ! -z "$JAVA_HOME" ]; then
-  JAVA="$JAVA_HOME/bin/java"
-  JAVA_TYPE="JAVA_HOME"
+if [ ! -z "$ES_JAVA_HOME" ]; then
+  JAVA="$ES_JAVA_HOME/bin/java"
+  JAVA_TYPE="ES_JAVA_HOME"
 else
+  # use the bundled JDK (default)
   if [ "$(uname -s)" = "Darwin" ]; then
     # macOS has a different structure
     JAVA="$ES_HOME/jdk.app/Contents/Home/bin/java"
   else
     JAVA="$ES_HOME/jdk/bin/java"
   fi
-  JAVA_TYPE="bundled jdk"
+  JAVA_TYPE="bundled JDK"
 fi
 
 if [ ! -x "$JAVA" ]; then
-    echo "could not find java in $JAVA_TYPE at $JAVA" >&2
-    exit 1
-  fi
+  echo "could not find java in $JAVA_TYPE at $JAVA" >&2
+  exit 1
+fi
 
 # do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)
 if [ ! -z "$JAVA_TOOL_OPTIONS" ]; then
   echo "warning: ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
   unset JAVA_TOOL_OPTIONS
+fi
+
+# warn that we are not observing the value of JAVA_HOME
+if [ ! -z "$JAVA_HOME" ]; then
+  echo "warning: ignoring JAVA_HOME=$JAVA_HOME; using $JAVA_TYPE" >&2
 fi
 
 # JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we
@@ -123,7 +129,7 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
         es_arg_array+=("${es_opt}")
       fi
     fi
-  done < <(env)
+  done <<< "$(env)"
 
   # Reset the positional parameters to the es_arg_array values and any existing positional params
   set -- "$@" "${es_arg_array[@]}"

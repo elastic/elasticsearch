@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -35,7 +24,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
@@ -64,12 +53,12 @@ import java.util.function.Supplier;
  * <p>
  * In production we always use the {@link ProductionAggregationContext} but
  * this is {@code abstract} so that tests can build it without creating the
- * massing {@link QueryShardContext}.
+ * massing {@link SearchExecutionContext}.
  * <p>
  * {@linkplain AggregationContext}s are {@link Releasable} because they track
  * the {@link Aggregator}s they build and {@link Aggregator#close} them when
  * the request is done. {@linkplain AggregationContext} may also preallocate
- * bytes on the "REQUEST" breaker and is responsible for releasing those bytes. 
+ * bytes on the "REQUEST" breaker and is responsible for releasing those bytes.
  */
 public abstract class AggregationContext implements Releasable {
     /**
@@ -191,7 +180,7 @@ public abstract class AggregationContext implements Releasable {
     public abstract SubSearchContext subSearchContext();
 
     /**
-     * Cause this aggregation to be released when the search is finished. 
+     * Cause this aggregation to be released when the search is finished.
      */
     public abstract void addReleasable(Aggregator aggregator);
 
@@ -244,13 +233,13 @@ public abstract class AggregationContext implements Releasable {
 
     /**
      * Implementation of {@linkplain AggregationContext} for production usage
-     * that wraps our ubiquitous {@link QueryShardContext} and anything else
+     * that wraps our ubiquitous {@link SearchExecutionContext} and anything else
      * specific to aggregations. Unit tests should generally avoid using this
      * because it requires a <strong>huge</strong> portion of a real
      * Elasticsearch node.
      */
     public static class ProductionAggregationContext extends AggregationContext {
-        private final QueryShardContext context;
+        private final SearchExecutionContext context;
         private final PreallocatedCircuitBreakerService preallocatedBreakerService;
         private final BigArrays bigArrays;
         private final Supplier<Query> topLevelQuery;
@@ -265,7 +254,7 @@ public abstract class AggregationContext implements Releasable {
         private final List<Aggregator> releaseMe = new ArrayList<>();
 
         public ProductionAggregationContext(
-            QueryShardContext context,
+            SearchExecutionContext context,
             BigArrays bigArrays,
             long bytesToPreallocate,
             Supplier<Query> topLevelQuery,

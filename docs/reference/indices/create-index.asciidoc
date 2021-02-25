@@ -17,6 +17,12 @@ PUT /my-index-000001
 
 `PUT /<index>`
 
+[[indices-create-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `create_index`
+or `manage` <<privileges-list-indices,index privilege>> for the target index.
+
 [[indices-create-api-desc]]
 ==== {api-description-title}
 You can use the create index API to add a new index to an {es} cluster. When

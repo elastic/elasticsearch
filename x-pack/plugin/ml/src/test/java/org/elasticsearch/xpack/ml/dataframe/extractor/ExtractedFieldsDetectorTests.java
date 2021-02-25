@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.extractor;
 
@@ -1136,7 +1137,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
     private DataFrameAnalyticsConfig buildOutlierDetectionConfig() {
         return new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
-            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering))
+            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering, null))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
             .setAnalyzedFields(analyzedFields)
             .setAnalysis(new OutlierDetection.Builder().build())
@@ -1150,7 +1151,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
     private DataFrameAnalyticsConfig buildClassificationConfig(String dependentVariable) {
         return new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
-            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering))
+            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering, null))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
             .setAnalysis(new Classification(dependentVariable))
             .build();
@@ -1159,7 +1160,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
     private DataFrameAnalyticsConfig buildRegressionConfig(String dependentVariable, List<PreProcessor> featureprocessors) {
         return new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
-            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering))
+            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering, null))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
             .setAnalyzedFields(analyzedFields)
             .setAnalysis(new Regression(dependentVariable,
@@ -1169,7 +1170,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
                 null,
                 null,
                 null,
-                featureprocessors))
+                featureprocessors,
+                null))
             .build();
     }
 

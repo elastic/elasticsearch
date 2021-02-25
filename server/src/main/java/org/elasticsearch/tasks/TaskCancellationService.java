@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.tasks;
@@ -36,7 +25,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestDeduplicator;
+import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -52,7 +41,7 @@ public class TaskCancellationService {
     private static final Logger logger = LogManager.getLogger(TaskCancellationService.class);
     private final TransportService transportService;
     private final TaskManager taskManager;
-    private final TransportRequestDeduplicator<CancelRequest> deduplicator = new TransportRequestDeduplicator<>();
+    private final ResultDeduplicator<CancelRequest, Void> deduplicator = new ResultDeduplicator<>();
 
     public TaskCancellationService(TransportService transportService) {
         this.transportService = transportService;
@@ -109,7 +98,7 @@ public class TaskCancellationService {
             });
             StepListener<Void> setBanListener = new StepListener<>();
             setBanOnChildConnections(reason, waitForCompletion, task, childConnections, setBanListener);
-            setBanListener.whenComplete(groupedListener::onResponse, groupedListener::onFailure);
+            setBanListener.addListener(groupedListener);
             // If we start unbanning when the last child task completed and that child task executed with a specific user, then unban
             // requests are denied because internal requests can't run with a user. We need to remove bans with the current thread context.
             final Runnable removeBansRunnable = transportService.getThreadPool().getThreadContext()
@@ -119,9 +108,9 @@ public class TaskCancellationService {
             // if wait_for_completion is true, then only return when (1) bans are placed on child connections, (2) child tasks are
             // completed or failed, (3) the main task is cancelled. Otherwise, return after bans are placed on child connections.
             if (waitForCompletion) {
-                completedListener.whenComplete(r -> listener.onResponse(null), listener::onFailure);
+                completedListener.addListener(listener);
             } else {
-                setBanListener.whenComplete(r -> listener.onResponse(null), listener::onFailure);
+                setBanListener.addListener(listener);
             }
         } else {
             logger.trace("task [{}] doesn't have any children that should be cancelled", taskId);

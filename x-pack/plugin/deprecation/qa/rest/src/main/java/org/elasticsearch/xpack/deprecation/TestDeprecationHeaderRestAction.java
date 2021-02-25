@@ -1,11 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -66,6 +69,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
 
     public static final String DEPRECATED_ENDPOINT = "[/_test_cluster/deprecated_settings] exists for deprecated tests";
     public static final String DEPRECATED_USAGE = "[deprecated_settings] usage is deprecated. use [settings] instead";
+    public static final String COMPATIBLE_API_USAGE = "You are using a compatible API for this request";
 
     private final Settings settings;
 
@@ -94,10 +98,14 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
         final List<String> settings;
 
         try (XContentParser parser = request.contentParser()) {
+            if (parser.getRestApiCompatibleVersion() == RestApiCompatibleVersion.minimumSupported()) {
+                deprecationLogger.compatibleApiWarning("compatible_key", COMPATIBLE_API_USAGE);
+            }
+
             final Map<String, Object> source = parser.map();
 
             if (source.containsKey("deprecated_settings")) {
-                deprecationLogger.deprecate("deprecated_settings", DEPRECATED_USAGE);
+                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "deprecated_settings", DEPRECATED_USAGE);
 
                 settings = (List<String>) source.get("deprecated_settings");
             } else {

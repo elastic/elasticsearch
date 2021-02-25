@@ -1,5 +1,8 @@
 [[search-template]]
-=== Search Template
+=== Search template API
+++++
+<titleabbrev>Search template</titleabbrev>
+++++
 
 Allows you to use the mustache language to pre render search requests.
 
@@ -25,6 +28,12 @@ GET _search/template
 
 `GET _search/template`
 
+[[search-template-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or index alias. For cross-cluster search, see <<cross-cluster-configuring>>.
 
 [[search-template-api-desc]]
 ==== {api-description-title}
@@ -644,7 +653,10 @@ The previous query will be rendered as:
 
 
 [[multi-search-template]]
-=== Multi Search Template
+=== Multi search template API
+++++
+<titleabbrev>Multi search template</titleabbrev>
+++++
 
 Allows to execute several search template requests.
 
@@ -653,6 +665,12 @@ Allows to execute several search template requests.
 
 `GET _msearch/template`
 
+[[multi-search-template-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or index alias. For cross-cluster search, see <<cross-cluster-configuring>>.
 
 [[multi-search-template-api-desc]]
 ==== {api-description-title}

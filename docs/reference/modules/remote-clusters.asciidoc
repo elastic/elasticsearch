@@ -12,7 +12,7 @@ remote cluster using one of two connection modes:
 * <<sniff-mode,Sniff mode>>
 * <<proxy-mode,Proxy mode>>
 
-Your local cluster uses the <<modules-transport,transport layer>> to establish
+Your local cluster uses the <<modules-network,transport layer>> to establish
 communication with remote clusters. The coordinating nodes in the local cluster
 establish <<long-lived-connections,long-lived>> TCP connections with specific
 nodes in the remote cluster. {es} requires these connections to remain open,
@@ -229,7 +229,7 @@ cluster:
 <1> `cluster_one`, `cluster_two`, and `cluster_three` are arbitrary _cluster aliases_
 representing the connection to each cluster. These names are subsequently used to
 distinguish between local and remote indices.
-<2> The hostname and <<modules-transport,transport>> port (default: 9300) of a
+<2> The hostname and <<transport-settings,transport port>> (default: 9300) of a
 seed node in the remote cluster.
 <3> A keep-alive ping is configured for `cluster_one`.
 <4> The configured connection mode. By default, this is <<sniff-mode,`sniff`>>, so

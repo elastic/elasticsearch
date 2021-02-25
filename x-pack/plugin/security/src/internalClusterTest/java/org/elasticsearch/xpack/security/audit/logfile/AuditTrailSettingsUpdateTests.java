@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
@@ -159,9 +160,9 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
                 .iterator()
                 .next();
         assertEquals(enableRequestBody, loggingAuditTrail.includeRequestBody);
-        settingsBuilder.put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), !enableRequestBody);
+        settingsBuilder.put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), enableRequestBody == false);
         updateSettings(settingsBuilder.build(), persistent);
-        assertEquals(!enableRequestBody, loggingAuditTrail.includeRequestBody);
+        assertEquals(enableRequestBody == false, loggingAuditTrail.includeRequestBody);
     }
 
     public void testDynamicEventsSettings() {

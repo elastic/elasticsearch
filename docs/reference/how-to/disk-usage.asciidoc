@@ -143,16 +143,18 @@ space. They can be compressed more aggressively by using the `best_compression`
 <<index-codec,codec>>.
 
 [discrete]
-=== Force Merge
+=== Force merge
 
 Indices in Elasticsearch are stored in one or more shards. Each shard is a Lucene index and made up of one or more segments - the actual files on disk. Larger segments are more efficient for storing data.
 
-The <<indices-forcemerge,`_forcemerge` API>> can be used to reduce the number of segments per shard. In many cases, the number of segments can be reduced to one per shard by setting `max_num_segments=1`.
+The <<indices-forcemerge,force merge API>> can be used to reduce the number of segments per shard. In many cases, the number of segments can be reduced to one per shard by setting `max_num_segments=1`.
+
+include::{es-repo-dir}/indices/forcemerge.asciidoc[tag=force-merge-read-only-warn]
 
 [discrete]
-=== Shrink Index
+=== Shrink index
 
-The <<indices-shrink-index,Shrink API>> allows you to reduce the number of shards in an index. Together with the Force Merge API above, this can significantly reduce the number of shards and segments of an index.
+The <<indices-shrink-index,shrink API>> allows you to reduce the number of shards in an index. Together with the force merge API above, this can significantly reduce the number of shards and segments of an index.
 
 [discrete]
 === Use the smallest numeric type that is sufficient

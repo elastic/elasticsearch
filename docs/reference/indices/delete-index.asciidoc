@@ -18,6 +18,11 @@ DELETE /my-index-000001
 
 `DELETE /<index>`
 
+[[delete-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `delete_index`
+or `manage` <<privileges-list-indices,index privilege>> for the target index.
 
 [[delete-index-api-path-params]]
 ==== {api-path-parms-title}

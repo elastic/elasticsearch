@@ -1,6 +1,6 @@
 [discrete]
 [[breaking_80_node_changes]]
-=== Node changes
+==== Node changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -28,7 +28,7 @@ setting in `elasticsearch.yml` will result in an error on startup.
 Each node's data is now stored directly in the data directory set by the
 `path.data` setting, rather than in `${path.data}/nodes/0`, because the removal
 of the `node.max_local_storage_nodes` setting means that nodes may no longer
-share a data path. 
+share a data path.
 
 *Impact* +
 At startup, {es} will automatically migrate the data path to the new layout.

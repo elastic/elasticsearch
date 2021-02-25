@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.analysis;
 
@@ -224,9 +225,10 @@ public class VerifierTests extends ESTestCase {
         accept(idxr, "foo where date_with_multi_format == \"20200241\"");
         accept(idxr, "foo where date_with_multi_format == \"11:12:13\"");
 
-        // Test query against unsupported field type date_nanos
-        assertEquals("1:11: Cannot use field [date_nanos_field] with unsupported type [date_nanos]",
-                error(idxr, "foo where date_nanos_field == \"\""));
+        accept(idxr, "foo where date_nanos_field == \"\"");
+        accept(idxr, "foo where date_nanos_field == \"2020-02-02\"");
+        accept(idxr, "foo where date_nanos_field == \"2020-02-41\"");
+        accept(idxr, "foo where date_nanos_field == \"20200241\"");
     }
 
     public void testBoolean() {

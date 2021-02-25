@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport.nio;
@@ -270,38 +259,30 @@ public class MockNioTransport extends TcpTransport {
         }
     }
 
-    private static final LeakTracker leakTracker = new LeakTracker(Releasable.class);
+    private static final class LeakAwareRefCounted extends AbstractRefCounted {
+        private final LeakTracker.Leak<Releasable> leak;
 
-    private static final class LeakAwareReleasableBytesReference extends ReleasableBytesReference {
+        private final Releasable releasable;
 
-        LeakAwareReleasableBytesReference(BytesReference delegate, Releasable releasable) {
-            super(delegate, new RefCountedReleasable(releasable));
-            this.refCounted.decRef();
+        LeakAwareRefCounted(Releasable releasable) {
+            super("leak-aware-ref-counted");
+            this.releasable = releasable;
+            leak = LeakTracker.INSTANCE.track(releasable);
         }
 
-        private static final class RefCountedReleasable extends AbstractRefCounted {
-            private final LeakTracker.Leak<Releasable> leak;
+        @Override
+        protected void closeInternal() {
+            boolean leakReleased = leak.close(releasable);
+            assert leakReleased : "leak should not have been released already";
+            releasable.close();
+        }
 
-            private final Releasable releasable;
-
-            RefCountedReleasable(Releasable releasable) {
-                super("bytes-reference-leak");
-                this.releasable = releasable;
-                leak = leakTracker.track(releasable);
-            }
-
-            @Override
-            protected void closeInternal() {
-                leak.close(releasable);
-                releasable.close();
-            }
-
-            @Override
-            protected void track() {
-                leak.record();
-            }
+        @Override
+        protected void touch() {
+            leak.record();
         }
     }
+
     private static class MockTcpReadWriteHandler extends BytesWriteHandler {
 
         private final MockSocketChannel channel;
@@ -325,15 +306,9 @@ public class MockNioTransport extends TcpTransport {
             for (int i = 0; i < pages.length; ++i) {
                 references[i] = BytesReference.fromByteBuffer(pages[i].byteBuffer());
             }
-            Releasable releasable = () -> {
-                try {
-                    IOUtils.close(pages);
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                }
-            };
+            Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
             try (ReleasableBytesReference reference =
-                         new LeakAwareReleasableBytesReference(CompositeBytesReference.of(references), releasable)) {
+                         new ReleasableBytesReference(CompositeBytesReference.of(references), new LeakAwareRefCounted(releasable))) {
                 pipeline.handleBytes(channel, reference);
                 return reference.length();
             }

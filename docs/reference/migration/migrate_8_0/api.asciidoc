@@ -1,6 +1,6 @@
 [discrete]
 [[breaking_80_api_changes]]
-=== REST API changes
+==== REST API changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide

@@ -337,6 +337,7 @@ RUN chmod g=u /etc/passwd && \\
 
 EXPOSE 9200 9300
 
+<% if (docker_base != 'iron_bank') { %>
 LABEL org.label-schema.build-date="${build_date}" \\
   org.label-schema.license="${license}" \\
   org.label-schema.name="Elasticsearch" \\
@@ -356,8 +357,9 @@ LABEL org.label-schema.build-date="${build_date}" \\
   org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \\
   org.opencontainers.image.vendor="Elastic" \\
   org.opencontainers.image.version="${version}"
+<% } %>
 
-<% if (docker_base == 'ubi' || docker_base == 'iron_bank') { %>
+<% if (docker_base == 'ubi') { %>
 LABEL name="Elasticsearch" \\
   maintainer="infra@elastic.co" \\
   vendor="Elastic" \\

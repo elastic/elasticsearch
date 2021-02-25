@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
@@ -53,7 +42,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
@@ -252,24 +241,24 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     }
 
     /**
-     * @return a new {@link QueryShardContext} with the provided searcher
+     * @return a new {@link SearchExecutionContext} with the provided searcher
      */
-    protected static QueryShardContext createShardContext(IndexSearcher searcher) {
+    protected static SearchExecutionContext createSearchExecutionContext(IndexSearcher searcher) {
         return serviceHolder.createShardContext(searcher);
     }
 
     /**
-     * @return a new {@link QueryShardContext} based on an index with no type registered
+     * @return a new {@link SearchExecutionContext} based on an index with no type registered
      */
-    protected static QueryShardContext createShardContextWithNoType() {
+    protected static SearchExecutionContext createShardContextWithNoType() {
         return serviceHolderWithNoType.createShardContext(null);
     }
 
     /**
-     * @return a new {@link QueryShardContext} based on the base test index and queryParserService
+     * @return a new {@link SearchExecutionContext} based on the base test index and queryParserService
      */
-    protected static QueryShardContext createShardContext() {
-        return createShardContext(null);
+    protected static SearchExecutionContext createSearchExecutionContext() {
+        return createSearchExecutionContext(null);
     }
 
     private static class ClientInvocationHandler implements InvocationHandler {
@@ -279,6 +268,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
             if (method.equals(Client.class.getMethod("get", GetRequest.class, ActionListener.class))){
                 GetResponse getResponse = delegate.executeGet((GetRequest) args[0]);
+                @SuppressWarnings("unchecked")  // We matched the method above.
                 ActionListener<GetResponse> listener = (ActionListener<GetResponse>) args[1];
                 if (randomBoolean()) {
                     listener.onResponse(getResponse);
@@ -332,7 +322,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
             client = (Client) Proxy.newProxyInstance(
                     Client.class.getClassLoader(),
-                    new Class[]{Client.class},
+                    new Class<?>[]{Client.class},
                     clientInvocationHandler);
             ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
             List<Setting<?>> additionalSettings = pluginsService.getPluginSettings();
@@ -410,8 +400,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         public void close() throws IOException {
         }
 
-        QueryShardContext createShardContext(IndexSearcher searcher) {
-            return new QueryShardContext(
+        SearchExecutionContext createShardContext(IndexSearcher searcher) {
+            return new SearchExecutionContext(
                 0,
                 0,
                 idxSettings,

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.action.token;
@@ -283,7 +284,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             authenticationService, securityContext);
         final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
         createTokenRequest.setGrantType("_kerberos");
-        final char[] invalidBase64Chars = "!\"#$%&\\'()*,./:;<>?@[]^_`{|}~\t\n\r".toCharArray();
+        final char[] invalidBase64Chars = "!\"#$%&\\'()*,.:;<>?@[]^_`{|}~\t\n\r".toCharArray();
         final String kerberosTicketValue = Strings.arrayToDelimitedString(
             randomArray(1, 10, Character[]::new,
                 () -> invalidBase64Chars[randomIntBetween(0, invalidBase64Chars.length - 1)]), "");

@@ -36,6 +36,12 @@ DELETE /_template/my-legacy-index-template
 
 `DELETE /_template/<legacy-index-template>`
 
+[[delete-template-api-v1-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
 
 [[delete-template-api-v1-path-params]]
 ==== {api-path-parms-title}

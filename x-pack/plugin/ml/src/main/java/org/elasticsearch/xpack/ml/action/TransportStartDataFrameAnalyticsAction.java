@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -60,12 +61,12 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
-import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.ml.dataframe.SourceDestValidations;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetectorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
+import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
@@ -145,6 +147,7 @@ public class TransportStartDataFrameAnalyticsAction
     @Override
     protected void masterOperation(Task task, StartDataFrameAnalyticsAction.Request request, ClusterState state,
                                    ActionListener<NodeAcknowledgedResponse> listener) {
+        logger.debug(() -> new ParameterizedMessage("[{}] received start request", request.getId()));
         if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
@@ -178,7 +181,6 @@ public class TransportStartDataFrameAnalyticsAction
                     new TaskParams(
                         request.getId(),
                         startContext.config.getVersion(),
-                        startContext.progressOnStart,
                         startContext.config.isAllowLazyStart());
                 persistentTasksService.sendStartRequest(
                     MlTasks.dataFrameAnalyticsTaskId(request.getId()),
@@ -191,9 +193,7 @@ public class TransportStartDataFrameAnalyticsAction
 
         // Perform memory usage estimation for this config
         ActionListener<StartContext> startContextListener = ActionListener.wrap(
-            startContext -> {
-                estimateMemoryUsageAndUpdateMemoryTracker(startContext, memoryUsageHandledListener);
-            },
+            startContext -> estimateMemoryUsageAndUpdateMemoryTracker(startContext, memoryUsageHandledListener),
             listener::onFailure
         );
 
@@ -266,6 +266,7 @@ public class TransportStartDataFrameAnalyticsAction
                         break;
                     case RESUMING_REINDEXING:
                     case RESUMING_ANALYZING:
+                    case RESUMING_INFERENCE:
                         toValidateMappingsListener.onResponse(startContext);
                         break;
                     case FINISHED:
@@ -476,13 +477,11 @@ public class TransportStartDataFrameAnalyticsAction
 
     private static class StartContext {
         private final DataFrameAnalyticsConfig config;
-        private final List<PhaseProgress> progressOnStart;
         private final DataFrameAnalyticsTask.StartingState startingState;
         private volatile ExtractedFields extractedFields;
 
         private StartContext(DataFrameAnalyticsConfig config, List<PhaseProgress> progressOnStart) {
             this.config = config;
-            this.progressOnStart = progressOnStart;
             this.startingState = DataFrameAnalyticsTask.determineStartingState(config.getId(), progressOnStart);
         }
     }
@@ -531,8 +530,6 @@ public class TransportStartDataFrameAnalyticsAction
             DataFrameAnalyticsState analyticsState = taskState == null ? DataFrameAnalyticsState.STOPPED : taskState.getState();
             switch (analyticsState) {
                 case STARTED:
-                case REINDEXING:
-                case ANALYZING:
                     node = persistentTask.getExecutorNode();
                     return true;
                 case STOPPING:
@@ -586,16 +583,13 @@ public class TransportStartDataFrameAnalyticsAction
     public static class TaskExecutor extends AbstractJobPersistentTasksExecutor<TaskParams> {
 
         private final Client client;
-        private final ClusterService clusterService;
         private final DataFrameAnalyticsManager manager;
         private final DataFrameAnalyticsAuditor auditor;
-        private final IndexTemplateConfig inferenceIndexTemplate;
 
         private volatile ClusterState clusterState;
 
         public TaskExecutor(Settings settings, Client client, ClusterService clusterService, DataFrameAnalyticsManager manager,
-                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver,
-                            IndexTemplateConfig inferenceIndexTemplate) {
+                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver) {
             super(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                 MachineLearning.UTILITY_THREAD_POOL_NAME,
                 settings,
@@ -603,10 +597,8 @@ public class TransportStartDataFrameAnalyticsAction
                 memoryTracker,
                 resolver);
             this.client = Objects.requireNonNull(client);
-            this.clusterService = Objects.requireNonNull(clusterService);
             this.manager = Objects.requireNonNull(manager);
             this.auditor = Objects.requireNonNull(auditor);
-            this.inferenceIndexTemplate = Objects.requireNonNull(inferenceIndexTemplate);
             clusterService.addListener(event -> clusterState = event.state());
         }
 
@@ -616,13 +608,14 @@ public class TransportStartDataFrameAnalyticsAction
             PersistentTasksCustomMetadata.PersistentTask<TaskParams> persistentTask,
             Map<String, String> headers) {
             return new DataFrameAnalyticsTask(
-                id, type, action, parentTaskId, headers, client, clusterService, manager, auditor, persistentTask.getParams());
+                id, type, action, parentTaskId, headers, client, manager, auditor, persistentTask.getParams());
         }
 
         @Override
         public PersistentTasksCustomMetadata.Assignment getAssignment(TaskParams params, ClusterState clusterState) {
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
-            Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(params, clusterState);
+            Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment =
+                getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
             if (optionalAssignment.isPresent()) {
                 return optionalAssignment.get();
             }
@@ -650,8 +643,10 @@ public class TransportStartDataFrameAnalyticsAction
 
         @Override
         protected void nodeOperation(AllocatedPersistentTask task, TaskParams params, PersistentTaskState state) {
+            DataFrameAnalyticsTask dfaTask = (DataFrameAnalyticsTask) task;
             DataFrameAnalyticsTaskState analyticsTaskState = (DataFrameAnalyticsTaskState) state;
-            DataFrameAnalyticsState analyticsState = analyticsTaskState == null ? null : analyticsTaskState.getState();
+            DataFrameAnalyticsState analyticsState = analyticsTaskState == null ? DataFrameAnalyticsState.STOPPED
+                : analyticsTaskState.getState();
             logger.info("[{}] Starting data frame analytics from state [{}]", params.getId(), analyticsState);
 
             // If we are "stopping" there is nothing to do and we should stop
@@ -665,33 +660,46 @@ public class TransportStartDataFrameAnalyticsAction
                 return;
             }
 
-            ActionListener<Boolean> templateCheckListener = ActionListener.wrap(
-                ok -> executeTask(analyticsTaskState, task),
+            // Execute task
+            ActionListener<GetDataFrameAnalyticsStatsAction.Response> statsListener = ActionListener.wrap(
+                statsResponse -> {
+                    GetDataFrameAnalyticsStatsAction.Response.Stats stats = statsResponse.getResponse().results().get(0);
+                    dfaTask.setStatsHolder(
+                        new StatsHolder(stats.getProgress(), stats.getMemoryUsage(), stats.getAnalysisStats(), stats.getDataCounts()));
+                    executeTask(dfaTask);
+                },
+                dfaTask::setFailed
+            );
+
+            // Get stats to initialize in memory stats tracking
+            ActionListener<Boolean> indexCheckListener = ActionListener.wrap(
+                ok -> executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE,
+                    new GetDataFrameAnalyticsStatsAction.Request(params.getId()), statsListener),
                 error -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(error);
                     logger.error(
                         new ParameterizedMessage(
-                            "[{}] failed to create internal index template [{}]",
+                            "[{}] failed to create internal index [{}]",
                             params.getId(),
-                            inferenceIndexTemplate.getTemplateName()),
+                            InferenceIndexConstants.LATEST_INDEX_NAME),
                         cause);
-                    task.markAsFailed(error);
+                    dfaTask.setFailed(error);
                 }
             );
 
-            MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, inferenceIndexTemplate, templateCheckListener);
+            // Create the system index explicitly.  Although the master node would create it automatically on first use,
+            // in a mixed version cluster where the master node is on an older version than this node relying on auto-creation
+            // might use outdated mappings.
+            MlIndexAndAlias.createSystemIndexIfNecessary(client, clusterState, MachineLearning.getInferenceIndexSecurityDescriptor(),
+                indexCheckListener);
         }
 
-        private void executeTask(DataFrameAnalyticsTaskState analyticsTaskState, AllocatedPersistentTask task) {
-            if (analyticsTaskState == null) {
-                DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STARTED,
-                    task.getAllocationId(), null);
-                task.updatePersistentTaskState(startedState, ActionListener.wrap(
-                    response -> manager.execute((DataFrameAnalyticsTask) task, DataFrameAnalyticsState.STARTED, clusterState),
-                    task::markAsFailed));
-            } else {
-                manager.execute((DataFrameAnalyticsTask) task, analyticsTaskState.getState(), clusterState);
-            }
+        private void executeTask(DataFrameAnalyticsTask task) {
+            DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STARTED,
+                task.getAllocationId(), null);
+            task.updatePersistentTaskState(startedState, ActionListener.wrap(
+                response -> manager.execute(task, clusterState),
+                task::markAsFailed));
         }
 
         public static String nodeFilter(DiscoveryNode node, TaskParams params) {

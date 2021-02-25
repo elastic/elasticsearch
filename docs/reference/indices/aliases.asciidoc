@@ -25,6 +25,17 @@ POST /_aliases
 
 `POST /_aliases`
 
+[[indices-aliases-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the following
+<<privileges-list-indices,index privileges>>:
+
+** To use the `add` or `remove` action, you must have the `manage` index
+privilege for both the index and index alias.
+
+** To use the `remove_index` action, you must have the `manage` index privilege
+for the index.
 
 [[indices-aliases-api-desc]]
 ==== {api-description-title}

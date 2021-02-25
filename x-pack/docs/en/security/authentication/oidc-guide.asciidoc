@@ -518,9 +518,13 @@ interface, you must configure {kib} to use a `https` URL to connect to {es}, and
 you may need to configure `elasticsearch.ssl.certificateAuthorities` to trust
 the certificates that {es} has been configured to use.
 
-OpenID Connect authentication in {kib} is also subject to the
-`xpack.security.sessionTimeout` setting that is described in the {kib} security
-documentation, and you may wish to adjust this timeout to meet your local needs.
+OpenID Connect authentication in {kib} is subject to the following timeout settings in
+`kibana.yml`:
+
+- {kibana-ref}/xpack-security-session-management.html#session-idle-timeout[`xpack.security.session.idleTimeout`]
+- {kibana-ref}/xpack-security-session-management.html#session-lifespan[`xpack.security.session.lifespan`]
+
+You may want to adjust these timeouts based on your security requirements.
 
 The three additional settings that are required for OpenID Connect support are shown below:
 
@@ -599,7 +603,7 @@ APIs require authentication and the necessary authorization level for the authen
 user. For this reason, a Service Account user needs to be created and assigned a role
 that gives them the `manage_oidc` cluster privilege. The use of the `manage_token`
 cluster privilege will be necessary after the authentication takes place, so that the
-the user can maintain access or be subsequently logged out.
+user can maintain access or be subsequently logged out.
 
 [source,console]
 --------------------------------------------------

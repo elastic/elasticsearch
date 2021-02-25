@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
@@ -65,7 +66,7 @@ class ProblemTracker {
      */
     private void reportProblem(String template, String problemMessage) {
         hasProblems = true;
-        if (!Objects.equals(previousProblem, problemMessage)) {
+        if (Objects.equals(previousProblem, problemMessage) == false) {
             previousProblem = problemMessage;
             auditor.error(jobId, Messages.getMessage(template, problemMessage));
         }
@@ -97,7 +98,7 @@ class ProblemTracker {
      * Issues a recovery message if appropriate and prepares for next report
      */
     public void finishReport() {
-        if (!hasProblems && hadProblems) {
+        if (hasProblems == false && hadProblems) {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_RECOVERED));
         }
 

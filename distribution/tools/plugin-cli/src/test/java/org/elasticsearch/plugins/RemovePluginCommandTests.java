@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugins;
@@ -37,8 +26,10 @@ import java.io.StringReader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
@@ -107,10 +98,14 @@ public class RemovePluginCommandTests extends ESTestCase {
         );
     }
 
-    static MockTerminal removePlugin(String name, Path home, boolean purge) throws Exception {
+    static MockTerminal removePlugin(String pluginId, Path home, boolean purge) throws Exception {
+        return removePlugin(List.of(pluginId), home, purge);
+    }
+
+    static MockTerminal removePlugin(List<String> pluginIds, Path home, boolean purge) throws Exception {
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
-        new MockRemovePluginCommand(env).execute(terminal, env, name, purge);
+        new MockRemovePluginCommand(env).execute(terminal, env, pluginIds, purge);
         return terminal;
     }
 
@@ -138,6 +133,23 @@ public class RemovePluginCommandTests extends ESTestCase {
         removePlugin("fake", home, randomBoolean());
         assertFalse(Files.exists(env.pluginsFile().resolve("fake")));
         assertTrue(Files.exists(env.pluginsFile().resolve("other")));
+        assertRemoveCleaned(env);
+    }
+
+    /** Check that multiple plugins can be removed at the same time. */
+    public void testRemoveMultiple() throws Exception {
+        createPlugin("fake");
+        Files.createFile(env.pluginsFile().resolve("fake").resolve("plugin.jar"));
+        Files.createDirectory(env.pluginsFile().resolve("fake").resolve("subdir"));
+
+        createPlugin("other");
+        Files.createFile(env.pluginsFile().resolve("other").resolve("plugin.jar"));
+        Files.createDirectory(env.pluginsFile().resolve("other").resolve("subdir"));
+
+        removePlugin("fake", home, randomBoolean());
+        removePlugin("other", home, randomBoolean());
+        assertFalse(Files.exists(env.pluginsFile().resolve("fake")));
+        assertFalse(Files.exists(env.pluginsFile().resolve("other")));
         assertRemoveCleaned(env);
     }
 
@@ -247,7 +259,6 @@ public class RemovePluginCommandTests extends ESTestCase {
             BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()));
             BufferedReader errorReader = new BufferedReader(new StringReader(terminal.getErrorOutput()))
         ) {
-            assertEquals("-> removing [fake]...", reader.readLine());
             assertEquals(
                 "ERROR: plugin [fake] not found; run 'elasticsearch-plugin list' to get list of installed plugins",
                 errorReader.readLine()
@@ -257,10 +268,14 @@ public class RemovePluginCommandTests extends ESTestCase {
         }
     }
 
-    public void testMissingPluginName() throws Exception {
-        UserException e = expectThrows(UserException.class, () -> removePlugin(null, home, randomBoolean()));
+    public void testMissingPluginName() {
+        UserException e = expectThrows(UserException.class, () -> removePlugin((List<String>) null, home, randomBoolean()));
         assertEquals(ExitCodes.USAGE, e.exitCode);
-        assertEquals("plugin name is required", e.getMessage());
+        assertEquals("At least one plugin ID is required", e.getMessage());
+
+        e = expectThrows(UserException.class, () -> removePlugin(emptyList(), home, randomBoolean()));
+        assertEquals(ExitCodes.USAGE, e.exitCode);
+        assertEquals("At least one plugin ID is required", e.getMessage());
     }
 
     public void testRemoveWhenRemovingMarker() throws Exception {

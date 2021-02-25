@@ -64,6 +64,8 @@ public class TransportPutDataFrameAnalyticsAction
 
     private static final Logger logger = LogManager.getLogger(TransportPutDataFrameAnalyticsAction.class);
 
+    private static final Version MIN_VERSION_FOR_RUNTIME_FIELDS = Version.V_7_12_0;
+
     private final XPackLicenseState licenseState;
     private final DataFrameAnalyticsConfigProvider configProvider;
     private final SecurityContext securityContext;
@@ -119,13 +121,14 @@ public class TransportPutDataFrameAnalyticsAction
 
         // Check if runtime mappings are used but the cluster contains nodes on a version
         // before runtime fields were introduced and reject such configs.
-        if (config.getSource().getRuntimeMappings().isEmpty() == false && state.nodes().getMinNodeVersion().before(Version.V_7_11_0)) {
+        if (config.getSource().getRuntimeMappings().isEmpty() == false
+                && state.nodes().getMinNodeVersion().before(MIN_VERSION_FOR_RUNTIME_FIELDS)) {
             listener.onFailure(ExceptionsHelper.badRequestException(
                     "at least one cluster node is on a version [{}] that does not support [{}]; " +
                     "all nodes should be at least on version [{}] in order to create data frame analytics with [{}]",
                     state.nodes().getMinNodeVersion(),
                     SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName(),
-                    Version.V_7_11_0,
+                    MIN_VERSION_FOR_RUNTIME_FIELDS,
                     SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()
                 )
             );

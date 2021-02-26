@@ -355,18 +355,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 SR response = statusProducerFromTask.apply(asyncTask);
                 sendFinalStatusResponse(request, response, listener);
             } else { // get status response from index
-                getStatusResponseFromIndex(asyncExecutionId, statusProducerFromIndex,
-                    new ActionListener<>() {
-                        @Override
-                        public void onResponse(SR searchStatusResponse) {
-                            sendFinalStatusResponse(request, searchStatusResponse, listener);
-                        }
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }
-                );
+                getStatusResponseFromIndex(asyncExecutionId, statusProducerFromIndex, listener.delegateFailure(
+                        (l, searchStatusResponse) -> sendFinalStatusResponse(request, searchStatusResponse, l)));
             }
         } catch (Exception exc) {
             listener.onFailure(exc);

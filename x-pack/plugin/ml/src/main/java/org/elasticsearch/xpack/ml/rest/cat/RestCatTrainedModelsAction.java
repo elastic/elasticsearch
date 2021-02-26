@@ -205,22 +205,14 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
                                                                         final int size,
                                                                         final List<TrainedModelConfig> configs,
                                                                         final ActionListener<Table> listener) {
-        return new GroupedActionListener<>(new ActionListener<>() {
-            @Override
-            public void onResponse(final Collection<ActionResponse> responses) {
-                GetTrainedModelsStatsAction.Response statsResponse = extractResponse(responses, GetTrainedModelsStatsAction.Response.class);
-                GetDataFrameAnalyticsAction.Response analytics = extractResponse(responses, GetDataFrameAnalyticsAction.Response.class);
-                listener.onResponse(buildTable(request,
+        return new GroupedActionListener<>(listener.delegateFailure((l, responses) -> {
+            GetTrainedModelsStatsAction.Response statsResponse = extractResponse(responses, GetTrainedModelsStatsAction.Response.class);
+            GetDataFrameAnalyticsAction.Response analytics = extractResponse(responses, GetDataFrameAnalyticsAction.Response.class);
+            l.onResponse(buildTable(request,
                     statsResponse.getResources().results(),
                     configs,
                     analytics == null ? Collections.emptyList() : analytics.getResources().results()));
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                listener.onFailure(e);
-            }
-        }, size);
+        }), size);
     }
 
 

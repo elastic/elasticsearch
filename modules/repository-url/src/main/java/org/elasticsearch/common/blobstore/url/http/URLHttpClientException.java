@@ -6,12 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.blobstore.url;
+package org.elasticsearch.common.blobstore.url.http;
 
-import java.io.IOException;
+public class URLHttpClientException extends RuntimeException {
+    private final int statusCode;
 
-public class URLHttpClientException extends IOException {
-    public URLHttpClientException(String message, Throwable cause) {
-        super(message, cause);
+    public URLHttpClientException(int statusCode) {
+        this.statusCode = statusCode;
+    }
+
+    public int getStatusCode() {
+        return statusCode;
     }
 }

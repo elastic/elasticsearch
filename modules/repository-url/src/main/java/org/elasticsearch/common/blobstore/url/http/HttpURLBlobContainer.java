@@ -6,9 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.blobstore.url;
+package org.elasticsearch.common.blobstore.url.http;
 
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.url.URLBlobContainer;
+import org.elasticsearch.common.blobstore.url.URLBlobStore;
 
 import java.io.IOException;
 import java.io.InputStream;

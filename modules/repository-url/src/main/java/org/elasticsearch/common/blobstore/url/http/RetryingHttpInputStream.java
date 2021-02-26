@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.blobstore.url;
+package org.elasticsearch.common.blobstore.url.http;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -122,9 +122,11 @@ class RetryingHttpInputStream extends InputStream {
 
     @Override
     public void close() throws IOException {
-        maybeAbort();
+        maybeAbort(delegate);
         try {
-            delegate.close();
+            if (delegate != null) {
+                delegate.close();
+            }
         } finally {
             closed = true;
         }
@@ -132,7 +134,7 @@ class RetryingHttpInputStream extends InputStream {
 
     private void maybeOpenInputStream() throws IOException {
         if (delegate == null) {
-            openInputStream();
+            delegate = openInputStream();
         }
     }
 
@@ -155,7 +157,7 @@ class RetryingHttpInputStream extends InputStream {
         retryCount += 1;
         accumulateFailure(e);
 
-        maybeAbort();
+        maybeAbort(delegate);
         IOUtils.closeWhileHandlingException(delegate);
         delegate = null;
     }
@@ -164,14 +166,14 @@ class RetryingHttpInputStream extends InputStream {
      * Since we're using pooled http connections if we want to cancel an on-going request,
      * we should remove that connection from the connection pool since it cannot be reused.
      */
-    void maybeAbort() {
-        if (eof) {
+    void maybeAbort(HttpResponseInputStream inputStream) {
+        if (eof || inputStream == null) {
             return;
         }
 
         try {
-            if (start + totalBytesRead < currentStreamLastOffset && delegate != null) {
-                delegate.abort();
+            if (start + totalBytesRead < currentStreamLastOffset) {
+                inputStream.abort();
             }
         } catch (Exception e) {
             logger.warn("Failed to abort stream before closing", e);
@@ -197,46 +199,47 @@ class RetryingHttpInputStream extends InputStream {
         return e;
     }
 
-    private void openInputStream() throws IOException {
+    @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
+    private HttpResponseInputStream openInputStream() throws IOException {
         try {
-            delegate = getInputStream();
+            return AccessController.doPrivileged((PrivilegedExceptionAction<HttpResponseInputStream>) () -> {
+                final Map<String, String> headers = new HashMap<>(1);
+
+                if (isRangeRead()) {
+                    headers.put("Range", getBytesRange(Math.addExact(start, totalBytesRead), end));
+                }
+
+                try {
+                    final URLHttpClient.HttpResponse response = httpClient.get(blobURI, headers);
+                    final int statusCode = response.getStatusCode();
+
+                    if (statusCode != RestStatus.OK.getStatus() && statusCode != RestStatus.PARTIAL_CONTENT.getStatus()) {
+                        final HttpResponseInputStream inputStream = response.getInputStream();
+                        IOUtils.closeWhileHandlingException(inputStream);
+                        IOUtils.closeWhileHandlingException(response);
+                        throw new IOException(getErrorMessage("The server returned an invalid status code :" + statusCode));
+                    }
+
+                    currentStreamLastOffset = getStreamLength(response);
+
+                    return response.getInputStream();
+                } catch (URLHttpClientException e) {
+                    if (e.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                        throw new NoSuchFileException("blob object [" + blobName + "] not found");
+                    } else {
+                        throw e;
+                    }
+                }
+            });
         } catch (PrivilegedActionException e) {
-            final Throwable rootCause = e.getCause();
-            if (rootCause instanceof IOException) {
-                throw (IOException) rootCause;
+            final Throwable cause = e.getCause();
+            if (cause instanceof IOException) {
+                throw (IOException) cause;
             }
             throw new IOException(getErrorMessage(), e);
         } catch (Exception e) {
             throw new IOException(getErrorMessage(), e);
         }
-    }
-
-    @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
-    private HttpResponseInputStream getInputStream() throws PrivilegedActionException {
-        return AccessController.doPrivileged((PrivilegedExceptionAction<HttpResponseInputStream>) () -> {
-            final Map<String, String> headers = new HashMap<>(1);
-
-            if (isRangeRead()) {
-                headers.put("Range", getBytesRange(Math.addExact(start, totalBytesRead), end));
-            }
-
-            final URLHttpClient.HttpResponse response = httpClient.get(blobURI, headers);
-
-            final int statusCode = response.getStatusCode();
-            if (statusCode == RestStatus.NOT_FOUND.getStatus()) {
-                IOUtils.closeWhileHandlingException(response);
-                throw new NoSuchFileException("blob object [" + blobName + "] not found");
-            }
-
-            if (statusCode != RestStatus.OK.getStatus() && statusCode != RestStatus.PARTIAL_CONTENT.getStatus()) {
-                IOUtils.closeWhileHandlingException(response);
-                throw new IOException(getErrorMessage("The server returned " + statusCode + " status code."));
-            }
-
-            currentStreamLastOffset = getStreamLength(response);
-
-            return response.getInputStream();
-        });
     }
 
     private boolean isRangeRead() {

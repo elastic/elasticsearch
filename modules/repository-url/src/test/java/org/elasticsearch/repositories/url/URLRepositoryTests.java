@@ -9,7 +9,7 @@
 package org.elasticsearch.repositories.url;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.common.blobstore.url.URLHttpClient;
+import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;

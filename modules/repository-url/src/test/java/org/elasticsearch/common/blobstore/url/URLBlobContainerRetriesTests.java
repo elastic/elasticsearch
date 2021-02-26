@@ -11,6 +11,9 @@ package org.elasticsearch.common.blobstore.url;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
+import org.elasticsearch.common.blobstore.url.http.URLHttpClientIOException;
+import org.elasticsearch.common.blobstore.url.http.URLHttpClientSettings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -50,7 +53,7 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
 
     @Override
     protected Class<? extends Exception> unresponsiveExceptionType() {
-        return URLHttpClientException.class;
+        return URLHttpClientIOException.class;
     }
 
     @Override

@@ -5,38 +5,50 @@
 
 include::operator-privileges-designed-for-note.asciidoc[]
 
+Before you can use operator privileges, you must
+<<enable-operator-privileges, enable the feature>> on all nodes in the cluster
+and <<designate-operator-users,designate operator users>>.
+
+[[enable-operator-privileges]]
 ==== Enable operator privileges
-In order to use the _operator privileges_ feature, it must be enabled explicitly on each node in the cluster.
-This is done by configure the `elasticsearch.yml` file:
+
+In order to use the operator privileges feature, it must be enabled explicitly
+on each node in the cluster. Add the following setting in each
+`elasticsearch.yml` file:
 
 [source,yaml]
 ----------------------------
 xpack.security.operator_privileges.enabled: true
 ----------------------------
 
-If the node is already running before the above change is made, you need restart
-it for the feature to take effect.
+If the node is already running before you make this change, you must restart
+the node for the feature to take effect.
 
-WARNING: The feature needs to be either enabled or disabled consistently across all nodes
-in a cluster. Otherwise, you can get inconsistent behaviours depending on which node
-first receives a request and which node executes it.
+WARNING: The feature needs to be either enabled or disabled consistently across
+all nodes in a cluster. Otherwise, you can get inconsistent behaviour depending
+on which node first receives a request and which node executes it.
 
-When operator privileges are enabled on a cluster, <<operator-only-functionality,specific functionalities>>
-are restricted so that they may only be executed by users who have been explicitly designated as operator
-users. That is, attempting to execute these functionalities as a regular user, even with the `superuser` role,
-results in a security exception.
+When operator privileges are enabled on a cluster,
+<<operator-only-functionality,specific functionalities>> are restricted and can
+be executed only by users who have been explicitly designated as operator users.
+If a regular user attempts to execute these functionalities (even if they have
+the `superuser` role), a security exception occurs.
 
+[[designate-operator-users]]
 ==== Designate operator users
+
 Operator users are just normal {es} users with special rights to perform
-operator-only functionalities. They are specified in an `operator_users.yml` file located
-in `ES_PATH_CONF`. Similar to <<file-realm-configuration,other security config files>>,
-the `operator_users.yml` file is local to a node and not globally to the cluster.
-This means, in most cases, the same file should be distributed/copied to all nodes in
-a cluster.
+operator-only functionalities. They are specified in an `operator_users.yml`
+file, which is located in the config directory (as defined by the `ES_PATH_CONF`
+environment variable). Similar to
+<<file-realm-configuration,other security config files>>, the
+`operator_users.yml` file is local to a node and does not apply globally to the
+cluster. This means, in most cases, the same file should be distributed or
+copied to all nodes in a cluster.
 
 The `operator_users.yml` file defines a set of criteria that an authenticating
-user must match to be considered as an operator.
-The following snippet shows an example of such a file:
+user must match to be considered as an operator user. The following snippet
+shows an example of such a file:
 
 [source,yaml]
 -----------------------------------
@@ -46,25 +58,31 @@ operator: <1>
     realm_name: "file1" <4>
     auth_type: "realm" <5>
 -----------------------------------
-<1> A fixed value of `operator` to signal the beginning of the definition.
-<2> A list of usernames allowed for operator users. This field is mandatory.
-<3> The type of the authenticating realm allowed for operator users. The default and only
-    acceptable value is <<file-realm,`file`>>.
-<4> The name of the authenticating realm allowed for operator users. For the `file` realm, the name is ignored.
-<5> The authentication type allowed for operator users. The default and only acceptable value is `realm`.
+<1> A fixed value of `operator` signals the beginning of the definition.
+<2> A list of user names allowed for operator users. This field is mandatory.
+<3> The type of the authenticating realm allowed for operator users. The default
+and only acceptable value is <<file-realm,`file`>>.
+<4> The name of the authenticating realm allowed for operator users. For the
+`file` realm, the name is ignored.
+<5> The authentication type allowed for operator users. The default and only
+acceptable value is `realm`.
 
-You must specify at least the `usernames` field. Other fields will use their default values if not specified.
-All fields must be matched for a user to be qualified as an operator. You can also specify multiple groups of
-criteria. This is currently not very useful since this feature does not yet support other realms and
-authentication types. Besides the configuration, there are also two implicit rules:
+You must specify at least the `usernames` field. If no other fields are
+specified, their default values are used. All fields must be matched for a user
+to be qualified as an operator user. You can also specify multiple groups of
+criteria. This is currently not very useful since this feature does not yet
+support other realms or authentication types.
 
-1. If the authenticating user <<run-as-privilege,runs as>> another user, neither of them will be considered
-as an operator.
+There are also two implicit rules that affect which users are operator users:
+
+1. If the authenticating user <<run-as-privilege,runs as>> another user, neither
+of them are considered to be operator users.
 2. All <<internal-users>> are implicitly operator users.
 
-IMPORTANT: Once a user is designated as an operator, it is still subject to regular RBAC <<authorization>> checks.
-That is, in addition to specifying that the user is an operator you must also grant them the necessary
-{es} roles to perform the functions that you wish to use.
-Consequently, it is entirely possible that an operator user may encounter an "access denied" error,
-and fail to perform certain actions due to RBAC check failures.
-In short, an operator is *not* automatically a `superuser`.
+IMPORTANT: After a user is designated as an operator user, they are still
+subject to regular <<authorization,RBAC user authorization>> checks. That is to
+say, in addition to specifying that a user is an operator user, you must also
+grant them the necessary {es} roles to perform their tasks. Consequently, it is
+entirely possible that an operator user can encounter an "access denied" error
+and fail to perform certain actions due to RBAC check failures. In short, an
+operator user is *not* automatically a `superuser`.

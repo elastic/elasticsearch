@@ -5,15 +5,18 @@
 
 include::operator-privileges-designed-for-note.asciidoc[]
 
-Operator privileges provides protection for APIs and dynamic cluster settings.
-Any API or cluster setting that is protected by operator privileges is known as _operator-only functionality_
-When the operator privileges feature is enabled, operator-only APIs may only be executed by an
-operator user. Likewise, operator-only settings may only be updated by operator users.
-The list of operator-only APIs and dynamic cluster settings are pre-determined in the codebase.
-They may evolve in future releases, but are otherwise fixed in a given {es} version.
+Operator privileges provide protection for APIs and dynamic cluster settings.
+Any API or cluster setting that is protected by operator privileges is known as 
+_operator-only functionality_. When the operator privileges feature is enabled, 
+operator-only APIs can be executed only by operator users. Likewise,
+operator-only settings can be updated only by operator users. The list of
+operator-only APIs and dynamic cluster settings are pre-determined in the
+codebase. The list may evolve in future releases but it is otherwise fixed in a
+given {es} version.
 
 [[operator-only-apis]]
 ==== Operator-only APIs
+
 * <<voting-config-exclusions>>
 * <<delete-license>>
 * <<update-license>>
@@ -23,8 +26,9 @@ They may evolve in future releases, but are otherwise fixed in a given {es} vers
 
 [[operator-only-dynamic-cluster-settings]]
 ==== Operator-only dynamic cluster settings
+
 * All <<ip-filtering,IP filtering>> settings
-* The following the dynamic <<ml-settings, Machine learning settings>>:
+* The following the dynamic <<ml-settings,machine learning settings>>:
   - `xpack.ml.node_concurrent_job_allocations`
   - `xpack.ml.max_machine_memory_percent`
   - `xpack.ml.use_auto_machine_memory_percent`

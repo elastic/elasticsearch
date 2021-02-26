@@ -291,7 +291,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     @Override
-    public void beforeShardLockDuringShardCreate(ShardRouting routing, Settings indexSettings) {
+    public void beforeIndexShardCreated(ShardRouting routing, Settings indexSettings) {
         // if a shard is reassigned to a node where we still have searches against the same shard and it is not a relocate, we prefer
         // to stop searches to restore full availability as fast as possible. A known scenario here is that we lost connection to master
         // or master(s) were restarted.

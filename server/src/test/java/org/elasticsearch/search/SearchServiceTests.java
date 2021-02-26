@@ -278,7 +278,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     if (randomBoolean()) {
                         service.afterIndexRemoved(indexService.index(), indexService.getIndexSettings(), DELETED);
                     } else {
-                        service.beforeShardLockDuringShardCreate(routing, indexService.getIndexSettings().getSettings());
+                        service.beforeIndexShardCreated(routing, indexService.getIndexSettings().getSettings());
                     }
                     if (randomBoolean()) {
                         // here we trigger some refreshes to ensure the IR go out of scope such that we hit ACE if we access a search
@@ -414,11 +414,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         SearchService service = getInstanceFromNode(SearchService.class);
 
         assertEquals(1, service.getActiveContexts());
-        service.beforeShardLockDuringShardCreate(TestShardRouting.newShardRouting("test", 0, randomAlphaOfLength(5),
+        service.beforeIndexShardCreated(TestShardRouting.newShardRouting("test", 0, randomAlphaOfLength(5),
             randomAlphaOfLength(5), randomBoolean(), ShardRoutingState.INITIALIZING), indexService.getIndexSettings().getSettings());
         assertEquals(1, service.getActiveContexts());
 
-        service.beforeShardLockDuringShardCreate(TestShardRouting.newShardRouting(new ShardId(indexService.index(), 0),
+        service.beforeIndexShardCreated(TestShardRouting.newShardRouting(new ShardId(indexService.index(), 0),
             randomAlphaOfLength(5),
             randomBoolean(),
             ShardRoutingState.INITIALIZING), indexService.getIndexSettings().getSettings());

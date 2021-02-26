@@ -147,13 +147,13 @@ final class CompositeIndexEventListener implements IndexEventListener {
     }
 
     @Override
-    public void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
+    public void beforeIndexShardCreated(ShardRouting shardRouting, Settings indexSettings) {
         for (IndexEventListener listener : listeners) {
             try {
-                listener.beforeIndexShardCreated(shardId, indexSettings);
+                listener.beforeIndexShardCreated(shardRouting, indexSettings);
             } catch (Exception e) {
                 logger.warn(() ->
-                    new ParameterizedMessage("[{}] failed to invoke before shard created callback", shardId), e);
+                    new ParameterizedMessage("[{}] failed to invoke before shard created callback", shardRouting), e);
                 throw e;
             }
         }
@@ -178,19 +178,6 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 listener.afterIndexRemoved(index, indexSettings, reason);
             } catch (Exception e) {
                 logger.warn("failed to invoke after index removed callback", e);
-                throw e;
-            }
-        }
-    }
-
-    @Override
-    public void beforeShardLockDuringShardCreate(ShardRouting routing, Settings indexSettings) {
-        for (IndexEventListener listener : listeners) {
-            try {
-                listener.beforeShardLockDuringShardCreate(routing, indexSettings);
-            } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to invoke before shard locked callback",
-                    routing), e);
                 throw e;
             }
         }

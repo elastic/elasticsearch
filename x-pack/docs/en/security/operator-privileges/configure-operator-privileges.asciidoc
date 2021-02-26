@@ -3,8 +3,10 @@
 [[configure-operator-privileges]]
 === Configure operator privileges
 
+include::operator-privileges-designed-for-note.asciidoc[]
+
 ==== Enable operator privileges
-In order to use _Operator privileges_, they must be enabled explicitly on each node in the cluster.
+In order to use the _operator privileges_ feature, it must be enabled explicitly on each node in the cluster.
 This is done by configure the `elasticsearch.yml` file:
 
 [source,yaml]
@@ -18,6 +20,11 @@ it for the feature to take effect.
 WARNING: The feature needs to be either enabled or disabled consistently across all nodes
 in a cluster. Otherwise, you can get inconsistent behaviours depending on which node
 first receives a request and which node executes it.
+
+When operator privileges are enabled on a cluster, <<operator-only-functionality,specific functionalities>>
+are restricted so that they may only be executed by users who have been explicitly designated as operator
+users. That is, attempting to execute these functionalities as a regular user, even with the `superuser` role,
+results in a security exception.
 
 ==== Designate operator users
 Operator users are just normal {es} users with special rights to perform

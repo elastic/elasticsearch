@@ -13,21 +13,17 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest.Storage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -37,7 +33,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.extrac
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SearchableSnapshotsIT extends AbstractUpgradeTestCase {
+public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testMountFullCopyAndRecoversCorrectly() throws Exception {
         final Storage storage = Storage.FULL_COPY;
@@ -100,7 +96,9 @@ public class SearchableSnapshotsIT extends AbstractUpgradeTestCase {
     }
 
     /**
-     * Test that a snapshot mounted as a searchable snapshot index in the previous version recovers correctly during rolling upgrade
+     * Test the behavior of the blob store cache in mixed versions cluster. The idea is to mount a new snapshot as an index on a node with
+     * version X so that this node generates cached blobs documents in the blob cache system index, and then mount the snapshot again on
+     * a different node with version Y so that this other node is likely to use the previously generated cached blobs documents.
      */
     private void executeBlobCacheCreationTestCase(Storage storage, long numberOfDocs) throws Exception {
         final String suffix = "blob_cache_" + storage.storageName().toLowerCase(Locale.ROOT);
@@ -119,16 +117,15 @@ public class SearchableSnapshotsIT extends AbstractUpgradeTestCase {
 
             final Version minVersion = nodesIdsAndVersions.values().stream().min(Version::compareTo).get();
             final Version maxVersion = nodesIdsAndVersions.values().stream().max(Version::compareTo).get();
-            assertThat(minVersion.equals(maxVersion), equalTo(false));
-            assertThat(minVersion.before(maxVersion), equalTo(true));
 
             final String nodeIdWithMinVersion = randomFrom(nodesIdsAndVersions.entrySet().stream()
                 .filter(node -> minVersion.equals(node.getValue())).map(Map.Entry::getKey)
                 .collect(Collectors.toSet()));
 
-            final String nodeIdWithMaxVersion = randomFrom(nodesIdsAndVersions.entrySet().stream()
-                .filter(node -> maxVersion.equals(node.getValue())).map(Map.Entry::getKey)
-                .collect(Collectors.toSet()));
+            final String nodeIdWithMaxVersion = randomValueOtherThan(nodeIdWithMinVersion,
+                () -> randomFrom(nodesIdsAndVersions.entrySet().stream()
+                    .filter(node -> maxVersion.equals(node.getValue())).map(Map.Entry::getKey)
+                    .collect(Collectors.toSet())));
 
             // The snapshot is mounted on the node with the min. version in order to force the node to populate the blob store cache index.
             // Then the snapshot is mounted again on a different node with a higher version in order to verify that the docs in the cache
@@ -273,9 +270,6 @@ public class SearchableSnapshotsIT extends AbstractUpgradeTestCase {
         return nodesVersions;
     }
 
-
-
-
     private static void deleteSnapshot(String repositoryName, String snapshotName) throws IOException {
         final Request request = new Request(HttpDelete.METHOD_NAME, "/_snapshot/" + repositoryName + '/' + snapshotName);
         final Response response = client().performRequest(request);
@@ -314,25 +308,5 @@ public class SearchableSnapshotsIT extends AbstractUpgradeTestCase {
         assertThat(responseAsMap + "", responseCount, notNullValue());
         assertThat(((Number) extractValue("count", responseAsMap)).longValue(), countMatcher);
         assertThat(((Number) extractValue("_shards.failed", responseAsMap)).intValue(), equalTo(0));
-    }
-
-    private void deleteBlobCacheSystemIndex(boolean allowNoIndices) throws IOException {
-        final Request request = new Request(HttpDelete.METHOD_NAME, "/.snapshot-blob-cache");
-        request.addParameter("allow_no_indices", Boolean.toString(allowNoIndices));
-        request.addParameter("expand_wildcards", "hidden");
-        request.setOptions(RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(warnings -> {
-                if (warnings.size() != 1) {
-                    return true;
-                }
-                final String warning = warnings.get(0);
-                return false == warning.contains("this request accesses system indices: [.snapshot-blob-cache],"
-                    + " but in a future major version, direct access to system indices will be prevented by default");
-            }).build());
-        final Response response = adminClient().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
-        try (InputStream is = response.getEntity().getContent()) {
-            assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
-        }
     }
 }

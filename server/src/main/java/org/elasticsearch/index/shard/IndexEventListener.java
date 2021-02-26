@@ -109,7 +109,7 @@ public interface IndexEventListener {
     }
 
     /**
-     * Called during shad create before obtaining the shard lock.
+     * Called during shard create before obtaining the shard lock.
      * @param routing the routing entry that caused the shard to be created.
      * @param indexSettings the shards index settings
      */

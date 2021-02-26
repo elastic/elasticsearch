@@ -18,7 +18,7 @@ managed environment, such as {ess-trial}[{ess}], data that is associated with
 managed by the infrastructure code.
 
 Restoring snapshot data associated with
-<<operator-only-functionality,operator-only functionality>> could be problematic
+operator-only functionality could be problematic
 because:
 
 1. A snapshot could contain incorrect values for operator-only functionalities.

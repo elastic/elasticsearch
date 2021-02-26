@@ -63,8 +63,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 (Required, query object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
-
 [[add-alias-api-example]]
 ==== {api-examples-title}
 

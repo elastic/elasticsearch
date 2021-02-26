@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.watcher.support.xcontent;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -288,8 +289,8 @@ public class WatcherXContentParser implements XContentParser {
     }
 
     @Override
-    public boolean useCompatibility() {
-        return false;
+    public RestApiCompatibleVersion getRestApiCompatibleVersion() {
+        return RestApiCompatibleVersion.currentVersion();
     }
 
     @Override

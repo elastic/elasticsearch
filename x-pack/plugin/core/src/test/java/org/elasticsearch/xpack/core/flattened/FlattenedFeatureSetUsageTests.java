@@ -32,7 +32,7 @@ public class FlattenedFeatureSetUsageTests extends AbstractWireSerializingTestCa
 
         switch (between(0, 1)) {
             case 0:
-                available = !available;
+                available = available == false;
                 break;
             case 1:
                 fieldCount = randomValueOtherThan(instance.fieldCount(), () -> randomIntBetween(0, 1000));

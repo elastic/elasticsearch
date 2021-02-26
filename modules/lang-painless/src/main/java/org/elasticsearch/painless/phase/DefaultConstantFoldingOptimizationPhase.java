@@ -216,7 +216,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                 scope.accept(irConstantNode);
             } else if (operation == Operation.NOT) {
                 if (type == boolean.class) {
-                    irConstantNode.attachDecoration(new IRDConstant(!(boolean)constantValue));
+                    irConstantNode.attachDecoration(new IRDConstant(((boolean) constantValue) == false));
                 } else {
                     throw irUnaryMathNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                             "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +

@@ -261,7 +261,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
         addTotals(searchStats);
         openContexts += searchStats.openContexts;
-        if (searchStats.groupStats != null && !searchStats.groupStats.isEmpty()) {
+        if (searchStats.groupStats != null && searchStats.groupStats.isEmpty() == false) {
             if (groupStats == null) {
                 groupStats = new HashMap<>(searchStats.groupStats.size());
             }
@@ -304,7 +304,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         builder.startObject(Fields.SEARCH);
         builder.field(Fields.OPEN_CONTEXTS, openContexts);
         totalStats.toXContent(builder, params);
-        if (groupStats != null && !groupStats.isEmpty()) {
+        if (groupStats != null && groupStats.isEmpty() == false) {
             builder.startObject(Fields.GROUPS);
             for (Map.Entry<String, Stats> entry : groupStats.entrySet()) {
                 builder.startObject(entry.getKey());

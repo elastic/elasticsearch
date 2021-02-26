@@ -85,7 +85,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
         public boolean hasChanged() {
             if (lazyHasChanged == null) {
-                lazyHasChanged = !before.equals(after);
+                lazyHasChanged = before.equals(after) == false;
             }
             return lazyHasChanged;
         }
@@ -173,7 +173,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                     }
                 }
                 batchDuration = System.currentTimeMillis() - batchStart;
-            } while (hasChanged && !batch.limit.reached(batchRuns));
+            } while (hasChanged && batch.limit.reached(batchRuns) == false);
 
             totalDuration += batchDuration;
 

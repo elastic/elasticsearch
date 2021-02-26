@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -158,6 +159,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState state = clusterService.state();
         final DiscoveryNodes nodes = state.nodes();
+
         if (nodes.isLocalNodeElectedMaster() == false) {
             // Delegates stop transform to elected master node so it becomes the coordinating node.
             if (nodes.getMasterNode() == null) {
@@ -185,8 +187,21 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 ActionListener.wrap(hitsAndIds -> {
                     validateTaskState(state, hitsAndIds.v2(), request.isForce());
                     request.setExpandedIds(new HashSet<>(hitsAndIds.v2()));
-                    request.setNodes(TransformNodes.transformTaskNodes(hitsAndIds.v2(), state));
-                    super.doExecute(task, request, finalListener);
+                    final TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(hitsAndIds.v2(), state);
+
+                    final ActionListener<Response> doExecuteListener;
+                    if (transformNodeAssignments.getWaitingForAssignment().size() > 0) {
+                        doExecuteListener = cancelTransformTasksWithNoAssignment(finalListener, transformNodeAssignments);
+                    } else {
+                        doExecuteListener = finalListener;
+                    }
+
+                    if (transformNodeAssignments.getExecutorNodes().size() > 0) {
+                        request.setNodes(transformNodeAssignments.getExecutorNodes().toArray(new String[0]));
+                        super.doExecute(task, request, doExecuteListener);
+                    } else {
+                        doExecuteListener.onResponse(new Response(true));
+                    }
                 }, e -> {
                     if (e instanceof ResourceNotFoundException) {
                         Tuple<Set<String>, Set<String>> runningTasksAndNodes = findTasksWithoutConfig(state, request.getId());
@@ -194,6 +209,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                             listener.onFailure(e);
                             // found transforms without a config
                         } else if (request.isForce()) {
+                            // TODO: handle tasks waiting for assignment
                             request.setExpandedIds(runningTasksAndNodes.v1());
                             request.setNodes(runningTasksAndNodes.v2().toArray(new String[0]));
                             super.doExecute(task, request, finalListener);
@@ -457,5 +473,32 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             }
             listener.onFailure(e);
         }));
+    }
+
+    private ActionListener<Response> cancelTransformTasksWithNoAssignment(
+        final ActionListener<Response> finalListener,
+        final TransformNodeAssignments transformNodeAssignments
+    ) {
+        final ActionListener<Response> doExecuteListener = ActionListener.wrap(response -> {
+            GroupedActionListener<PersistentTask<?>> groupedListener = new GroupedActionListener<>(
+                ActionListener.wrap(r -> { finalListener.onResponse(response); }, finalListener::onFailure),
+                transformNodeAssignments.getWaitingForAssignment().size()
+            );
+
+            for (String unassignedTaskId : transformNodeAssignments.getWaitingForAssignment()) {
+                persistentTasksService.sendRemoveRequest(unassignedTaskId, groupedListener);
+            }
+
+        }, e -> {
+            GroupedActionListener<PersistentTask<?>> groupedListener = new GroupedActionListener<>(
+                ActionListener.wrap(r -> { finalListener.onFailure(e); }, finalListener::onFailure),
+                transformNodeAssignments.getWaitingForAssignment().size()
+            );
+
+            for (String unassignedTaskId : transformNodeAssignments.getWaitingForAssignment()) {
+                persistentTasksService.sendRemoveRequest(unassignedTaskId, groupedListener);
+            }
+        });
+        return doExecuteListener;
     }
 }

@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -149,15 +150,17 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SnapshotIndexStatus that = (SnapshotIndexStatus) o;
-
-        if (index != null ? !index.equals(that.index) : that.index != null) return false;
-        if (indexShards != null ? !indexShards.equals(that.indexShards) : that.indexShards != null) return false;
-        if (shardsStats != null ? !shardsStats.equals(that.shardsStats) : that.shardsStats != null) return false;
-        return stats != null ? stats.equals(that.stats) : that.stats == null;
+        return Objects.equals(index, that.index)
+            && Objects.equals(indexShards, that.indexShards)
+            && Objects.equals(shardsStats, that.shardsStats)
+            && Objects.equals(stats, that.stats);
     }
 
     @Override

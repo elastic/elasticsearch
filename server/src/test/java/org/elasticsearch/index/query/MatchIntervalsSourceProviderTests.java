@@ -41,7 +41,7 @@ public class MatchIntervalsSourceProviderTests extends AbstractSerializingTestCa
                 maxGaps++;
                 break;
             case 2:
-                isOrdered = !isOrdered;
+                isOrdered = isOrdered == false;
                 break;
             case 3:
                 analyzer = analyzer == null ? randomAlphaOfLength(5) : null;

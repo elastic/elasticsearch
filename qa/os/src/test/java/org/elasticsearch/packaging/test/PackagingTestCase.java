@@ -17,6 +17,7 @@ import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
@@ -51,14 +52,15 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
-import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.hamcrest.CoreMatchers.anyOf;
@@ -162,8 +164,8 @@ public abstract class PackagingTestCase extends Assert {
 
         sh.reset();
         if (distribution().hasJdk == false) {
-            Platforms.onLinux(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
-            Platforms.onWindows(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
+            Platforms.onLinux(() -> sh.getEnv().put("ES_JAVA_HOME", systemJavaHome));
+            Platforms.onWindows(() -> sh.getEnv().put("ES_JAVA_HOME", systemJavaHome));
         }
         if (installation != null && distribution.isDocker() == false) {
             setHeap("1g");
@@ -214,7 +216,6 @@ public abstract class PackagingTestCase extends Assert {
             case DOCKER:
             case DOCKER_UBI:
                 installation = Docker.runContainer(distribution);
-                waitForElasticsearch(installation);
                 Docker.verifyContainerInstallation(installation, distribution);
                 break;
             default:
@@ -467,6 +468,46 @@ public abstract class PackagingTestCase extends Assert {
                 StandardOpenOption.CREATE,
                 StandardOpenOption.TRUNCATE_EXISTING
             );
+        }
+    }
+
+    /**
+     * Runs the code block for 10 seconds waiting for no assertion to trip.
+     */
+    public static void assertBusy(CheckedRunnable<Exception> codeBlock) throws Exception {
+        assertBusy(codeBlock, 10, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Runs the code block for the provided interval, waiting for no assertions to trip.
+     */
+    public static void assertBusy(CheckedRunnable<Exception> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
+        long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
+        // In case you've forgotten your high-school studies, log10(x) / log10(y) == log y(x)
+        long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
+        long timeInMillis = 1;
+        long sum = 0;
+        List<AssertionError> failures = new ArrayList<>();
+        for (int i = 0; i < iterations; i++) {
+            try {
+                codeBlock.run();
+                return;
+            } catch (AssertionError e) {
+                failures.add(e);
+            }
+            sum += timeInMillis;
+            Thread.sleep(timeInMillis);
+            timeInMillis *= 2;
+        }
+        timeInMillis = maxTimeInMillis - sum;
+        Thread.sleep(Math.max(timeInMillis, 0));
+        try {
+            codeBlock.run();
+        } catch (AssertionError e) {
+            for (AssertionError failure : failures) {
+                e.addSuppressed(failure);
+            }
+            throw e;
         }
     }
 }

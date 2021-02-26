@@ -353,7 +353,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testSegmentsWithIndexSort() throws Exception {
-        Sort indexSort = new Sort(new SortedSetSortField("_type", false));
+        Sort indexSort = new Sort(new SortedSetSortField("field", false));
         try (Store store = createStore();
              Engine engine =
                      createEngine(defaultSettings, store, createTempDir(),
@@ -5269,7 +5269,7 @@ public class InternalEngineTests extends EngineTestCase {
                     @Override
                     protected void doRun() throws Exception {
                         latch.await();
-                        Translog.Snapshot changes = engine.newChangesSnapshot("test", min, max, true);
+                        Translog.Snapshot changes = engine.newChangesSnapshot("test", min, max, true, randomBoolean());
                         changes.close();
                     }
                 });

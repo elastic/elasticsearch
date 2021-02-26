@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.operator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
@@ -36,6 +37,11 @@ public class OperatorPrivileges {
          * @return An exception if user is an non-operator and the request is operator-only. Otherwise returns null.
          */
         ElasticsearchSecurityException check(String action, TransportRequest request, ThreadContext threadContext);
+
+        /**
+         * Check the threadContext to see whether the current authenticating user is an operator user
+         */
+        void maybeInterceptRequest(ThreadContext threadContext, TransportRequest request);
     }
 
     public static final class DefaultOperatorPrivilegesService implements OperatorPrivilegesService {
@@ -79,6 +85,12 @@ public class OperatorPrivileges {
             return null;
         }
 
+        public void maybeInterceptRequest(ThreadContext threadContext, TransportRequest request) {
+            if (request instanceof RestoreSnapshotRequest) {
+                ((RestoreSnapshotRequest) request).skipOperatorOnlyState(shouldProcess());
+            }
+        }
+
         private boolean shouldProcess() {
             return licenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES);
         }
@@ -92,6 +104,13 @@ public class OperatorPrivileges {
         @Override
         public ElasticsearchSecurityException check(String action, TransportRequest request, ThreadContext threadContext) {
             return null;
+        }
+
+        @Override
+        public void maybeInterceptRequest(ThreadContext threadContext, TransportRequest request) {
+            if (request instanceof RestoreSnapshotRequest) {
+                ((RestoreSnapshotRequest) request).skipOperatorOnlyState(false);
+            }
         }
     };
 }

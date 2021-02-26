@@ -198,7 +198,7 @@ locations for a Debian-based system:
 
 | jdk
   | The bundled Java Development Kit used to run Elasticsearch. Can
-    be overridden by setting the `JAVA_HOME` environment variable
+    be overridden by setting the `ES_JAVA_HOME` environment variable
     in `/etc/default/elasticsearch`.
   | /usr/share/elasticsearch/jdk
  d|

@@ -16,12 +16,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 
+import javax.naming.directory.SearchResult;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.OptionalInt;
-
-import javax.naming.directory.SearchResult;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -168,7 +167,7 @@ public class PrecisionAtK implements EvaluationMetric {
      * Should we count unlabeled documents? This is the inverse of {@link #getIgnoreUnlabeled()}.
      */
     private boolean shouldCountUnlabeled() {
-        return !getIgnoreUnlabeled();
+        return getIgnoreUnlabeled() == false;
     }
 
     /**

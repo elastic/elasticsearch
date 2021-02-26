@@ -325,7 +325,7 @@ class JdbcConnection implements Connection, JdbcWrapper {
         if (timeout < 0) {
             throw new SQLException("Negative timeout");
         }
-        return !isClosed() && client.ping(TimeUnit.SECONDS.toMillis(timeout));
+        return isClosed() == false && client.ping(TimeUnit.SECONDS.toMillis(timeout));
     }
 
     private void checkOpenClientInfo() throws SQLClientInfoException {

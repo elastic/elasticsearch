@@ -531,7 +531,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Gets the bytes representing the sort builders for this request.
+     * Sets the sort builders for this request.
+     */
+    public SearchSourceBuilder sort(List<SortBuilder<?>> sorts) {
+        this.sorts = sorts;
+        return this;
+    }
+
+    /**
+     * Gets the sort builders for this request.
      */
     public List<SortBuilder<?>> sorts() {
         return sorts;
@@ -1259,7 +1267,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(SIZE_FIELD.getPreferredName(), size);
         }
 
-        if (timeout != null && !timeout.equals(TimeValue.MINUS_ONE)) {
+        if (timeout != null && timeout.equals(TimeValue.MINUS_ONE) == false) {
             builder.field(TIMEOUT_FIELD.getPreferredName(), timeout.getStringRep());
         }
 

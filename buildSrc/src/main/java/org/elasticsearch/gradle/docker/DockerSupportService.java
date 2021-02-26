@@ -311,7 +311,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
          * <ul>
          *     <li>Installed</li>
          *     <li>Executable</li>
-         *     <li>Is at least version compatibile with minimum version</li>
+         *     <li>Is at least version compatible with minimum version</li>
          *     <li>Can execute a command that requires privileges</li>
          * </ul>
          */

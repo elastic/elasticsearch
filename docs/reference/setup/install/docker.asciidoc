@@ -10,12 +10,7 @@ https://www.docker.elastic.co[www.docker.elastic.co]. The source files
 are in
 https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Github].
 
-These images are free to use under the Elastic license. They contain open source
-and free commercial features and access to paid commercial features.
-{kibana-ref}/managing-licenses.html[Start a 30-day trial] to try out all of the
-paid commercial features. See the
-https://www.elastic.co/subscriptions[Subscriptions] page for information about
-Elastic license levels.
+include::license.asciidoc[]
 
 ==== Pulling the image
 

@@ -124,7 +124,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
             builder.startObject("values");
             for (double percent : percents) {
                 double value = percentile(percent);
-                boolean hasValue = !(Double.isInfinite(value) || Double.isNaN(value));
+                boolean hasValue = (Double.isInfinite(value) || Double.isNaN(value)) == false;
                 String key = String.valueOf(percent);
                 builder.field(key, hasValue ? value : null);
                 if (hasValue && format != DocValueFormat.RAW) {
@@ -136,7 +136,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
             builder.startArray("values");
             for (double percent : percents) {
                 double value = percentile(percent);
-                boolean hasValue = !(Double.isInfinite(value) || Double.isNaN(value));
+                boolean hasValue = (Double.isInfinite(value) || Double.isNaN(value)) == false;
                 builder.startObject();
                 builder.field("key", percent);
                 builder.field("value", hasValue ? value : null);

@@ -306,8 +306,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
         if (super.equals(o) == false) return false;
         GeoContextMapping that = (GeoContextMapping) o;
         if (precision != that.precision) return false;
-        return !(fieldName != null ? !fieldName.equals(that.fieldName) : that.fieldName != null);
-
+        return Objects.equals(fieldName, that.fieldName);
     }
 
     @Override

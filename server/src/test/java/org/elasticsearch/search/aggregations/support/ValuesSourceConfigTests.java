@@ -14,9 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
-import org.elasticsearch.index.mapper.TypeFieldType;
 
-import java.io.IOException;
 import java.util.List;
 
 // TODO: This whole set of tests needs to be rethought.
@@ -189,18 +187,6 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             assertEquals(1, values.nextValue());
             assertFalse(config.alignesWithSearchIndex());
         });
-    }
-
-    public void testTypeFieldDeprecation() throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> {}));
-        withAggregationContext(
-            mapperService,
-            List.of(source(b -> {})),
-            context -> {
-                ValuesSourceConfig.resolve(context, null, TypeFieldType.NAME, null, null, null, null, CoreValuesSourceType.KEYWORD);
-            }
-        );
-        assertWarnings(TypeFieldType.TYPES_V7_DEPRECATION_MESSAGE);
     }
 
     public void testFieldAlias() throws Exception {

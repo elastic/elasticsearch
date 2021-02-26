@@ -88,7 +88,7 @@ class TriangleTreeReader {
         int nextMaxY = Math.toIntExact(thisMaxY - input.readVLong());
         int size = input.readVInt();
         if (visitor.push(nextMaxX, nextMaxY)) {
-            return visit(input, visitor, !splitX, nextMaxX, nextMaxY, false);
+            return visit(input, visitor, splitX == false, nextMaxX, nextMaxY, false);
         } else {
             input.skipBytes(size);
             return visitor.push();
@@ -102,7 +102,7 @@ class TriangleTreeReader {
             int nextMaxY = Math.toIntExact(thisMaxY - input.readVLong());
             int size = input.readVInt();
             if (visitor.push(nextMaxX, nextMaxY)) {
-                return visit(input, visitor, !splitX, nextMaxX, nextMaxY, false);
+                return visit(input, visitor, splitX == false, nextMaxX, nextMaxY, false);
             } else {
                 input.skipBytes(size);
             }

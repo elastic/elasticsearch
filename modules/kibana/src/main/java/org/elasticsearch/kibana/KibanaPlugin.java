@@ -65,6 +65,16 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     }
 
     @Override
+    public String getFeatureName() {
+        return "kibana";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages Kibana configuration and reports";
+    }
+
+    @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
         RestController restController,

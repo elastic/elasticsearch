@@ -37,7 +37,7 @@ public class GetDatafeedResponseTests extends AbstractXContentTestCase<GetDatafe
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     @Override

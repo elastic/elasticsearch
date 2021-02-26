@@ -49,4 +49,15 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         lookup.setSource(Collections.singletonMap(field, sourceValue));
         return fetcher.fetchValues(lookup);
     }
+
+    public static List<?> fetchSourceValues(MappedFieldType fieldType, Object... values) throws IOException {
+        String field = fieldType.name();
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
+
+        ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, null);
+        SourceLookup lookup = new SourceLookup();
+        lookup.setSource(Collections.singletonMap(field, List.of(values)));
+        return fetcher.fetchValues(lookup);
+    }
 }

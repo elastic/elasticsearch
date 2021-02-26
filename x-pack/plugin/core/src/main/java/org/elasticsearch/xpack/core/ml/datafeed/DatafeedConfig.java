@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
+import org.elasticsearch.xpack.core.ml.utils.RuntimeMappingsValidator;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
@@ -48,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -63,6 +67,8 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GEN
  * values.
  */
 public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements ToXContentObject {
+
+    private static final Version RUNTIME_MAPPINGS_INTRODUCED = Version.V_7_11_0;
 
     public static final int DEFAULT_SCROLL_SIZE = 1000;
 
@@ -283,6 +289,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
     public Integer getScrollSize() {
         return scrollSize;
+    }
+
+    public Optional<Tuple<Version, String>> minRequiredClusterVersion() {
+        return runtimeMappings.isEmpty() ?
+            Optional.empty() :
+            Optional.of(Tuple.tuple(RUNTIME_MAPPINGS_INTRODUCED, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()));
     }
 
     /**
@@ -809,9 +821,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             return this.indicesOptions;
         }
 
-        public void setRuntimeMappings(Map<String, Object> runtimeMappings) {
+        public Builder setRuntimeMappings(Map<String, Object> runtimeMappings) {
             this.runtimeMappings = ExceptionsHelper.requireNonNull(runtimeMappings,
                 SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName());
+            return this;
         }
 
         public DatafeedConfig build() {
@@ -825,7 +838,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             }
 
             validateScriptFields();
-            validateRuntimeMappings();
+            RuntimeMappingsValidator.validate(runtimeMappings);
             setDefaultChunkingConfig();
 
             setDefaultQueryDelay();
@@ -840,31 +853,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (aggProvider == null) {
                 return;
             }
-            if (scriptFields != null && !scriptFields.isEmpty()) {
+            if (scriptFields != null && scriptFields.isEmpty() == false) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
-            }
-        }
-
-        /**
-         * Perform a light check that the structure resembles runtime_mappings.
-         * The full check cannot happen until search
-         */
-        void validateRuntimeMappings() {
-            for (Map.Entry<String, Object> entry : runtimeMappings.entrySet()) {
-                // top level objects are fields
-                String fieldName = entry.getKey();
-                if (entry.getValue() instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> propNode = new HashMap<>(((Map<String, Object>) entry.getValue()));
-                    Object typeNode = propNode.get("type");
-                    if (typeNode == null) {
-                        throw ExceptionsHelper.badRequestException("No type specified for runtime field [" + fieldName + "]");
-                    }
-                } else {
-                    throw ExceptionsHelper.badRequestException("Expected map for runtime field [" + fieldName + "] " +
-                        "definition but got a " + fieldName.getClass().getSimpleName());
-                }
             }
         }
 

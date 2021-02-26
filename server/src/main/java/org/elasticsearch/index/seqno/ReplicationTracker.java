@@ -757,38 +757,38 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert primaryMode || checkpoints.values().stream().allMatch(cps -> cps.globalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO);
 
         // relocation handoff can only occur in primary mode
-        assert !handoffInProgress || primaryMode;
+        assert handoffInProgress == false || primaryMode;
 
         // a relocated copy is not in primary mode
-        assert !relocated || !primaryMode;
+        assert relocated == false || primaryMode == false;
 
         // the current shard is marked as in-sync when the global checkpoint tracker operates in primary mode
-        assert !primaryMode || checkpoints.get(shardAllocationId).inSync;
+        assert primaryMode == false || checkpoints.get(shardAllocationId).inSync;
 
         // the routing table and replication group is set when the global checkpoint tracker operates in primary mode
-        assert !primaryMode || (routingTable != null && replicationGroup != null) :
+        assert primaryMode == false || (routingTable != null && replicationGroup != null) :
             "primary mode but routing table is " + routingTable + " and replication group is " + replicationGroup;
 
         // when in primary mode, the current allocation ID is the allocation ID of the primary or the relocation allocation ID
-        assert !primaryMode
+        assert primaryMode == false
                 || (routingTable.primaryShard().allocationId().getId().equals(shardAllocationId)
                 || routingTable.primaryShard().allocationId().getRelocationId().equals(shardAllocationId));
 
         // during relocation handoff there are no entries blocking global checkpoint advancement
-        assert !handoffInProgress || pendingInSync.isEmpty() :
+        assert handoffInProgress == false || pendingInSync.isEmpty() :
             "entries blocking global checkpoint advancement during relocation handoff: " + pendingInSync;
 
         // entries blocking global checkpoint advancement can only exist in primary mode and when not having a relocation handoff
         assert pendingInSync.isEmpty() || (primaryMode && !handoffInProgress);
 
         // the computed global checkpoint is always up-to-date
-        assert !primaryMode
+        assert primaryMode == false
                 || globalCheckpoint == computeGlobalCheckpoint(pendingInSync, checkpoints.values(), globalCheckpoint)
                 : "global checkpoint is not up-to-date, expected: " +
                 computeGlobalCheckpoint(pendingInSync, checkpoints.values(), globalCheckpoint) + " but was: " + globalCheckpoint;
 
         // when in primary mode, the global checkpoint is at most the minimum local checkpoint on all in-sync shard copies
-        assert !primaryMode
+        assert primaryMode == false
                 || globalCheckpoint <= inSyncCheckpointStates(checkpoints, CheckpointState::getLocalCheckpoint, LongStream::min)
                 : "global checkpoint [" + globalCheckpoint + "] "
                 + "for primary mode allocation ID [" + shardAllocationId + "] "
@@ -807,10 +807,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
         for (Map.Entry<String, CheckpointState> entry : checkpoints.entrySet()) {
             // blocking global checkpoint advancement only happens for shards that are not in-sync
-            assert !pendingInSync.contains(entry.getKey()) || !entry.getValue().inSync :
+            assert pendingInSync.contains(entry.getKey()) == false || entry.getValue().inSync == false :
                 "shard copy " + entry.getKey() + " blocks global checkpoint advancement but is in-sync";
             // in-sync shard copies are tracked
-            assert !entry.getValue().inSync || entry.getValue().tracked :
+            assert entry.getValue().inSync == false || entry.getValue().tracked :
                 "shard copy " + entry.getKey() + " is in-sync but not tracked";
         }
 
@@ -994,7 +994,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert handoffInProgress == false;
         assert invariant();
         final CheckpointState cps = checkpoints.get(allocationId);
-        assert !this.shardAllocationId.equals(allocationId) || cps != null;
+        assert this.shardAllocationId.equals(allocationId) == false || cps != null;
         if (cps != null && globalCheckpoint > cps.globalCheckpoint) {
             final long previousGlobalCheckpoint = cps.globalCheckpoint;
             cps.globalCheckpoint = globalCheckpoint;
@@ -1073,7 +1073,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
         if (applyingClusterStateVersion > appliedClusterStateVersion) {
             // check that the master does not fabricate new in-sync entries out of thin air once we are in primary mode
-            assert !primaryMode || inSyncAllocationIds.stream().allMatch(
+            assert primaryMode == false || inSyncAllocationIds.stream().allMatch(
                 inSyncId -> checkpoints.containsKey(inSyncId) && checkpoints.get(inSyncId).inSync) :
                 "update from master in primary mode contains in-sync ids " + inSyncAllocationIds +
                     " that have no matching entries in " + checkpoints;
@@ -1081,7 +1081,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             Set<String> initializingAllocationIds = routingTable.getAllInitializingShards().stream()
                 .map(ShardRouting::allocationId).map(AllocationId::getId).collect(Collectors.toSet());
             boolean removedEntries = checkpoints.keySet().removeIf(
-                aid -> !inSyncAllocationIds.contains(aid) && !initializingAllocationIds.contains(aid));
+                aid -> inSyncAllocationIds.contains(aid) == false && initializingAllocationIds.contains(aid) == false);
 
             if (primaryMode) {
                 // add new initializingIds that are missing locally. These are fresh shard copies - and not in-sync
@@ -1165,7 +1165,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         updateLocalCheckpoint(allocationId, cps, localCheckpoint);
         // if it was already in-sync (because of a previously failed recovery attempt), global checkpoint must have been
         // stuck from advancing
-        assert !cps.inSync || (cps.localCheckpoint >= getGlobalCheckpoint()) :
+        assert cps.inSync == false || (cps.localCheckpoint >= getGlobalCheckpoint()) :
             "shard copy " + allocationId + " that's already in-sync should have a local checkpoint " + cps.localCheckpoint +
                 " that's above the global checkpoint " + getGlobalCheckpoint();
         if (cps.localCheckpoint < getGlobalCheckpoint()) {

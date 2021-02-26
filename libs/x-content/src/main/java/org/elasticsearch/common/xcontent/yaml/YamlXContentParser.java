@@ -9,6 +9,7 @@
 package org.elasticsearch.common.xcontent.yaml;
 
 import com.fasterxml.jackson.core.JsonParser;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -22,8 +23,9 @@ public class YamlXContentParser extends JsonXContentParser {
     }
 
     public YamlXContentParser(NamedXContentRegistry xContentRegistry,
-                               DeprecationHandler deprecationHandler, JsonParser parser, boolean useCompatibility) {
-        super(xContentRegistry, deprecationHandler, parser, useCompatibility);
+                              DeprecationHandler deprecationHandler, JsonParser parser,
+                              RestApiCompatibleVersion restApiCompatibleVersion) {
+        super(xContentRegistry, deprecationHandler, parser, restApiCompatibleVersion);
     }
 
     @Override

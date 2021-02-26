@@ -30,6 +30,9 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
+
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING;
 
 public class TransportSearchableSnapshotCacheStoresAction extends TransportNodesAction<
     TransportSearchableSnapshotCacheStoresAction.Request,
@@ -88,6 +91,9 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     @Override
     protected NodeCacheFilesMetadata nodeOperation(NodeRequest request, Task task) {
         assert cacheService != null;
+        assert Optional.ofNullable(clusterService.state().metadata().index(request.shardId.getIndex()))
+            .map(indexMetadata -> SNAPSHOT_PARTIAL_SETTING.get(indexMetadata.getSettings()))
+            .orElse(false) == false : request.shardId + " is partial, should not be fetching its cached size";
         return new NodeCacheFilesMetadata(clusterService.localNode(), cacheService.getCachedSize(request.shardId, request.snapshotId));
     }
 

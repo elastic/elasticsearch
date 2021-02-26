@@ -1568,7 +1568,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("test-0").state(State.OPEN)
                 .putAlias(AliasMetadata.builder("test-alias").writeIndex(randomFrom(test0WriteIndex, null))))
             .put(indexBuilder("test-1").state(State.OPEN)
-                .putAlias(AliasMetadata.builder("test-alias").writeIndex(randomFrom(!test0WriteIndex, null))));
+                .putAlias(AliasMetadata.builder("test-alias").writeIndex(randomFrom(test0WriteIndex == false, null))));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         String[] strings = indexNameExpressionResolver
             .indexAliases(state, "test-0", x -> true, true, new HashSet<>(Arrays.asList("test-0", "test-1", "test-alias")));

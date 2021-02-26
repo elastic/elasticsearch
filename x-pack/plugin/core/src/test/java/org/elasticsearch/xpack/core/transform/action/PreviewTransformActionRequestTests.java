@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -49,6 +50,7 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
             randomBoolean() ? TransformConfigTests.randomSyncConfig() : null,
             null,
             PivotConfigTests.randomPivotConfig(),
+            null,
             null,
             null,
             null,

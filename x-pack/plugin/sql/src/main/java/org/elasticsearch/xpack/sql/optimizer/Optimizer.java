@@ -1198,8 +1198,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
          * that its filter (WHERE clause) is folded to FALSE.
          */
         private static boolean isNotQueryWithFromClauseAndFilterFoldedToFalse(UnaryPlan plan) {
-            return (!(plan.child() instanceof LocalRelation) || (plan.child() instanceof LocalRelation &&
-                !(((LocalRelation) plan.child()).executable() instanceof EmptyExecutable)));
+            return ((plan.child() instanceof LocalRelation) == false || (plan.child() instanceof LocalRelation &&
+                (((LocalRelation) plan.child()).executable() instanceof EmptyExecutable) == false));
         }
     }
 

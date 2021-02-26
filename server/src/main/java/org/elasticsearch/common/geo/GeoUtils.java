@@ -474,7 +474,7 @@ public class GeoUtils {
                 }
             }
             if (geohash != null) {
-                if(!Double.isNaN(lat) || !Double.isNaN(lon)) {
+                if(Double.isNaN(lat) == false || Double.isNaN(lon) == false) {
                     throw new ElasticsearchParseException("field must be either lat/lon or geohash");
                 } else {
                     return point.parseGeoHash(geohash, effectivePoint);

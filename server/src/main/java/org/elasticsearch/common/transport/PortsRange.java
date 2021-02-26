@@ -40,7 +40,7 @@ public class PortsRange {
     public boolean iterate(PortCallback callback) throws NumberFormatException {
         StringTokenizer st = new StringTokenizer(portRange, ",");
         boolean success = false;
-        while (st.hasMoreTokens() && !success) {
+        while (st.hasMoreTokens() && success == false) {
             String portToken = st.nextToken().trim();
             int index = portToken.indexOf('-');
             if (index == -1) {

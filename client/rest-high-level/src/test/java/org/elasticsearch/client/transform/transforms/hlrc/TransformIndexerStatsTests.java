@@ -35,6 +35,8 @@ public class TransformIndexerStatsTests extends AbstractResponseTestCase<
             randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
             randomDouble(),
             randomDouble(),
             randomDouble()

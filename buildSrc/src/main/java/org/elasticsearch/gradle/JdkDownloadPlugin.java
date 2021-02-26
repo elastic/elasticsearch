@@ -20,6 +20,9 @@ import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.Arrays;
 
 public class JdkDownloadPlugin implements Plugin<Project> {
 
@@ -30,6 +33,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
     private static final String REPO_NAME_PREFIX = "jdk_repo_";
     private static final String EXTENSION_NAME = "jdks";
     public static final String JDK_TRIMMED_PREFIX = "(jdk-?\\d.*)|(zulu-?\\d.+).jdk";
+    public static final String ZULU_LINUX_AARCH_PATTERN = "zulu.*linux_aarch64";
 
     @Override
     public void apply(Project project) {
@@ -54,7 +58,10 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             transformSpec.getTo()
                 .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
                 .attribute(jdkAttribute, true);
-            transformSpec.parameters(parameters -> parameters.setTrimmedPrefixPattern(JDK_TRIMMED_PREFIX));
+            transformSpec.parameters(parameters -> {
+                parameters.setTrimmedPrefixPattern(JDK_TRIMMED_PREFIX);
+                parameters.setKeepStructureFor(Arrays.asList(ZULU_LINUX_AARCH_PATTERN));
+            });
         });
 
         NamedDomainObjectContainer<Jdk> jdksContainer = project.container(Jdk.class, name -> {
@@ -123,17 +130,27 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             }
         } else if (jdk.getVendor().equals(VENDOR_AZUL)) {
             repoUrl = "https://cdn.azul.com";
-
             // The following is an absolute hack until AdoptOpenJdk provides Apple aarch64 builds
+            String zuluPathSuffix = jdk.getPlatform().equals("linux") ? "-embedded" : "";
             switch (jdk.getMajor()) {
                 case "15":
-                    artifactPattern = "zulu/bin/zulu" + jdk.getMajor() + ".28.1013-ca-jdk15.0.1-macosx_[classifier].[ext]";
+                    artifactPattern = "zulu"
+                        + zuluPathSuffix
+                        + "/bin/zulu"
+                        + jdk.getMajor()
+                        + ".29.15-ca-jdk15.0.2-"
+                        + azulPlatform(jdk)
+                        + "_[classifier].[ext]";
                     break;
-
                 case "11":
-                    artifactPattern = "zulu/bin/zulu" + jdk.getMajor() + ".43.1021-ca-jdk11.0.9.1-macosx_[classifier].[ext]";
+                    artifactPattern = "zulu"
+                        + zuluPathSuffix
+                        + "/bin/zulu"
+                        + jdk.getMajor()
+                        + ".45.27-ca-jdk11.0.10-"
+                        + azulPlatform(jdk)
+                        + "_[classifier].[ext]";
                     break;
-
                 default:
                     throw new GradleException("Unknown Azul JDK major version  [" + jdk.getMajor() + "]");
             }
@@ -150,6 +167,18 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 repo.patternLayout(layout -> layout.artifact(artifactPattern));
                 repo.content(repositoryContentDescriptor -> repositoryContentDescriptor.includeGroup(groupName(jdk)));
             });
+        }
+    }
+
+    @NotNull
+    private String azulPlatform(Jdk jdk) {
+        switch (jdk.getPlatform()) {
+            case "linux":
+                return "linux";
+            case "darwin":
+                return "macosx";
+            default:
+                throw new GradleException("Unsupported Azul JDK platform requested version  [" + jdk.getPlatform() + "]");
         }
     }
 

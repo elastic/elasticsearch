@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
 import static org.elasticsearch.packaging.util.Docker.chownWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
@@ -97,9 +98,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Checks that the Docker image can be run, and that it passes various checks.
      */
-    public void test010Install() throws Exception {
-        // Wait for the container to come up, because we assert the state of some files that Elasticsearch creates on startup.
-        waitForElasticsearch(installation);
+    public void test010Install() {
         verifyContainerInstallation(installation, distribution());
     }
 
@@ -147,6 +146,15 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that when the keystore is created on startup, it is created with the correct permissions.
+     */
+    public void test042KeystorePermissionsAreCorrect() throws Exception {
+        waitForElasticsearch(installation);
+
+        assertPermissionsAndOwnership(installation.config("elasticsearch.keystore"), p660);
+    }
+
+    /**
      * Send some basic index, count and delete requests, in order to check that the installation
      * is minimally functional.
      */
@@ -183,7 +191,7 @@ public class DockerTests extends PackagingTestCase {
 
         waitForElasticsearch(installation);
 
-        final JsonNode nodes = getJson("_nodes").get("nodes");
+        final JsonNode nodes = getJson("/_nodes").get("nodes");
         final String nodeId = nodes.fieldNames().next();
 
         final int heapSize = nodes.at("/" + nodeId + "/jvm/mem/heap_init_in_bytes").intValue();
@@ -211,7 +219,7 @@ public class DockerTests extends PackagingTestCase {
 
             waitForElasticsearch(installation);
 
-            final JsonNode nodes = getJson("_nodes");
+            final JsonNode nodes = getJson("/_nodes");
 
             assertThat(nodes.at("/_nodes/total").intValue(), equalTo(1));
             assertThat(nodes.at("/_nodes/successful").intValue(), equalTo(1));
@@ -718,7 +726,7 @@ public class DockerTests extends PackagingTestCase {
     public void test140CgroupOsStatsAreAvailable() throws Exception {
         waitForElasticsearch(installation);
 
-        final JsonNode nodes = getJson("_nodes/stats/os").get("nodes");
+        final JsonNode nodes = getJson("/_nodes/stats/os").get("nodes");
 
         final String nodeId = nodes.fieldNames().next();
 

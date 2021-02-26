@@ -381,12 +381,12 @@ public class Cron implements ToXContentFragment {
             int tmon = mon;
 
             // get day...................................................
-            boolean dayOfMSpec = !daysOfMonth.contains(NO_SPEC);
-            boolean dayOfWSpec = !daysOfWeek.contains(NO_SPEC);
-            if (dayOfMSpec && !dayOfWSpec) { // get day by day of month rule
+            boolean dayOfMSpec = daysOfMonth.contains(NO_SPEC) == false;
+            boolean dayOfWSpec = daysOfWeek.contains(NO_SPEC) == false;
+            if (dayOfMSpec && dayOfWSpec == false) { // get day by day of month rule
                 st = daysOfMonth.tailSet(day);
                 if (lastdayOfMonth) {
-                    if(!nearestWeekday) {
+                    if(nearestWeekday == false) {
                         t = day;
                         day = getLastDayOfMonth(mon, cl.get(Calendar.YEAR));
                         day -= lastdayOffset;
@@ -496,7 +496,7 @@ public class Cron implements ToXContentFragment {
                     // are 1-based
                     continue;
                 }
-            } else if (dayOfWSpec && !dayOfMSpec) { // get day by day of week rule
+            } else if (dayOfWSpec && dayOfMSpec == false) { // get day by day of week rule
                 if (lastdayOfWeek) { // are we looking for the last XXX day of
                     // the month?
                     int dow = daysOfWeek.first(); // desired
@@ -623,7 +623,7 @@ public class Cron implements ToXContentFragment {
                         continue;
                     }
                 }
-            } else { // dayOfWSpec && !dayOfMSpec
+            } else { // dayOfWSpec && dayOfMSpec == false
                 return -1;
 //                throw new UnsupportedOperationException(
 //                        "Support for specifying both a day-of-week AND a day-of-month parameter is not implemented.");
@@ -694,7 +694,7 @@ public class Cron implements ToXContentFragment {
             cl.set(Calendar.YEAR, year);
 
             gotOne = true;
-        } // while( !done )
+        } // while( done == false )
 
         return cl.getTimeInMillis();
     }
@@ -865,8 +865,8 @@ public class Cron implements ToXContentFragment {
             TreeSet<Integer> dom = getSet(DAY_OF_MONTH);
 
             // Copying the logic from the UnsupportedOperationException below
-            boolean dayOfMSpec = !dom.contains(NO_SPEC);
-            boolean dayOfWSpec = !dow.contains(NO_SPEC);
+            boolean dayOfMSpec = dom.contains(NO_SPEC) == false;
+            boolean dayOfWSpec = dow.contains(NO_SPEC) == false;
 
             if (dayOfMSpec == false || dayOfWSpec) {
                 if (dayOfWSpec == false || dayOfMSpec) {
@@ -886,7 +886,7 @@ public class Cron implements ToXContentFragment {
             return i;
         }
         char c = s.charAt(i);
-        if ((c >= 'A') && (c <= 'Z') && (!s.equals("L")) && (!s.equals("LW")) && (!s.matches("^L-[0-9]*[W]?"))) {
+        if ((c >= 'A') && (c <= 'Z') && (s.equals("L") == false) && (s.equals("LW") == false) && (s.matches("^L-[0-9]*[W]?") == false)) {
             String sub = s.substring(i, i + 3);
             int sval = -1;
             int eval = -1;
@@ -955,7 +955,7 @@ public class Cron implements ToXContentFragment {
             if (type != DAY_OF_WEEK && type != DAY_OF_MONTH) {
                 throw illegalArgument("'?' can only be specified for Day-of-Month or Day-of-Week. at pos [{}]", i);
             }
-            if (type == DAY_OF_WEEK && !lastdayOfMonth) {
+            if (type == DAY_OF_WEEK && lastdayOfMonth == false) {
                 int val = daysOfMonth.last();
                 if (val == NO_SPEC_INT) {
                     throw illegalArgument("'?' can only be specified for Day-of-Month -OR- Day-of-Week. at pos [{}]", i);

@@ -56,9 +56,9 @@ include-tagged::{doc-tests-file}[{api}-request-settings]
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-maxSinglePrimarySize]
+include-tagged::{doc-tests-file}[{api}-request-maxPrimaryShardSize]
 --------------------------------------------------
-<1> The max single primary shard size of the target index
+<1> The max primary shard size of the target index
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

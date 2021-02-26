@@ -13,11 +13,6 @@ public interface StringPattern {
     String asJavaRegex();
 
     /**
-     * Returns the pattern as a string. Should handle escaping.
-     */
-    String asString();
-
-    /**
      * Hint method on whether this pattern matches everything or not.
      */
     default boolean matchesAll() {
@@ -25,10 +20,9 @@ public interface StringPattern {
     }
 
     /**
-     * Hint method on whether this pattern is exact, that is has no wildcard
+     * Returns the match if this pattern is exact, that is has no wildcard
      * or other patterns inside.
+     * If the pattern is not exact, null is returned.
      */
-    default boolean isExactMatch() {
-        return false;
-    }
+    String exactMatch();
 }

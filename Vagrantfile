@@ -461,6 +461,7 @@ def sh_install_deps(config,
     ensure expect
 
     cat \<\<SUDOERS_VARS > /etc/sudoers.d/elasticsearch_vars
+Defaults   env_keep += "ES_JAVA_HOME"
 Defaults   env_keep += "JAVA_HOME"
 Defaults   env_keep += "SYSTEM_JAVA_HOME"
 SUDOERS_VARS

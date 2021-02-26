@@ -134,7 +134,7 @@ public class AuthenticateResponseTests extends ESTestCase {
                     response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType());
             case 6:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
-                    originalUser.getFullName(), originalUser.getEmail()), !response.enabled(), response.getAuthenticationRealm(),
+                    originalUser.getFullName(), originalUser.getEmail()), response.enabled() == false, response.getAuthenticationRealm(),
                     response.getLookupRealm(), response.getAuthenticationType());
             case 7:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),

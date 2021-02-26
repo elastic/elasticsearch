@@ -176,4 +176,14 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
             throw new UncheckedIOException("Failed to build " + LOGSTASH_CONCRETE_INDEX_NAME + " index mappings", e);
         }
     }
+
+    @Override
+    public String getFeatureName() {
+        return "logstash_management";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Enables Logstash Central Management pipeline storage";
+    }
 }

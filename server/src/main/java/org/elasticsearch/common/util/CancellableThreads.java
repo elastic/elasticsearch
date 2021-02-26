@@ -85,7 +85,7 @@ public class CancellableThreads {
             assert cancelled : "Interruption via Thread#interrupt() is unsupported. Use CancellableThreads#cancel() instead";
             // we can only reach here if assertions are disabled. If we reach this code and cancelled is false, this means that we've
             // been interrupted externally (which we don't support).
-            cancelledByExternalInterrupt = !cancelled;
+            cancelledByExternalInterrupt = cancelled == false;
         } catch (RuntimeException t) {
             runtimeException = t;
         } finally {

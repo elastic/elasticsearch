@@ -38,9 +38,10 @@ public final class MappingStats implements ToXContentFragment, Writeable {
     /**
      * Create {@link MappingStats} from the given cluster state.
      */
-    public static MappingStats of(Metadata metadata) {
+    public static MappingStats of(Metadata metadata, Runnable ensureNotCancelled) {
         Map<String, IndexFeatureStats> fieldTypes = new HashMap<>();
         for (IndexMetadata indexMetadata : metadata) {
+            ensureNotCancelled.run();
             if (indexMetadata.isSystem()) {
                 // Don't include system indices in statistics about mappings,
                 // we care about the user's indices.

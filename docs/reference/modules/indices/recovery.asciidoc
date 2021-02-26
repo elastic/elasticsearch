@@ -19,8 +19,9 @@ You can view a list of in-progress and completed recoveries using the
 (<<cluster-update-settings,Dynamic>>) Limits total inbound and outbound
 recovery traffic for each node. Applies to both peer recoveries as well
 as snapshot recoveries (i.e., restores from a snapshot). Defaults to `40mb`
-unless the node is a <<cold-tier, dedicated cold node>> in which case the
-default relates to the total memory available to the node:
+unless the node is a dedicated <<cold-tier, cold>> or
+<<frozen-tier, frozen>> node, in which case the default relates to the
+total memory available to the node:
 
 .Recovery Rate for Cold Nodes
 [options="header"]

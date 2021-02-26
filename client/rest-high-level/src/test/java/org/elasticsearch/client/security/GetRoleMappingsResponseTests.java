@@ -92,7 +92,7 @@ public class GetRoleMappingsResponseTests extends ESTestCase {
             ExpressionRoleMapping originalRoleMapping = original.getMappings().get(0);
             roleMappingsList2.add(new ExpressionRoleMapping(originalRoleMapping.getName(),
                 FieldRoleMapperExpression.ofGroups("cn=ipausers,cn=groups,cn=accounts,dc=ipademo,dc=local"), originalRoleMapping.getRoles(),
-                Collections.emptyList(), originalRoleMapping.getMetadata(), !originalRoleMapping.isEnabled()));
+                Collections.emptyList(), originalRoleMapping.getMetadata(), originalRoleMapping.isEnabled() == false));
             mutated = new GetRoleMappingsResponse(roleMappingsList2);
             break;
         }

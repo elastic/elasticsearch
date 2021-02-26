@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -76,9 +78,10 @@ public interface XContent {
 
     /**
      * Creates a parser over the provided input stream and with the indication that a request is using REST compatible API.
-     * Parses XContent using the N-1 compatible logic.
+     * Depending on restApiCompatibleVersionParses
+     * @param restApiCompatibleVersion - indicates if the N-1 or N compatible XContent parsing logic will be used.
      */
     XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
-                                                InputStream is) throws IOException;
+                                                InputStream is, RestApiCompatibleVersion restApiCompatibleVersion) throws IOException;
 
 }

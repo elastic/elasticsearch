@@ -62,6 +62,9 @@ subprojects {
           'search/140_pre_filter_search_shards/pre_filter_shard_size with shards that have no hit',
           //completion suggester does not return options when the context field is a geo_point runtime field
           'suggest/30_context/Multi contexts should work',
+
+          //there is something wrong when using dotted document syntax here, passes in main yaml tests
+	  'search/330_fetch_fields/Test nested field inside object structure',
           /////// TO FIX ///////
 
           /////// NOT SUPPORTED ///////

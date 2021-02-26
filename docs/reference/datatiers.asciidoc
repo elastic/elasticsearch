@@ -10,7 +10,8 @@ typically share the same hardware profile:
 and hold your most recent, most-frequently-accessed data.
 * <<warm-tier, Warm tier>> nodes hold time series data that is accessed less-frequently
 and rarely needs to be updated.
-* <<cold-tier, Cold tier>> nodes hold time series data that is accessed occasionally and not normally updated.
+* <<cold-tier, Cold tier>> nodes hold time series data that is accessed infrequently and not normally updated.
+* <<frozen-tier, Frozen tier>> nodes hold time series data that is accessed rarely and never updated.
 
 When you index documents directly to a specific index, they remain on content tier nodes indefinitely.
 
@@ -74,11 +75,22 @@ For resiliency, indices in the warm tier should be configured to use one or more
 === Cold tier
 
 Once data is no longer being updated, it can move from the warm tier to the cold tier where it
-stays for the rest of its life.
+stays while being queried infrequently.
 The cold tier is still a responsive query tier, but data in the cold tier is not normally updated.
 As data transitions into the cold tier it can be compressed and shrunken.
 For resiliency, indices in the cold tier can rely on
 <<ilm-searchable-snapshot, searchable snapshots>>, eliminating the need for replicas.
+
+[discrete]
+[[frozen-tier]]
+=== Frozen tier
+
+Once data is no longer being queried, or being queried rarely, it may move from the cold tier
+to the frozen tier where it stays for the rest of its life.
+The frozen tier is a less responsive query tier than the cold tier, and data in the frozen tier is
+not normally updated. As data transitions into the frozen tier it can be compressed and shrunken.
+For resiliency, indices in the frozen tier can rely on <<ilm-searchable-snapshot, searchable
+snapshots>>, eliminating the need for replicas or even a local copy.
 
 [discrete]
 [[data-tier-allocation]]

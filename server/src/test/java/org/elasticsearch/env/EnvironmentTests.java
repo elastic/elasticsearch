@@ -28,17 +28,6 @@ import static org.hamcrest.Matchers.hasSize;
  * Simple unit-tests for Environment.java
  */
 public class EnvironmentTests extends ESTestCase {
-    public Environment newEnvironment() {
-        return newEnvironment(Settings.EMPTY);
-    }
-
-    public Environment newEnvironment(Settings settings) {
-        Settings build = Settings.builder()
-                .put(settings)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
-        return new Environment(build, null);
-    }
 
     public void testRepositoryResolution() throws IOException {
         Environment environment = newEnvironment();

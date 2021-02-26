@@ -739,7 +739,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             E resolved = resolveExpression(exp, plan);
             if (resolved.resolved() == false) {
                 // look at unary trees but ignore subqueries
-                if (plan.children().size() == 1 && !(plan instanceof SubQueryAlias)) {
+                if (plan.children().size() == 1 && (plan instanceof SubQueryAlias) == false) {
                     return tryResolveExpression(resolved, plan.children().get(0));
                 }
             }

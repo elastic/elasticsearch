@@ -52,6 +52,7 @@ import org.elasticsearch.client.security.GetUserPrivilegesRequest;
 import org.elasticsearch.client.security.GetUserPrivilegesResponse;
 import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.GetUsersResponse;
+import org.elasticsearch.client.security.GrantApiKeyRequest;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
@@ -1062,6 +1063,37 @@ public final class SecurityClient {
                                              final ActionListener<InvalidateApiKeyResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::invalidateApiKey, options,
                 InvalidateApiKeyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Create an API Key on behalf of another user.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-grant-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to grant an API key
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create API key call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public CreateApiKeyResponse grantApiKey(final GrantApiKeyRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::grantApiKey, options,
+            CreateApiKeyResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously creates an API key on behalf of another user.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-grant-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to grant an API key
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable grantApiKeyAsync(final GrantApiKeyRequest request, final RequestOptions options,
+                                         final ActionListener<CreateApiKeyResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::grantApiKey, options,
+            CreateApiKeyResponse::fromXContent, listener, emptySet());
     }
 
     /**

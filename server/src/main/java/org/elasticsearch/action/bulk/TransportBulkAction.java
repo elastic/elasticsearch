@@ -536,10 +536,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             }
                             responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                         }
-                        bulkShardRequest.decRef();
-                        if (counter.decrementAndGet() == 0) {
-                            finishHim();
-                        }
+                        onAfter();
                     }
 
                     @Override
@@ -551,15 +548,15 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             responses.set(request.id(), new BulkItemResponse(request.id(), docWriteRequest.opType(),
                                     new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e)));
                         }
-                        bulkShardRequest.decRef();
-                        if (counter.decrementAndGet() == 0) {
-                            finishHim();
-                        }
+                        onAfter();
                     }
 
-                    private void finishHim() {
-                        listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]),
-                            buildTookInMillis(startTimeNanos)));
+                    private void onAfter() {
+                        bulkShardRequest.decRef();
+                        if (counter.decrementAndGet() == 0) {
+                            listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]),
+                                    buildTookInMillis(startTimeNanos)));
+                        }
                     }
                 });
             }

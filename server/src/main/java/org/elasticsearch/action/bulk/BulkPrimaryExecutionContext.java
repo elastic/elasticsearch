@@ -14,7 +14,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
-import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
@@ -279,9 +278,9 @@ class BulkPrimaryExecutionContext {
         assert translatedResponse.getItemId() == getCurrentItem().id();
 
         if (translatedResponse.isFailed() == false && requestToExecute != null && requestToExecute != getCurrent())  {
-            RefCounted existing = request.items()[currentIndex];
+            // we swap out the request at #currentIndex so we have to adjust ref counts accordingly
             requestToExecute.incRef();
-            existing.decRef();
+            request.items()[currentIndex].decRef();
             request.items()[currentIndex] = new BulkItemRequest(request.items()[currentIndex].id(), requestToExecute);
         }
         getCurrentItem().setPrimaryResponse(translatedResponse);

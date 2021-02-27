@@ -23,11 +23,11 @@ import java.io.OutputStream;
  * An extension to {@link BytesReference} that requires releasing its content. This
  * class exists to make it explicit when a bytes reference needs to be released, and when not.
  */
-public class ReleasableBytesReference implements RefCounted, Releasable, BytesReference {
+public final class ReleasableBytesReference implements RefCounted, Releasable, BytesReference {
 
     public static final Releasable NO_OP = () -> {};
     private final BytesReference delegate;
-    protected final AbstractRefCounted refCounted;
+    private final AbstractRefCounted refCounted;
 
     public ReleasableBytesReference(BytesReference delegate, Releasable releasable) {
         this(delegate, new RefCountedReleasable(releasable));
@@ -140,11 +140,7 @@ public class ReleasableBytesReference implements RefCounted, Releasable, BytesRe
     @Override
     public String utf8ToString() {
         assert refCount() > 0;
-        try {
-            return delegate.utf8ToString();
-        } catch (Throwable t) {
-          throw new AssertionError(t);
-        }
+        return delegate.utf8ToString();
     }
 
     @Override

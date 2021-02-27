@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.OS
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.rest-resources'
@@ -24,6 +26,10 @@ tasks.named("test").configure {enabled = false }
 tasks.named("jarHell").configure {enabled = false }
 
 tasks.named("yamlRestCompatTest").configure {
+  onlyIf {
+    // Skip these tests on Windows since the blacklist exceeds Windows CLI limits
+    OS.current() != OS.WINDOWS
+  }
   systemProperty 'tests.rest.blacklist', [
     'bulk/11_basic_with_types/Array of objects',
     'bulk/11_basic_with_types/Empty _id',
@@ -319,6 +325,7 @@ tasks.named("yamlRestCompatTest").configure {
     'search.aggregation/280_geohash_grid/Basic test',
     'search.aggregation/290_geotile_grid/Basic test',
     'search.aggregation/51_filter_with_types/Filter aggs with terms lookup and ensure it\'s cached',
+    'search.aggregation/370_doc_count_field/Test filters agg with doc_count',
     'search.inner_hits/10_basic/Nested doc version and seqIDs',
     'search.inner_hits/10_basic/Nested inner hits',
     'search/100_stored_fields/Stored fields',

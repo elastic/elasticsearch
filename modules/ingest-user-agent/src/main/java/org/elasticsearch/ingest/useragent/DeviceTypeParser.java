@@ -68,7 +68,9 @@ public class DeviceTypeParser {
     }
 
     public String findDeviceType(String agentString, VersionedName userAgent, VersionedName os, VersionedName device) {
-
+        if(deviceTypePatterns.isEmpty()){
+            return null;
+        }
         if (agentString != null) {
             String deviceType = findMatch(deviceTypePatterns.get(AGENT_STRING_PARSER), agentString);
             if (deviceType != null) {
@@ -79,6 +81,11 @@ public class DeviceTypeParser {
     }
 
     public String findDeviceType(VersionedName userAgent, VersionedName os, VersionedName device) {
+
+        if(deviceTypePatterns.isEmpty()){
+            return null;
+        }
+
         ArrayList<String> extractedDeviceTypes = new ArrayList<>();
 
         String robot = "Robot", tablet = "Tablet", desktop = "Desktop", mobile = "Mobile";

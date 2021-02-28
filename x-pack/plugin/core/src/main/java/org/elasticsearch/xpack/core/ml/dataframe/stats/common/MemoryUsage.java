@@ -89,6 +89,10 @@ public class MemoryUsage implements Writeable, ToXContentObject {
         memoryReestimateBytes = in.readOptionalVLong();
     }
 
+    public long getPeakUsageBytes() {
+        return peakUsageBytes;
+    }
+
     public Status getStatus() {
         return status;
     }

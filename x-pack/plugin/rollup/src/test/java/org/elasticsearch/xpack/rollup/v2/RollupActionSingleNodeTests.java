@@ -135,6 +135,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString("Unable to rollup index [" + index + "]"));
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/69506")
     public void testTemporaryIndexDeletedOnRollupFailure() throws Exception {
         RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()

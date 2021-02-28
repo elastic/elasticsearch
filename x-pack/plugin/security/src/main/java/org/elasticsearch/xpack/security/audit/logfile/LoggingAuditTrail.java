@@ -1436,7 +1436,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
          */
         Predicate<AuditEventMetaInfo> ignorePredicate() {
             return eventInfo -> {
-                    final Collection<String> privileges  = IndexPrivilege.findPrivilegesThatGrant(eventInfo.action);
                     return eventInfo.principal != null && ignorePrincipalsPredicate.test(eventInfo.principal)
                     && eventInfo.realm != null && ignoreRealmsPredicate.test(eventInfo.realm)
                     && eventInfo.action != null && ignoreActionsPredicate.test(eventInfo.action)

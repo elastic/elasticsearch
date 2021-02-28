@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -57,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -161,6 +163,13 @@ public abstract class TransportClient extends AbstractClient {
                     pluginsService.filterPlugins(Plugin.class).stream()
                             .flatMap(p -> p.getNamedXContent().stream())
                     ).flatMap(Function.identity()).collect(toList()));
+
+            final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
+                .stream()
+                .map(Plugin::getRoles)
+                .flatMap(Set::stream)
+                .collect(Collectors.toSet());
+            DiscoveryNode.setAdditionalRoles(additionalRoles);
 
             ModulesBuilder modules = new ModulesBuilder();
             // plugin modules must be added here, before others or we can get crazy injection errors...

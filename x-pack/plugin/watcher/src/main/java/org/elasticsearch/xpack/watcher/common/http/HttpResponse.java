@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -121,8 +122,8 @@ public class HttpResponse implements ToXContentObject {
         HttpResponse that = (HttpResponse) o;
 
         if (status != that.status) return false;
-        if (!headers.equals(that.headers)) return false;
-        return !(body != null ? !body.equals(that.body) : that.body != null);
+        if (headers.equals(that.headers) == false) return false;
+        return Objects.equals(body, that.body);
     }
 
     @Override
@@ -137,11 +138,11 @@ public class HttpResponse implements ToXContentObject {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("status=[").append(status).append("]");
-        if (!headers.isEmpty()) {
+        if (headers.isEmpty() == false) {
             sb.append(", headers=[");
             boolean first = true;
             for (Map.Entry<String, String[]> header : headers.entrySet()) {
-                if (!first) {
+                if (first == false) {
                     sb.append(", ");
                 }
                 sb.append("[").append(header.getKey()).append(": ").append(Arrays.toString(header.getValue())).append("]");
@@ -158,7 +159,7 @@ public class HttpResponse implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder = builder.startObject().field(Field.STATUS.getPreferredName(), status);
-        if (!headers.isEmpty()) {
+        if (headers.isEmpty() == false) {
             builder.startObject(Field.HEADERS.getPreferredName());
             for (Map.Entry<String, String[]> header : headers.entrySet()) {
                 // in order to prevent dots in field names, that might occur in headers, we simply de_dot those header names
@@ -213,7 +214,7 @@ public class HttpResponse implements ToXContentObject {
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         List<String> values = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (!token.isValue()) {
+                            if (token.isValue() == false) {
                                 throw new ElasticsearchParseException("could not parse http response. expected a header value for header " +
                                         "[{}] but found [{}] instead", headerName, token);
                             } else {

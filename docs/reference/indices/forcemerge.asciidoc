@@ -38,6 +38,7 @@ shard by merging some of them together, and also frees up the space used by
 deleted documents. Merging normally happens automatically, but sometimes it is
 useful to trigger a merge manually.
 
+// tag::force-merge-read-only-warn[]
 WARNING: **Force merge should only be called against an index after you have
 finished writing to it.** Force merge can cause very large (>5GB) segments to
 be produced, and if you continue to write to such an index then the automatic
@@ -45,6 +46,7 @@ merge policy will never consider these segments for future merges until they
 mostly consist of deleted documents. This can cause very large segments to
 remain in the index which can result in increased disk usage and worse search
 performance.
+// end::force-merge-read-only-warn[]
 
 
 [[forcemerge-blocks]]

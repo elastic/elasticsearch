@@ -318,7 +318,7 @@ public class AutodetectCommunicator implements Closeable {
      * Throws an exception if the process has exited
      */
     private void checkProcessIsAlive() {
-        if (!autodetectProcess.isProcessAlive()) {
+        if (autodetectProcess.isProcessAlive() == false) {
             // Don't log here - it just causes double logging when the exception gets logged
             throw new ElasticsearchException("[{}] Unexpected death of autodetect: {}", job.getId(), autodetectProcess.readError());
         }

@@ -148,7 +148,7 @@ public class SentEvent implements ToXContentObject {
             if (message != null) {
                 sb.append(message);
             }
-            if (!errors.isEmpty()) {
+            if (errors.isEmpty() == false) {
                 sb.append(":");
                 for (String error : errors) {
                     sb.append(" ").append(error).append(".");

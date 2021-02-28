@@ -69,7 +69,7 @@ public class HourlySchedule extends CronnableSchedule {
             if (i != 0) {
                 sb.append(",");
             }
-            if (!validMinute(minutes[i])) {
+            if (validMinute(minutes[i]) == false) {
                 throw illegalArgument("invalid hourly minute [{}]. minute must be between 0 and 59 incl.", minutes[i]);
             }
             sb.append(minutes[i]);

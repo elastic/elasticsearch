@@ -120,7 +120,7 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 ExitCodes.OK,
                 true,
                 (output, error) -> {},
-                (foreground, pidFile, quiet, esSettings) -> assertThat(foreground, equalTo(!expectedDaemonize)),
+                (foreground, pidFile, quiet, esSettings) -> assertThat(foreground, equalTo(expectedDaemonize == false)),
                 args);
     }
 

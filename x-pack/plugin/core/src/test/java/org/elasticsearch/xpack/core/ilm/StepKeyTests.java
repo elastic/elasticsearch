@@ -16,6 +16,10 @@ public class StepKeyTests extends AbstractSerializingTestCase<StepKey> {
 
     @Override
     public StepKey createTestInstance() {
+        return randomStepKey();
+    }
+
+    public static StepKey randomStepKey() {
         return new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 

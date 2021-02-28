@@ -217,7 +217,7 @@ enum TextFormat {
                 }
                 return true;
             } else {
-                return !header.toLowerCase(Locale.ROOT).equals(PARAM_HEADER_ABSENT);
+                return header.toLowerCase(Locale.ROOT).equals(PARAM_HEADER_ABSENT) == false;
             }
         }
     },

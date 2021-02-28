@@ -103,7 +103,7 @@ public class TransportGetFieldMappingsIndexAction
         for (String type : typeIntersection) {
             DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
             Map<String, FieldMappingMetadata> fieldMapping = findFieldMappingsByType(fieldPredicate, documentMapper, request);
-            if (!fieldMapping.isEmpty()) {
+            if (fieldMapping.isEmpty() == false) {
                 typeMappings.put(type, fieldMapping);
             }
         }

@@ -346,10 +346,10 @@ GET /_search
         "order": [ { "rock>playback_stats.avg": "desc" }, { "_count": "desc" } ]
       },
       "aggs": {
-        "rock": { 
+        "rock": {
           "filter": { "term": { "genre": "rock" } },
           "aggs": {
-            "playback_stats": { "stats": { "field": "play_count" } } 
+            "playback_stats": { "stats": { "field": "play_count" } }
           }
         }
       }
@@ -614,7 +614,7 @@ to produce a list of all of the unique values in the field.  Global ordinals
 results in an important performance boost which would not be possible across
 multiple fields.
 
-There are two approaches that you can use to perform a `terms` agg across
+There are three approaches that you can use to perform a `terms` agg across
 multiple fields:
 
 <<search-aggregations-bucket-terms-aggregation-script,Script>>::
@@ -630,6 +630,12 @@ If you know ahead of time that you want to collect the terms from two or more
 fields, then use `copy_to` in your mapping to create a new dedicated field at
 index time which contains the values from both fields.  You can aggregate on
 this single field, which will benefit from the global ordinals optimization.
+
+<<search-aggregations-bucket-multi-terms-aggregation, `multi_terms` aggregation>>::
+
+Use multi_terms aggregation to combine terms from multiple fields into a compound key. This
+also disables the global ordinals and will be slower than collecting terms from a single field.
+It is faster but less flexible than using a script.
 
 [[search-aggregations-bucket-terms-aggregation-collect]]
 ==== Collect mode

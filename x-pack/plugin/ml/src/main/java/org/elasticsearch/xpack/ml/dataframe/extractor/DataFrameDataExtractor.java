@@ -105,7 +105,7 @@ public class DataFrameDataExtractor {
     }
 
     public Optional<List<Row>> next() throws IOException {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
@@ -175,6 +175,8 @@ public class DataFrameDataExtractor {
         for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
             searchRequestBuilder.addDocValueField(docValueField.getSearchField(), docValueField.getDocValueFormat());
         }
+
+        searchRequestBuilder.setRuntimeMappings(context.runtimeMappings);
 
         return searchRequestBuilder;
     }
@@ -341,7 +343,8 @@ public class DataFrameDataExtractor {
             .setIndices(context.indices)
             .setSize(0)
             .setQuery(summaryQuery)
-            .setTrackTotalHits(true);
+            .setTrackTotalHits(true)
+            .setRuntimeMappings(context.runtimeMappings);
     }
 
     private QueryBuilder allExtractedFieldsExistQuery() {

@@ -1,7 +1,101 @@
+[[release-notes-7.11.1]]
+== {es} version 7.11.1
+
+Also see <<breaking-changes-7.11,Breaking changes in 7.11>>.
+
+[[enhancement-7.11.1]]
+[float]
+=== Enhancements
+
+Features/Indices APIs::
+* Prevent concurrent rollover race conditions {es-pull}67953[#67953] (issues: {es-issue}64921[#64921], {es-issue}67836[#67836])
+
+Features/Stats::
+* Add index creation version stats to cluster stats {es-pull}68141[#68141]
+
+Snapshot/Restore::
+* Improve shard evictions in searchable snapshot cache service {es-pull}67160[#67160] (issues: {es-issue}66730[#66730], {es-issue}66958[#66958])
+* Make blob cache have async durability {es-pull}66687[#66687]
+
+
+
+[[bug-7.11.1]]
+[float]
+=== Bug fixes
+
+Authentication::
+* Fix permissions for UnboundID LDAP SDK {es-pull}68872[#68872] (issues: {es-issue}64743[#64743], {es-issue}68838[#68838])
+
+Cluster Coordination::
+* Determine data role based on convention {es-pull}66933[#66933] (issue: {es-issue}66000[#66000])
+
+Features/ILM+SLM::
+* Check if delete phase has actions {es-pull}66664[#66664] (issue: {es-issue}65847[#65847])
+* Fix handling of configurations with a combination of both maximum and expire-after retention {es-pull}68352[#68352]
+* Fix searchable snapshot action to wait for the restored index {es-pull}68309[#68309] (issue: {es-issue}67879[#67879])
+* Ignore `clusterChanged` events if state not recovered {es-pull}67507[#67507] (issue: {es-issue}67506[#67506])
+* `ShrinkStep` ignores the `isAcknowledged` flag on the response {es-pull}67591[#67591] (issue: {es-issue}53111[#53111])
+* Skip rollover if the data stream is rolled over already {es-pull}67778[#67778] (issue: {es-issue}67777[#67777])
+
+Features/Indices APIs::
+* Fix exception when validating composable template with no template {es-pull}67310[#67310] (issue: {es-issue}66949[#66949])
+
+Features/Ingest::
+* Fix parsing empty value with brackets failed in dissect ingest processor {es-pull}65524[#65524] (issue: {es-issue}65080[#65080])
+
+Features/Stats::
+* Allow reading of `/proc/meminfo` for JDK bug workaround {es-pull}68742[#68742]
+* Workaround for JDK bug with total memory on Debian 8 {es-pull}68542[#68542] (issues: {es-issue}66629[#66629], {es-issue}66885[#66885])
+
+Geo::
+* Add support for `distance_feature` query for runtime `geo_point` field {es-pull}68094[#68094] (issue: {es-issue}67910[#67910])
+
+Infra/Scripting::
+* Remove leniency for casting from a `def` type to a `void` type in Painless {es-pull}66957[#66957] (issue: {es-issue}66175[#66175])
+
+Machine Learning::
+* Ensure mappings are up to date before reverting state {es-pull}68746[#68746]
+
+Network::
+* Fix `AbstractClient#execute` Listener Leak {es-pull}65415[#65415] (issue: {es-issue}65405[#65405])
+
+Packaging::
+* Fix an error that occurs while starting the service in Windows OS under a path with a space in it {es-pull}61895[#61895] (issue: {es-issue}61891[#61891])
+* Fix an issue with MSI installation on Windows that prevents {es} starting https://github.com/elastic/windows-installers/issues/402[#402] (issue: {es-issue}68914[#68914])
+
+Recovery::
+* Check graveyard on dangling index import {es-pull}67687[#67687]
+
+SQL::
+* Fix `elasticsearch-sql-cli` under Docker {es-pull}67737[#67737] (issue: {es-issue}57744[#57744])
+* Fix the `MINUTE_OF_DAY()` function that throws exception when used in comparisons {es-pull}68783[#68783] (issues: {es-issue}67872[#67872], {es-issue}68788[#68788])
+
+Snapshot/Restore::
+* Reduce number of cache/prewarm threads {es-pull}67021[#67021]
+* Adjust encoding of Azure block IDs {es-pull}68957[#68957] (issue: {es-issue}66489[#66489])
+
+
+
 [[release-notes-7.11.0]]
 == {es} version 7.11.0
 
 Also see <<breaking-changes-7.11,Breaking changes in 7.11>>.
+
+[[known-issues-7.11.0]]
+[discrete]
+=== Known issues
+
+* Integration with <<active-directory-realm, Active Directory realms>> and
+  <<ldap-realm, LDAP realms>> is impacted by an issue that prevents
+  Elasticsearch from starting. If you have configured an Active Directory or
+  LDAP realm, then Elasticseach will fail to start with an error message
+  indicating that `Could not initialize class com.unboundid.util.Debug`. This
+  exception is fatal. If you encounter this during an upgrade, because
+  Elasticsearch failed during node construction, you can safely downgrade to
+  your previous version of Elasticsearch. Note: these downgrade instructions
+  only apply if you encounter this specific error message; in general,
+  downgrades are not safe. Elasticsearch 7.11.1 will contain a fix for this
+  issue. For more details, see {es-issue}68838[#68838].
 
 [discrete]
 [[fips-140-2-compliance-7.11.0]]
@@ -190,6 +284,14 @@ Machine Learning::
 * Adding `result_type` and `mlcategory` fields to category definitions {es-pull}63326[#63326] (issue: {es-issue}60108[#60108])
 * Increase log level for forecast disk storage problems {es-pull}64766[#64766] (issue: {es-issue}58806[#58806])
 * Provide a way to revert an {anomaly-job} to an empty snapshot {es-pull}65431[#65431]
+* During regression and classification training prefer smaller models if performance is similar {ml-pull}1516[#1516]
+* Add a response mechanism for commands sent to the native controller {ml-pull}1520[#1520], {es-pull}63542[#63542] (issue: {es-issue}62823[#62823])
+* Speed up anomaly detection for seasonal data. This is particularly effective for jobs using longer bucket lengths {ml-pull}1549[#1549]
+* Fix an edge case which could cause typical and model plot bounds to blow up to around max double {ml-pull}1551[#1551]
+* Estimate upper bound of potential gains before splitting a decision tree node to avoid  unnecessary computation {ml-pull}1537[#1537]
+* Improvements to time series modeling particularly in relation to adaption to change {ml-pull})1614[#1614]
+* Warn and error log throttling {ml-pull}1615[#1615]
+* Soften the effect of fluctuations in anomaly detection job memory usage on node assignment and add `assignment_memory_basis` to `model_size_stats` {ml-pull}1623[#1623], {es-pull}65561[#65561] (issue: {es-issue}63163[#63163])
 
 Mapping::
 * Add xpack info and usage endpoints for runtime fields {es-pull}65600[#65600] (issue: {es-issue}59332[#59332])
@@ -288,6 +390,9 @@ Machine Learning::
 * Fix edge case for data frame analytics where a field mapped as a keyword actually has boolean and string values in the `_source` {es-pull}64826[#64826]
 * Fix job ID in C++ logs for normalize and memory estimation {es-pull}63874[#63874] (issues: {es-issue}54636[#54636], {es-issue}60395[#60395])
 * Truncate long audit messages {es-pull}64849[#64849] (issue: {es-issue}64570[#64570])
+* Fix potential cause for log errors from CXMeansOnline1d {ml-pull}1586[#1586]
+* Fix scaling of some hyperparameters for Bayesian optimization {ml-pull}1612[#1612]
+* Fix missing state in persist and restore for anomaly detection. This caused suboptimal modeling after a job was closed and reopened or failed over to a different node {ml-pull}1668[#1668]
 
 Mapping::
 * Count only mapped fields towards `docvalue_fields` limit {es-pull}63806[#63806] (issue: {es-issue}63730[#63730])

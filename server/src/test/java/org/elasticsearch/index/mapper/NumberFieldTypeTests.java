@@ -639,6 +639,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             .fieldType();
         assertEquals(Collections.singletonList(3), fetchSourceValue(mapper, 3.14));
         assertEquals(Collections.singletonList(42), fetchSourceValue(mapper, "42.9"));
+        assertEquals(org.elasticsearch.common.collect.List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
 
         MappedFieldType nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, false, true)
             .nullValue(2.71f)

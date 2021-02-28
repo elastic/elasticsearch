@@ -90,7 +90,7 @@ public class ScriptScope extends Decorator {
     }
 
     public void markNonDeterministic(boolean nondeterministic) {
-        this.deterministic &= !nondeterministic;
+        this.deterministic &= nondeterministic == false;
     }
 
     public boolean isDeterministic() {

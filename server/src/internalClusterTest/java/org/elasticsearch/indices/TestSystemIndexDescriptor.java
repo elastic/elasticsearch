@@ -50,7 +50,8 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             0,
             "version",
             "stack",
-            MapperService.SINGLE_MAPPING_NAME
+            MapperService.SINGLE_MAPPING_NAME,
+            null
         );
     }
 

@@ -413,7 +413,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
                 if (includeTypeName == false) {
                     Map<String, Object> documentMapping = null;
                     for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetadata.mappings()) {
-                        if (!cursor.key.equals(MapperService.DEFAULT_MAPPING)) {
+                        if (cursor.key.equals(MapperService.DEFAULT_MAPPING) == false) {
                             assert documentMapping == null;
                             Map<String, Object> mapping = XContentHelper.convertToMap(cursor.value.uncompressed(), true).v2();
                             documentMapping = reduceMapping(cursor.key, mapping);

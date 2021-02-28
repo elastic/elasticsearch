@@ -171,7 +171,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     }
 
 
-    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType,
+    public static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType,
                                                 ValuesSourceType defaultValuesSourceType) {
         if (valueType == null) {
             // If the user didn't send a hint, all we can do is fall back to the default

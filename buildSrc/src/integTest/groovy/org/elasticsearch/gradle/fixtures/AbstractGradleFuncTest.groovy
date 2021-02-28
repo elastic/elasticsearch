@@ -92,7 +92,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         return jarFile;
     }
 
-    File internalBuild(File buildScript = buildFile, String major = "7.9.1", String minor = "7.10.0", String bugfix = "7.11.0") {
+    File internalBuild(File buildScript = buildFile, String major = "7.10.1", String minor = "7.11.0", String bugfix = "7.12.0") {
         buildScript << """plugins {
           id 'elasticsearch.global-build-info'
         }

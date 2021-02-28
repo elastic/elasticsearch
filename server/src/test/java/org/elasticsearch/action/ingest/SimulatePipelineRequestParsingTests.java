@@ -145,9 +145,10 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
                 IF_PRIMARY_TERM);
             for(IngestDocument.Metadata field : fields) {
                 if (field == VERSION) {
-                    Long value = randomLong();
-                    doc.put(field.getFieldName(), value);
-                    expectedDoc.put(field.getFieldName(), value);
+                    Object value = randomBoolean() ? randomLong() : randomInt();
+                    doc.put(field.getFieldName(), randomBoolean() ? value : value.toString());
+                    long longValue = (long) value;
+                    expectedDoc.put(field.getFieldName(), longValue);
                 } else if (field == VERSION_TYPE) {
                     String value = VersionType.toString(
                         randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE)
@@ -155,9 +156,10 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
                     doc.put(field.getFieldName(), value);
                     expectedDoc.put(field.getFieldName(), value);
                 } else if (field == IF_SEQ_NO || field == IF_PRIMARY_TERM) {
-                    Long value = randomNonNegativeLong();
-                    doc.put(field.getFieldName(), value);
-                    expectedDoc.put(field.getFieldName(), value);
+                    Object value = randomBoolean() ? randomNonNegativeLong() : randomInt(1000);
+                    doc.put(field.getFieldName(), randomBoolean() ? value : value.toString());
+                    long longValue = (long) value;
+                    expectedDoc.put(field.getFieldName(), longValue);
                 } else if (field == TYPE) {
                     if (useExplicitType) {
                         String value = randomAlphaOfLengthBetween(1, 10);

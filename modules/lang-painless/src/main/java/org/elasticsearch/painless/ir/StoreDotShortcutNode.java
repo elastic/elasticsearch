@@ -22,7 +22,7 @@ public class StoreDotShortcutNode extends UnaryNode {
 
     @Override
     public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        // do nothing; terminal node
+        getChildNode().visit(irTreeVisitor, scope);
     }
 
     /* ---- end visitor ---- */

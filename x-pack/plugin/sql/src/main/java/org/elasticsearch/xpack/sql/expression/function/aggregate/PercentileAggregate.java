@@ -191,7 +191,7 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
             return true;
         }
 
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
 

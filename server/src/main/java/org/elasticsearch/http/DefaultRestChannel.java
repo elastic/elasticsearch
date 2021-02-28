@@ -145,7 +145,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     }
 
     private void setHeaderField(HttpResponse response, String headerField, String value, boolean override) {
-        if (override || !response.containsHeader(headerField)) {
+        if (override || response.containsHeader(headerField) == false) {
             response.addHeader(headerField, value);
         }
     }

@@ -13,16 +13,20 @@ import org.elasticsearch.xpack.ql.tree.Source;
 public class RLike extends RegexMatch<RLikePattern> {
 
     public RLike(Source source, Expression value, RLikePattern pattern) {
-        super(source, value, pattern);
+        super(source, value, pattern, false);
+    }
+
+    public RLike(Source source, Expression field, RLikePattern rLikePattern, boolean caseInsensitive) {
+        super(source, field, rLikePattern, caseInsensitive);
     }
 
     @Override
     protected NodeInfo<RLike> info() {
-        return NodeInfo.create(this, RLike::new, field(), pattern());
+        return NodeInfo.create(this, RLike::new, field(), pattern(), caseInsensitive());
     }
 
     @Override
     protected RLike replaceChild(Expression newChild) {
-        return new RLike(source(), newChild, pattern());
+        return new RLike(source(), newChild, pattern(), caseInsensitive());
     }
 }

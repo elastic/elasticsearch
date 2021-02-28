@@ -32,16 +32,17 @@ For more information, see <<built-in-roles>>, <<security-privileges>>, and
 [[put-transform-desc]]
 == {api-description-title}
 
-This API defines a {transform}, which copies data from source indices,
+This API defines a {transform}, which copies data from source indices, 
 transforms it, and persists it into an entity-centric destination index. If you
 choose to use the pivot method for your {transform}, the entities are defined by
 the set of `group_by` fields in the `pivot` object.  If you choose to use the
 latest method, the entities are defined by the `unique_key` field values in the
 `latest` object.
 
-You can also think of the destination index as a two-dimensional tabular data structure (known as a {dataframe}). The ID for each document in the
-{dataframe} is generated from a hash of the entity, so there is a unique row
-per entity. For more information, see <<transforms>>.
+You can also think of the destination index as a two-dimensional tabular data 
+structure (known as a {dataframe}). The ID for each document in the {dataframe} 
+is generated from a hash of the entity, so there is a unique row per entity. For 
+more information, see <<transforms>>.
 
 When the {transform} is created, a series of validations occur to
 ensure its success. For example, there is a check for the existence of the
@@ -150,6 +151,32 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
 
 ====
 //End pivot
+
+//Begin retention policy
+`retention_policy`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention]
++
+.Properties of `retention_policy`
+[%collapsible%open]
+====
+`time`:::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time]
++
+.Properties of `time`
+[%collapsible%open]
+=====
+`field`:::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-field]
+
+`max_age`:::
+(Required, <<time-units, time units>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-max-age]
+=====
+====
+//End retention policy
 
 //Begin settings
 `settings`::
@@ -278,6 +305,12 @@ PUT _transform/ecommerce_transform1
     "time": {
       "field": "order_date",
       "delay": "60s"
+    }
+  },
+  "retention_policy": {
+    "time": {
+      "field": "order_date",
+      "max_age": "30d"
     }
   }
 }

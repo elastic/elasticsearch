@@ -38,7 +38,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
     @Before
     public void waitForTemplates() throws Exception {
         try {
-            XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V660_TEMPLATES);
+            XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V7120_TEMPLATES);
         } catch (AssertionError e) {
             throw new AssertionError("Failure in test setup: Failed to initialize ML index templates", e);
         }

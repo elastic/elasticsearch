@@ -134,7 +134,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
     }
 
     private static String readLineFromPipeWindows(String pipeName, Pointer handle) throws IOException {
-        if (!ConnectNamedPipe(handle, Pointer.NULL)) {
+        if (ConnectNamedPipe(handle, Pointer.NULL) == false) {
             // ERROR_PIPE_CONNECTED means the pipe was already connected so
             // there was no need to connect it again - not a problem
             if (Native.getLastError() != ERROR_PIPE_CONNECTED) {
@@ -143,7 +143,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
         }
         IntByReference numberOfBytesRead = new IntByReference();
         ByteBuffer buf = ByteBuffer.allocateDirect(BUFFER_SIZE);
-        if (!ReadFile(handle, Native.getDirectBufferPointer(buf), new DWord(BUFFER_SIZE), numberOfBytesRead, Pointer.NULL)) {
+        if (ReadFile(handle, Native.getDirectBufferPointer(buf), new DWord(BUFFER_SIZE), numberOfBytesRead, Pointer.NULL) == false) {
             throw new IOException("ReadFile failed for pipe " + pipeName + " with error " + Native.getLastError());
         }
         byte[] content = new byte[numberOfBytesRead.getValue()];
@@ -169,7 +169,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
     }
 
     private static void writeLineToPipeWindows(String pipeName, Pointer handle, String line) throws IOException {
-        if (!ConnectNamedPipe(handle, Pointer.NULL)) {
+        if (ConnectNamedPipe(handle, Pointer.NULL) == false) {
             // ERROR_PIPE_CONNECTED means the pipe was already connected so
             // there was no need to connect it again - not a problem
             if (Native.getLastError() != ERROR_PIPE_CONNECTED) {
@@ -179,7 +179,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
         IntByReference numberOfBytesWritten = new IntByReference();
         ByteBuffer buf = ByteBuffer.allocateDirect(BUFFER_SIZE);
         buf.put((line + '\n').getBytes(StandardCharsets.UTF_8));
-        if (!WriteFile(handle, Native.getDirectBufferPointer(buf), new DWord(buf.position()), numberOfBytesWritten, Pointer.NULL)) {
+        if (WriteFile(handle, Native.getDirectBufferPointer(buf), new DWord(buf.position()), numberOfBytesWritten, Pointer.NULL) == false) {
             throw new IOException("WriteFile failed for pipe " + pipeName + " with error " + Native.getLastError());
         }
     }
@@ -197,7 +197,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
     }
 
     private static void deletePipeWindows(String pipeName, Pointer handle) throws IOException {
-        if (!CloseHandle(handle)) {
+        if (CloseHandle(handle) == false) {
             throw new IOException("CloseHandle failed for pipe " + pipeName + " with error " + Native.getLastError());
         }
     }

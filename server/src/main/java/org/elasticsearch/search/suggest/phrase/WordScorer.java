@@ -52,7 +52,14 @@ public abstract class WordScorer {
         final long nTerms = terms.size();
         this.numTerms = nTerms == -1 ? reader.maxDoc() : nTerms;
         // non recycling for now
-        this.termsEnum = new FreqTermsEnum(reader, field, !useTotalTermFreq, useTotalTermFreq, null, BigArrays.NON_RECYCLING_INSTANCE);
+        this.termsEnum = new FreqTermsEnum(
+            reader,
+            field,
+            useTotalTermFreq == false,
+            useTotalTermFreq,
+            null,
+            BigArrays.NON_RECYCLING_INSTANCE
+        );
         this.reader = reader;
         this.realWordLikelihood = realWordLikelihood;
         this.separator = separator;

@@ -105,6 +105,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        return createIndexAnalyzers();
+    }
+
+    protected static IndexAnalyzers createIndexAnalyzers() {
         return new IndexAnalyzers(
             singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             emptyMap(),
@@ -180,16 +184,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     protected final MapperService createMapperService(Version version,
                                                       Settings settings,
                                                       BooleanSupplier idFieldDataEnabled) {
-        settings = Settings.builder()
-            .put("index.number_of_replicas", 0)
-            .put("index.number_of_shards", 1)
-            .put(settings)
-            .put("index.version.created", version)
-            .build();
-        IndexMetadata meta = IndexMetadata.builder("index")
-            .settings(settings)
-            .build();
-        IndexSettings indexSettings = new IndexSettings(meta, settings);
+        IndexSettings indexSettings = createIndexSettings(version, settings);
         MapperRegistry mapperRegistry = new IndicesModule(
             getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
         ).getMapperRegistry();
@@ -205,10 +200,25 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             xContentRegistry(),
             similarityService,
             mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
+            () -> {
+                throw new UnsupportedOperationException();
+            },
             idFieldDataEnabled,
             scriptService
         );
+    }
+
+    protected static IndexSettings createIndexSettings(Version version, Settings settings) {
+        settings = Settings.builder()
+            .put("index.number_of_replicas", 0)
+            .put("index.number_of_shards", 1)
+            .put(settings)
+            .put("index.version.created", version)
+            .build();
+        IndexMetadata meta = IndexMetadata.builder("index")
+            .settings(settings)
+            .build();
+        return new IndexSettings(meta, settings);
     }
 
     protected final void withLuceneIndex(
@@ -219,7 +229,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService));
         try (
             Directory dir = newDirectory();
-            RandomIndexWriter iw = new RandomIndexWriter(random(), dir,iwc)
+            RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)
         ) {
             builder.accept(iw);
             try (IndexReader reader = iw.getReader()) {
@@ -507,7 +517,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         when(searchExecutionContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
         when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(searchExecutionContext.getObjectMapper(anyString())).thenAnswer(
-            inv -> mapperService.getObjectMapper(inv.getArguments()[0].toString()));
+            inv -> mapperService.mappingLookup().objectMappers().get(inv.getArguments()[0].toString()));
         when(searchExecutionContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );

@@ -16,8 +16,14 @@ GET /my-index-000001/_search_shards
 [[search-shards-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_search_shards`
+`GET /<target>/_search_shards`
 
+[[search-shards-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the target data stream, index, or index alias.
 
 [[search-shards-api-desc]]
 ==== {api-description-title}
@@ -31,7 +37,13 @@ are used, the filter is returned as part of the `indices` section.
 [[search-shards-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases to search.
+Wildcard (`*`) expressions are supported.
++
+To search all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 
 [[search-shards-api-query-params]]

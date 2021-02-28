@@ -37,7 +37,7 @@ public abstract class PercentileCompoundAggregate extends CompoundNumericAggrega
         if (this == o) {
             return true;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
 

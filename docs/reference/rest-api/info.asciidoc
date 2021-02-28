@@ -110,7 +110,7 @@ Example response:
          "available" : true,
          "enabled" : true,
          "native_code_info" : {
-           "version" : "7.0.0-alpha1-SNAPSHOT",
+           "version" : "7.13.0",
            "build_hash" : "99a07c016d5a73"
         }
       },
@@ -182,7 +182,7 @@ Example response:
 // TESTRESPONSE[s/"date" : "2015-04-07T13:34:42Z"/"date" : "$body.build.date"/]
 // TESTRESPONSE[s/"uid" : "893361dc-9749-4997-93cb-xxx",/"uid": "$body.license.uid",/]
 // TESTRESPONSE[s/"expiry_date_in_millis" : 1542665112332/"expiry_date_in_millis" : "$body.license.expiry_date_in_millis"/]
-// TESTRESPONSE[s/"version" : "7.0.0-alpha1-SNAPSHOT",/"version": "$body.features.ml.native_code_info.version",/]
+// TESTRESPONSE[s/"version" : "7.13.0",/"version": "$body.features.ml.native_code_info.version",/]
 // TESTRESPONSE[s/"build_hash" : "99a07c016d5a73"/"build_hash": "$body.features.ml.native_code_info.build_hash"/]
 // TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql": $body.$_path,/]
 // eql is disabled by default on release builds and enabled everywhere else during the initial implementation phase until its release

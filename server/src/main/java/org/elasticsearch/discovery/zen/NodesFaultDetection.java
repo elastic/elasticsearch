@@ -105,7 +105,7 @@ public class NodesFaultDetection extends FaultDetection {
     public void updateNodesAndPing(ClusterState clusterState) {
         // remove any nodes we don't need, this will cause their FD to stop
         for (DiscoveryNode monitoredNode : nodesFD.keySet()) {
-            if (!clusterState.nodes().nodeExists(monitoredNode)) {
+            if (clusterState.nodes().nodeExists(monitoredNode) == false) {
                 nodesFD.remove(monitoredNode);
             }
         }
@@ -116,7 +116,7 @@ public class NodesFaultDetection extends FaultDetection {
                 // no need to monitor the local node
                 continue;
             }
-            if (!nodesFD.containsKey(node)) {
+            if (nodesFD.containsKey(node) == false) {
                 NodeFD fd = new NodeFD(node);
                 // it's OK to overwrite an existing nodeFD - it will just stop and the new one will pick things up.
                 nodesFD.put(node, fd);
@@ -212,7 +212,7 @@ public class NodesFaultDetection extends FaultDetection {
 
         @Override
         public void run() {
-            if (!running()) {
+            if (running() == false) {
                 return;
             }
             final TransportRequestOptions options = TransportRequestOptions.of(pingRetryTimeout, TransportRequestOptions.Type.PING);
@@ -224,7 +224,7 @@ public class NodesFaultDetection extends FaultDetection {
 
                         @Override
                         public void handleResponse(PingResponse response) {
-                            if (!running()) {
+                            if (running() == false) {
                                 return;
                             }
                             retryCount = 0;
@@ -233,7 +233,7 @@ public class NodesFaultDetection extends FaultDetection {
 
                         @Override
                         public void handleException(TransportException exp) {
-                            if (!running()) {
+                            if (running() == false) {
                                 return;
                             }
                             if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
@@ -272,12 +272,12 @@ public class NodesFaultDetection extends FaultDetection {
         public void messageReceived(PingRequest request, TransportChannel channel, Task task) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception
             // this can happen when a kill -9 is sent, and another node is started using the same port
-            if (!localNode.equals(request.targetNode())) {
+            if (localNode.equals(request.targetNode()) == false) {
                 throw new IllegalStateException("Got pinged as node " + request.targetNode() + "], but I am node " + localNode );
             }
 
             // PingRequest will have clusterName set to null if it came from a node of version <1.4.0
-            if (request.clusterName != null && !request.clusterName.equals(clusterName)) {
+            if (request.clusterName != null && request.clusterName.equals(clusterName) == false) {
                 // Don't introduce new exception for bwc reasons
                 throw new IllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster ["
                     + clusterName + "]");

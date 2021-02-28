@@ -47,7 +47,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
 
     @Override
     public void renormalize(Quantiles quantiles) {
-        if (!isEnabled()) {
+        if (isEnabled() == false) {
             return;
         }
 
@@ -114,7 +114,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
     private boolean tryFinishWork() {
         // We cannot tolerate new work being added in between the isEmpty() check and releasing the semaphore
         synchronized (quantilesDeque) {
-            if (!quantilesDeque.isEmpty()) {
+            if (quantilesDeque.isEmpty() == false) {
                 return false;
             }
             semaphore.release();

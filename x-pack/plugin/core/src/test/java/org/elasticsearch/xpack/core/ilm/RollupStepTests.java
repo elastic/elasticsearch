@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -21,9 +22,13 @@ import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.mockito.Mockito;
 
 import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
@@ -60,14 +65,18 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
     }
 
     private IndexMetadata getIndexMetadata(String index) {
-        return IndexMetadata.builder(index)
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        Map<String, String> ilmCustom = Collections.singletonMap("rollup_index_name", "rollup-index");
+        return IndexMetadata.builder(index).settings(
+            settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "test-ilm-policy"))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
+            .build();
     }
 
     private static void assertRollupActionRequest(RollupAction.Request request, String sourceIndex) {
         assertNotNull(request);
         assertThat(request.getSourceIndex(), equalTo(sourceIndex));
+        assertThat(request.getRollupIndex(), equalTo("rollup-index"));
     }
 
     public void testPerformAction() {
@@ -101,12 +110,33 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         assertEquals(true, actionCompleted.get());
     }
 
+    public void testPerformActionFailureInvalidExecutionState() {
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(
+            settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "test-ilm-policy"))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        String indexName = indexMetadata.getIndex().getName();
+        RollupStep step = createRandomInstance();
+        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
+            @Override
+            public void onResponse(boolean complete) {
+                fail("expecting a failure as the index doesn't have any rollup index name in its ILM execution state");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e, instanceOf(IllegalStateException.class));
+                assertThat(e.getMessage(),
+                    is("rollup index name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
+            }
+        });
+    }
+
     public void testPerformActionOnDataStream() {
         String dataStreamName = "test-datastream";
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-        IndexMetadata indexMetadata = IndexMetadata.builder(backingIndexName)
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetadata indexMetadata = getIndexMetadata(backingIndexName);
 
         RollupStep step = createRandomInstance();
 
@@ -141,9 +171,9 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         Mockito.doAnswer(invocation -> {
             RollupAction.Request request = (RollupAction.Request) invocation.getArguments()[1];
             @SuppressWarnings("unchecked")
-            ActionListener<RollupAction.Response> listener = (ActionListener<RollupAction.Response>) invocation.getArguments()[2];
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             assertRollupActionRequest(request, sourceIndex);
-            listener.onResponse(new RollupAction.Response(true));
+            listener.onResponse(AcknowledgedResponse.of(true));
             return null;
         }).when(client).execute(Mockito.any(), Mockito.any(), Mockito.any());
     }

@@ -29,7 +29,7 @@ public class Mul extends SqlArithmeticOperation implements BinaryComparisonInver
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 

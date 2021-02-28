@@ -8,7 +8,7 @@ the cluster to use these files.
 
 IMPORTANT: When you enable {es} {security-features}, unless you have a trial
 license, you must use Transport Layer Security (TLS) to encrypt internode
-communication. By following the steps in this tutorial tutorial, you learn how
+communication. By following the steps in this tutorial, you learn how
 to meet the minimum requirements to pass the
 <<bootstrap-checks-tls,TLS bootstrap check>>.
 

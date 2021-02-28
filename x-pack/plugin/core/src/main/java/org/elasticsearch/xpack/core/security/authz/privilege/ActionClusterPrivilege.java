@@ -19,6 +19,7 @@ public class ActionClusterPrivilege implements NamedClusterPrivilege {
     private final String name;
     private final Set<String> allowedActionPatterns;
     private final Set<String> excludedActionPatterns;
+    private final ClusterPermission permission;
 
     /**
      * Constructor for {@link ActionClusterPrivilege} defining what cluster actions are accessible for the user with this privilege.
@@ -43,6 +44,7 @@ public class ActionClusterPrivilege implements NamedClusterPrivilege {
         this.name = name;
         this.allowedActionPatterns = allowedActionPatterns;
         this.excludedActionPatterns = excludedActionPatterns;
+        this.permission = buildPermission(ClusterPermission.builder()).build();
     }
 
     @Override
@@ -61,5 +63,10 @@ public class ActionClusterPrivilege implements NamedClusterPrivilege {
     @Override
     public ClusterPermission.Builder buildPermission(final ClusterPermission.Builder builder) {
         return builder.add(this, allowedActionPatterns, excludedActionPatterns);
+    }
+
+    @Override
+    public ClusterPermission permission() {
+        return permission;
     }
 }

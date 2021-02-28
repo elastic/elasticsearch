@@ -206,6 +206,45 @@ public class FlattenedFieldParserTests extends ESTestCase {
         assertEquals(new BytesRef("parent2.key\0value"), keyedField2.binaryValue());
     }
 
+    /**
+     * Test that we are lenient in accepting dotted paths:
+     *   * Dotted paths are allowed to be prefixes of each other.
+     *   * The same field name can be specified as a dotted path and using object notation.
+     */
+    public void testDottedPaths() throws Exception {
+        String input = "{ \"object1.object2\": \"value1\"," +
+            "\"object1.object2.object3\": \"value2\"," +
+            "\"object1\": { \"object2\": \"value3\" }}";
+        XContentParser xContentParser = createXContentParser(input);
+
+        List<IndexableField> fields = parser.parse(xContentParser);
+        assertEquals(6, fields.size());
+
+        IndexableField field1 = fields.get(0);
+        assertEquals("field", field1.name());
+        assertEquals(new BytesRef("value1"), field1.binaryValue());
+
+        IndexableField keyedField1 = fields.get(1);
+        assertEquals("field._keyed", keyedField1.name());
+        assertEquals(new BytesRef("object1.object2\0value1"), keyedField1.binaryValue());
+
+        IndexableField field2 = fields.get(2);
+        assertEquals("field", field2.name());
+        assertEquals(new BytesRef("value2"), field2.binaryValue());
+
+        IndexableField keyedField2 = fields.get(3);
+        assertEquals("field._keyed", keyedField2.name());
+        assertEquals(new BytesRef("object1.object2.object3\0value2"), keyedField2.binaryValue());
+
+        IndexableField field3 = fields.get(4);
+        assertEquals("field", field3.name());
+        assertEquals(new BytesRef("value3"), field3.binaryValue());
+
+        IndexableField keyedField3 = fields.get(5);
+        assertEquals("field._keyed", keyedField3.name());
+        assertEquals(new BytesRef("object1.object2\0value3"), keyedField3.binaryValue());
+    }
+
     public void testDepthLimit() throws Exception {
         String input = "{ \"parent1\": { \"key\" : \"value\" }," +
             "\"parent2\": [{ \"key\" : { \"key\" : \"value\" }}]}";

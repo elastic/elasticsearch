@@ -260,7 +260,7 @@ public abstract class SessionFactory {
             final boolean allClear = Arrays.stream(ldapUrls)
                     .allMatch(s -> STARTS_WITH_LDAP.matcher(s).find());
 
-            if (!allSecure && !allClear) {
+            if (allSecure == false && allClear == false) {
                 //No mixing is allowed because we use the same socketfactory
                 throw new IllegalArgumentException(
                         "configured LDAP protocols are not all equal (ldaps://.. and ldap://..): ["

@@ -76,7 +76,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, Bucket prototype) {
+    protected Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, Bucket prototype) {
         throw new UnsupportedOperationException("not supported for UnmappedTerms");
     }
 

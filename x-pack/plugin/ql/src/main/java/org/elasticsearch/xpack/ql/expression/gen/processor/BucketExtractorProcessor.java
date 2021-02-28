@@ -45,7 +45,7 @@ public class BucketExtractorProcessor implements Processor {
 
     @Override
     public Object process(Object input) {
-        if (!(input instanceof Bucket)) {
+        if ((input instanceof Bucket) == false) {
             throw new QlIllegalArgumentException("Expected an agg bucket but received {}", input);
         }
         return extractor.extract((Bucket) input);

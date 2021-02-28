@@ -90,7 +90,7 @@ public final class DissectKey {
                 break;
         }
 
-        if (name == null || (name.isEmpty() && !skip)) {
+        if (name == null || (name.isEmpty() && skip == false)) {
             throw new DissectException.KeyParse(key, "The key name could not be determined");
         }
     }

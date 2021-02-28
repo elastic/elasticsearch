@@ -50,7 +50,7 @@ public class TransportDeleteAsyncResultAction extends HandledTransportAction<Del
         AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
         DiscoveryNode node = clusterService.state().nodes().get(searchId.getTaskId().getNodeId());
         if (clusterService.localNode().getId().equals(searchId.getTaskId().getNodeId()) || node == null) {
-            deleteResultsService.deleteResult(request, listener);
+            deleteResultsService.deleteResponse(request, listener);
         } else {
             transportService.sendRequest(node, DeleteAsyncResultAction.NAME, request,
                 new ActionListenerResponseHandler<>(listener, AcknowledgedResponse::readFrom, ThreadPool.Names.SAME));

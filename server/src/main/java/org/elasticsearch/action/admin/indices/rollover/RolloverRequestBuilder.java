@@ -43,8 +43,13 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         return this;
     }
 
-    public RolloverRequestBuilder addMaxIndexSizeCondition(ByteSizeValue size){
+    public RolloverRequestBuilder addMaxIndexSizeCondition(ByteSizeValue size) {
         this.request.addMaxIndexSizeCondition(size);
+        return this;
+    }
+
+    public RolloverRequestBuilder addMaxPrimaryShardSizeCondition(ByteSizeValue size) {
+        this.request.addMaxPrimaryShardSizeCondition(size);
         return this;
     }
 

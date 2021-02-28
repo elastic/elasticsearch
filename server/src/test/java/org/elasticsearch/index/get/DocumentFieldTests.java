@@ -83,7 +83,7 @@ public class DocumentFieldTests extends ESTestCase {
         } else {
             // we are unlucky and our random mutation is equal to our mutation, try the other candidate
             final DocumentField otherCandidate = mutations.get(1 - index).get();
-            assert !documentField.equals(otherCandidate) : documentField;
+            assert documentField.equals(otherCandidate) == false : documentField;
             return otherCandidate;
         }
     }

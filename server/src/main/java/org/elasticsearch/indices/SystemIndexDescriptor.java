@@ -12,12 +12,21 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -66,6 +75,12 @@ public class SystemIndexDescriptor {
     /** The index type to use when creating an index. */
     private final String indexType;
 
+    /** The minimum cluster node version required for this descriptor, or null if there is no restriction */
+    private final Version minimumNodeVersion;
+
+    /** Whether there are dynamic fields in this descriptor's mappings */
+    private final boolean hasDynamicMappings;
+
     /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
      * by Elasticsearch internally.
@@ -73,7 +88,7 @@ public class SystemIndexDescriptor {
      * @param description The name of the plugin responsible for this system index.
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
-        this(indexPattern, null, description, null, null, null, 0, null, null, MapperService.SINGLE_MAPPING_NAME);
+        this(indexPattern, null, description, null, null, null, 0, null, null, MapperService.SINGLE_MAPPING_NAME, null);
     }
 
     /**
@@ -88,9 +103,10 @@ public class SystemIndexDescriptor {
      * @param aliasName An alias for the index, or null
      * @param indexFormat A value for the `index.format` setting. Pass 0 or higher.
      * @param versionMetaKey a mapping key under <code>_meta</code> where a version can be found, which indicates the
-     *                       Elasticsearch version when the index was created.
+    *                       Elasticsearch version when the index was created.
      * @param origin the client origin to use when creating this index.
      * @param indexType the index type. Should be {@link MapperService#SINGLE_MAPPING_NAME} for any new system indices.
+     * @param minimumNodeVersion the minimum cluster node version required for this descriptor, or null if there is no restriction
      */
     SystemIndexDescriptor(
         String indexPattern,
@@ -102,7 +118,8 @@ public class SystemIndexDescriptor {
         int indexFormat,
         String versionMetaKey,
         String origin,
-        String indexType
+        String indexType,
+        Version minimumNodeVersion
     ) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
@@ -164,7 +181,12 @@ public class SystemIndexDescriptor {
         this.versionMetaKey = versionMetaKey;
         this.origin = origin;
         this.indexType = indexType;
+        this.minimumNodeVersion = minimumNodeVersion;
+
+        this.hasDynamicMappings = this.mappings != null
+            && findDynamicMapping(XContentHelper.convertToMap(JsonXContent.jsonXContent, mappings, false));
     }
+
 
     /**
      * @return The pattern of index names that this descriptor will be used for.
@@ -188,6 +210,26 @@ public class SystemIndexDescriptor {
      */
     public boolean matchesIndexPattern(String index) {
         return indexPatternAutomaton.run(index);
+    }
+
+    /**
+     * Retrieves a list of all indices which match this descriptor's pattern.
+     *
+     * This cannot be done via {@link org.elasticsearch.cluster.metadata.IndexNameExpressionResolver} because that class can only handle
+     * simple wildcard expressions, but system index name patterns may use full Lucene regular expression syntax,
+     *
+     * @param metadata The current metadata to get the list of matching indices from
+     * @return A list of index names that match this descriptor
+     */
+    public List<String> getMatchingIndices(Metadata metadata) {
+        ArrayList<String> matchingIndices = new ArrayList<>();
+        metadata.indices().keysIt().forEachRemaining(indexName -> {
+            if (matchesIndexPattern(indexName)) {
+                matchingIndices.add(indexName);
+            }
+        });
+
+        return Collections.unmodifiableList(matchingIndices);
     }
 
     /**
@@ -234,6 +276,33 @@ public class SystemIndexDescriptor {
         return indexType;
     }
 
+    public boolean hasDynamicMappings() {
+        return this.hasDynamicMappings;
+    }
+
+    /**
+     * Checks that this descriptor can be used within this cluster e.g. the cluster supports all required
+     * features, by comparing the supplied minimum node version to this descriptor's minimum version.
+     *
+     * @param cause the action being attempted that triggered the check. Used in the error message.
+     * @param actualMinimumNodeVersion the lower node version in the cluster
+     * @return an error message if the lowest node version is lower that the version in this descriptor,
+     * or <code>null</code> if the supplied version is acceptable or this descriptor has no minimum version.
+     */
+    public String checkMinimumNodeVersion(String cause, Version actualMinimumNodeVersion) {
+        Objects.requireNonNull(cause);
+        if (this.minimumNodeVersion != null && this.minimumNodeVersion.after(actualMinimumNodeVersion)) {
+            return String.format(
+                Locale.ROOT,
+                "[%s] failed - system index [%s] requires all cluster nodes to be at least version [%s]",
+                cause,
+                this.getPrimaryIndex(),
+                minimumNodeVersion
+            );
+        }
+        return null;
+    }
+
     // TODO: getThreadpool()
     // TODO: Upgrade handling (reindex script?)
 
@@ -241,17 +310,21 @@ public class SystemIndexDescriptor {
         return new Builder();
     }
 
+    /**
+     * Provides a fluent API for building a {@link SystemIndexDescriptor}. Validation still happens in that class.
+     */
     public static class Builder {
         private String indexPattern;
         private String primaryIndex;
         private String description;
-        private XContentBuilder mappingsBuilder = null;
+        private String mappings = null;
         private Settings settings = null;
         private String aliasName = null;
         private int indexFormat = 0;
         private String versionMetaKey = null;
         private String origin = null;
         private String indexType = MapperService.SINGLE_MAPPING_NAME;
+        private Version minimumNodeVersion = null;
 
         private Builder() {}
 
@@ -271,7 +344,12 @@ public class SystemIndexDescriptor {
         }
 
         public Builder setMappings(XContentBuilder mappingsBuilder) {
-            this.mappingsBuilder = mappingsBuilder;
+            mappings = mappingsBuilder == null ? null : Strings.toString(mappingsBuilder);
+            return this;
+        }
+
+        public Builder setMappings(String mappings) {
+            this.mappings = mappings;
             return this;
         }
 
@@ -310,8 +388,16 @@ public class SystemIndexDescriptor {
             return this;
         }
 
+        public Builder setMinimumNodeVersion(Version version) {
+            this.minimumNodeVersion = version;
+            return this;
+        }
+
+        /**
+         * Builds a {@link SystemIndexDescriptor} using the fields supplied to this builder.
+         * @return a populated descriptor.
+         */
         public SystemIndexDescriptor build() {
-            String mappings = mappingsBuilder == null ? null : Strings.toString(mappingsBuilder);
 
             return new SystemIndexDescriptor(
                 indexPattern,
@@ -323,7 +409,8 @@ public class SystemIndexDescriptor {
                 indexFormat,
                 versionMetaKey,
                 origin,
-                indexType
+                indexType,
+                minimumNodeVersion
             );
         }
     }
@@ -353,6 +440,7 @@ public class SystemIndexDescriptor {
      * {@link RegExp} instance. This exists because although
      * {@link org.elasticsearch.common.regex.Regex#simpleMatchToAutomaton(String)} is useful
      * for simple patterns, it doesn't support character ranges.
+     *
      * @param input the string to translate
      * @return the translate string
      */
@@ -361,5 +449,33 @@ public class SystemIndexDescriptor {
         output = output.replaceAll("\\.", "\\.");
         output = output.replaceAll("\\*", ".*");
         return output;
+    }
+
+    /**
+     * Recursively searches for <code>dynamic: true</code> in the supplies mappings
+     * @param map a parsed fragment of an index's mappings
+     * @return whether the fragment contains a dynamic mapping
+     */
+    @SuppressWarnings("unchecked")
+    static boolean findDynamicMapping(Map<String, Object> map) {
+        if (map == null) {
+            return false;
+        }
+
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            final String key = entry.getKey();
+            final Object value = entry.getValue();
+            if (key.equals("dynamic") && (value instanceof Boolean) && ((Boolean) value)) {
+                return true;
+            }
+
+            if (value instanceof Map) {
+                if (findDynamicMapping((Map<String, Object>) value)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

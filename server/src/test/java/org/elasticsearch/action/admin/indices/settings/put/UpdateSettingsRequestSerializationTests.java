@@ -39,7 +39,7 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
         mutators.add(() -> mutation.indices(mutateIndices(request.indices())));
         mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(request.indicesOptions(),
                 () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
-        mutators.add(() -> mutation.setPreserveExisting(!request.isPreserveExisting()));
+        mutators.add(() -> mutation.setPreserveExisting(request.isPreserveExisting() == false));
         randomFrom(mutators).run();
         return mutation;
     }

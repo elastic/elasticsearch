@@ -28,8 +28,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     extends AbstractInternalTerms<A, B> implements Terms {
 
 
-    protected static final ParseField DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = new ParseField("doc_count_error_upper_bound");
-    protected static final ParseField SUM_OF_OTHER_DOC_COUNTS = new ParseField("sum_other_doc_count");
+    public static final ParseField DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = new ParseField("doc_count_error_upper_bound");
+    public static final ParseField SUM_OF_OTHER_DOC_COUNTS = new ParseField("sum_other_doc_count");
 
     public abstract static class Bucket<B extends Bucket<B>> extends AbstractTermsBucket
         implements Terms.Bucket, KeyComparable<B> {
@@ -255,20 +255,5 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), minDocCount, reduceOrder, order, requiredSize);
-    }
-
-    protected static XContentBuilder doXContentCommon(XContentBuilder builder,
-                                                      Params params,
-                                                      long docCountError,
-                                                      long otherDocCount,
-                                                      List<? extends Bucket<?>> buckets) throws IOException {
-        builder.field(DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName(), docCountError);
-        builder.field(SUM_OF_OTHER_DOC_COUNTS.getPreferredName(), otherDocCount);
-        builder.startArray(CommonFields.BUCKETS.getPreferredName());
-        for (Bucket<?> bucket : buckets) {
-            bucket.toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
     }
 }

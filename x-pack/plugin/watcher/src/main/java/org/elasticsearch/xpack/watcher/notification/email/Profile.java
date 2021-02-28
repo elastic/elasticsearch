@@ -92,7 +92,7 @@ public enum Profile {
                 alternative.addBodyPart(html);
             }
 
-            if (!email.attachments.isEmpty()) {
+            if (email.attachments.isEmpty() == false) {
                 for (Attachment attachment : email.attachments.values()) {
                     if (attachment.isInline()) {
                         related.addBodyPart(attachment.bodyPart());

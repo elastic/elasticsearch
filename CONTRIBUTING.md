@@ -1,7 +1,7 @@
 Contributing to elasticsearch
 =============================
 
-Elasticsearch is an open source project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
+Elasticsearch is a free and open project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
 
 If you want to be rewarded for your contributions, sign up for the [Elastic Contributor Program](https://www.elastic.co/community/contributor). Each time you
 make a valid contribution, you’ll earn points that increase your chances of winning prizes and being recognized as a top contributor.
@@ -159,18 +159,25 @@ check the Elasticsearch code. However, the Checkstyle configuration file does
 not work by default with the IntelliJ plugin, so instead an IDE-specific config
 file is generated automatically after IntelliJ finishes syncing.
 
-   1. Open **Preferences > Tools > Checkstyle**
-   2. Change the "Scan Scope" to "Only Java sources (including tests)"
-   3. Check the "+" under "Configuration file"
-   4. Set "Description" to "Elasticsearch" (or whatever you want)
-   5. Select "Use a local Checkstyle file"
-   6. For the "File", enter `checkstyle_ide.xml`
-   7. Tick "Store relative to project location"
-   8. Click "Next", then "Finish".
-   9. Click the box next to the new configuration to make it "Active". Without doing this,
-      you'll have to explicitly choose the "Elasticsearch" configuration in the Checkstyle
-      tool window and run the check manually. You can still do this with an active config.
-   10. Click "OK" to apply the new preferences
+   1. We have some custom Checkstyle rules. In order to use them, you need
+      to make sure the rules are built, by running: `./gradlew build-tools:assemble`
+   2. Open **Preferences > Tools > Checkstyle**
+   3. Tell Checkstyle where to find the custom rules. Under the
+      "Third-Party Checks" section, click the "+" button.
+   4. Select `buildSrc/build/distributions/build-tools-$VERSION.jar`
+   5. Make sure that "Checkstyle version" is set to the highest version
+   6. Change the "Scan Scope" to "Only Java sources (including tests)"
+   7. Click the "+" under "Configuration file"
+   8. Set "Description" to "Elasticsearch"
+   9. Select "Use a local Checkstyle file"
+   10. For the "File", enter `checkstyle_ide.xml`
+   11. Tick "Store relative to project location"
+   12. Click "Next", then "Finish".
+   13. Click the box next to the new configuration to make it "Active".
+       Without doing this, you'll have to explicitly choose the
+       "Elasticsearch" configuration in the Checkstyle tool window and run
+       the check manually.
+   14. Click "OK" to apply the new preferences
 
 #### Formatting
 
@@ -183,7 +190,8 @@ Code Formatter] installed, you can apply formatting directly in IntelliJ.
    3. Under "Eclipse formatter config", select "Eclipse workspace/project
       folder or config file"
    4. Click "Browse", and navigate to the file `buildSrc/formatterConfig.xml`
-   5. Click "OK"
+   5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
+   6. Click "OK"
 
 Note that only some sub-projects in the Elasticsearch project are currently
 fully-formatted. You can see a list of project that **are not**

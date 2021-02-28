@@ -1704,9 +1704,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         } else {
             request.getTargetIndexRequest().settings(Settings.builder()
                 .putNull("index.routing.allocation.require._name"));
-            // tag::shrink-index-request-maxSinglePrimarySize
-            request.setMaxSinglePrimarySize(new ByteSizeValue(50, ByteSizeUnit.GB)); // <1>
-            // end::shrink-index-request-maxSinglePrimarySize
+            // tag::shrink-index-request-maxPrimaryShardSize
+            request.setMaxPrimaryShardSize(new ByteSizeValue(50, ByteSizeUnit.GB)); // <1>
+            // end::shrink-index-request-maxPrimaryShardSize
         }
         // tag::shrink-index-request-aliases
         request.getTargetIndexRequest().alias(new Alias("target_alias")); // <1>
@@ -1899,6 +1899,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.addMaxIndexAgeCondition(new TimeValue(7, TimeUnit.DAYS)); // <2>
         request.addMaxIndexDocsCondition(1000); // <3>
         request.addMaxIndexSizeCondition(new ByteSizeValue(5, ByteSizeUnit.GB)); // <4>
+        request.addMaxPrimaryShardSizeCondition(new ByteSizeValue(2, ByteSizeUnit.GB)); // <5>
         // end::rollover-index-request
 
         // tag::rollover-index-request-timeout
@@ -1945,7 +1946,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertEquals("index-2", newIndex);
         assertFalse(isRolledOver);
         assertTrue(isDryRun);
-        assertEquals(3, conditionStatus.size());
+        assertEquals(4, conditionStatus.size());
 
         // tag::rollover-index-execute-listener
         ActionListener<RolloverResponse> listener = new ActionListener<RolloverResponse>() {

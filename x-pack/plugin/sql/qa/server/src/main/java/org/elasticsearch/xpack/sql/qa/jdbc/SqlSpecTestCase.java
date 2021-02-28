@@ -81,8 +81,8 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
         // we skip the tests in case of these locales because ES-SQL is Locale-insensitive for now
         // while H2 does take the Locale into consideration
         String[] h2IncompatibleLocales = new String[] { "tr", "az", "tr-TR", "tr-CY", "az-Latn", "az-Cyrl", "az-Latn-AZ", "az-Cyrl-AZ" };
-        boolean goodLocale = !Arrays.stream(h2IncompatibleLocales)
-            .anyMatch((l) -> Locale.getDefault().equals(new Locale.Builder().setLanguageTag(l).build()));
+        boolean goodLocale = Arrays.stream(h2IncompatibleLocales)
+            .anyMatch((l) -> Locale.getDefault().equals(new Locale.Builder().setLanguageTag(l).build())) == false;
         if (fileName.startsWith("case-functions")) {
             Assume.assumeTrue(goodLocale);
         }

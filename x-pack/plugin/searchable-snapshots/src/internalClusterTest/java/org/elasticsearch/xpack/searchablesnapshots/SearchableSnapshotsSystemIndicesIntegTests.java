@@ -71,7 +71,8 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
             indexName,
             Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean()).build(),
             Strings.EMPTY_ARRAY,
-            true
+            true,
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         );
 
         final ElasticsearchException exception = expectThrows(
@@ -90,6 +91,16 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
             return org.elasticsearch.common.collect.List.of(
                 new SystemIndexDescriptor(INDEX_NAME, "System index for [" + getTestClass().getName() + ']')
             );
+        }
+
+        @Override
+        public String getFeatureName() {
+            return SearchableSnapshotsSystemIndicesIntegTests.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "test plugin";
         }
     }
 }

@@ -39,7 +39,7 @@ public abstract class AbstractSecurityModule extends AbstractModule {
 
         @Override
         protected final void configure(boolean clientMode) {
-            assert !clientMode : "[" + getClass().getSimpleName() + "] is a node only module";
+            assert clientMode == false : "[" + getClass().getSimpleName() + "] is a node only module";
             configureNode();
         }
 

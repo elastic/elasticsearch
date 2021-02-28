@@ -71,7 +71,7 @@ POST _reindex
 [[docs-reindex-api-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have the the following
+* If the {es} {security-features} are enabled, you must have the following
 security privileges:
 
 ** The `read` <<privileges-list-indices,index privilege>> for the source data

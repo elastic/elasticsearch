@@ -156,6 +156,19 @@ Snapshot/Restore::
 
 Also see <<breaking-changes-7.10,Breaking changes in 7.10>>.
 
+[discrete]
+[[security-updates-7.10.0]]
+=== Security updates
+
+* {es} versions before 7.10.0 and 6.8.14 have an information
+disclosure issue when audit logging and the `emit_request_body` option are
+enabled. The {es} audit log could contain sensitive information,
+such as password hashes or authentication tokens. This could allow an
+{es} administrator to view these details.
+You must upgrade to {es} version 7.10.0 to obtain the fix.
+https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-7021[CVE-2020-7021]
+
+
 [[known-issues-7.10.0]]
 [discrete]
 === Known issues

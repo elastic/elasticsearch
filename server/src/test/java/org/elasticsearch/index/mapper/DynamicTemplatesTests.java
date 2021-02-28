@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -49,59 +48,6 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         assertThat(mapperService.fieldType("l"), notNullValue());
         assertTrue(mapperService.fieldType("l").isSearchable());
-    }
-
-    public void testMatchTypeRuntimeNoPlugin() throws Exception {
-        XContentBuilder topMapping = topMapping(b -> {
-            b.startArray("dynamic_templates");
-            {
-                b.startObject();
-                {
-                    b.startObject("test");
-                    {
-                        b.field("match_mapping_type", "string");
-                        b.startObject("runtime").endObject();
-                    }
-                    b.endObject();
-                }
-                b.endObject();
-            }
-            b.endArray();
-        });
-
-        createMapperService(topMapping);
-        assertWarnings("dynamic template [test] has invalid content [{\"match_mapping_type\":\"string\",\"runtime\":{}}], " +
-            "attempted to validate it with the following match_mapping_type: [string], " +
-            "caused by [No runtime field found for type [keyword]]");
-    }
-
-    public void testMatchAllTypesRuntimeNoPlugin() throws Exception {
-        boolean matchMappingType = randomBoolean();
-        XContentBuilder topMapping = topMapping(b -> {
-            b.startArray("dynamic_templates");
-            {
-                b.startObject();
-                {
-                    b.startObject("test");
-                    {
-                        if (matchMappingType) {
-                            b.field("match_mapping_type", "*");
-                        } else {
-                            b.field("match", "field");
-                        }
-                        b.startObject("runtime").endObject();
-                    }
-                    b.endObject();
-                }
-                b.endObject();
-            }
-            b.endArray();
-        });
-        String matchError = matchMappingType ? "\"match_mapping_type\":\"*\"" : "\"match\":\"field\"";
-        createMapperService(topMapping);
-        assertWarnings("dynamic template [test] has invalid content [" + "{" + matchError + ",\"runtime\":{}}], " +
-            "attempted to validate it with the following match_mapping_type: [string, long, double, boolean, date], " +
-            "caused by [No runtime field found for type [date]]");
     }
 
     public void testSimple() throws Exception {

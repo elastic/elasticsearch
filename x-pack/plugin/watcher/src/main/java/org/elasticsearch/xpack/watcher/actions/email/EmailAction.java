@@ -149,7 +149,7 @@ public class EmailAction implements Action {
                 }
             } else if (Field.ATTACHMENTS.match(currentFieldName, parser.getDeprecationHandler())) {
                 attachments = emailAttachmentsParser.parse(parser);
-            } else if (!emailParser.handle(currentFieldName, parser)) {
+            } else if (emailParser.handle(currentFieldName, parser) == false) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     if (Field.ACCOUNT.match(currentFieldName, parser.getDeprecationHandler())) {
                         account = parser.text();

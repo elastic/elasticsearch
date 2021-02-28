@@ -183,7 +183,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
             Double thisBucketValue = resolveBucketValue(histo, iter.previous(), bucketsPaths()[0], gapPolicy);
 
-            if (!(thisBucketValue == null || thisBucketValue.equals(Double.NaN))) {
+            if ((thisBucketValue == null || thisBucketValue.equals(Double.NaN)) == false) {
                 test[window - counter - 1] = thisBucketValue;
                 counter += 1;
             }
@@ -205,7 +205,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
             Double thisBucketValue = resolveBucketValue(histo, iter.previous(), bucketsPaths()[0], gapPolicy);
 
-            if (!(thisBucketValue == null || thisBucketValue.equals(Double.NaN))) {
+            if ((thisBucketValue == null || thisBucketValue.equals(Double.NaN)) == false) {
                 train[window - counter - 1] = thisBucketValue;
                 counter += 1;
             }

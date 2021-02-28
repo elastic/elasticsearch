@@ -596,7 +596,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     private void indexSampleData(List<Number> dataset, RandomIndexWriter indexWriter, boolean multipleSegments) throws IOException {
-        if(!multipleSegments) {
+        if (multipleSegments == false) {
             // Put all of the documents into one segment
             List<Document> documents = new ArrayList<>();
             for (final Number doc : dataset) {

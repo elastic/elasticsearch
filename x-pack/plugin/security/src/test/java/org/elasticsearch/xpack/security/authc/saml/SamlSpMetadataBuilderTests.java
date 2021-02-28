@@ -57,7 +57,7 @@ public class SamlSpMetadataBuilderTests extends SamlTestCase {
             fail("Expected exactly 3 certificate in " + certPath);
         }
         List<Class> notX509Certificates = Arrays.stream(threeCerts).filter((cert) -> {
-            return !(cert instanceof X509Certificate);
+            return (cert instanceof X509Certificate) == false;
         }).map(cert -> cert.getClass()).collect(Collectors.toList());
         if (notX509Certificates.isEmpty() == false) {
             fail("Expected exactly X509Certificates, but found " + notX509Certificates);

@@ -263,10 +263,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
      * @return The id of document the job is persisted in
      */
     public static String documentId(String jobId) {
-        if (!MlStrings.isValidId(jobId)) {
+        if (MlStrings.isValidId(jobId) == false) {
             throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), jobId));
         }
-        if (!MlStrings.hasValidLengthForId(jobId)) {
+        if (MlStrings.hasValidLengthForId(jobId) == false) {
             throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT));
         }
 
@@ -1130,10 +1130,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             checkValueNotLessThan(0, RENORMALIZATION_WINDOW_DAYS.getPreferredName(), renormalizationWindowDays);
             checkValueNotLessThan(0, RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
 
-            if (!MlStrings.isValidId(id)) {
+            if (MlStrings.isValidId(id) == false) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));
             }
-            if (!MlStrings.hasValidLengthForId(id)) {
+            if (MlStrings.hasValidLengthForId(id) == false) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT));
             }
 
@@ -1142,7 +1142,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             validateGroups();
 
             // Results index name not specified in user input means use the default, so is acceptable in this validation
-            if (!Strings.isNullOrEmpty(resultsIndexName) && !MlStrings.isValidId(resultsIndexName)) {
+            if (Strings.isNullOrEmpty(resultsIndexName) == false && MlStrings.isValidId(resultsIndexName) == false) {
                 throw new IllegalArgumentException(
                         Messages.getMessage(Messages.INVALID_ID, RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName));
             }
@@ -1254,7 +1254,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
             if (Strings.isNullOrEmpty(resultsIndexName)) {
                 resultsIndexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
-            } else if (!resultsIndexName.equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT)) {
+            } else if (resultsIndexName.equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT) == false) {
                 // User-defined names are prepended with "custom"
                 // Conditional guards against multiple prepending due to updates instead of first creation
                 resultsIndexName = resultsIndexName.startsWith("custom-")

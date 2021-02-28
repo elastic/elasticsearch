@@ -218,7 +218,7 @@ public class DataLoader {
 
             // append department
             List<List<String>> list = dep_emp.get(emp_no);
-            if (!list.isEmpty()) {
+            if (list.isEmpty() == false) {
                 bulk.append(", \"dep\" : [");
                 for (List<String> dp : list) {
                     bulk.append("{");

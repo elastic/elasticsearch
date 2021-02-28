@@ -26,8 +26,7 @@ import java.util.Set;
  */
 public abstract class ArraySourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
-    private final @Nullable
-    Object nullValue;
+    private final @Nullable Object nullValue;
 
     public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context) {
         this(fieldName, context, null);
@@ -51,7 +50,13 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
             if (sourceValue == null) {
                 return org.elasticsearch.common.collect.List.of();
             }
-            values.addAll((List<?>) parseSourceValue(sourceValue));
+            try {
+                values.addAll((List<?>) parseSourceValue(sourceValue));
+            } catch (Exception e) {
+                // if parsing fails here then it would have failed at index time
+                // as well, meaning that we must be ignoring malformed values.
+                // So ignore it here too.
+            }
         }
         return values;
     }

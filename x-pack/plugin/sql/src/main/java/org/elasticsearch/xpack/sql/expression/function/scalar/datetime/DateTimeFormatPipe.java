@@ -54,7 +54,7 @@ public class DateTimeFormatPipe extends BinaryDateTimePipe {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         DateTimeFormatPipe other = (DateTimeFormatPipe) o;

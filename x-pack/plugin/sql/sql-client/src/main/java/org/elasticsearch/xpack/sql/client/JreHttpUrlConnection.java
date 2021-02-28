@@ -251,7 +251,7 @@ public class JreHttpUrlConnection implements Closeable {
 
     @Override
     public void close() {
-        if (!closed) {
+        if (closed == false) {
             closed = true;
 
             // consume streams

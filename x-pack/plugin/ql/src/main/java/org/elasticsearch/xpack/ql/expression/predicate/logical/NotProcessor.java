@@ -41,7 +41,7 @@ public class NotProcessor implements Processor {
             return null;
         }
 
-        if (!(input instanceof Boolean)) {
+        if ((input instanceof Boolean) == false) {
             throw new QlIllegalArgumentException("A boolean is required; received {}", input);
         }
 

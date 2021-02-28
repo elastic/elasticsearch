@@ -210,7 +210,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
 
         assertEquals(nodeB, failureNode[0]);
         Matcher<String> matcher = Matchers.containsString("verified");
-        if (!shouldRetry) {
+        if (shouldRetry == false) {
             matcher = Matchers.not(matcher);
         }
 
@@ -255,7 +255,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
 
         assertEquals(nodeB, failureNode[0]);
         Matcher<String> matcher = Matchers.containsString("verified");
-        if (!shouldRetry) {
+        if (shouldRetry == false) {
             matcher = Matchers.not(matcher);
         }
 

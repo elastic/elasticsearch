@@ -16,7 +16,6 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -26,7 +25,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 
 // TODO: test CRUD operations
@@ -42,11 +40,6 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         indexService = new AsyncTaskIndexService<>(index, clusterService,
             transportService.getThreadPool().getThreadContext(),
             client(), "test_origin", AsyncSearchResponse::new, writableRegistry());
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(ExpirationTimeScriptPlugin.class);
     }
 
     public void testEnsuredAuthenticatedUserIsSame() throws IOException {
@@ -144,8 +137,16 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         assertTrue(ack.isAcknowledged());
         {
             PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
-            indexService.extendExpirationTime("0", 10L, future);
-            expectThrows(Exception.class, () -> future.get());
+            indexService.updateExpirationTime("0", 10L, future);
+            expectThrows(Exception.class, future::get);
+            assertSettings();
+        }
+
+        // But the index is still auto-created
+        {
+            PlainActionFuture<IndexResponse> future = PlainActionFuture.newFuture();
+            indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
+            future.get();
             assertSettings();
         }
     }

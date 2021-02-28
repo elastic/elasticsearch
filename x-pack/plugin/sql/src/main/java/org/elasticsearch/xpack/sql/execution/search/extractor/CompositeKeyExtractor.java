@@ -86,7 +86,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
         // get the composite value
         Object m = bucket.getKey();
 
-        if (!(m instanceof Map)) {
+        if ((m instanceof Map) == false) {
             throw new SqlIllegalArgumentException("Unexpected bucket returned: {}", m);
         }
 

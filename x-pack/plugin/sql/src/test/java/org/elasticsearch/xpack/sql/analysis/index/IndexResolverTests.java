@@ -372,7 +372,7 @@ public class IndexResolverTests extends ESTestCase {
                         isSearchable(field.getDataType()),
                         isAggregatable(field.getDataType())));
 
-        if (!field.isAggregatable()) {
+        if (field.isAggregatable() == false) {
             ((UpdateableFieldCapabilities) caps).nonAggregatableIndices.add(indexName);
         }
 

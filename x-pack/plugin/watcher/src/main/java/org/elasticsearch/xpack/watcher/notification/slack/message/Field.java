@@ -38,7 +38,7 @@ class Field implements MessageElement {
         Field field = (Field) o;
 
         if (isShort != field.isShort) return false;
-        if (!title.equals(field.title)) return false;
+        if (title.equals(field.title) == false) return false;
         return value.equals(field.value);
     }
 
@@ -84,7 +84,7 @@ class Field implements MessageElement {
             Template template = (Template) o;
 
             if (isShort != template.isShort) return false;
-            if (!title.equals(template.title)) return false;
+            if (title.equals(template.title) == false) return false;
             return value.equals(template.value);
         }
 

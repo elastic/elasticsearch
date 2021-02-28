@@ -38,7 +38,7 @@ public abstract class BaseDateTimeProcessor implements Processor {
             return null;
         }
 
-        if (!(input instanceof ZonedDateTime)) {
+        if ((input instanceof ZonedDateTime) == false) {
             throw new SqlIllegalArgumentException("A [date], a [time] or a [datetime] is required; received {}", input);
         }
 

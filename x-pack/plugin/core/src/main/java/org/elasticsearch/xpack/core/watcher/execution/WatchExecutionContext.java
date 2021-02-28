@@ -163,7 +163,7 @@ public abstract class WatchExecutionContext {
     }
 
     public void onInputResult(Input.Result inputResult) {
-        assert !phase.sealed();
+        assert phase.sealed() == false;
         this.inputResult = inputResult;
         if (inputResult.status() == Input.Result.Status.SUCCESS) {
             this.payload = inputResult.payload();
@@ -180,7 +180,7 @@ public abstract class WatchExecutionContext {
     }
 
     public void onConditionResult(Condition.Result conditionResult) {
-        assert !phase.sealed();
+        assert phase.sealed() == false;
         this.conditionResult = conditionResult;
         watch().status().onCheck(conditionResult.met(), executionTime);
     }
@@ -195,7 +195,7 @@ public abstract class WatchExecutionContext {
     }
 
     public void onWatchTransformResult(Transform.Result result) {
-        assert !phase.sealed();
+        assert phase.sealed() == false;
         this.transformResult = result;
         if (result.status() == Transform.Result.Status.SUCCESS) {
             this.payload = result.payload();
@@ -212,7 +212,7 @@ public abstract class WatchExecutionContext {
     }
 
     public void onActionResult(ActionWrapperResult result) {
-        assert !phase.sealed();
+        assert phase.sealed() == false;
         actionsResults.put(result.id(), result);
         watch().status().onActionResult(result.id(), executionTime, result.action());
     }
@@ -222,13 +222,13 @@ public abstract class WatchExecutionContext {
     }
 
     public WatchRecord abortBeforeExecution(ExecutionState state, String message) {
-        assert !phase.sealed();
+        assert phase.sealed() == false;
         phase = ExecutionPhase.ABORTED;
         return new WatchRecord.MessageWatchRecord(id, triggerEvent, state, message, getNodeId());
     }
 
     public WatchRecord abortFailedExecution(String message) {
-        assert !phase.sealed();
+        assert phase.sealed() == false;
         phase = ExecutionPhase.ABORTED;
         long executionTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - relativeStartTime);
         WatchExecutionResult result = new WatchExecutionResult(this, executionTime);
@@ -237,7 +237,7 @@ public abstract class WatchExecutionContext {
     }
 
     public WatchRecord abortFailedExecution(Exception e) {
-        assert !phase.sealed();
+        assert phase.sealed() == false;
         phase = ExecutionPhase.ABORTED;
         long executionTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - relativeStartTime);
         WatchExecutionResult result = new WatchExecutionResult(this, executionTime);
@@ -246,7 +246,7 @@ public abstract class WatchExecutionContext {
     }
 
     public WatchRecord finish() {
-        assert !phase.sealed();
+        assert phase.sealed() == false;
         phase = ExecutionPhase.FINISHED;
         long executionTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - relativeStartTime);
         WatchExecutionResult result = new WatchExecutionResult(this, executionTime);

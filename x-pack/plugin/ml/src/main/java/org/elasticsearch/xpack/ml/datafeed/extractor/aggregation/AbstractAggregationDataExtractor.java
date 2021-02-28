@@ -92,7 +92,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
 
     @Override
     public Optional<InputStream> next() throws IOException {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 

@@ -394,7 +394,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     filteredValues.add(value);
                 }
             }
-            if (!filteredValues.isEmpty()) {
+            if (filteredValues.isEmpty() == false) {
                 return true;
             }
         }
@@ -435,7 +435,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         filteredMappings.put(cursor.key, filterFields(cursor.value, fieldPredicate));
                     }
                 }
-                if (!filteredMappings.isEmpty()) {
+                if (filteredMappings.isEmpty() == false) {
                     indexMapBuilder.put(index, filteredMappings.build());
                 }
             }
@@ -616,7 +616,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     + aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
             }
             if (routing != null) {
-                if (!routing.equals(aliasMd.indexRouting())) {
+                if (routing.equals(aliasMd.indexRouting()) == false) {
                     throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it ["
                         + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
                 }
@@ -876,6 +876,26 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return false;
         }
         return true;
+    }
+
+    /**
+     * Reconciles the cluster state metadata taken at the end of a snapshot with the data streams and indices
+     * contained in the snapshot. Certain actions taken during a snapshot such as rolling over a data stream
+     * or deleting a backing index may result in situations where some reconciliation is required.
+     *
+     * @return Reconciled {@link Metadata} instance
+     */
+    public static Metadata snapshot(Metadata metadata, List<String> dataStreams, List<String> indices) {
+        Metadata.Builder builder = Metadata.builder(metadata);
+        for (String dsName : dataStreams) {
+            DataStream dataStream = metadata.dataStreams().get(dsName);
+            if (dataStream == null) {
+                // should never occur since data streams cannot be deleted while they have snapshots underway
+                throw new IllegalArgumentException("unable to find data stream [" + dsName + "]");
+            }
+            builder.put(dataStream.snapshot(indices));
+        }
+        return builder.build();
     }
 
     @Override
@@ -1619,7 +1639,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             metadata.coordinationMetadata().toXContent(builder, params);
             builder.endObject();
 
-            if (context != XContentContext.API && !metadata.persistentSettings().isEmpty()) {
+            if (context != XContentContext.API && metadata.persistentSettings().isEmpty() == false) {
                 builder.startObject("settings");
                 metadata.persistentSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
                 builder.endObject();

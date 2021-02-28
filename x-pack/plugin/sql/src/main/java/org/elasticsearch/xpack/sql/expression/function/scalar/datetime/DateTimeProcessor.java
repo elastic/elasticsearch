@@ -10,11 +10,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
-import java.time.temporal.WeekFields;
+import java.time.temporal.IsoFields;
+import java.time.temporal.Temporal;
+import java.time.temporal.TemporalField;
 import java.util.Objects;
 
 public class DateTimeProcessor extends BaseDateTimeProcessor {
@@ -28,29 +29,17 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
         MINUTE_OF_HOUR(ChronoField.MINUTE_OF_HOUR),
         MONTH_OF_YEAR(ChronoField.MONTH_OF_YEAR),
         SECOND_OF_MINUTE(ChronoField.SECOND_OF_MINUTE),
-        ISO_WEEK_OF_YEAR(ChronoField.ALIGNED_WEEK_OF_YEAR),
+        ISO_WEEK_OF_YEAR(IsoFields.WEEK_OF_WEEK_BASED_YEAR),
         YEAR(ChronoField.YEAR);
 
-        private final ChronoField field;
+        private final TemporalField field;
 
-        DateTimeExtractor(ChronoField field) {
+        DateTimeExtractor(TemporalField field) {
             this.field = field;
         }
-
-        public int extract(ZonedDateTime dt) {
-            if (field == ChronoField.ALIGNED_WEEK_OF_YEAR) {
-                return dt.get(WeekFields.ISO.weekOfWeekBasedYear());
-            } else {
-                return dt.get(field);
-            }
-        }
-
-        public int extract(OffsetTime time) {
+        
+        public int extract(Temporal time) {
             return time.get(field);
-        }
-
-        public ChronoField chronoField() {
-            return field;
         }
     }
 
@@ -84,6 +73,15 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
     @Override
     public Object doProcess(ZonedDateTime dateTime) {
         return extractor.extract(dateTime);
+    }
+
+    public static Integer doProcess(ZonedDateTime dateTime, String tzId, String extractorName) {
+        ZonedDateTime zdt = dateTime.withZoneSameInstant(ZoneId.of(tzId));
+        return doProcess(zdt, extractorName);
+    }
+
+    protected static Integer doProcess(Temporal dateTime, String extractorName) {
+        return DateTimeExtractor.valueOf(extractorName).extract(dateTime);
     }
 
     @Override

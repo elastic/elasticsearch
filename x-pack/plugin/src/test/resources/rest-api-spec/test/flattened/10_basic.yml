@@ -188,6 +188,5 @@
 
   - match:  { hits.total.value: 1 }
   - length: { hits.hits: 1 }
-  - length: { hits.hits.0.fields: 2 }
+  - length: { hits.hits.0.fields: 1 }
   - match:  { hits.hits.0.fields.flattened: [ { "some_field": "some_value" } ] }
-  - match:  { hits.hits.0.fields.flattened\.some_field: [ "some_value" ] }

@@ -139,7 +139,7 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasticsear
 
         for (int i = 1; i < coordinates.length; i++) {
             double t = intersection(coordinates[i-1], coordinates[i], dateline);
-            if(!Double.isNaN(t)) {
+            if(Double.isNaN(t) == false) {
                 Coordinate[] part;
                 if(t<1) {
                     part = Arrays.copyOfRange(coordinates, offset, i+1);

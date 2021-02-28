@@ -36,23 +36,29 @@ ES_HOME=`dirname "$ES_HOME"`
 ES_CLASSPATH="$ES_HOME/lib/*"
 
 # now set the path to java
-if [ ! -z "$JAVA_HOME" ]; then
+if [ ! -z "$ES_JAVA_HOME" ]; then
+  JAVA="$ES_JAVA_HOME/bin/java"
+  JAVA_TYPE="ES_JAVA_HOME"
+elif [ ! -z "$JAVA_HOME" ]; then
+  # fallback to JAVA_HOME
+  echo "warning: usage of JAVA_HOME is deprecated, use ES_JAVA_HOME" >&2
   JAVA="$JAVA_HOME/bin/java"
   JAVA_TYPE="JAVA_HOME"
 else
+  # use the bundled JDK (default)
   if [ "$(uname -s)" = "Darwin" ]; then
     # macOS has a different structure
     JAVA="$ES_HOME/jdk.app/Contents/Home/bin/java"
   else
     JAVA="$ES_HOME/jdk/bin/java"
   fi
-  JAVA_TYPE="bundled jdk"
+  JAVA_TYPE="bundled JDK"
 fi
 
 if [ ! -x "$JAVA" ]; then
-    echo "could not find java in $JAVA_TYPE at $JAVA" >&2
-    exit 1
-  fi
+  echo "could not find java in $JAVA_TYPE at $JAVA" >&2
+  exit 1
+fi
 
 # do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)
 if [ ! -z "$JAVA_TOOL_OPTIONS" ]; then

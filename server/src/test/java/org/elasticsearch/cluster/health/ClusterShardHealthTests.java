@@ -62,7 +62,7 @@ public class ClusterShardHealthTests extends AbstractSerializingTestCase<Cluster
             case "status":
                 ClusterHealthStatus status = randomFrom(
                     Arrays.stream(ClusterHealthStatus.values()).filter(
-                        value -> !value.equals(instance.getStatus())
+                        value -> value.equals(instance.getStatus()) == false
                     ).collect(Collectors.toList())
                 );
                 return new ClusterShardHealth(instance.getShardId(), status,

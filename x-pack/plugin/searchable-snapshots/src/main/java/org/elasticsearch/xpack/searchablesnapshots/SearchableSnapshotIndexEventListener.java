@@ -28,6 +28,7 @@ import org.elasticsearch.index.translog.TranslogException;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 
 import java.nio.file.Path;
 
@@ -41,10 +42,16 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotIndexEventListener.class);
 
     private final @Nullable CacheService cacheService;
+    private final @Nullable FrozenCacheService frozenCacheService;
 
-    public SearchableSnapshotIndexEventListener(Settings settings, @Nullable CacheService cacheService) {
+    public SearchableSnapshotIndexEventListener(
+        Settings settings,
+        @Nullable CacheService cacheService,
+        @Nullable FrozenCacheService frozenCacheService
+    ) {
         assert cacheService != null || DiscoveryNode.isDataNode(settings) == false;
         this.cacheService = cacheService;
+        this.frozenCacheService = frozenCacheService;
     }
 
     /**
@@ -103,18 +110,27 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
 
     @Override
     public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
-        if (cacheService != null && shouldEvictCacheFiles(reason)) {
+        if (shouldEvictCacheFiles(reason)) {
             final IndexSettings indexSettings = indexService.getIndexSettings();
             if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())) {
                 for (IndexShard indexShard : indexService) {
                     final ShardId shardId = indexShard.shardId();
 
                     logger.debug("{} marking shard as evicted in searchable snapshots cache (reason: {})", shardId, reason);
-                    cacheService.markShardAsEvictedInCache(
-                        SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
-                        SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
-                        shardId
-                    );
+                    if (cacheService != null) {
+                        cacheService.markShardAsEvictedInCache(
+                            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
+                            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
+                            shardId
+                        );
+                    }
+                    if (frozenCacheService != null) {
+                        frozenCacheService.markShardAsEvictedInCache(
+                            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
+                            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
+                            shardId
+                        );
+                    }
                 }
             }
         }

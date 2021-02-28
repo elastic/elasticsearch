@@ -39,7 +39,7 @@ public abstract class UnaryGeoFunction extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
         return isGeo(field(), operation().toString(), Expressions.ParamOrdinal.DEFAULT);

@@ -54,7 +54,7 @@ public class ToNumberFunctionProcessor implements Processor {
             return null;
         }
 
-        if (!(value instanceof String || value instanceof Character)) {
+        if ((value instanceof String || value instanceof Character) == false) {
             throw new EqlIllegalArgumentException("A string/char is required; received [{}]", value);
         }
 

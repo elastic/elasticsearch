@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.core.transform;
 
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
+import org.elasticsearch.xpack.core.transform.transforms.RetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 
 import java.util.Arrays;
@@ -20,8 +22,8 @@ public class TransformNamedXContentProvider implements NamedXContentProvider {
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
         return Arrays.asList(
-                new NamedXContentRegistry.Entry(SyncConfig.class,
-                        TransformField.TIME_BASED_SYNC,
-                        TimeSyncConfig::parse));
+            new NamedXContentRegistry.Entry(SyncConfig.class, TransformField.TIME, TimeSyncConfig::parse),
+            new NamedXContentRegistry.Entry(RetentionPolicyConfig.class, TransformField.TIME, TimeRetentionPolicyConfig::parse)
+        );
     }
 }

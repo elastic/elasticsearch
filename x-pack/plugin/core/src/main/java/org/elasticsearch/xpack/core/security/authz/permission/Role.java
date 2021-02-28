@@ -178,7 +178,7 @@ public class Role {
         // At least one role / indices permission set need to match with all the requested indices/aliases:
         boolean granted = true;
         for (Map.Entry<String, IndicesAccessControl.IndexAccessControl> entry : indexPermissions.entrySet()) {
-            if (!entry.getValue().isGranted()) {
+            if (entry.getValue().isGranted() == false) {
                 granted = false;
                 break;
             }

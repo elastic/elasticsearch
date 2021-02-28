@@ -207,7 +207,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }, name -> null, version, () -> null, null, null,
             mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
             throw new UnsupportedOperationException();
-        }, false);
+        });
         if (fromDynamicTemplate) {
             pc = pc.createDynamicTemplateFieldContext(pc);
         }
@@ -337,10 +337,10 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             "\"is_interim\":{\"type\":\"boolean\"}}}}}}";
 
         MapperService mapperService = createMapperService("_doc", mapping);
-        assertEquals(mapping, Strings.toString(mapperService.documentMapper()));
+        assertEquals(mapping, Strings.toString(mapperService.documentMapper().mapping()));
 
         mapperService.merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping, Strings.toString(mapperService.documentMapper()));
+        assertEquals(mapping, Strings.toString(mapperService.documentMapper().mapping()));
     }
 
     // test custom serializer

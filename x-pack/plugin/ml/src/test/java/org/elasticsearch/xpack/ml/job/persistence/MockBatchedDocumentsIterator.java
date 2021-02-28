@@ -52,7 +52,7 @@ public class MockBatchedDocumentsIterator<T> extends BatchedResultsIterator<T> {
             throw new IllegalStateException("Required include interim value [" + requireIncludeInterim + "]; actual was ["
                     + includeInterim + "]");
         }
-        if ((!wasTimeRangeCalled) || !hasNext()) {
+        if (wasTimeRangeCalled == false || hasNext() == false) {
             throw new NoSuchElementException();
         }
         return batches.get(index++);

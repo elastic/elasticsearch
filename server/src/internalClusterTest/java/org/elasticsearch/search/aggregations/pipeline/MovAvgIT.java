@@ -1249,13 +1249,13 @@ public class MovAvgIT extends ESIntegTestCase {
     }
 
     private void assertValidIterators(Iterator expectedBucketIter, Iterator expectedCountsIter, Iterator expectedValuesIter) {
-        if (!expectedBucketIter.hasNext()) {
+        if (expectedBucketIter.hasNext() == false) {
             fail("`expectedBucketIter` iterator ended before `actual` iterator, size mismatch");
         }
-        if (!expectedCountsIter.hasNext()) {
+        if (expectedCountsIter.hasNext() == false) {
             fail("`expectedCountsIter` iterator ended before `actual` iterator, size mismatch");
         }
-        if (!expectedValuesIter.hasNext()) {
+        if (expectedValuesIter.hasNext() == false) {
             fail("`expectedValuesIter` iterator ended before `actual` iterator, size mismatch");
         }
     }

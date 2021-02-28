@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 
 import java.io.IOException;
 
@@ -27,8 +28,12 @@ public class TransformTests extends AbstractSerializingTransformTestCase<Transfo
 
     @Override
     protected TransformTaskParams createTestInstance() {
-        return new TransformTaskParams(randomAlphaOfLength(10), randomBoolean() ? null : Version.CURRENT,
-            randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)), randomBoolean());
+        return new TransformTaskParams(
+            randomAlphaOfLength(10),
+            randomBoolean() ? null : Version.CURRENT,
+            randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
+            randomBoolean()
+        );
     }
 
     @Override

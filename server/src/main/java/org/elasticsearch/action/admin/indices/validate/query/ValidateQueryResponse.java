@@ -101,7 +101,7 @@ public class ValidateQueryResponse extends BroadcastResponse {
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(VALID_FIELD, isValid());
-        if (getQueryExplanation() != null && !getQueryExplanation().isEmpty()) {
+        if (getQueryExplanation() != null && getQueryExplanation().isEmpty() == false) {
             builder.startArray(EXPLANATIONS_FIELD);
             for (QueryExplanation explanation : getQueryExplanation()) {
                 builder.startObject();

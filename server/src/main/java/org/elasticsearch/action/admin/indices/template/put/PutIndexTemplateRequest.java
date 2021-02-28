@@ -278,7 +278,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest mapping(String type, Map<String, Object> source) {
         // wrap it in a type map if its not
-        if (source.size() != 1 || !source.containsKey(type)) {
+        if (source.size() != 1 || source.containsKey(type) == false) {
             source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();
         }
         try {

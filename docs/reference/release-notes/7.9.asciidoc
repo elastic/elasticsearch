@@ -561,6 +561,7 @@ Mapping::
 
 Network::
 * Make the number of transport threads equal to the number of available CPUs {es-pull}56488[#56488]
+* Share Netty event loops between transports {es-pull}46346[#46346]
 
 Recovery::
 * Implement dangling indices API {es-pull}50920[#50920] (issue: {es-issue}48366[#48366])

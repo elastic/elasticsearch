@@ -8,15 +8,8 @@
 
 package org.elasticsearch.monitor.os;
 
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.both;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
+import org.apache.lucene.util.Constants;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -26,8 +19,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.test.ESTestCase;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class OsProbeTests extends ESTestCase {
 
@@ -73,7 +73,6 @@ public class OsProbeTests extends ESTestCase {
         assertThat(info.getAvailableProcessors(), equalTo(Runtime.getRuntime().availableProcessors()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66629")
     public void testOsStats() {
         final OsProbe osProbe = new OsProbe();
         OsStats stats = osProbe.osStats();
@@ -245,7 +244,7 @@ public class OsProbeTests extends ESTestCase {
         // This cgroup data is missing a line about memory
         List<String> procSelfCgroupLines = getProcSelfGroupLines(hierarchy)
             .stream()
-            .filter(line -> !line.contains(":memory:"))
+            .filter(line -> line.contains(":memory:") == false)
             .collect(Collectors.toList());
 
         final OsProbe probe = buildStubOsProbe(true, hierarchy, procSelfCgroupLines);
@@ -253,6 +252,71 @@ public class OsProbeTests extends ESTestCase {
         final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
 
         assertNull(cgroup);
+    }
+
+    public void testGetTotalMemFromProcMeminfo() throws Exception {
+        // missing MemTotal line
+        List<String> meminfoLines = Arrays.asList(
+            "MemFree:         8467692 kB",
+            "MemAvailable:   39646240 kB",
+            "Buffers:         4699504 kB",
+            "Cached:         23290380 kB",
+            "SwapCached:            0 kB",
+            "Active:         43637908 kB",
+            "Inactive:        8130280 kB"
+        );
+        OsProbe probe = buildStubOsProbe(true, "", org.elasticsearch.common.collect.List.of(), meminfoLines);
+        assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
+
+        // MemTotal line with invalid value
+        meminfoLines = Arrays.asList(
+            "MemTotal:        invalid kB",
+            "MemFree:         8467692 kB",
+            "MemAvailable:   39646240 kB",
+            "Buffers:         4699504 kB",
+            "Cached:         23290380 kB",
+            "SwapCached:            0 kB",
+            "Active:         43637908 kB",
+            "Inactive:        8130280 kB"
+        );
+        probe = buildStubOsProbe(true, "", org.elasticsearch.common.collect.List.of(), meminfoLines);
+        assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
+
+        // MemTotal line with invalid unit
+        meminfoLines = Arrays.asList(
+            "MemTotal:       39646240 MB",
+            "MemFree:         8467692 kB",
+            "MemAvailable:   39646240 kB",
+            "Buffers:         4699504 kB",
+            "Cached:         23290380 kB",
+            "SwapCached:            0 kB",
+            "Active:         43637908 kB",
+            "Inactive:        8130280 kB"
+        );
+        probe = buildStubOsProbe(true, "", org.elasticsearch.common.collect.List.of(), meminfoLines);
+        assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
+
+        // MemTotal line with random valid value
+        long memTotalInKb = randomLongBetween(1, Long.MAX_VALUE / 1024L);
+        meminfoLines = Arrays.asList(
+            "MemTotal:        " + memTotalInKb + " kB",
+            "MemFree:         8467692 kB",
+            "MemAvailable:   39646240 kB",
+            "Buffers:         4699504 kB",
+            "Cached:         23290380 kB",
+            "SwapCached:            0 kB",
+            "Active:         43637908 kB",
+            "Inactive:        8130280 kB"
+        );
+        probe = buildStubOsProbe(true, "", org.elasticsearch.common.collect.List.of(), meminfoLines);
+        assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(memTotalInKb * 1024L));
+    }
+
+    public void testGetTotalMemoryOnDebian8() throws Exception {
+        // tests the workaround for JDK bug on debian8: https://github.com/elastic/elasticsearch/issues/67089#issuecomment-756114654
+        final OsProbe osProbe = new OsProbe();
+        assumeTrue("runs only on Debian 8", osProbe.isDebian8());
+        assertThat(osProbe.getTotalPhysicalMemorySize(), greaterThan(0L));
     }
 
     private static List<String> getProcSelfGroupLines(String hierarchy) {
@@ -283,12 +347,14 @@ public class OsProbeTests extends ESTestCase {
      * @param areCgroupStatsAvailable whether or not cgroup data is available. Normally OsProbe establishes this for itself.
      * @param hierarchy a mock value used to generate a cgroup hierarchy.
      * @param procSelfCgroupLines the lines that will be used as the content of <code>/proc/self/cgroup</code>
+     * @param procMeminfoLines lines that will be used as the content of <code>/proc/meminfo</code>
      * @return a test instance
      */
     private static OsProbe buildStubOsProbe(
         final boolean areCgroupStatsAvailable,
         final String hierarchy,
-        List<String> procSelfCgroupLines
+        List<String> procSelfCgroupLines,
+        List<String> procMeminfoLines
     ) {
         return new OsProbe() {
             @Override
@@ -339,6 +405,20 @@ public class OsProbeTests extends ESTestCase {
             boolean areCgroupStatsAvailable() {
                 return areCgroupStatsAvailable;
             }
+
+            @Override
+            List<String> readProcMeminfo() throws IOException {
+                return procMeminfoLines;
+            }
         };
     }
+
+    private static OsProbe buildStubOsProbe(
+        final boolean areCgroupStatsAvailable,
+        final String hierarchy,
+        List<String> procSelfCgroupLines
+    ) {
+        return buildStubOsProbe(areCgroupStatsAvailable, hierarchy, procSelfCgroupLines, org.elasticsearch.common.collect.List.of());
+    }
+
 }

@@ -29,7 +29,7 @@ public final class Channels {
     /**
      * The maximum chunk size for writes in bytes
      */
-    private static final int WRITE_CHUNK_SIZE = 8192;
+    public static final int WRITE_CHUNK_SIZE = 8192;
 
     /**
      * read <i>length</i> bytes from <i>position</i> of a file channel
@@ -84,13 +84,15 @@ public final class Channels {
      * @param channel         channel to read from
      * @param channelPosition position to read from
      * @param dest            destination {@link java.nio.ByteBuffer} to put data in
+     * @return total bytes read
      */
-    public static void readFromFileChannelWithEofException(FileChannel channel, long channelPosition, ByteBuffer dest) throws IOException {
+    public static int readFromFileChannelWithEofException(FileChannel channel, long channelPosition, ByteBuffer dest) throws IOException {
         int read = readFromFileChannel(channel, channelPosition, dest);
         if (read < 0) {
             throw new EOFException("read past EOF. pos [" + channelPosition +
                 "] length: [" + dest.limit() + "] end: [" + channel.size() + "]");
         }
+        return read;
     }
 
     /**

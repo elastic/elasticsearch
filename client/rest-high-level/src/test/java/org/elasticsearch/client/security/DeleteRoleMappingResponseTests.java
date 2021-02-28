@@ -44,6 +44,6 @@ public class DeleteRoleMappingResponseTests extends ESTestCase {
     }
 
     private static DeleteRoleMappingResponse mutateTestItem(DeleteRoleMappingResponse original) {
-        return new DeleteRoleMappingResponse(!original.isFound());
+        return new DeleteRoleMappingResponse(original.isFound() == false);
     }
 }

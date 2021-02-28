@@ -143,7 +143,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
         String[] multiFieldNames = new String[randomIntBetween(2, 10)];
         Set<String> seenFields = new HashSet<>();
         for (int i = 0; i < multiFieldNames.length; i++) {
-            multiFieldNames[i] = randomValueOtherThanMany(s -> !seenFields.add(s), () -> randomAlphaOfLength(4));
+            multiFieldNames[i] = randomValueOtherThanMany(s -> seenFields.add(s) == false, () -> randomAlphaOfLength(4));
         }
 
         DocumentMapper docMapper = createDocumentMapper(fieldMapping(b -> {

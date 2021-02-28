@@ -243,7 +243,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
 
     @Override
     protected void validate(ValidationContext context) {
-        if (minimize != null && minimize && !model.canBeMinimized()) {
+        if (minimize != null && minimize && model.canBeMinimized() == false) {
             // If the user asks to minimize, but this model doesn't support
             // it, throw exception
             context.addValidationError("The [" + model + "] model cannot be minimized for aggregation [" + name + "]");

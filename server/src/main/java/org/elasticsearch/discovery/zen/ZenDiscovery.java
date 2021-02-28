@@ -270,7 +270,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         if (sendLeaveRequest) {
             if (nodes.getMasterNode() == null) {
                 // if we don't know who the master is, nothing to do here
-            } else if (!nodes.isLocalNodeElectedMaster()) {
+            } else if (nodes.isLocalNodeElectedMaster() == false) {
                 try {
                     membership.sendLeaveRequestBlocking(nodes.getMasterNode(), nodes.getLocalNode(), TimeValue.timeValueSeconds(1));
                 } catch (Exception e) {
@@ -424,7 +424,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             masterNode = findMaster();
         }
 
-        if (!joinThreadControl.joinThreadActive(currentThread)) {
+        if (joinThreadControl.joinThreadActive(currentThread) == false) {
             logger.trace("thread is no longer in currentJoinThread. Stopping.");
             return;
         }
@@ -568,7 +568,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // not started, ignore a node failure
             return;
         }
-        if (!localNodeMaster()) {
+        if (localNodeMaster() == false) {
             // nothing to do here...
             return;
         }
@@ -582,13 +582,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         }
         final int prevMinimumMasterNode = ZenDiscovery.this.electMaster.minimumMasterNodes();
         ZenDiscovery.this.electMaster.minimumMasterNodes(minimumMasterNodes);
-        if (!localNodeMaster()) {
+        if (localNodeMaster() == false) {
             // We only set the new value. If the master doesn't see enough nodes it will revoke it's mastership.
             return;
         }
         synchronized (stateMutex) {
             // check if we have enough master nodes, if not, we need to move into joining the cluster again
-            if (!electMaster.hasEnoughMasterNodes(committedState.get().nodes())) {
+            if (electMaster.hasEnoughMasterNodes(committedState.get().nodes()) == false) {
                 rejoin("not enough master nodes on change of minimum_master_nodes from [" + prevMinimumMasterNode + "] to [" +
                     minimumMasterNodes + "]");
             }
@@ -628,7 +628,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         }
 
         assert newClusterState.nodes().getMasterNode() != null : "received a cluster state without a master";
-        assert !newClusterState.blocks().hasGlobalBlock(noMasterBlockService.getNoMasterBlock()) :
+        assert newClusterState.blocks().hasGlobalBlock(noMasterBlockService.getNoMasterBlock()) == false :
             "received a cluster state with a master block";
 
         if (currentState.nodes().isLocalNodeElectedMaster() && newClusterState.nodes().isLocalNodeElectedMaster() == false) {
@@ -676,7 +676,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             nodesFD.updateNodesAndPing(newClusterState);
         } else {
             // check to see that we monitor the correct master of the cluster
-            if (masterFD.masterNode() == null || !masterFD.masterNode().equals(newClusterState.nodes().getMasterNode())) {
+            if (masterFD.masterNode() == null || masterFD.masterNode().equals(newClusterState.nodes().getMasterNode()) == false) {
                 masterFD.restart(newClusterState.nodes().getMasterNode(),
                     "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
             }
@@ -748,7 +748,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         if (currentNodes.getMasterNodeId() == null) {
             return;
         }
-        if (!currentNodes.getMasterNodeId().equals(newClusterState.nodes().getMasterNodeId())) {
+        if (currentNodes.getMasterNodeId().equals(newClusterState.nodes().getMasterNodeId()) == false) {
             logger.warn("received a cluster state from a different master than the current one, rejecting (received {}, current {})",
                 newClusterState.nodes().getMasterNode(), currentNodes.getMasterNode());
             throw new IllegalStateException("cluster state from a different master than the current one, rejecting (received " +
@@ -817,7 +817,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         for (ZenPing.PingResponse pingResponse : pingResponses) {
             // We can't include the local node in pingMasters list, otherwise we may up electing ourselves without
             // any check / verifications from other nodes in ZenDiscover#innerJoinCluster()
-            if (pingResponse.master() != null && !localNode.equals(pingResponse.master())) {
+            if (pingResponse.master() != null && localNode.equals(pingResponse.master()) == false) {
                 activeMasters.add(pingResponse.master());
             }
         }
@@ -842,7 +842,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 return null;
             }
         } else {
-            assert !activeMasters.contains(localNode) :
+            assert activeMasters.contains(localNode) == false :
                 "local node should never be elected as master when other nodes indicate an active master";
             // lets tie break between discovered nodes
             return electMaster.tieBreakActiveMasters(activeMasters);
@@ -991,7 +991,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
      */
     static void validateIncomingState(Logger logger, ClusterState incomingState, ClusterState lastState) {
         final ClusterName incomingClusterName = incomingState.getClusterName();
-        if (!incomingClusterName.equals(lastState.getClusterName())) {
+        if (incomingClusterName.equals(lastState.getClusterName()) == false) {
             logger.warn("received cluster state from [{}] which is also master but with a different cluster name [{}]",
                 incomingState.nodes().getMasterNode(), incomingClusterName);
             throw new IllegalStateException("received state from a node that is not part of the cluster");
@@ -1041,7 +1041,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         public void onPingReceived(final NodesFaultDetection.PingRequest pingRequest) {
             // if we are master, we don't expect any fault detection from another node. If we get it
             // means we potentially have two masters in the cluster.
-            if (!localNodeMaster()) {
+            if (localNodeMaster() == false) {
                 pingsWhileMaster.set(0);
                 return;
             }
@@ -1144,7 +1144,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 @Override
                 public void run() {
                     Thread currentThread = Thread.currentThread();
-                    if (!currentJoinThread.compareAndSet(null, currentThread)) {
+                    if (currentJoinThread.compareAndSet(null, currentThread) == false) {
                         return;
                     }
                     while (running.get() && joinThreadActive(currentThread)) {
@@ -1170,7 +1170,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
          */
         public void markThreadAsDoneAndStartNew(Thread joinThread) {
             assert Thread.holdsLock(stateMutex);
-            if (!markThreadAsDone(joinThread)) {
+            if (markThreadAsDone(joinThread) == false) {
                 return;
             }
             startNewThreadIfNotRunning();

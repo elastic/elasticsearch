@@ -317,7 +317,7 @@ public class RestRequest implements ToXContent.Params {
         return params
             .keySet()
             .stream()
-            .filter(p -> !consumedParams.contains(p))
+            .filter(p -> consumedParams.contains(p) == false)
             .collect(Collectors.toList());
     }
 
@@ -330,6 +330,18 @@ public class RestRequest implements ToXContent.Params {
             return Float.parseFloat(sValue);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Failed to parse float parameter [" + key + "] with value [" + sValue + "]", e);
+        }
+    }
+
+    public double paramAsDouble(String key, double defaultValue) {
+        String sValue = param(key);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Double.parseDouble(sValue);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Failed to parse double parameter [" + key + "] with value [" + sValue + "]", e);
         }
     }
 

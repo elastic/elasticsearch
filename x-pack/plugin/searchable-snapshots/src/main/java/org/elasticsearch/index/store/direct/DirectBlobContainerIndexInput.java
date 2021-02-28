@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.index.store.direct;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.CheckedRunnable;
@@ -54,6 +56,8 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUti
  */
 public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexInput {
 
+    private static final Logger logger = LogManager.getLogger(DirectBlobContainerIndexInput.class);
+
     private long position;
 
     @Nullable // if not currently reading sequentially
@@ -97,14 +101,15 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long sequentialReadSize,
         int bufferSize
     ) {
-        super(resourceDesc, blobContainer, fileInfo, context, stats, offset, length, bufferSize);
+        super(logger, resourceDesc, blobContainer, fileInfo, context, stats, offset, length);
         this.position = position;
         assert sequentialReadSize >= 0;
         this.sequentialReadSize = sequentialReadSize;
+        setBufferSize(bufferSize);
     }
 
     @Override
-    protected void readInternal(ByteBuffer b) throws IOException {
+    protected void doReadInternal(ByteBuffer b) throws IOException {
         ensureOpen();
         if (fileInfo.numberOfParts() == 1) {
             readInternalBytes(0, position, b, b.remaining());
@@ -319,7 +324,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     @Override
-    public void innerClose() throws IOException {
+    public void doClose() throws IOException {
         closeStreamForSequentialReads();
     }
 

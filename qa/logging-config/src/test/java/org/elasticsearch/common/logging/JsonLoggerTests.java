@@ -28,6 +28,7 @@ import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  * This test confirms JSON log structure is properly formatted and can be parsed.
@@ -290,6 +292,9 @@ public class JsonLoggerTests extends ESTestCase {
                     )
                 );
             }
+
+            long oldStyleDeprecationLogCount = oldStyleDeprecationLogCount();
+            assertThat(oldStyleDeprecationLogCount, equalTo(1L));
         });
 
         // For the same key and different X-Opaque-ID should be multiple times per key/x-opaque-id
@@ -330,8 +335,18 @@ public class JsonLoggerTests extends ESTestCase {
                         )
                     )
                 );
+
+                long oldStyleDeprecationLogCount = oldStyleDeprecationLogCount();
+                assertThat(oldStyleDeprecationLogCount, equalTo(2L));
             }
         });
+    }
+
+    private long oldStyleDeprecationLogCount() throws IOException {
+        try(Stream<String> lines = Files.lines(PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + "_deprecated.log"))){
+            return lines.count();
+        }
     }
 
     private List<JsonLogLine> collectLines(Stream<JsonLogLine> stream) {

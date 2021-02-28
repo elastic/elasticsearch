@@ -21,6 +21,7 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -111,6 +112,31 @@ public class XContentMapValues {
     }
 
     /**
+     * For the provided nested path, return its value in the xContent map.
+     *
+     * @param nestedPath the nested field value's path in the map.
+     *
+     * @return the list associated with the path in the map or {@code null} if the path does not exits.
+     */
+    public static List<?> extractNestedValue(String nestedPath, Map<?, ?> map) {
+        Object extractedValue = XContentMapValues.extractValue(nestedPath, map);
+        List<?> nestedParsedSource = null;
+        if (extractedValue != null) {
+            if (extractedValue instanceof List) {
+                // nested field has an array value in the _source
+                nestedParsedSource = (List<?>) extractedValue;
+            } else if (extractedValue instanceof Map) {
+                // nested field has an object value in the _source. This just means the nested field has just one inner object,
+                // which is valid, but uncommon.
+                nestedParsedSource = Collections.singletonList(extractedValue);
+            } else {
+                throw new IllegalStateException("extracted source isn't an object or an array");
+            }
+        }
+        return nestedParsedSource;
+    }
+
+    /**
      * For the provided path, return its value in the xContent map.
      *
      * Note that in contrast with {@link XContentMapValues#extractRawValues}, array and object values
@@ -154,19 +180,27 @@ public class XContentMapValues {
             Map<?, ?> map = (Map<?, ?>) currentValue;
             String key = pathElements[index];
             int nextIndex = index + 1;
+            List<Object> extractedValues = new ArrayList<>();
             while (true) {
                 if (map.containsKey(key)) {
                     Object mapValue = map.get(key);
                     if (mapValue == null) {
-                        return nullValue;
-                    }
-                    Object val = extractValue(pathElements, nextIndex, mapValue, nullValue);
-                    if (val != null) {
-                        return val;
+                        extractedValues.add(nullValue);
+                    } else {
+                        Object val = extractValue(pathElements, nextIndex, mapValue, nullValue);
+                        if (val != null) {
+                            extractedValues.add(val);
+                        }
                     }
                 }
                 if (nextIndex == pathElements.length) {
-                    return null;
+                    if (extractedValues.size() == 0) {
+                        return null;
+                    } else if (extractedValues.size() == 1) {
+                        return extractedValues.get(0);
+                    } else {
+                        return extractedValues;
+                    }
                 }
                 key += "." + pathElements[nextIndex];
                 nextIndex++;

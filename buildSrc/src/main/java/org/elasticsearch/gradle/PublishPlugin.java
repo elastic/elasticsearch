@@ -15,6 +15,7 @@ import groovy.util.NodeList;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.precommit.PomValidationPrecommitPlugin;
 import org.elasticsearch.gradle.util.Util;
+import org.gradle.api.NamedDomainObjectSet;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -39,7 +40,8 @@ public class PublishPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply("nebula.maven-publish");
+        project.getPluginManager().apply(BasePlugin.class);
+        project.getPluginManager().apply("nebula.maven-nebula-publish");
         project.getPluginManager().apply(PomValidationPrecommitPlugin.class);
         configureJavadocJar(project);
         configureSourcesJar(project);
@@ -50,27 +52,48 @@ public class PublishPlugin implements Plugin<Project> {
         return project.getConvention().getPlugin(BasePluginConvention.class).getArchivesBaseName();
     }
 
-    /**Configuration generation of maven poms. */
+    /**
+     * Configuration generation of maven poms.
+     */
     private static void configurePomGeneration(Project project) {
-
         TaskProvider<Task> generatePomTask = project.getTasks().register("generatePom");
-
-        maybeConfigure(project.getTasks(), LifecycleBasePlugin.ASSEMBLE_TASK_NAME, assemble -> assemble.dependsOn(generatePomTask));
-
-        project.getTasks().withType(GenerateMavenPom.class).configureEach(pomTask -> pomTask.setDestination(new Callable<String>() {
-            @Override
-            public String call() throws Exception {
-                return String.format(
-                    "%s/distributions/%s-%s.pom",
-                    project.getBuildDir(),
-                    getArchivesBaseName(project),
-                    project.getVersion()
-                );
-            }
-        }));
-
+        project.getTasks().named(LifecycleBasePlugin.ASSEMBLE_TASK_NAME).configure(assemble -> assemble.dependsOn(generatePomTask));
+        project.getTasks()
+            .withType(GenerateMavenPom.class)
+            .configureEach(
+                pomTask -> pomTask.setDestination(
+                    (Callable<String>) () -> String.format(
+                        "%s/distributions/%s-%s.pom",
+                        project.getBuildDir(),
+                        getArchivesBaseName(project),
+                        project.getVersion()
+                    )
+                )
+            );
         PublishingExtension publishing = project.getExtensions().getByType(PublishingExtension.class);
+        final var mavenPublications = publishing.getPublications().withType(MavenPublication.class);
+        addNameAndDescriptiontoPom(project, mavenPublications);
+        configurePomWithShadowPlugin(project, publishing);
 
+        mavenPublications.all(publication -> {
+            // Add git origin info to generated POM files for internal builds
+            BuildParams.withInternalBuild(() -> publication.getPom().withXml(PublishPlugin::addScmInfo));
+            // have to defer this until archivesBaseName is set
+            project.afterEvaluate(p -> publication.setArtifactId(getArchivesBaseName(project)));
+            generatePomTask.configure(t -> t.dependsOn(project.getTasks().withType(GenerateMavenPom.class)));
+        });
+    }
+
+    private static void addNameAndDescriptiontoPom(Project project, NamedDomainObjectSet<MavenPublication> mavenPublications) {
+        mavenPublications.all(p -> p.getPom().withXml(xml -> {
+            Node root = xml.asNode();
+            root.appendNode("name", project.getName());
+            String description = project.getDescription() != null ? project.getDescription() : "";
+            root.appendNode("description", project.getDescription());
+        }));
+    }
+
+    private static void configurePomWithShadowPlugin(Project project, PublishingExtension publishing) {
         project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", plugin -> {
             MavenPublication publication = publishing.getPublications().maybeCreate("shadow", MavenPublication.class);
             ShadowExtension shadow = project.getExtensions().getByType(ShadowExtension.class);
@@ -93,19 +116,6 @@ public class PublishPlugin implements Plugin<Project> {
                 });
             });
         });
-
-        // Add git origin info to generated POM files
-        publishing.getPublications().withType(MavenPublication.class, publication -> {
-            publication.getPom().withXml(PublishPlugin::addScmInfo);
-
-            // have to defer this until archivesBaseName is set
-            project.afterEvaluate(p -> publication.setArtifactId(getArchivesBaseName(project)));
-
-            generatePomTask.configure(
-                t -> t.dependsOn(String.format("generatePomFileFor%sPublication", Util.capitalize(publication.getName())))
-            );
-        });
-
     }
 
     private static void addScmInfo(XmlProvider xml) {
@@ -115,7 +125,9 @@ public class PublishPlugin implements Plugin<Project> {
         scmNode.appendNode("url", BuildParams.getGitOrigin());
     }
 
-    /** Adds a javadocJar task to generate a jar containing javadocs. */
+    /**
+     * Adds a javadocJar task to generate a jar containing javadocs.
+     */
     private static void configureJavadocJar(Project project) {
         project.getPlugins().withId("elasticsearch.java", p -> {
             TaskProvider<Jar> javadocJarTask = project.getTasks().register("javadocJar", Jar.class);

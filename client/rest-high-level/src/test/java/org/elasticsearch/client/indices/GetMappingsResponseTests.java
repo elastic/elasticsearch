@@ -55,7 +55,7 @@ public class GetMappingsResponseTests extends ESTestCase {
     }
 
     private Predicate<String> randomFieldsExcludeFilter() {
-        return field -> !field.equals(MAPPINGS.getPreferredName());
+        return field -> field.equals(MAPPINGS.getPreferredName()) == false;
     }
 
     public static MappingMetadata randomMappingMetadata() {

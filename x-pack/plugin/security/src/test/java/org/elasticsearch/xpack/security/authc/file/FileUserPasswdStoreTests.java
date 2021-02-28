@@ -124,7 +124,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
                 writer.append("foobar:").append(new String(hasher.hash(new SecureString("longtestpassword"))));
             }
 
-            if (!latch.await(5, TimeUnit.SECONDS)) {
+            if (latch.await(5, TimeUnit.SECONDS) == false) {
                 fail("Waited too long for the updated file to be picked up");
             }
 
@@ -163,7 +163,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
             // now replacing the content of the users file with something that cannot be read
             Files.write(testUsers, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
-            if (!latch.await(5, TimeUnit.SECONDS)) {
+            if (latch.await(5, TimeUnit.SECONDS) == false) {
                 fail("Waited too long for the updated file to be picked up");
             }
 

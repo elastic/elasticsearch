@@ -159,7 +159,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     }
 
     public AutoDateHistogramAggregationBuilder setMinimumIntervalExpression(String minimumIntervalExpression) {
-        if (minimumIntervalExpression != null && !ALLOWED_INTERVALS.containsValue(minimumIntervalExpression)) {
+        if (minimumIntervalExpression != null && ALLOWED_INTERVALS.containsValue(minimumIntervalExpression) == false) {
             throw new IllegalArgumentException(MINIMUM_INTERVAL_FIELD.getPreferredName() +
                 " must be one of [" + ALLOWED_INTERVALS.values().toString() + "]");
         }

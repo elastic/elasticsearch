@@ -11,8 +11,7 @@ esplugin {
 archivesBaseName = 'x-pack-stack'
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-}
+  compileOnly project(path: xpackModule('core'))
+testImplementation(testArtifact(project(xpackModule('core'))))}
 
 addQaCheckDependencies()

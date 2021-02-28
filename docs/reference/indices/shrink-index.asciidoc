@@ -231,9 +231,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-aliases]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-settings]
 
-`max_single_primary_size`::
+`max_primary_shard_size`::
 (Optional, <<byte-units, byte units>>)
-The max single primary shard size for the target index. Used to find the optimum number of shards for the target index.
+The max primary shard size for the target index. Used to find the optimum number of shards for the target index.
 When this parameter is set, each shard's storage in the target index will not be greater than the parameter.
 The shards count of the target index will still be a factor of the source index's shards count, but if the parameter
 is less than the single shard size in the source index, the shards count for the target index will be equal to the source index's shards count.

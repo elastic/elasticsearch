@@ -199,7 +199,7 @@ public class Exporters extends AbstractLifecycleComponent {
         // NOTE:    if there are exporters configured and they're all disabled, we don't
         //          fallback on the default
         //
-        if (exporters.isEmpty() && !hasDisabled) {
+        if (exporters.isEmpty() && hasDisabled == false) {
             Exporter.Config config =
                     new Exporter.Config("default_" + LocalExporter.TYPE, LocalExporter.TYPE, settings, clusterService, licenseState);
             exporters.put(config.name(), factories.get(LocalExporter.TYPE).create(config));

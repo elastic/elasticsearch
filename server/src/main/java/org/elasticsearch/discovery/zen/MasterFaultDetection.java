@@ -151,7 +151,7 @@ public class MasterFaultDetection extends FaultDetection {
     @Override
     protected void handleTransportDisconnect(DiscoveryNode node) {
         synchronized (masterNodeMutex) {
-            if (!node.equals(this.masterNode)) {
+            if (node.equals(this.masterNode) == false) {
                 return;
             }
             if (connectOnNetworkDisconnect) {
@@ -200,7 +200,7 @@ public class MasterFaultDetection extends FaultDetection {
 
         @Override
         public void run() {
-            if (!running) {
+            if (running == false) {
                 // return and don't spawn...
                 return;
             }
@@ -223,7 +223,7 @@ public class MasterFaultDetection extends FaultDetection {
 
                         @Override
                         public void handleResponse(MasterPingResponseResponse response) {
-                            if (!running) {
+                            if (running == false) {
                                 return;
                             }
                             // reset the counter, we got a good result
@@ -237,7 +237,7 @@ public class MasterFaultDetection extends FaultDetection {
 
                         @Override
                         public void handleException(TransportException exp) {
-                            if (!running) {
+                            if (running == false) {
                                 return;
                             }
                             synchronized (masterNodeMutex) {
@@ -318,12 +318,12 @@ public class MasterFaultDetection extends FaultDetection {
             final DiscoveryNodes nodes = clusterStateSupplier.get().nodes();
             // check if we are really the same master as the one we seemed to be think we are
             // this can happen if the master got "kill -9" and then another node started using the same port
-            if (!request.masterNode.equals(nodes.getLocalNode())) {
+            if (request.masterNode.equals(nodes.getLocalNode()) == false) {
                 throw new ThisIsNotTheMasterYouAreLookingForException();
             }
 
             // ping from nodes of version < 1.4.0 will have the clustername set to null
-            if (request.clusterName != null && !request.clusterName.equals(clusterName)) {
+            if (request.clusterName != null && request.clusterName.equals(clusterName) == false) {
                 logger.trace("master fault detection ping request is targeted for a different [{}] cluster then us [{}]",
                     request.clusterName, clusterName);
                 throw new ThisIsNotTheMasterYouAreLookingForException("master fault detection ping request is targeted for a different ["
@@ -338,7 +338,7 @@ public class MasterFaultDetection extends FaultDetection {
             // all processing is finished.
             //
 
-            if (!nodes.isLocalNodeElectedMaster() || !nodes.nodeExists(request.sourceNode)) {
+            if (nodes.isLocalNodeElectedMaster() == false || nodes.nodeExists(request.sourceNode) == false) {
                 logger.trace("checking ping from {} under a cluster state thread", request.sourceNode);
                 masterService.submitStateUpdateTask("master ping (from: " + request.sourceNode + ")", new ClusterStateUpdateTask() {
 
@@ -346,7 +346,7 @@ public class MasterFaultDetection extends FaultDetection {
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         // if we are no longer master, fail...
                         DiscoveryNodes nodes = currentState.nodes();
-                        if (!nodes.nodeExists(request.sourceNode)) {
+                        if (nodes.nodeExists(request.sourceNode) == false) {
                             throw new NodeDoesNotExistOnMasterException();
                         }
                         return currentState;

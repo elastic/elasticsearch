@@ -1216,6 +1216,10 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
              */
             String fieldName = irConstantNode.getDecorationValue(IRDConstantFieldName.class);
             Type asmFieldType = MethodWriter.getType(irConstantNode.getDecorationValue(IRDExpressionType.class));
+            if (asmFieldType == null) {
+                throw irConstantNode.getLocation()
+                    .createError(new IllegalStateException("Didn't attach constant to [" + irConstantNode + "]"));
+            }
             methodWriter.getStatic(CLASS_TYPE, fieldName, asmFieldType);
         }
     }

@@ -38,7 +38,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
 
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
-        if (!execute(sql)) {
+        if (execute(sql) == false) {
             throw new SQLException("Invalid sql query [" +  sql + "]");
         }
         return rs;
@@ -52,7 +52,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
 
     @Override
     public void close() throws SQLException {
-        if (!closed) {
+        if (closed == false) {
             closed = true;
             closeResultSet();
         }
@@ -397,7 +397,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
     }
 
     final void resultSetWasClosed() throws SQLException {
-        if (closeOnCompletion && !ignoreResultSetClose) {
+        if (closeOnCompletion && ignoreResultSetClose == false) {
             close();
         }
     }

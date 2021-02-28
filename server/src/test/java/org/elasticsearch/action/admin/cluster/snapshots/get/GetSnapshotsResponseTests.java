@@ -12,6 +12,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.SnapshotFeatureInfo;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotInfoTests;
@@ -25,6 +26,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.snapshots.SnapshotFeatureInfoTests.randomSnapshotFeatureInfo;
 
 public class GetSnapshotsResponseTests extends AbstractSerializingTestCase<GetSnapshotsResponse> {
 
@@ -41,9 +44,11 @@ public class GetSnapshotsResponseTests extends AbstractSerializingTestCase<GetSn
             String reason = randomBoolean() ? null : "reason";
             ShardId shardId = new ShardId("index", UUIDs.base64UUID(), 2);
             List<SnapshotShardFailure> shardFailures = Collections.singletonList(new SnapshotShardFailure("node-id", shardId, "reason"));
+            List<SnapshotFeatureInfo> featureInfos = randomList(0, () -> randomSnapshotFeatureInfo());
             snapshots.add(new SnapshotInfo(snapshotId, Arrays.asList("index1", "index2"), Collections.singletonList("ds"),
-                System.currentTimeMillis(), reason, System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean(),
-                SnapshotInfoTests.randomUserMetadata()));
+                featureInfos, reason, System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean(),
+                SnapshotInfoTests.randomUserMetadata(), System.currentTimeMillis()
+            ));
         }
         return new GetSnapshotsResponse(snapshots);
     }

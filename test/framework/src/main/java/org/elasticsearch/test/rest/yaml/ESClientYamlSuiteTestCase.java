@@ -10,7 +10,6 @@ package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
@@ -24,10 +23,10 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -51,6 +50,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
@@ -81,8 +82,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     private static final String REST_TESTS_VALIDATE_SPEC = "tests.rest.validate_spec";
 
-    private static final String TESTS_PATH = "/rest-api-spec/test";
-    private static final String SPEC_PATH = "/rest-api-spec/api";
+    private static final String TESTS_PATH = "rest-api-spec/test";
+    private static final String SPEC_PATH = "rest-api-spec/api";
 
     /**
      * This separator pattern matches ',' except it is preceded by a '\'.
@@ -239,21 +240,23 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     // pkg private for tests
     static Map<String, Set<Path>> loadSuites(String... paths) throws Exception {
         Map<String, Set<Path>> files = new HashMap<>();
-        Path root = PathUtils.get(ESClientYamlSuiteTestCase.class.getResource(TESTS_PATH).toURI());
-        for (String strPath : paths) {
-            Path path = root.resolve(strPath);
-            if (Files.isDirectory(path)) {
-                Files.walk(path).forEach(file -> {
-                    if (file.toString().endsWith(".yml")) {
-                        addSuite(root, file, files);
-                    } else if (file.toString().endsWith(".yaml")) {
-                        throw new IllegalArgumentException("yaml files are no longer supported: " + file);
-                    }
-                });
-            } else {
-                path = root.resolve(strPath + ".yml");
-                assert Files.exists(path);
-                addSuite(root, path, files);
+        Path[] roots = ClasspathUtils.findFilePaths(ESClientYamlSuiteTestCase.class.getClassLoader(), TESTS_PATH);
+        for (Path root : roots) {
+            for (String strPath : paths) {
+                Path path = root.resolve(strPath);
+                if (Files.isDirectory(path)) {
+                    Files.walk(path).forEach(file -> {
+                        if (file.toString().endsWith(".yml")) {
+                            addSuite(root, file, files);
+                        } else if (file.toString().endsWith(".yaml")) {
+                            throw new IllegalArgumentException("yaml files are no longer supported: " + file);
+                        }
+                    });
+                } else {
+                    path = root.resolve(strPath + ".yml");
+                    assert Files.exists(path);
+                    addSuite(root, path, files);
+                }
             }
         }
         return files;
@@ -339,7 +342,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         final Request request = new Request("GET", "/_nodes/os");
         Response response = restClient.performRequest(request);
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
-        Set<String> osPrettyNames = new HashSet<>();
+        SortedSet<String> osPrettyNames = new TreeSet<>();
 
         @SuppressWarnings("unchecked")
         final Map<String, Object> nodes = (Map<String, Object>) restTestResponse.evaluate("nodes");
@@ -351,8 +354,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             osPrettyNames.add((String) XContentMapValues.extractValue("os.pretty_name", nodeInfo));
         }
 
-        assert osPrettyNames.size() == 1 : "mixed os cluster found";
-        return osPrettyNames.iterator().next();
+        assert osPrettyNames.isEmpty() == false : "no os found";
+
+        // Although in theory there should only be one element as all nodes are running on the same machine,
+        // in reality there can be two in mixed version clusters if different Java versions report the OS
+        // name differently. This has been observed to happen on Windows, where Java needs to be updated to
+        // recognize new Windows versions, and until this update has been done the newest version of Windows
+        // is reported as the previous one. In this case taking the last alphabetically is likely to be most
+        // accurate, for example if "Windows Server 2016" and "Windows Server 2019" are reported by different
+        // Java versions then Windows Server 2019 is likely to be correct.
+        return osPrettyNames.last();
     }
 
     protected RequestOptions getCatNodesVersionMasterRequestOptions() {

@@ -78,7 +78,7 @@ public class Aggs {
         }
 
         // if there's a group, move everything under the composite agg
-        if (!groups.isEmpty()) {
+        if (groups.isEmpty() == false) {
             List<CompositeValuesSourceBuilder<?>> keys = new ArrayList<>(groups.size());
             // first iterate to compute the sources
             for (GroupByKey key : groups) {

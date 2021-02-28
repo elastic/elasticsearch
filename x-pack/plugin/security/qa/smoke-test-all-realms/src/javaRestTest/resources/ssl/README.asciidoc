@@ -1,0 +1,63 @@
+= Keystore Details
+This document details the steps used to create the certificate and keystore files in this directory.
+
+== Instructions on generating certificates
+
+The certificates in this directory have been generated using elasticsearch-certutil (8.0.0 SNAPSHOT)
+
+=== Certificates for security the HTTP server
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+elasticsearch-certutil ca --pem --out=${PWD}/http-server-ca.zip --pass="ca-password" --days=3500 
+unzip http-server-ca.zip
+mv ca/ca.crt ./http-server-ca.crt
+mv ca/ca.key ./http-server-ca.key
+
+rm http-server-ca.zip
+rmdir ca
+-----------------------------------------------------------------------------------------------------------
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+elasticsearch-certutil cert --pem --name=http-server --out=${PWD}/http-server.zip --pass="http-password" --days=3500 \
+    --ca-cert=${PWD}/http-server-ca.crt --ca-key=${PWD}/http-server-ca.key --ca-pass="ca-password" \
+    --dns=localhost --dns=localhost.localdomain --dns=localhost4 --dns=localhost4.localdomain4 --dns=localhost6 --dns=localhost6.localdomain6 \
+    --ip=127.0.0.1 --ip=0:0:0:0:0:0:0:1
+
+unzip http-server.zip
+mv http-server/http-server.* ./
+
+rm http-server.zip
+rmdir http-server
+-----------------------------------------------------------------------------------------------------------
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+keytool -importcert -file http-server-ca.crt -keystore http-server-ca.p12 -storetype PKCS12 -storepass "password" -alias ca
+-----------------------------------------------------------------------------------------------------------
+
+=== Certificates to support PKI auth
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+elasticsearch-certutil ca --pem --out=${PWD}/http-client-ca.zip --pass="ca-password" --days=3500 
+unzip http-client-ca.zip
+mv ca/ca.crt ./http-client-ca.crt
+mv ca/ca.key ./http-client-ca.key
+
+rm http-client-ca.zip
+rmdir ca
+-----------------------------------------------------------------------------------------------------------
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+elasticsearch-certutil cert --pem --name=pki-auth --out=${PWD}/pki-auth.zip --pass="http-password" --days=3500 \
+    --ca-cert=${PWD}/http-client-ca.crt --ca-key=${PWD}/http-client-ca.key --ca-pass="ca-password" 
+
+unzip pki-auth.zip
+mv pki-auth/pki-auth.* ./
+
+rm pki-auth.zip
+rmdir pki-auth
+-----------------------------------------------------------------------------------------------------------
+

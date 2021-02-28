@@ -61,7 +61,7 @@ public class StringContainsFunctionProcessor implements Processor {
     }
 
     private static void throwIfNotString(Object obj) {
-        if (!(obj instanceof String || obj instanceof Character)) {
+        if ((obj instanceof String || obj instanceof Character) == false) {
             throw new EqlIllegalArgumentException("A string/char is required; received [{}]", obj);
         }
     }

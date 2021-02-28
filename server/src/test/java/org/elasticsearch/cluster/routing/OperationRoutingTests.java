@@ -365,7 +365,7 @@ public class OperationRoutingTests extends ESTestCase {
             final List<String> nodes = new ArrayList<>();
             final List<ShardRouting> expected = new ArrayList<>();
             for (int i = 0; i < count; i++) {
-                if (randomBoolean() && !shards.get(position).initializing()) {
+                if (randomBoolean() && shards.get(position).initializing() == false) {
                     nodes.add(shards.get(position).currentNodeId());
                     expected.add(shards.get(position));
                     position++;
@@ -467,7 +467,7 @@ public class OperationRoutingTests extends ESTestCase {
             final List<String> nodes = new ArrayList<>();
             final List<ShardRouting> expected = new ArrayList<>();
             for (int i = 0; i < count; i++) {
-                if (randomBoolean() && !shards.get(position).initializing()) {
+                if (randomBoolean() && shards.get(position).initializing() == false) {
                     nodes.add(shards.get(position).currentNodeId());
                     expected.add(shards.get(position));
                     position++;

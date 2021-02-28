@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.repositories.encrypted;
 
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -158,9 +157,7 @@ public final class EncryptedFSBlobStoreRepositoryIntegTests extends ESFsBasedRep
         assertThat(
             expectThrows(
                 RepositoryException.class,
-                () -> PlainActionFuture.<RepositoryData, Exception>get(
-                    f -> blobStoreRepository.threadPool().generic().execute(ActionRunnable.wrap(f, blobStoreRepository::getRepositoryData))
-                )
+                () -> PlainActionFuture.<RepositoryData, Exception>get(blobStoreRepository::getRepositoryData)
             ).getMessage(),
             containsString("the encryption metadata in the repository has been corrupted")
         );

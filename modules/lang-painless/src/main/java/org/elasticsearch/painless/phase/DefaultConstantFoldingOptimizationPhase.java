@@ -216,7 +216,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                 scope.accept(irConstantNode);
             } else if (operation == Operation.NOT) {
                 if (type == boolean.class) {
-                    irConstantNode.attachDecoration(new IRDConstant(!(boolean)constantValue));
+                    irConstantNode.attachDecoration(new IRDConstant(((boolean) constantValue) == false));
                 } else {
                     throw irUnaryMathNode.getLocation().createError(new IllegalStateException("constant folding error: " +
                             "unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] for " +
@@ -841,12 +841,17 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
         Object[] args = new Object[irInvokeCallMemberNode.getArgumentNodes().size()];
         for (int i = 0; i < irInvokeCallMemberNode.getArgumentNodes().size(); i++) {
             ExpressionNode argNode = irInvokeCallMemberNode.getArgumentNodes().get(i);
-            if (argNode instanceof ConstantNode == false) {
+            IRDConstant constantDecoration = argNode.getDecoration(IRDConstant.class);
+            if (constantDecoration == null) {
                 // TODO find a better string to output
                 throw irInvokeCallMemberNode.getLocation()
-                    .createError(new IllegalArgumentException("all arguments must be constant but the [" + (i + 1) + "] argument isn't"));
+                    .createError(
+                        new IllegalArgumentException(
+                            "all arguments to [" + javaMethod.getName() + "] must be constant but the [" + (i + 1) + "] argument isn't"
+                        )
+                    );
             }
-            args[i] = ((ConstantNode) argNode).getDecorationValue(IRDConstant.class);
+            args[i] = constantDecoration.getValue();
         }
         Object result;
         try {

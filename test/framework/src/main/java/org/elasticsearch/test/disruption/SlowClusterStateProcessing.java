@@ -95,7 +95,7 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
                 try {
                     long count = duration.millis() / 200;
                     // wait while checking for a stopped
-                    for (; count > 0 && !stopped.get(); count--) {
+                    for (; count > 0 && stopped.get() == false; count--) {
                         Thread.sleep(200);
                     }
                     if (stopped.get() == false) {

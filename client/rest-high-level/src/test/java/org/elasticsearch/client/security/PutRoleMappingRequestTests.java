@@ -233,8 +233,8 @@ public class PutRoleMappingRequestTests extends ESTestCase {
             return new PutRoleMappingRequest(randomAlphaOfLength(5), original.isEnabled(), original.getRoles(),
                 original.getRoleTemplates(), original.getRules(), original.getMetadata(), original.getRefreshPolicy());
         case 1:
-            return new PutRoleMappingRequest(original.getName(), !original.isEnabled(), original.getRoles(), original.getRoleTemplates(),
-                original.getRules(), original.getMetadata(), original.getRefreshPolicy());
+            return new PutRoleMappingRequest(original.getName(), original.isEnabled() == false, original.getRoles(),
+                original.getRoleTemplates(), original.getRules(), original.getMetadata(), original.getRefreshPolicy());
         case 2:
             return new PutRoleMappingRequest(original.getName(), original.isEnabled(), original.getRoles(), original.getRoleTemplates(),
                     FieldRoleMapperExpression.ofGroups("group"), original.getMetadata(), original.getRefreshPolicy());

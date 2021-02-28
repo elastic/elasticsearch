@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -54,8 +55,6 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -246,8 +245,12 @@ public class TransportBulkActionTests extends ESTestCase {
             new Index(IndexMetadata.builder(".foo").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
         indicesLookup.put(".bar",
             new Index(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
-        SystemIndices systemIndices = new SystemIndices(singletonMap("plugin", singletonList(new SystemIndexDescriptor(".test", ""))));
-        List<String> onlySystem = Arrays.asList(".foo", ".bar");
+        SystemIndices systemIndices = new SystemIndices(
+            Map.of("plugin", new SystemIndices.Feature(
+                "test feature",
+                org.elasticsearch.common.collect.List.of(new SystemIndexDescriptor(".test", "")))
+            ));
+        List<String> onlySystem = org.elasticsearch.common.collect.List.of(".foo", ".bar");
         assertTrue(bulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
 
         onlySystem = Arrays.asList(".foo", ".bar", ".test");

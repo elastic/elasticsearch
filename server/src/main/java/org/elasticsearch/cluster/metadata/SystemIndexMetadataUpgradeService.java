@@ -75,7 +75,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
             for (ObjectObjectCursor<String, IndexMetadata> cursor : indexMetadataMap) {
                 if (cursor.value != lastIndexMetadataMap.get(cursor.key)) {
                     if (systemIndices.isSystemIndex(cursor.value.getIndex()) != cursor.value.isSystem()) {
-                        updatedMetadata.add(IndexMetadata.builder(cursor.value).system(!cursor.value.isSystem()).build());
+                        updatedMetadata.add(IndexMetadata.builder(cursor.value).system(cursor.value.isSystem() == false).build());
                     }
                 }
             }

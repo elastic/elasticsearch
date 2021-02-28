@@ -63,7 +63,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         int sz = hits.length;
 
         int maxDepth = 0;
-        if (!innerHits.isEmpty()) {
+        if (innerHits.isEmpty() == false) {
             if (innerHits.size() > 1) {
                 throw new SqlIllegalArgumentException("Multi-nested docs not yet supported {}", innerHits);
             }

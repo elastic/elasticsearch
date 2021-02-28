@@ -105,7 +105,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
             plugin.instance.address = transportService.boundAddress().publishAddress();
             client.addTransportAddress(transportService.boundAddress().publishAddress());
 
-            if (!plugin.instance.clusterStateLatch.await(5, TimeUnit.SECONDS)) {
+            if (plugin.instance.clusterStateLatch.await(5, TimeUnit.SECONDS) == false) {
                 fail("takes way too long to get the cluster state");
             }
 

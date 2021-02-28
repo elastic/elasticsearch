@@ -1,0 +1,9 @@
+["appendix",role="exclude",id="redirects"]
+= Deleted pages
+
+The following pages have moved or been deleted.
+
+[role="exclude",id="scrolling"]
+=== Using scrolls in Java
+
+See <<java-search-scrolling>>.

@@ -167,7 +167,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertLogLine(
                     deprecationEvents.get(i),
                     DEPRECATION,
-                    "org.elasticsearch.common.logging.DeprecationLogger\\$DeprecationLoggerBuilder.withDeprecation",
+                    "org.elasticsearch.common.logging.DeprecationLogger.deprecate",
                     "This is a maybe logged deprecation message" + i);
         }
 
@@ -200,7 +200,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertLogLine(
                     deprecationEvents.get(0),
                     DEPRECATION,
-                    "org.elasticsearch.common.logging.DeprecationLogger\\$DeprecationLoggerBuilder.withDeprecation",
+                    "org.elasticsearch.common.logging.DeprecationLogger.deprecate",
                     "\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release! " +
                             "See the breaking changes documentation for the next major version.");
         }
@@ -303,7 +303,7 @@ public class EvilLoggerTests extends ESTestCase {
     }
 
     private void setupLogging(final String config, final Settings settings) throws IOException, UserException {
-        assert !Environment.PATH_HOME_SETTING.exists(settings);
+        assert Environment.PATH_HOME_SETTING.exists(settings) == false;
         final Path configDir = getDataPath(config);
         final Settings mergedSettings = Settings.builder()
             .put(settings)

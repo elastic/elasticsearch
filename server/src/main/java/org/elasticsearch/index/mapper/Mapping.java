@@ -65,7 +65,13 @@ public final class Mapping implements ToXContentFragment {
         this.meta = meta;
     }
 
-    /** Return the root object mapper. */
+    public String type() {
+        return root.name();
+    }
+
+    /**
+     * Return the root object mapper.
+     */
     RootObjectMapper root() {
         return root;
     }

@@ -430,7 +430,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
         @Override
         public boolean hasNext() {
-            return !entries.isEmpty() || !nodes.isEmpty();
+            return entries.isEmpty() == false || nodes.isEmpty() == false;
         }
 
         @Override
@@ -563,7 +563,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
             @Override
             public boolean contains(Object o) {
-                if (o == null || !(o instanceof Map.Entry)) {
+                if (o == null || (o instanceof Map.Entry) == false) {
                     return false;
                 }
                 Map.Entry<?, ?> entry = (java.util.Map.Entry<?, ?>) o;

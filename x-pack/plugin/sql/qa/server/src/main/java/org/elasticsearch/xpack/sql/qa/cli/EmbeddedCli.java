@@ -160,7 +160,7 @@ public class EmbeddedCli implements Closeable {
 
             // Read until the first "good" line (skip the logo or read until an exception)
             boolean isLogoOrException = false;
-            while (!isLogoOrException) {
+            while (isLogoOrException == false) {
                 String line = readLine();
                 if ("SQL".equals(line.trim())) {
                     // it's almost the bottom of the logo, so read the next line (the version) and break out of the loop

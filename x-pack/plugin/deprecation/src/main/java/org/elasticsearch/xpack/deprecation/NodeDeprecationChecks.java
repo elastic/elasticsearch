@@ -137,8 +137,8 @@ class NodeDeprecationChecks {
             implicitlyDisabledNativeRealmTypes.size() == 1 ? "It is" : "They are");
 
         return new DeprecationIssue(
-            DeprecationIssue.Level.CRITICAL,
-            "File and/or native realms cannot be implicitly disabled in next major release.",
+            DeprecationIssue.Level.WARNING,
+            "File and/or native realms are enabled by default in next major release.",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/deprecated-7.13.html#implicitly-disabled-native-realms",
             details
         );

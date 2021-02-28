@@ -459,7 +459,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
     private void assertCommonImplicitDisabledRealms(List<DeprecationIssue> deprecationIssues) {
         assertEquals(1, deprecationIssues.size());
-        assertEquals("File and/or native realms cannot be implicitly disabled in next major release.",
+        assertEquals("File and/or native realms are enabled by default in next major release.",
             deprecationIssues.get(0).getMessage());
         assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference" +
                 "/7.13/deprecated-7.13.html#implicitly-disabled-native-realms",

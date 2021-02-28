@@ -1,0 +1,44 @@
+--
+:api: grant-api-key
+:request: GrantApiKeyRequest
+:response: CreateApiKeyResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Grant API key API
+
+Creates an API key on behalf of another user.
+
+[id="{upid}-{api}-request"]
+==== Grant API key request
+
+This API is similar to <<java-rest-high-security-create-api-key>>, however it
+creates the API key for a user that is different than the user that runs the API.
+
+A +{request}+ contains authentication credentials for the user on whose behalf
+the API key will be created, a grant type (which indicates whether the
+credentials are an access token or a user ID and password), and API key details.
+The API key details include a name for the API key, an optional list of role 
+descriptors to define permissions, and an optional expiration for the
+generated API key. If expiration is not provided, by default the API keys do not
+expire.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Grant API key response
+
+The returned +{response}+ contains an ID, API key, name for the API key, and
+optional expiration.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The API key that can be used to authenticate to Elasticsearch.
+<2> Expiration details, if the API keys expire.

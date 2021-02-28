@@ -2184,7 +2184,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testMathExpressionSupport() {
-
         Instant instant = LocalDate.of(2021, 01, 11).atStartOfDay().toInstant(ZoneOffset.UTC);
         String resolved = this.indexNameExpressionResolver.resolveDateMathExpression("<a-name-{now/M{yyyy-MM}}>", instant.toEpochMilli());
 
@@ -2198,8 +2197,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         String resolved = this.indexNameExpressionResolver.resolveDateMathExpression(indexName, instant.toEpochMilli());
 
         assertEquals(resolved, "older-date-2020-12");
-
-
     }
     private ClusterState systemIndexTestClusterState() {
         Settings settings = Settings.builder().build();

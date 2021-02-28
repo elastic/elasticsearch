@@ -529,18 +529,18 @@ public class Node implements Closeable {
 
             final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
             final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
-                    settings,
-                    clusterService,
-                    indicesService,
-                    clusterModule.getAllocationService(),
-                    aliasValidator,
-                    shardLimitValidator,
-                    environment,
-                    settingsModule.getIndexScopedSettings(),
-                    threadPool,
-                    xContentRegistry,
-                    systemIndices,
-                    forbidPrivateIndexSettings
+                settings,
+                clusterService,
+                indicesService,
+                clusterModule.getAllocationService(),
+                aliasValidator,
+                shardLimitValidator,
+                environment,
+                settingsModule.getIndexScopedSettings(),
+                threadPool,
+                xContentRegistry,
+                systemIndices,
+                forbidPrivateIndexSettings
             );
             pluginsService.filterPlugins(Plugin.class)
                 .forEach(p -> p.getAdditionalIndexSettingProviders()

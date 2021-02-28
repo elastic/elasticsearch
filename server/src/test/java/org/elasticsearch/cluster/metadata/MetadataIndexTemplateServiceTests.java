@@ -1434,7 +1434,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null,
                 null,
                 null,
-
                 null,
                 createTestShardLimitService(randomIntBetween(1, 1000)),
                 new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),

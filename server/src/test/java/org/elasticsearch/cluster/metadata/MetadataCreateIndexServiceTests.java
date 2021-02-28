@@ -594,7 +594,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testAliasNameWithMathExpression() {
-
         final String aliasName = "<date-math-based-{2021-01-19||/M{yyyy-MM-dd}}>";
 
         request.aliases(Set.of(new Alias(aliasName)));
@@ -690,7 +689,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testResolvedAliasInTemplate() {
-
         List<IndexTemplateMetadata> templates = new ArrayList<>(3);
         templates.add(addMatchingTemplate(builder -> builder
             .order(3)

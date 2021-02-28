@@ -44,7 +44,6 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
-
     public CreateIndexClusterStateUpdateRequest(String cause, String index, String providedName) {
         this.cause = cause;
         this.index = index;

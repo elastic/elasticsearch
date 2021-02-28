@@ -109,9 +109,11 @@ public interface IndexEventListener {
     }
 
     /**
-     * Called before the index shard gets created.
+     * Called before the index shard gets created, before obtaining the shard lock.
+     * @param routing the routing entry that caused the shard to be created.
+     * @param indexSettings the shards index settings
      */
-    default void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
+    default void beforeIndexShardCreated(ShardRouting routing, Settings indexSettings) {
     }
 
     /**

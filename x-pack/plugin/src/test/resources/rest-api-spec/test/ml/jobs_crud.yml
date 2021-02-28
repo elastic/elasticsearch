@@ -113,9 +113,7 @@
 ---
 "Test put job with model_memory_limit as string and lazy open":
   - skip:
-      version: "all"
       features: headers
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/66885"
   - do:
       ml.put_job:
         job_id: job-model-memory-limit-as-string

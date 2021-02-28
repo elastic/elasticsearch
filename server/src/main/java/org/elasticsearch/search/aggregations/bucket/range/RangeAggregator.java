@@ -351,6 +351,9 @@ public abstract class RangeAggregator extends BucketsAggregator {
             // We don't generate sensible Queries for nanoseconds.
             return null;
         }
+        if (false == FiltersAggregator.canUseFilterByFilter(parent, factories, null)) {
+            return null;
+        }
         boolean wholeNumbersOnly = false == ((ValuesSource.Numeric) valuesSourceConfig.getValuesSource()).isFloatingPoint();
         String[] keys = new String[ranges.length];
         Query[] filters = new Query[ranges.length];
@@ -382,29 +385,22 @@ public abstract class RangeAggregator extends BucketsAggregator {
             builder.to(ranges[i].to == Double.POSITIVE_INFINITY ? null : format.format(ranges[i].to)).includeUpper(false);
             filters[i] = context.buildQuery(builder);
         }
-        FiltersAggregator.FilterByFilter delegate = FiltersAggregator.buildFilterOrderOrNull(
-            name,
-            factories,
-            keys,
-            filters,
-            false,
-            null,
-            context,
-            parent,
-            cardinality,
-            metadata
-        );
-        if (delegate == null) {
-            return null;
-        }
         RangeAggregator.FromFilters<?> fromFilters = new RangeAggregator.FromFilters<>(
             parent,
             factories,
             subAggregators -> {
-                if (subAggregators.countAggregators() > 0) {
-                    throw new IllegalStateException("didn't expect to have a delegate if there are child aggs");
-                }
-                return delegate;
+                return FiltersAggregator.buildFilterByFilter(
+                    name,
+                    subAggregators,
+                    keys,
+                    filters,
+                    false,
+                    null,
+                    context,
+                    parent,
+                    cardinality,
+                    metadata
+                );
             },
             valuesSourceConfig.format(),
             ranges,

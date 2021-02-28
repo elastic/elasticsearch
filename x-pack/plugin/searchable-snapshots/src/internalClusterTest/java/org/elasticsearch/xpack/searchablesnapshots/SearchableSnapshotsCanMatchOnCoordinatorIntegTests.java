@@ -132,7 +132,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             restoredIndexSettings,
             Strings.EMPTY_ARRAY,
             false,
-            MountSearchableSnapshotRequest.Storage.FULL_COPY
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         );
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
 
@@ -267,7 +267,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             restoredIndexSettings,
             Strings.EMPTY_ARRAY,
             false,
-            MountSearchableSnapshotRequest.Storage.FULL_COPY
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         );
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
         final int searchableSnapshotShardCount = indexOutsideSearchRangeShardCount;
@@ -380,7 +380,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             restoredIndexSettings,
             Strings.EMPTY_ARRAY,
             false,
-            MountSearchableSnapshotRequest.Storage.FULL_COPY
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         );
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
 

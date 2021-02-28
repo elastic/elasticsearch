@@ -83,7 +83,8 @@ tasks.withType(JavaCompile).configureEach {
  *****************************************************************************/
 
 repositories {
-  jcenter()
+  mavenCentral()
+  gradlePluginPortal()
 }
 
 dependencies {

@@ -12,21 +12,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.xpack.eql.execution.payload.EventPayload;
 import org.elasticsearch.xpack.eql.session.Payload;
 
-public class AsEventListener implements ActionListener<SearchResponse> {
-
-    private final ActionListener<Payload> listener;
+public class AsEventListener extends ActionListener.Delegating<SearchResponse, Payload> {
 
     public AsEventListener(ActionListener<Payload> listener) {
-        this.listener = listener;
+        super(listener);
     }
 
     @Override
     public void onResponse(SearchResponse response) {
-        listener.onResponse(new EventPayload(response));
-    }
-
-    @Override
-    public void onFailure(Exception e) {
-        listener.onFailure(e);
+        delegate.onResponse(new EventPayload(response));
     }
 }

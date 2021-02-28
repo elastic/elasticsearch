@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -34,7 +35,7 @@ public class RestTermVectorsActionTests extends RestActionTestCase {
             .build();
 
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> new TermVectorsResponse("index", "_doc", "id"));
 
         dispatchRequest(request);
         assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
@@ -46,14 +47,13 @@ public class RestTermVectorsActionTests extends RestActionTestCase {
             .field("_id", 1)
         .endObject();
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.GET)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.GET)
             .withPath("/some_index/_termvectors/some_id")
             .withContent(BytesReference.bytes(content), XContentType.JSON)
             .build();
 
-         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-         verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> new TermVectorsResponse("index", "_doc", "id"));
 
         dispatchRequest(request);
         assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);

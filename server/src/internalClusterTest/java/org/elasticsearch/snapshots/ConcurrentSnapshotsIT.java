@@ -823,8 +823,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete("index-two"));
         unblockNode(repoName, masterNode);
 
-        assertThat(snapshotThree.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
-        assertThat(snapshotFour.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+        assertThat(snapshotThree.get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
+        assertThat(snapshotFour.get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
         assertAcked(deleteFuture.get());
     }
 

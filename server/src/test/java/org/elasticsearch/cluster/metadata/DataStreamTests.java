@@ -49,7 +49,8 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
     public void testRollover() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        DataStream rolledDs = ds.rollover(UUIDs.randomBase64UUID(), DataStream.NEW_FEATURES_VERSION);
+        String nextWriteIndexName = ds.nextWriteIndexName(Version.CURRENT);
+        DataStream rolledDs = ds.rollover(new Index(nextWriteIndexName, UUIDs.randomBase64UUID()), Version.CURRENT);
 
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
@@ -59,9 +60,23 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
     }
 
-    public void testRolloverWithLegacyBackingIndexNames() {
+    public void testRolloverWithLegacyBackingIndexNames2() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        DataStream rolledDs = ds.rollover(UUIDs.randomBase64UUID(), Version.V_7_10_0);
+        String nextWriteIndexName = ds.nextWriteIndexName(Version.V_7_11_0);
+        DataStream rolledDs = ds.rollover(new Index(nextWriteIndexName, UUIDs.randomBase64UUID()), Version.V_7_11_0);
+
+        assertThat(rolledDs.getName(), equalTo(ds.getName()));
+        assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
+        assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
+    }
+
+    public void testRolloverWithLegacyBackingIndexNames1() {
+        DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
+        String nextWriteIndexName = ds.nextWriteIndexName(Version.V_7_10_0);
+        DataStream rolledDs = ds.rollover(new Index(nextWriteIndexName, UUIDs.randomBase64UUID()), Version.V_7_10_0);
 
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
@@ -100,8 +115,12 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         long epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
         String dateString = DataStream.DATE_FORMATTER.formatMillis(epochMillis);
         String defaultBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNum, epochMillis);
-        String expectedBackingIndexName = String.format(Locale.ROOT, ".ds-%s-%s-%06d", dataStreamName, dateString, backingIndexNum);
-        assertThat(defaultBackingIndexName, equalTo(expectedBackingIndexName));
+        String expectedBackingIndexName = String.format(Locale.ROOT, ".ds-%s-%s-%06d-xxxxxx", dataStreamName, dateString, backingIndexNum);
+        // No point in comparing the random suffix of the backing index name, so just acknowledge that it is there:
+        assertThat(
+            defaultBackingIndexName.substring(0, defaultBackingIndexName.length() - 6),
+            equalTo(expectedBackingIndexName.substring(0, expectedBackingIndexName.length() - 6))
+        );
     }
 
     public void testReplaceBackingIndex() {

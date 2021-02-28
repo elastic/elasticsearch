@@ -35,7 +35,7 @@
 
   - do:
       indices.get:
-        index: ['.ds-data-stream1-*000001', 'test_index']
+        index: ['.ds-data-stream1-*-000001-*', 'test_index']
 
   - is_true: .$idx0name.settings
   - is_true: .$idx0name.data_stream

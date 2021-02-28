@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
@@ -511,7 +512,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             DataStream dataStream = stream.getDataStream();
             for (int i = 0; i < numberNewIndices; ++i) {
                 final String uuid = UUIDs.randomBase64UUID();
-                dataStream = dataStream.rollover(uuid, Version.CURRENT);
+                String newWriteIndexName = dataStream.nextWriteIndexName(Version.CURRENT);
+                dataStream = dataStream.rollover(new Index(newWriteIndexName, uuid), Version.CURRENT);
                 IndexMetadata newIndex = IndexMetadata.builder(writeIndex)
                     .index(dataStream.getWriteIndex().getName())
                     .settings(Settings.builder().put(writeIndex.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, uuid))

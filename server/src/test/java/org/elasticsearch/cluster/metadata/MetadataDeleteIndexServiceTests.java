@@ -110,9 +110,9 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
             List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
 
-        int numIndexToDelete = randomIntBetween(1, numBackingIndices - 1);
+        int numIndexToDelete = randomIntBetween(0, numBackingIndices - 2);
 
-        Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)).getIndex();
+        Index indexToDelete = before.metadata().dataStreams().get(dataStreamName).getIndices().get(numIndexToDelete);
         ClusterState after = service.deleteIndices(before, Set.of(indexToDelete));
 
         assertThat(after.metadata().getIndices().get(indexToDelete.getName()), IsNull.nullValue());
@@ -129,11 +129,11 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
 
         List<Integer> indexNumbersToDelete =
-            randomSubsetOf(numBackingIndicesToDelete, IntStream.rangeClosed(1, numBackingIndices - 1).boxed().collect(Collectors.toList()));
+            randomSubsetOf(numBackingIndicesToDelete, IntStream.rangeClosed(0, numBackingIndices - 2).boxed().collect(Collectors.toList()));
 
         Set<Index> indicesToDelete = new HashSet<>();
         for (int k : indexNumbersToDelete) {
-            indicesToDelete.add(before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, k)).getIndex());
+            indicesToDelete.add(before.metadata().dataStreams().get(dataStreamName).getIndices().get(k));
         }
         ClusterState after = service.deleteIndices(before, indicesToDelete);
 
@@ -153,7 +153,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
             List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
 
-        Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices)).getIndex();
+        Index indexToDelete = before.metadata().dataStreams().get(dataStreamName).getWriteIndex();
         Exception e = expectThrows(IllegalArgumentException.class, () -> service.deleteIndices(before, Set.of(indexToDelete)));
 
         assertThat(e.getMessage(), containsString("index [" + indexToDelete.getName() + "] is the write index for data stream [" +

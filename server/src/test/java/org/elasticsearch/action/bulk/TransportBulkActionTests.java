@@ -174,7 +174,7 @@ public class TransportBulkActionTests extends ESTestCase {
         Metadata metadata = clusterState.metadata();
 
         // Testing create op against backing index fails:
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String backingIndexName = clusterState.metadata().dataStreams().get(dataStreamName).getWriteIndex().getName();
         IndexRequest invalidRequest1 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.CREATE);
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest1, metadata));

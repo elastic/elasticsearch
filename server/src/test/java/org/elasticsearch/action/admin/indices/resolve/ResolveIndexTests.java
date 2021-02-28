@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Resolve
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndex;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.TransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
@@ -26,6 +27,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.time.Clock;
@@ -45,6 +48,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 public class ResolveIndexTests extends ESTestCase {
@@ -163,7 +167,7 @@ public class ResolveIndexTests extends ESTestCase {
     }
 
     public void testResolveWithMultipleNames() {
-        String[] names = new String[]{".ds-logs-mysql-prod-" + dateString + "-000003", "logs-pgsql-test-20200102", "one-off-alias",
+        String[] names = new String[]{".ds-logs-mysql-prod-" + dateString + "-000003*", "logs-pgsql-test-20200102*", "one-off-alias",
             "logs-mysql-test"};
         IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
         List<ResolvedIndex> indices = new ArrayList<>();
@@ -224,11 +228,17 @@ public class ResolveIndexTests extends ESTestCase {
         for (int k = 0; k < resolvedIndices.size(); k++) {
             ResolvedIndex resolvedIndex = resolvedIndices.get(k);
             Object[] indexInfo = findInfo(indices, expectedIndices[k]);
+            boolean backingIndex = false;
             if (indexInfo == null) {
                 indexInfo = findBackingIndexInfo(dataStreams, expectedIndices[k]);
+                backingIndex = true;
             }
             assertThat(indexInfo, notNullValue());
-            assertThat(resolvedIndex.getName(), equalTo((String) indexInfo[0]));
+            if (backingIndex) {
+                assertThat(resolvedIndex.getName(), startsWith((String) indexInfo[0]));
+            } else {
+                assertThat(resolvedIndex.getName(), equalTo((String) indexInfo[0]));
+            }
             assertThat(resolvedIndex.getAliases(), is(((String[]) indexInfo[5])));
             assertThat(resolvedIndex.getAttributes(), is(flagsToAttributes(indexInfo)));
             assertThat(resolvedIndex.getDataStream(), equalTo((String) indexInfo[4]));
@@ -270,11 +280,12 @@ public class ResolveIndexTests extends ESTestCase {
             assertThat(resolvedDataStream.getName(), equalTo((String) dataStreamInfo[0]));
             assertThat(resolvedDataStream.getTimestampField(), equalTo((String) dataStreamInfo[1]));
             int numBackingIndices = (int) dataStreamInfo[2];
-            List<String> expectedBackingIndices = new ArrayList<>();
+            @SuppressWarnings("unchecked")
+            Matcher<String>[] expectedBackingIndices = new Matcher[numBackingIndices];
             for (int m = 1; m <= numBackingIndices; m++) {
-                expectedBackingIndices.add(DataStream.getDefaultBackingIndexName(resolvedDataStream.getName(), m, epochMillis));
+                expectedBackingIndices[m - 1] = DataStreamTestHelper.backingIndexEqualTo(resolvedDataStream.getName(), m, epochMillis);
             }
-            assertThat(resolvedDataStream.getBackingIndices(), is((expectedBackingIndices.toArray(Strings.EMPTY_ARRAY))));
+            assertThat(List.of(resolvedDataStream.getBackingIndices()), Matchers.containsInAnyOrder(expectedBackingIndices));
         }
     }
 
@@ -351,9 +362,9 @@ public class ResolveIndexTests extends ESTestCase {
             String dataStreamName = (String) info[0];
             int generations = (int) info[2];
             for (int k = 1; k <= generations; k++) {
-                if (DataStream.getDefaultBackingIndexName(dataStreamName, k, epochMillis).equals(indexName)) {
+                if (DataStreamTestHelper.getBackingIndexPrefix(dataStreamName, k, epochMillis).equals(indexName)) {
                     return new Object[] {
-                        DataStream.getDefaultBackingIndexName(dataStreamName, k, epochMillis),
+                        DataStreamTestHelper.getBackingIndexPrefix(dataStreamName, k, epochMillis),
                         false, true, false, dataStreamName, Strings.EMPTY_ARRAY
                     };
                 }

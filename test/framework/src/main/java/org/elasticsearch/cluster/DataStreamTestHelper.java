@@ -17,6 +17,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +29,7 @@ import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingInd
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.hamcrest.Matchers.startsWith;
 
 public final class DataStreamTestHelper {
 
@@ -170,4 +172,21 @@ public final class DataStreamTestHelper {
         return String.format(Locale.ROOT, "\\.ds-%s-(\\d{4}\\.\\d{2}\\.\\d{2}-)?%06d",dataStreamName, generation);
     }
 
+    public static String getBackingIndexPrefix(String dataStreamName, int generation) {
+        String backingIndex = getDefaultBackingIndexName(dataStreamName, generation);
+        return backingIndex.substring(0, backingIndex.lastIndexOf('-'));
+    }
+
+    public static String getBackingIndexPrefix(String dataStreamName, int generation, long epochMillis) {
+        String backingIndex = getDefaultBackingIndexName(dataStreamName, generation, epochMillis);
+        return backingIndex.substring(0, backingIndex.lastIndexOf('-'));
+    }
+
+    public static Matcher<String> backingIndexEqualTo(String dataStreamName, int generation) {
+        return startsWith(getBackingIndexPrefix(dataStreamName, generation));
+    }
+
+    public static Matcher<String> backingIndexEqualTo(String dataStreamName, int generation, long epochMillis) {
+        return startsWith(getBackingIndexPrefix(dataStreamName, generation, epochMillis));
+    }
 }

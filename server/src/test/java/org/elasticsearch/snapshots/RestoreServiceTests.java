@@ -70,7 +70,12 @@ public class RestoreServiceTests extends ESTestCase {
         String dataStreamName = "data-stream-1";
         String renamedDataStreamName = "data-stream-2";
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+
+        // Ensure keep using same random suffix:
         String renamedBackingIndexName = DataStream.getDefaultBackingIndexName(renamedDataStreamName, 1);
+        renamedBackingIndexName = renamedBackingIndexName.substring(0, renamedBackingIndexName.lastIndexOf('-'));
+        renamedBackingIndexName += backingIndexName.substring(backingIndexName.lastIndexOf('-'));
+
         List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
 
         DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
@@ -93,7 +98,12 @@ public class RestoreServiceTests extends ESTestCase {
         String dataStreamName = "ds-000001";
         String renamedDataStreamName = "ds2-000001";
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+
+        // Ensure keep using same random suffix:
         String renamedBackingIndexName = DataStream.getDefaultBackingIndexName(renamedDataStreamName, 1);
+        renamedBackingIndexName = renamedBackingIndexName.substring(0, renamedBackingIndexName.lastIndexOf('-'));
+        renamedBackingIndexName += backingIndexName.substring(backingIndexName.lastIndexOf('-'));
+
         List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
 
         DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);

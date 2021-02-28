@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -109,25 +110,49 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return replicated;
     }
 
+    public String nextWriteIndexName(Version minNodeVersion) {
+        return DataStream.getDefaultBackingIndexName(getName(), getGeneration() + 1, minNodeVersion);
+    }
+
     /**
      * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
      * the updated list of backing indices and incremented generation.
      *
-     * @param writeIndexUuid UUID for the data stream's new write index
-     * @param minNodeVersion minimum cluster node version
-     *
+     * @param nextWriteIndex    The index that will be next write index after rollover has occurred.
+     *                          This instance must have the same name that {@link #nextWriteIndexName(Version)} produces
+     * @param minNodeVersion    minimum cluster node version
      * @return new {@code DataStream} instance with the rollover operation applied
      */
-    public DataStream rollover(String writeIndexUuid, Version minNodeVersion) {
+    public DataStream rollover(Index nextWriteIndex, Version minNodeVersion) {
         if (replicated) {
             throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, " +
                 "because it is a replicated data stream");
         }
 
+        if (extractGenerationFromBackingIndex(nextWriteIndex.getName()) != generation + 1) {
+            throw new IllegalArgumentException("expected next write index generation to be [" + generation + 1 +
+                "], but was [" + extractGenerationFromBackingIndex(nextWriteIndex.getName()) + "]");
+        }
+
         List<Index> backingIndices = new ArrayList<>(indices);
-        final String newWriteIndexName = DataStream.getDefaultBackingIndexName(getName(), getGeneration() + 1, minNodeVersion);
-        backingIndices.add(new Index(newWriteIndexName, writeIndexUuid));
+        backingIndices.add(nextWriteIndex);
         return new DataStream(name, timeStampField, backingIndices, generation + 1, metadata, hidden, replicated);
+    }
+
+    private int extractGenerationFromBackingIndex(String backingIndexName) {
+        int lastDashIndex = backingIndexName.lastIndexOf('-');
+        assert lastDashIndex != -1;
+        String generation = backingIndexName.substring(lastDashIndex + 1);
+        try {
+            // First assume that the format is: .ds-[name]-[generation]
+            return Integer.parseInt(generation);
+        } catch (NumberFormatException e) {
+            // Then assume that the format is: .ds-[name]-[generation]-[random-snippet]
+            int secondLastDashIndex = backingIndexName.lastIndexOf('-', lastDashIndex - 1);
+            assert secondLastDashIndex != -1;
+            generation = backingIndexName.substring(secondLastDashIndex + 1, lastDashIndex);
+            return Integer.parseInt(generation);
+        }
     }
 
     /**
@@ -230,12 +255,35 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      * @return backing index name
      */
     public static String getDefaultBackingIndexName(String dataStreamName, long generation, long epochMillis) {
-        return String.format(Locale.ROOT, BACKING_INDEX_PREFIX + "%s-%s-%06d", dataStreamName, DATE_FORMATTER.formatMillis(epochMillis),
-            generation);
+        return getDefaultBackingIndexName(dataStreamName, generation, epochMillis, Version.CURRENT);
     }
 
+    /**
+     * Generates the name of the index that conforms to the default naming convention for backing indices
+     * on data streams given the specified data stream name, generation, and time.
+     *
+     * @param dataStreamName    name of the data stream
+     * @param generation        generation of the data stream
+     * @param epochMillis       creation time for the backing index
+     * @param minNodeVersion    the minimum node version in the cluster, which controls whether legacy naming is used.
+     * @return backing index name
+     */
     public static String getDefaultBackingIndexName(String dataStreamName, long generation, long epochMillis, Version minNodeVersion) {
-        if (minNodeVersion.onOrAfter(NEW_FEATURES_VERSION)) {
+        if (minNodeVersion.onOrAfter(Version.V_8_0_0)) {
+            return String.format(Locale.ROOT,
+                BACKING_INDEX_PREFIX + "%s-%s-%06d-%s",
+                dataStreamName,
+                DATE_FORMATTER.formatMillis(epochMillis),
+                generation,
+                // Add a short user friendly snippet as suffix to backing index name.
+                // The snippet doesn't have to be unique, as the backing index name already has a time component and
+                // the backing index creation logic look will try again if it ends up in a pretty unique situation
+                // where the backing index it tries to create already happens to exist.
+                //
+                // Not using UUIDs.randomBase64UUID(...) creates very long strings, which would make backing index
+                // names very long and more difficult to read (at least more than it should be).
+                randomizedSnippet());
+        } else if (minNodeVersion.onOrAfter(NEW_FEATURES_VERSION)) {
             return String.format(Locale.ROOT,
                 BACKING_INDEX_PREFIX + "%s-%s-%06d",
                 dataStreamName,
@@ -394,5 +442,17 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         public int hashCode() {
             return Objects.hash(name);
         }
+    }
+
+    // Index names must be lowercase, so only randomly select characters from [0-9] and [a-z]:
+    private static final char[] SNIPPET_CHAR_POOL = "0123456789abcdefghijklmnopqrstuvwxyz".toCharArray();
+
+    private static String randomizedSnippet() {
+        var random = Randomness.get();
+        var snippetBuilder = new StringBuilder(6);
+        for (int i = 0; i < 6; i++) {
+            snippetBuilder.append(SNIPPET_CHAR_POOL[random.nextInt(SNIPPET_CHAR_POOL.length)]);
+        }
+        return snippetBuilder.toString();
     }
 }

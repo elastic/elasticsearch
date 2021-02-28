@@ -29,7 +29,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -46,6 +45,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.datastreams.DataStreamIT.getBackingIndexName;
+import static org.elasticsearch.cluster.DataStreamTestHelper.getBackingIndexPrefix;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -58,8 +59,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
-    private static final String DS_BACKING_INDEX_NAME = DataStream.getDefaultBackingIndexName("ds", 1);
-    private static final String DS2_BACKING_INDEX_NAME = DataStream.getDefaultBackingIndexName("ds2", 1);
+    private String DS_BACKING_INDEX_NAME;
+    private final String DS2_BACKING_INDEX_NAME = getBackingIndexPrefix("ds2", 1);
     private static final Map<String, Integer> DOCUMENT_SOURCE = Collections.singletonMap("@timestamp", 123);
     public static final String REPO = "repo";
     public static final String SNAPSHOT = "snap";
@@ -83,6 +84,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("ds");
         AcknowledgedResponse response = client.execute(CreateDataStreamAction.INSTANCE, request).get();
         assertTrue(response.isAcknowledged());
+        DS_BACKING_INDEX_NAME = getBackingIndexName("ds", 1);
 
         request = new CreateDataStreamAction.Request("other-ds");
         response = client.execute(CreateDataStreamAction.INSTANCE, request).get();
@@ -219,9 +221,9 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
-        assertEquals(DS2_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+        assertTrue(ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName().startsWith(DS2_BACKING_INDEX_NAME));
         assertEquals(DOCUMENT_SOURCE, client.prepareSearch("ds2").get().getHits().getHits()[0].getSourceAsMap());
-        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS2_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(getBackingIndexName("ds2", 1), id).get().getSourceAsMap());
     }
 
     public void testBackingIndexIsNotRenamedWhenRestoringDataStream() {
@@ -293,10 +295,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         // assert "ds" was restored as "test-ds" and the backing index has a valid name
         GetDataStreamAction.Request getRenamedDS = new GetDataStreamAction.Request(new String[] { "test-ds" });
         GetDataStreamAction.Response response = client.execute(GetDataStreamAction.INSTANCE, getRenamedDS).actionGet();
-        assertThat(
-            response.getDataStreams().get(0).getDataStream().getIndices().get(0).getName(),
-            is(DataStream.getDefaultBackingIndexName("test-ds", 1L))
-        );
+        assertThat(response.getDataStreams().get(0).getDataStream().getIndices().get(0).getName(), is(getBackingIndexName("test-ds", 1)));
 
         // data stream "ds" should still exist in the system
         GetDataStreamAction.Request getDSRequest = new GetDataStreamAction.Request(new String[] { "ds" });
@@ -333,7 +332,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
-        assertEquals(DS2_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+        assertTrue(ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName().startsWith(DS2_BACKING_INDEX_NAME));
         assertThat(
             "we renamed the restored data stream to one that doesn't match any existing composable template",
             ds.getDataStreams().get(0).getIndexTemplate(),
@@ -472,7 +471,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertThat(snapshotInfo.state(), equalTo((SnapshotState.SUCCESS)));
         assertThat(snapshotInfo.dataStreams(), contains(dataStream));
-        assertThat(snapshotInfo.indices(), contains(DataStream.getDefaultBackingIndexName(dataStream, 1)));
+        assertThat(snapshotInfo.indices(), contains(getBackingIndexName(dataStream, 1)));
     }
 
     public void testCloneSnapshotThatIncludesDataStream() throws Exception {

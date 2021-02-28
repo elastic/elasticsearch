@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.datastreams;
 
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -22,6 +21,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.datastreams.DataStreamIT.getBackingIndexName;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -59,7 +59,7 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
             .addIndices(index)
             .get()
             .getSettings()
-            .get(DataStream.getDefaultBackingIndexName(index, 1));
+            .get(getBackingIndexName(index, 1));
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
 
         logger.info("--> waiting for {} to be yellow", index);
@@ -67,13 +67,7 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
 
         // Roll over index and ensure the second index also went to the "hot" tier
         client().admin().indices().prepareRolloverIndex(index).get();
-        idxSettings = client().admin()
-            .indices()
-            .prepareGetIndex()
-            .addIndices(index)
-            .get()
-            .getSettings()
-            .get(DataStream.getDefaultBackingIndexName(index, 2));
+        idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(getBackingIndexName(index, 2));
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
 
         client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { index }));

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -149,20 +150,30 @@ public class MetadataCreateDataStreamService {
         ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, currentState.metadata());
 
         if (writeIndex == null) {
-            String firstBackingIndexName =
-                DataStream.getDefaultBackingIndexName(dataStreamName, 1, currentState.nodes().getMinNodeVersion());
-            CreateIndexClusterStateUpdateRequest createIndexRequest =
-                new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
-                    .dataStreamName(dataStreamName)
-                    .settings(Settings.builder().put("index.hidden", true).build());
-            try {
-                currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
-            } catch (ResourceAlreadyExistsException e) {
-                // Rethrow as ElasticsearchStatusException, so that bulk transport action doesn't ignore it during
-                // auto index/data stream creation.
-                // (otherwise bulk execution fails later, because data stream will also not have been created)
-                throw new ElasticsearchStatusException("data stream could not be created because backing index [{}] already exists",
-                    RestStatus.BAD_REQUEST, e, firstBackingIndexName);
+            Version minNodeVersion = currentState.nodes().getMinNodeVersion();
+            String firstBackingIndexName;
+            while (true) {
+                firstBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, minNodeVersion);
+                CreateIndexClusterStateUpdateRequest createIndexRequest =
+                    new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
+                        .dataStreamName(dataStreamName)
+                        .settings(Settings.builder().put("index.hidden", true).build());
+                try {
+                    currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
+                    break;
+                } catch (ResourceAlreadyExistsException e) {
+                    // continue the loop and generate a new first backing index name.
+                    // The chance that an new index name is generated that already exists is very low, but not impossible.
+
+                    // Keep old behaviour until all nodes have upgraded:
+                    if (minNodeVersion.before(Version.V_8_0_0)) {
+                        // Rethrow as ElasticsearchStatusException, so that bulk transport action doesn't ignore it during
+                        // auto index/data stream creation.
+                        // (otherwise bulk execution fails later, because data stream will also not have been created)
+                        throw new ElasticsearchStatusException("data stream could not be created because backing index [{}] already exists",
+                            RestStatus.BAD_REQUEST, e, firstBackingIndexName);
+                    }
+                }
             }
             writeIndex = currentState.metadata().index(firstBackingIndexName);
         }

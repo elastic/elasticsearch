@@ -66,7 +66,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -79,7 +78,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
-    public static final Pattern BACKING_INDEX_SUFFIX = Pattern.compile("(\\d{4}\\.\\d{2}\\.\\d{2}-)?[0-9]+$");
 
     public enum XContentContext {
         /* Custom metadata should be returns as part of API call */
@@ -1436,33 +1434,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         /**
-         * Validates there isn't any index with a name that could clash with the future backing indices of the existing data streams.
-         *
-         * E.g., if data stream `foo` has backing indices [`.ds-foo-yyyy.MM.dd-000001`, `.ds-foo-yyyy.MM.dd-000002`] and the indices lookup
-         * contains indices `.ds-foo-yyyy-MM.dd.000001`, `.ds-foo-yyyy.MM.dd-000002` and `.ds-foo-yyyy.MM.dd-000006` this will throw an
-         * IllegalStateException as attempting to rollover the `foo` data stream from generation 5 to 6 may not be possible
+         * Validates the {@link DataStreamMetadata} before the actual {@link Metadata} is built. Currently only validates
+         * that no aliases refer to backing indices.
          *
          * @param indicesLookup the indices in the system including the data stream backing indices
          * @param dsMetadata    the data streams in the system
          */
         static void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup, @Nullable DataStreamMetadata dsMetadata) {
             if (dsMetadata != null) {
-                for (DataStream ds : dsMetadata.dataStreams().values()) {
-                    String prefix = DataStream.BACKING_INDEX_PREFIX + ds.getName() + "-";
-                    Set<String> conflicts =
-                        indicesLookup.subMap(prefix, DataStream.BACKING_INDEX_PREFIX + ds.getName() + ".") // '.' is the char after '-'
-                            .keySet().stream()
-                            .filter(s -> BACKING_INDEX_SUFFIX.matcher(s.substring(prefix.length())).matches())
-                            .filter(s -> IndexMetadata.parseIndexNameCounter(s) > ds.getGeneration())
-                            .collect(Collectors.toSet());
-
-                    if (conflicts.size() > 0) {
-                        throw new IllegalStateException("data stream [" + ds.getName() +
-                            "] could create backing indices that conflict with " + conflicts.size() + " existing index(s) or alias(s)" +
-                            " including '" + conflicts.iterator().next() + "'");
-                    }
-                }
-
                 // Sanity check, because elsewhere a more user friendly error should have occurred:
                 List<String> conflictingAliases = indicesLookup.values().stream()
                     .filter(ia -> ia.getType() == IndexAbstraction.Type.ALIAS)

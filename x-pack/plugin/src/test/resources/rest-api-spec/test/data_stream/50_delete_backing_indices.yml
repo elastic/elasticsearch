@@ -102,11 +102,11 @@ setup:
   - do:
       catch: bad_request
       indices.delete:
-        index: .ds-simple-data-stream-*000002
+        index: .ds-simple-data-stream-*000002-*
 
   - do:
       indices.exists:
-        index: .ds-simple-data-stream-*000002
+        index: .ds-simple-data-stream-*000002-*
 
   - is_true: ''
 

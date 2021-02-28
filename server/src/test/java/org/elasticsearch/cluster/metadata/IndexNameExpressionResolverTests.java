@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
@@ -1915,8 +1916,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, dataStreamName);
             assertThat(result.length, equalTo(2));
-            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis)));
-            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis)));
+            assertThat(result[0].getName(), backingIndexEqualTo(dataStreamName, 1, epochMillis));
+            assertThat(result[1].getName(), backingIndexEqualTo(dataStreamName, 2, epochMillis));
         }
     }
 
@@ -1935,8 +1936,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-data-stream");
             assertThat(result.length, equalTo(2));
-            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis)));
-            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis)));
+            assertThat(result[0].getName(), backingIndexEqualTo(dataStreamName, 1, epochMillis));
+            assertThat(result[1].getName(), backingIndexEqualTo(dataStreamName, 2, epochMillis));
         }
         {
             // Ignore data streams
@@ -1963,7 +1964,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
             Index result = indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, true);
-            assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis)));
+            assertThat(result.getName(), backingIndexEqualTo(dataStreamName, 2, epochMillis));
         }
         {
             // Ignore data streams
@@ -2011,10 +2012,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "logs-*");
             Arrays.sort(result, Comparator.comparing(Index::getName));
             assertThat(result.length, equalTo(4));
-            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 1, epochMillis)));
-            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2, epochMillis)));
-            assertThat(result[2].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 1, epochMillis)));
-            assertThat(result[3].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 2, epochMillis)));;
+            assertThat(result[0].getName(), backingIndexEqualTo(dataStream1, 1, epochMillis));
+            assertThat(result[1].getName(), backingIndexEqualTo(dataStream1, 2, epochMillis));
+            assertThat(result[2].getName(), backingIndexEqualTo(dataStream2, 1, epochMillis));
+            assertThat(result[3].getName(), backingIndexEqualTo(dataStream2, 2, epochMillis));
         }
         {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
@@ -2022,18 +2023,18 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 randomFrom(new String[]{"*"}, new String[]{"_all"}, new String[0]));
             Arrays.sort(result, Comparator.comparing(Index::getName));
             assertThat(result.length, equalTo(4));
-            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 1, epochMillis)));
-            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2, epochMillis)));
-            assertThat(result[2].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 1, epochMillis)));
-            assertThat(result[3].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 2, epochMillis)));;
+            assertThat(result[0].getName(), backingIndexEqualTo(dataStream1, 1, epochMillis));
+            assertThat(result[1].getName(), backingIndexEqualTo(dataStream1, 2, epochMillis));
+            assertThat(result[2].getName(), backingIndexEqualTo(dataStream2, 1, epochMillis));
+            assertThat(result[3].getName(), backingIndexEqualTo(dataStream2, 2, epochMillis));
         }
         {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "logs-m*");
             Arrays.sort(result, Comparator.comparing(Index::getName));
             assertThat(result.length, equalTo(2));
-            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 1, epochMillis)));
-            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2, epochMillis)));
+            assertThat(result[0].getName(), backingIndexEqualTo(dataStream1, 1, epochMillis));
+            assertThat(result[1].getName(), backingIndexEqualTo(dataStream1, 2, epochMillis));
         }
         {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN; // without include data streams
@@ -2063,15 +2064,15 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "logs-*");
             Arrays.sort(result, Comparator.comparing(Index::getName));
             assertThat(result.length, equalTo(2));
-            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2, epochMillis)));
-            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 2, epochMillis)));
+            assertThat(result[0].getName(), backingIndexEqualTo(dataStream1, 2, epochMillis));
+            assertThat(result[1].getName(), backingIndexEqualTo(dataStream2, 2, epochMillis));
         }
         {
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "*");
             Arrays.sort(result, Comparator.comparing(Index::getName));
             assertThat(result.length, equalTo(2));
-            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2, epochMillis)));
-            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 2, epochMillis)));
+            assertThat(result[0].getName(), backingIndexEqualTo(dataStream1, 2, epochMillis));
+            assertThat(result[1].getName(), backingIndexEqualTo(dataStream2, 2, epochMillis));
         }
     }
 
@@ -2098,8 +2099,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "logs-*");
         Arrays.sort(result, Comparator.comparing(Index::getName));
         assertThat(result.length, equalTo(3));
-        assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 1, epochMillis)));
-        assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2, epochMillis)));
+        assertThat(result[0].getName(), backingIndexEqualTo(dataStream1, 1, epochMillis));
+        assertThat(result[1].getName(), backingIndexEqualTo(dataStream1, 2, epochMillis));
         assertThat(result[2].getName(), equalTo("logs-foobarbaz-0"));
     }
 

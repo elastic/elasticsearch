@@ -25,6 +25,7 @@ import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampFiel
 import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -48,9 +49,12 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
-        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
-        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
-            equalTo("true"));
+
+        DataStream dataStream = newState.metadata().dataStreams().get(dataStreamName);
+        assertThat(dataStream.getIndices(), hasSize(1));
+        IndexMetadata backingIndexMetadata = newState.metadata().index(dataStream.getIndices().get(0));
+        assertThat(backingIndexMetadata, notNullValue());
+        assertThat(backingIndexMetadata.getSettings().get("index.hidden"), equalTo("true"));
     }
 
     public void testCreateDuplicateDataStream() throws Exception {

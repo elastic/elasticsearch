@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -158,7 +160,8 @@ public class MetadataRolloverService {
         final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();
-        final DataStream rolledDataStream = ds.rollover("uuid", minNodeVersion);
+        String nextWriteIndexName = ds.nextWriteIndexName(minNodeVersion);
+        final DataStream rolledDataStream = ds.rollover(new Index(nextWriteIndexName, "uuid"), minNodeVersion);
         return new NameResolution(originalWriteIndex.getIndex().getName(), null, rolledDataStream.getWriteIndex().getName());
     }
 
@@ -216,16 +219,33 @@ public class MetadataRolloverService {
         final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();
-        DataStream rolledDataStream = ds.rollover("uuid", minNodeVersion);
-        createIndexService.validateIndexName(rolledDataStream.getWriteIndex().getName(), currentState); // fails if the index already exists
+
+        String nextWriteIndexName;
+        while (true){
+            nextWriteIndexName = ds.nextWriteIndexName(minNodeVersion);
+            try {
+                createIndexService.validateIndexName(nextWriteIndexName, currentState); // fails if the index already exists
+                break;
+            } catch (ResourceAlreadyExistsException e) {
+                // continue the loop and generate a new write index name.
+                // The chance that an new write index generated that already exists is very low, but not impossible.
+
+                // Keep old behaviour until all nodes have upgraded:
+                if (minNodeVersion.before(Version.V_8_0_0)) {
+                    throw e;
+                }
+            }
+        }
+
         if (onlyValidate) {
-            return new RolloverResult(rolledDataStream.getWriteIndex().getName(), originalWriteIndex.getIndex().getName(), currentState);
+            DataStream testRollover = ds.rollover(new Index(nextWriteIndexName, "uuid"), minNodeVersion);
+            return new RolloverResult(testRollover.getWriteIndex().getName(), originalWriteIndex.getIndex().getName(), currentState);
         }
 
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest =
-            prepareDataStreamCreateIndexRequest(dataStreamName, rolledDataStream.getWriteIndex().getName(), createIndexRequest);
+            prepareDataStreamCreateIndexRequest(dataStreamName, nextWriteIndexName, createIndexRequest);
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent,
-            (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndexUUID(), minNodeVersion)));
+            (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndex(), minNodeVersion)));
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
         newState = ClusterState.builder(newState)
@@ -234,7 +254,7 @@ public class MetadataRolloverService {
                     .putRolloverInfo(rolloverInfo)))
             .build();
 
-        return new RolloverResult(rolledDataStream.getWriteIndex().getName(), originalWriteIndex.getIndex().getName(), newState);
+        return new RolloverResult(nextWriteIndexName, originalWriteIndex.getIndex().getName(), newState);
     }
 
     static String generateRolloverIndexName(String sourceIndexName, IndexNameExpressionResolver indexNameExpressionResolver) {

@@ -71,6 +71,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -595,10 +596,10 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                     randomBoolean(), false);
             long after = testThreadPool.absoluteTimeInMillis();
 
-            String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
-            String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
-            assertEquals(sourceIndexName, rolloverResult.sourceIndexName);
-            assertEquals(newIndexName, rolloverResult.rolloverIndexName);
+            String sourceIndexName = dataStream.getWriteIndex().getName();
+            String newIndexName = rolloverResult.clusterState.metadata().dataStreams().get(dataStream.getName()).getWriteIndex().getName();
+            assertThat(rolloverResult.sourceIndexName, backingIndexEqualTo(dataStream.getName(), (int) dataStream.getGeneration()));
+            assertThat(rolloverResult.rolloverIndexName, backingIndexEqualTo(dataStream.getName(), (int) dataStream.getGeneration() + 1));
             Metadata rolloverMetadata = rolloverResult.clusterState.metadata();
             assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
@@ -705,8 +706,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         final String defaultRolloverIndexName;
         final boolean useDataStream = randomBoolean();
         final Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = null;
         if (useDataStream) {
-            DataStream dataStream = DataStreamTestHelper.randomInstance()
+            dataStream = DataStreamTestHelper.randomInstance()
                 // ensure no replicate data stream
                 .promoteDataStream();
             rolloverTarget = dataStream.getName();
@@ -745,7 +747,11 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         newIndexName = newIndexName == null ? defaultRolloverIndexName : newIndexName;
         assertEquals(sourceIndexName, rolloverResult.sourceIndexName);
-        assertEquals(newIndexName, rolloverResult.rolloverIndexName);
+        if (useDataStream) {
+            assertThat(rolloverResult.rolloverIndexName, backingIndexEqualTo(dataStream.getName(), (int) dataStream.getGeneration() + 1));
+        } else {
+            assertEquals(newIndexName, rolloverResult.rolloverIndexName);
+        }
         assertSame(rolloverResult.clusterState, clusterState);
 
         verify(createIndexService).validateIndexName(any(), same(clusterState));

@@ -320,18 +320,18 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
     public void testCloseCurrentWriteIndexForDataStream() {
         int numDataStreams = randomIntBetween(1, 3);
         List<Tuple<String, Integer>> dataStreamsToCreate = new ArrayList<>();
-        List<String> writeIndices = new ArrayList<>();
         for (int k = 0; k < numDataStreams; k++) {
             String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
             int numBackingIndices = randomIntBetween(1, 5);
             dataStreamsToCreate.add(new Tuple<>(dataStreamName, numBackingIndices));
-            writeIndices.add(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices));
         }
         ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dataStreamsToCreate, List.of());
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(cs);
 
+        List<String> writeIndices = new ArrayList<>();
+        cs.metadata().dataStreams().values().forEach(dataStream -> writeIndices.add(dataStream.getWriteIndex().getName()));
         List<String> indicesToDelete = randomSubsetOf(randomIntBetween(1, numDataStreams), writeIndices);
         Index[] indicesToDeleteArray = new Index[indicesToDelete.size()];
         for (int k = 0; k < indicesToDelete.size(); k++) {

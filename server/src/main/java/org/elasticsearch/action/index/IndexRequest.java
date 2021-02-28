@@ -683,7 +683,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                 sSource = "n/a, actual length: [" + new ByteSizeValue(source.length()).toString() + "], max length: " +
                     new ByteSizeValue(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
             } else {
-                sSource = XContentHelper.convertToJson(source, false);
+                sSource = XContentHelper.convertToJson(source, false, contentType);
             }
         } catch (Exception e) {
             // ignore

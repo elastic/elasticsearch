@@ -119,7 +119,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             "user1:" + usersPasswdHashed + "\n" +
             "user2:" + usersPasswdHashed + "\n" +
             "user3:" + usersPasswdHashed + "\n" +
-            "user4:" + usersPasswdHashed + "\n";
+            "user4:" + usersPasswdHashed + "\n" +
+            "user5:" + usersPasswdHashed + "\n";
     }
 
     @Override
@@ -128,7 +129,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 "role1:user1,user2,user3\n" +
                 "role2:user1,user3\n" +
                 "role3:user2,user3\n" +
-                "role4:user4\n";
+                "role4:user4\n" +
+                "role5:user5\n";
     }
 
     @Override
@@ -161,7 +163,17 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 "    - names: '*'\n" +
                 "      privileges: [ ALL ]\n" +
                 // query that can match nested documents
-                "      query: '{\"bool\": { \"must_not\": { \"term\" : {\"field1\" : \"value2\"}}}}'";
+                "      query: '{\"bool\": { \"must_not\": { \"term\" : {\"field1\" : \"value2\"}}}}'\n" +
+                "role5:\n" +
+                "  cluster: [ all ]\n" +
+                "  indices:\n" +
+                "    - names: [ 'test' ]\n" +
+                "      privileges: [ read ]\n" +
+                "      query: '{\"term\" : {\"field2\" : \"value2\"}}'\n" +
+                "    - names: [ 'fls-index' ]\n" +
+                "      privileges: [ read ]\n" +
+                "      field_security:\n" +
+                "         grant: [ 'field1', 'other_field', 'suggest_field2' ]\n";
     }
 
     @Override
@@ -1265,6 +1277,15 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                         .endObject()).get();
         refresh("test");
 
+        assertAcked(client().admin().indices().prepareCreate("fls-index")
+            .setSettings(Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)
+            )
+            .setMapping("field1", "type=text", "suggest_field1", "type=text", "suggest_field2", "type=completion",
+                "yet_another", "type=text")
+        );
+
         // Term suggester:
         SearchResponse response = client()
                 .prepareSearch("test")
@@ -1280,9 +1301,12 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(termSuggestion.getEntries().get(0).getOptions().size(), equalTo(1));
         assertThat(termSuggestion.getEntries().get(0).getOptions().get(0).getText().string(), equalTo("value"));
 
+        final String[] indices =
+            randomFrom(List.of(new String[] { "test" }, new String[] { "fls-index", "test" }, new String[] { "test", "fls-index" }));
+
         Exception e = expectThrows(ElasticsearchSecurityException.class, () -> client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .prepareSearch("test")
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
+                .prepareSearch(indices)
                 .suggest(new SuggestBuilder()
                         .setGlobalText("valeu")
                         .addSuggestion("_name1", new TermSuggestionBuilder("suggest_field1"))
@@ -1305,8 +1329,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(phraseSuggestion.getEntries().get(0).getOptions().get(0).getText().string(), equalTo("value"));
 
         e = expectThrows(ElasticsearchSecurityException.class, () -> client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .prepareSearch("test")
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
+                .prepareSearch(indices)
                 .suggest(new SuggestBuilder()
                         .setGlobalText("valeu")
                         .addSuggestion("_name1", new PhraseSuggestionBuilder("suggest_field1"))
@@ -1329,8 +1353,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(completionSuggestion.getEntries().get(0).getOptions().get(0).getText().string(), equalTo("value"));
 
         e = expectThrows(ElasticsearchSecurityException.class, () -> client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .prepareSearch("test")
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
+                .prepareSearch(indices)
                 .suggest(new SuggestBuilder()
                         .setGlobalText("valeu")
                         .addSuggestion("_name1", new CompletionSuggestionBuilder("suggest_field2"))
@@ -1360,6 +1384,14 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                         .endObject()).get();
         refresh("test");
 
+        assertAcked(client().admin().indices().prepareCreate("fls-index")
+            .setSettings(Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)
+            )
+            .setMapping("field1", "type=text", "other_field", "type=text", "yet_another", "type=text")
+        );
+
         SearchResponse response = client()
                 .prepareSearch("test")
                 .setProfile(true)
@@ -1376,9 +1408,11 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 //        ProfileResult profileResult = queryProfileShardResult.getQueryResults().get(0);
 //        assertThat(profileResult.getLuceneDescription(), equalTo("(other_field:value)^0.8"));
 
+        final String[] indices =
+            randomFrom(List.of(new String[] { "test" }, new String[] { "fls-index", "test" }, new String[] { "test", "fls-index" }));
         Exception e = expectThrows(ElasticsearchSecurityException.class, () -> client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .prepareSearch("test")
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
+                .prepareSearch(indices)
                 .setProfile(true)
                 .setQuery(new FuzzyQueryBuilder("other_field", "valeu"))
                 .get());

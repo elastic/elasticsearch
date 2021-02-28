@@ -8,7 +8,6 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.elasticsearch.common.CheckedFunction;
@@ -37,6 +36,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.filter.QueryToFilterAdapter;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange.Factory;
@@ -345,7 +345,6 @@ public abstract class RangeAggregator extends BucketsAggregator {
         if (averageDocsPerRange < DOCS_PER_RANGE_TO_USE_FILTERS) {
             return null;
         }
-        // TODO bail here for runtime fields. We should check the cost estimates on the Scorer.
         if (valuesSourceConfig.fieldType() instanceof DateFieldType
             && ((DateFieldType) valuesSourceConfig.fieldType()).resolution() == Resolution.NANOSECONDS) {
             // We don't generate sensible Queries for nanoseconds.
@@ -355,8 +354,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             return null;
         }
         boolean wholeNumbersOnly = false == ((ValuesSource.Numeric) valuesSourceConfig.getValuesSource()).isFloatingPoint();
-        String[] keys = new String[ranges.length];
-        Query[] filters = new Query[ranges.length];
+        List<QueryToFilterAdapter<?>> filters = new ArrayList<>(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
             /*
              * If the bounds on the ranges are too high then the `double`s
@@ -371,7 +369,6 @@ public abstract class RangeAggregator extends BucketsAggregator {
             if (wholeNumbersOnly && ranges[i].to != Double.POSITIVE_INFINITY && Math.abs(ranges[i].to) > MAX_ACCURATE_BOUND) {
                 return null;
             }
-            keys[i] = Integer.toString(i);
             /*
              * Use the native format on the field rather than the one provided
              * on the valuesSourceConfig because the format on the field is what
@@ -383,7 +380,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             RangeQueryBuilder builder = new RangeQueryBuilder(valuesSourceConfig.fieldType().name());
             builder.from(ranges[i].from == Double.NEGATIVE_INFINITY ? null : format.format(ranges[i].from)).includeLower(true);
             builder.to(ranges[i].to == Double.POSITIVE_INFINITY ? null : format.format(ranges[i].to)).includeUpper(false);
-            filters[i] = context.buildQuery(builder);
+            filters.add(QueryToFilterAdapter.build(context.searcher(), Integer.toString(i), context.buildQuery(builder)));
         }
         RangeAggregator.FromFilters<?> fromFilters = new RangeAggregator.FromFilters<>(
             parent,
@@ -392,7 +389,6 @@ public abstract class RangeAggregator extends BucketsAggregator {
                 return FiltersAggregator.buildFilterByFilter(
                     name,
                     subAggregators,
-                    keys,
                     filters,
                     false,
                     null,

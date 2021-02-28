@@ -286,19 +286,27 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    public void testManyUniqueTerms() throws Exception {
+    public void testManyTerms() throws Exception {
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", randomBoolean(), true, null);
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
             .executionHint(randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString())
             .field("string");
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            /*
+             * index all of the fields into a single segment so our
+             * test gets accurate counts. We *could* set the shard size
+             * very very high but we want to test the branch of the
+             * aggregation building code that picks the top sorted aggs.
+             */
+            List<List<? extends IndexableField>> docs = new ArrayList<>();
             for (int i = 0; i < TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 200; i++) {
                 String s = String.format(Locale.ROOT, "b%03d", i);
-                iw.addDocument(doc(fieldType, s));
+                docs.add(doc(fieldType, s));
                 if (i % 100 == 7) {
-                    iw.addDocument(doc(fieldType, s));
+                    docs.add(doc(fieldType, s));
                 }
             }
+            iw.addDocuments(docs);
         }, (StringTerms result) -> {
             assertThat(result.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
                 equalTo(List.of("b007", "b107", "b207", "b307", "b407", "b507", "b607", "b707", "b000", "b001")));

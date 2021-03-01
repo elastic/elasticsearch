@@ -516,9 +516,20 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             };
         }
 
+        final StringBuilder taskDescriptions = new StringBuilder();
         for (TestNode testNode : testNodes) {
-            assertEquals(0, testNode.transportService.getTaskManager().getTasks().size());
+            final Map<Long, Task> tasks = testNode.transportService.getTaskManager().getTasks();
+            if (tasks.isEmpty() == false) {
+                taskDescriptions.append("still running tasks on node [").append(testNode.getNodeId()).append("]\n");
+                for (Map.Entry<Long, Task> entry : tasks.entrySet()) {
+                    final Task task = entry.getValue();
+                    taskDescriptions.append(entry.getKey()).append(": [").append(task.getId()).append("][").append(task.getAction())
+                            .append("] started at ").append(task.getStartTime()).append('\n');
+                }
+            }
         }
+        assertTrue(taskDescriptions.toString(), taskDescriptions.isEmpty());
+
         NodesRequest request = new NodesRequest("Test Request");
         NodesResponse responses = ActionTestUtils.executeBlocking(actions[0], request);
         assertEquals(nodesCount, responses.failureCount());

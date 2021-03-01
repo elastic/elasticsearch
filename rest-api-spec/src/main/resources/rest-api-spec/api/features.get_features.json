@@ -1,5 +1,5 @@
 {
-  "features.get":{
+  "features.get_features":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
       "description":"Returns a list of features which can be snapshotted in this cluster."

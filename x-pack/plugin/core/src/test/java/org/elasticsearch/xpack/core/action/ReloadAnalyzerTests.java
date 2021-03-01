@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.action;
 
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.Response;
 import org.elasticsearch.action.search.SearchResponse;
@@ -29,13 +30,14 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
+public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -44,7 +46,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
 
     public void testSynonymsUpdateable() throws IOException {
         String synonymsFileName = "synonyms.txt";
-        Path synonymsFile = setupSynonymsFile(synonymsFileName, "foo, baz");
+        Path synonymsFile = setupResourceFile(synonymsFileName, "foo, baz");
 
         final String indexName = "test";
         final String synonymAnalyzerName = "synonym_analyzer";
@@ -117,7 +119,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
 
     public void testSynonymsInMultiplexerUpdateable() throws FileNotFoundException, IOException {
         String synonymsFileName = "synonyms.txt";
-        Path synonymsFile = setupSynonymsFile(synonymsFileName, "foo, baz");
+        Path synonymsFile = setupResourceFile(synonymsFileName, "foo, baz");
 
         final String indexName = "test";
         final String synonymAnalyzerName = "synonym_in_multiplexer_analyzer";
@@ -177,7 +179,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
 
     public void testUpdateableSynonymsRejectedAtIndexTime() throws FileNotFoundException, IOException {
         String synonymsFileName = "synonyms.txt";
-        setupSynonymsFile(synonymsFileName, "foo, baz");
+        setupResourceFile(synonymsFileName, "foo, baz");
         Path configDir = node().getEnvironment().configFile();
         if (Files.exists(configDir) == false) {
             Files.createDirectory(configDir);
@@ -226,20 +228,68 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
                 + "contains filters [my_multiplexer] that are not allowed to run in index time mode.", ex.getMessage());
     }
 
-    private Path setupSynonymsFile(String synonymsFileName, String content) throws IOException {
+    public void testKeywordMarkerUpdateable() throws IOException {
+        String fileName = "example_word_list.txt";
+        Path file = setupResourceFile(fileName, "running");
+
+        final String indexName = "test";
+        final String analyzerName = "keyword_maker_analyzer";
+        assertAcked(client().admin().indices().prepareCreate(indexName)
+                .setSettings(Settings.builder()
+                        .put("index.number_of_shards", 5)
+                        .put("index.number_of_replicas", 0)
+                        .put("analysis.analyzer." + analyzerName + ".tokenizer", "whitespace")
+                        .putList("analysis.analyzer." + analyzerName + ".filter", "keyword_marker_filter", "stemmer")
+                        .put("analysis.filter.keyword_marker_filter.type", "keyword_marker")
+                        .put("analysis.filter.keyword_marker_filter.updateable", "true")
+                        .put("analysis.filter.keyword_marker_filter.keywords_path", fileName))
+                .setMapping("field", "type=text,analyzer=standard,search_analyzer=" + analyzerName));
+
+        AnalyzeAction.Response analysisResponse = client().admin()
+            .indices()
+            .prepareAnalyze("test", "running jumping")
+            .setAnalyzer(analyzerName)
+            .get();
+        List<AnalyzeToken> tokens = analysisResponse.getTokens();
+        assertEquals("running", tokens.get(0).getTerm());
+        assertEquals("jump", tokens.get(1).getTerm());
+
+        // now update keyword marker file and trigger reloading
+        try (PrintWriter out = new PrintWriter(
+                new OutputStreamWriter(Files.newOutputStream(file, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
+            out.println("running");
+            out.println("jumping");
+        }
+
+        ReloadAnalyzersResponse reloadResponse = client().execute(ReloadAnalyzerAction.INSTANCE, new ReloadAnalyzersRequest(indexName))
+                .actionGet();
+        assertNoFailures(reloadResponse);
+        Set<String> reloadedAnalyzers = reloadResponse.getReloadDetails().get(indexName).getReloadedAnalyzers();
+        assertEquals(1, reloadedAnalyzers.size());
+        assertTrue(reloadedAnalyzers.contains(analyzerName));
+
+        analysisResponse = client().admin().indices().prepareAnalyze("test", "running jumping").setAnalyzer(analyzerName).get();
+        tokens = analysisResponse.getTokens();
+        assertEquals("running", tokens.get(0).getTerm());
+        assertEquals("jumping", tokens.get(1).getTerm());
+    }
+
+    private Path setupResourceFile(String fileName, String... content) throws IOException {
         Path configDir = node().getEnvironment().configFile();
         if (Files.exists(configDir) == false) {
             Files.createDirectory(configDir);
         }
-        Path synonymsFile = configDir.resolve(synonymsFileName);
-        if (Files.exists(synonymsFile) == false) {
-            Files.createFile(synonymsFile);
+        Path file = configDir.resolve(fileName);
+        if (Files.exists(file) == false) {
+            Files.createFile(file);
         }
         try (PrintWriter out = new PrintWriter(
-                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
-            out.println(content);
+                new OutputStreamWriter(Files.newOutputStream(file, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
+            for (String item : content) {
+                out.println(item);
+            }
         }
-        return synonymsFile;
+        return file;
     }
 
 }

@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.CheckedFunction;
@@ -24,6 +23,7 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.elasticsearch.search.aggregations.bucket.filter.QueryToFilterAdapter;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator.OrdBucket;
@@ -71,15 +71,13 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         if (false == FiltersAggregator.canUseFilterByFilter(parent, factories, null)) {
             return null;
         }
-        List<String> keys = new ArrayList<>();
-        List<Query> filters = new ArrayList<>();
+        List<QueryToFilterAdapter<?>> filters = new ArrayList<>();
         TermsEnum terms = values.termsEnum();
         for (long ord = 0; ord < values.getValueCount(); ord++) {
             if (acceptedOrds.test(ord) == false) {
                 continue;
             }
             terms.seekExact(ord);
-            keys.add(Long.toString(ord));
             /*
              * It *feels* like there should be a query that operates
              * directly on the global ordinals but there isn't. Building
@@ -92,7 +90,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
                 valuesSourceConfig.fieldContext().field(),
                 valuesSourceConfig.format().format(terms.term())
             );
-            filters.add(context.buildQuery(b));
+            filters.add(QueryToFilterAdapter.build(context.searcher(), Long.toString(ord), context.buildQuery(b)));
         }
         StringTermsAggregatorFromFilters adapted = new StringTermsAggregatorFromFilters(
             parent,
@@ -100,8 +98,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
             subAggs -> FiltersAggregator.buildFilterByFilter(
                 name,
                 subAggs,
-                keys.toArray(String[]::new),
-                filters.toArray(Query[]::new),
+                filters,
                 false,
                 null,
                 context,

@@ -116,10 +116,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * with {@code replacedMethod} and {@code replacedPath}. Expected usage:
      * <pre><code>
      * // remove deprecation in next major release
-     * controller.registerWithDeprecatedHandler(POST, "/_forcemerge", this,
-     *                                          POST, "/_optimize", deprecationLogger);
-     * controller.registerWithDeprecatedHandler(POST, "/{index}/_forcemerge", this,
-     *                                          POST, "/{index}/_optimize", deprecationLogger);
+     * controller.registerAsDeprecatedHandler(POST, "/_forcemerge", this,
+     *                                        POST, "/_optimize", deprecationLogger);
+     * controller.registerAsDeprecatedHandler(POST, "/{index}/_forcemerge", this,
+     *                                        POST, "/{index}/_optimize", deprecationLogger);
      * </code></pre>
      * <p>
      * The registered REST handler ({@code method} with {@code path}) is a normal REST handler that is not deprecated and it is

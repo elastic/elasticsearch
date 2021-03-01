@@ -33,6 +33,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -1103,15 +1104,26 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Permits subclasses to increase the default timeout when waiting for green health
+     */
+    @Nullable
+    protected String getEnsureGreenTimeout() {
+        return null;
+    }
+
+    /**
      * checks that the specific index is green. we force a selection of an index as the tests share a cluster and often leave indices
      * in an non green state
      * @param index index to test for
      **/
-    public static void ensureGreen(String index) throws IOException {
+    public final void ensureGreen(String index) throws IOException {
         ensureHealth(index, (request) -> {
             request.addParameter("wait_for_status", "green");
             request.addParameter("wait_for_no_relocating_shards", "true");
-            request.addParameter("timeout", "70s");
+            final String ensureGreenTimeout = getEnsureGreenTimeout();
+            if (ensureGreenTimeout != null) {
+                request.addParameter("timeout", ensureGreenTimeout);
+            }
             request.addParameter("level", "shards");
         });
     }
@@ -1120,7 +1132,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         ensureHealth("", requestConsumer);
     }
 
-    protected static void ensureHealth(String index, Consumer<Request> requestConsumer) throws IOException {
+    public static void ensureHealth(String index, Consumer<Request> requestConsumer) throws IOException {
         ensureHealth(client(), index, requestConsumer);
     }
 

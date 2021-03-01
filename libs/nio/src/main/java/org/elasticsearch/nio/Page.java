@@ -9,6 +9,7 @@
 package org.elasticsearch.nio;
 
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 
 import java.nio.ByteBuffer;
@@ -70,12 +71,7 @@ public class Page implements Releasable {
 
         @Override
         protected void closeInternal() {
-            try {
-                closeable.close();
-            } catch (RuntimeException e) {
-                assert false : e;
-                throw e;
-            }
+            Releasables.close(closeable);
         }
     }
 }

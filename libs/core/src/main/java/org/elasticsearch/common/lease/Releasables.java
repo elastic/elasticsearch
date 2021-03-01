@@ -60,6 +60,16 @@ public enum Releasables {
         }
     }
 
+    /** Release the provided {@link Releasable} expecting no exception to by thrown. */
+    public static void closeExpectNoException(Releasable releasable) {
+        try {
+            close(releasable);
+        } catch (RuntimeException e) {
+            assert false : e;
+            throw e;
+        }
+    }
+
     /** Release the provided {@link Releasable}s, ignoring exceptions. */
     public static void closeWhileHandlingException(Releasable... releasables) {
         close(Arrays.asList(releasables), true);

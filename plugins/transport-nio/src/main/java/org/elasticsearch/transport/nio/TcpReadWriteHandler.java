@@ -12,9 +12,9 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.Page;
@@ -23,7 +23,6 @@ import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.function.Supplier;
 
@@ -48,7 +47,7 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
         for (int i = 0; i < pages.length; ++i) {
             references[i] = BytesReference.fromByteBuffer(pages[i].byteBuffer());
         }
-        Closeable releasable = pages.length == 1 ? pages[0] : () -> IOUtils.close(pages);
+        Releasable releasable = pages.length == 1 ? pages[0] : () -> Releasables.close(pages);
         try (ReleasableBytesReference reference = new ReleasableBytesReference(CompositeBytesReference.of(references), releasable)) {
             pipeline.handleBytes(channel, reference);
             return reference.length();

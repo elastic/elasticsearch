@@ -10,14 +10,12 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 
@@ -31,7 +29,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     private final BytesReference delegate;
     private final AbstractRefCounted refCounted;
 
-    public ReleasableBytesReference(BytesReference delegate, Closeable releasable) {
+    public ReleasableBytesReference(BytesReference delegate, Releasable releasable) {
         this(delegate, new RefCountedReleasable(releasable));
     }
 
@@ -184,21 +182,16 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     private static final class RefCountedReleasable extends AbstractRefCounted {
 
-        private final Closeable releasable;
+        private final Releasable releasable;
 
-        RefCountedReleasable(Closeable releasable) {
+        RefCountedReleasable(Releasable releasable) {
             super("bytes-reference");
             this.releasable = releasable;
         }
 
         @Override
         protected void closeInternal() {
-            try {
-                releasable.close();
-            } catch (Exception e) {
-                assert false : e;
-                throw new ElasticsearchException(e);
-            }
+            releasable.close();
         }
     }
 }

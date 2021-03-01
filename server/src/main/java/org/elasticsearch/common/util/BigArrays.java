@@ -453,7 +453,7 @@ public class BigArrays {
             if (success == false) {
                 try {
                     array.close();
-                } catch (RuntimeException e) {
+                } catch (Exception e) {
                     assert false : e;
                 }
             }

@@ -8,12 +8,12 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 
-import java.io.Closeable;
 import java.nio.ByteBuffer;
 
-public class Page implements Closeable {
+public class Page implements Releasable {
 
     private final ByteBuffer byteBuffer;
     // This is reference counted as some implementations want to retain the byte pages by calling
@@ -22,7 +22,7 @@ public class Page implements Closeable {
     // released.
     private final RefCountedCloseable refCountedCloseable;
 
-    public Page(ByteBuffer byteBuffer, Closeable closeable) {
+    public Page(ByteBuffer byteBuffer, Releasable closeable) {
         this(byteBuffer, new RefCountedCloseable(closeable));
     }
 
@@ -61,9 +61,9 @@ public class Page implements Closeable {
 
     private static class RefCountedCloseable extends AbstractRefCounted {
 
-        private final Closeable closeable;
+        private final Releasable closeable;
 
-        private RefCountedCloseable(Closeable closeable) {
+        private RefCountedCloseable(Releasable closeable) {
             super("byte array page");
             this.closeable = closeable;
         }

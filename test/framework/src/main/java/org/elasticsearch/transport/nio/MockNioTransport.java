@@ -21,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.BytesWriteHandler;
@@ -51,7 +51,6 @@ import org.elasticsearch.transport.TcpServerChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
@@ -260,11 +259,11 @@ public class MockNioTransport extends TcpTransport {
     }
 
     private static final class LeakAwareRefCounted extends AbstractRefCounted {
-        private final LeakTracker.Leak<Closeable> leak;
+        private final LeakTracker.Leak<Releasable> leak;
 
-        private final Closeable releasable;
+        private final Releasable releasable;
 
-        LeakAwareRefCounted(Closeable releasable) {
+        LeakAwareRefCounted(Releasable releasable) {
             super("leak-aware-ref-counted");
             this.releasable = releasable;
             leak = LeakTracker.INSTANCE.track(releasable);
@@ -310,7 +309,7 @@ public class MockNioTransport extends TcpTransport {
             for (int i = 0; i < pages.length; ++i) {
                 references[i] = BytesReference.fromByteBuffer(pages[i].byteBuffer());
             }
-            Closeable releasable = pages.length == 1 ? pages[0] : () -> IOUtils.close(pages);
+            Releasable releasable = pages.length == 1 ? pages[0] : () -> Releasables.close(pages);
             try (ReleasableBytesReference reference =
                          new ReleasableBytesReference(CompositeBytesReference.of(references), new LeakAwareRefCounted(releasable))) {
                 pipeline.handleBytes(channel, reference);

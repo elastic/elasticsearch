@@ -142,6 +142,31 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(field.getValues(), containsInAnyOrder("value", "value2"));
     }
 
+    public void testNullValues() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startObject("object").field("field", "value").endObject()
+            .nullField("object.field")
+            .endObject();
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "*");
+        assertThat(fields.size(), equalTo(1));
+
+        DocumentField field = fields.get("object.field");
+        assertThat(field.getValues().size(), equalTo(1));
+        assertThat(field.getValues(), containsInAnyOrder("value"));
+
+        source = XContentFactory.jsonBuilder().startObject()
+            .array("nullable_long_field", 1, 2, 3, null, 5)
+            .endObject();
+        fields = fetchFields(mapperService, source, "*");
+        assertThat(fields.size(), equalTo(1));
+
+        field = fields.get("nullable_long_field");
+        assertThat(field.getValues().size(), equalTo(5));
+        assertThat(field.getValues(), containsInAnyOrder(1L, 2L, 3L, 5L, 42L));
+    }
+
     public void testNonExistentField() throws IOException {
         MapperService mapperService = createMapperService();
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
@@ -852,6 +877,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                 .startObject("date_field").field("type", "date").endObject()
                 .startObject("geo_point").field("type", "geo_point").endObject()
                 .startObject("float_range").field("type", "float_range").endObject()
+                .startObject("nullable_long_field").field("type", "long").field("null_value", 42).endObject()
                 .startObject("object")
                     .startObject("properties")
                         .startObject("field").field("type", "keyword").endObject()

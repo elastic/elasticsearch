@@ -24,7 +24,6 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -221,12 +220,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             preSnapshotDataStream.isReplicated()
         );
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> postSnapshotDataStream.snapshot(
-                preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList())
-            )
-        );
-        assertThat(e.getMessage(), containsString("cannot reconcile data stream without at least one backing index"));
+        assertNull(postSnapshotDataStream.snapshot(
+                preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList())));
     }
 }

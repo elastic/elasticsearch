@@ -1,0 +1,62 @@
+[role="xpack"]
+[testenv="platinum"]
+[[delete-trained-models-aliases]]
+= Delete Trained Model Aliases API
+[subs="attributes"]
+++++
+<titleabbrev>Delete Trained Model Aliases</titleabbrev>
+++++
+
+Deletes a trained model alias.
+
+beta::[]
+
+[[ml-delete-trained-models-aliases-request]]
+== {api-request-title}
+
+`DELETE _ml/trained_models/<model_id>/model_aliases/<model_alias>`
+
+
+[[ml-delete-trained-models-aliases-prereq]]
+== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following
+built-in roles and privileges:
+
+* `machine_learning_admin`
+
+For more information, see <<built-in-roles>>, <<security-privileges>>, and
+{ml-docs-setup-privileges}.
+
+[[ml-delete-trained-models-aliases-desc]]
+== {api-description-title}
+
+This API deletes an existing model alias that refers to a trained model.
+
+If the model alias is missing or refers to a model other than the one identified by
+the `model_id`, this API will return an error.
+
+[[ml-delete-trained-models-aliases-path-params]]
+== {api-path-parms-title}
+
+`model_id`::
+(Required, string)
+The trained model ID to which the model alias refers.
+
+`model_alias`::
+(Required, string)
+The model alias to delete.
+
+[[ml-delete-trained-models-aliases-example]]
+== {api-examples-title}
+
+[[ml-delete-trained-models-aliases-example-delete]]
+=== Deleting a model alias
+
+The following example shows how to delete a model alias for a trained model ID.
+
+[source,console]
+--------------------------------------------------
+DELETE _ml/trained_models/flight-delay-prediction-1574775339910/model_aliases/flight_delay_model
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]

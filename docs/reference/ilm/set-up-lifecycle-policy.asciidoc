@@ -27,11 +27,11 @@ bootstrap an initial index.
 [[ilm-create-policy]]
 === Create lifecycle policy
 
-To create lifecycle policies through {kib} Management
-go to Management and click **Index Lifecycle Policies**.
+To create a lifecycle policy from {kib}, open the menu and go to *Stack
+Management > Index Lifecycle Policies*. Click *Create policy*.
 
 [role="screenshot"]
-image:images/ilm/create-policy.png[]
+image:images/ilm/create-policy.png[Create policy page]
 
 You specify the lifecycle phases for the policy and the actions to perform in each phase.
 

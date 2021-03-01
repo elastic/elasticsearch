@@ -979,9 +979,32 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         awaitNoMoreRunningOperations();
         SnapshotInfo snapshotInfo = getSnapshot(repoName, "test-snap");
-        assertThat(snapshotInfo.state(), equalTo(SnapshotState.PARTIAL));
-        assertThat(snapshotInfo.shardFailures().size(), greaterThan(0));
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         logger.info("--> done");
+    }
+
+    public void testPartialSnapshotsDoNotRecordDeletedShardFailures() throws Exception {
+        internalCluster().startMasterOnlyNodes(1);
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+
+        final String firstIndex = "index-one";
+        createIndexWithContent(firstIndex);
+        final String secondIndex = "index-two";
+        createIndexWithContent(secondIndex);
+
+        final String snapshot = "snapshot-one";
+        blockDataNode(repoName, dataNode);
+        final ActionFuture<CreateSnapshotResponse> snapshotResponse = startFullSnapshot(repoName, snapshot, true);
+        waitForBlock(dataNode, repoName);
+
+        assertAcked(client().admin().indices().prepareDelete(firstIndex));
+
+        unblockNode(repoName, dataNode);
+
+        SnapshotInfo snapshotInfo = assertSuccessful(snapshotResponse);
+        assertThat(snapshotInfo.shardFailures(), empty());
     }
 
     public void testGetReposWithWildcard() {

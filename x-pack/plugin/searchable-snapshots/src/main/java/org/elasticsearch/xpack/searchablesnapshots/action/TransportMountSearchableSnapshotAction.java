@@ -160,6 +160,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         // Retrieve IndexId and SnapshotId instances, which are then used to create a new restore
         // request, which is then sent on to the actual snapshot restore mechanism
         final Repository repository = repositoriesService.repository(repoName);
+        SearchableSnapshots.getSearchableRepository(repository); // just check it's valid
+
         final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
         repository.getRepositoryData(repositoryDataListener);
         repositoryDataListener.whenComplete(repoData -> {

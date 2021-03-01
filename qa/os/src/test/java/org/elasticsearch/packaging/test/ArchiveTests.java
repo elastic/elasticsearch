@@ -147,7 +147,8 @@ public class ArchiveTests extends PackagingTestCase {
         assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(systemJavaHome1));
     }
 
-    public void test51JavaHomeOverride() throws Exception {
+    public void test51JavaHomeIgnored() throws Exception {
+        assumeTrue(distribution().hasJdk);
         Platforms.onLinux(() -> {
             String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
             sh.getEnv().put("JAVA_HOME", systemJavaHome1);
@@ -163,40 +164,15 @@ public class ArchiveTests extends PackagingTestCase {
 
         final Installation.Executables bin = installation.executables();
         final Result runResult = sh.run(bin.elasticsearch.toString() + " -V");
-        assertThat(runResult.stderr, containsString("warning: usage of JAVA_HOME is deprecated, use ES_JAVA_HOME"));
+        assertThat(runResult.stderr, containsString("warning: ignoring JAVA_HOME=" + systemJavaHome + "; using bundled JDK"));
 
         startElasticsearch();
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
 
-        String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
-        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(systemJavaHome1));
-    }
-
-    public void test51EsJavaHomeOverrideOverridesJavaHome() throws Exception {
-        Platforms.onLinux(() -> {
-            String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
-            sh.getEnv().put("ES_JAVA_HOME", systemJavaHome1);
-            // deliberately set to a location that does not exist, if ES_JAVA_HOME takes precedence this is ignored
-            sh.getEnv().put("JAVA_HOME", "doesnotexist");
-        });
-        Platforms.onWindows(() -> {
-            final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
-            sh.getEnv().put("ES_JAVA_HOME", systemJavaHome1);
-            // deliberately set to a location that does not exist, if ES_JAVA_HOME takes precedence this is ignored
-            sh.getEnv().put("JAVA_HOME", "doesnotexist");
-        });
-
-        final Installation.Executables bin = installation.executables();
-        final Result runResult = sh.run(bin.elasticsearch.toString() + " -V");
-        assertThat(runResult.stderr, not(containsString("warning: usage of JAVA_HOME is deprecated, use ES_JAVA_HOME")));
-
-        startElasticsearch();
-        ServerUtils.runElasticsearchTests();
-        stopElasticsearch();
-
-        String systemJavaHome1 = sh.getEnv().get("ES_JAVA_HOME");
-        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(systemJavaHome1));
+        // if the JDK started with the bundled JDK then we know that JAVA_HOME was ignored
+        String bundledJdk = installation.bundledJdk.toString();
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(bundledJdk));
     }
 
     public void test52BundledJdkRemoved() throws Exception {

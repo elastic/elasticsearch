@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.SortedSetDocValues;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -286,7 +287,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               CardinalityUpperBound cardinality,
                               Map<String, Object> metadata) throws IOException {
 
-                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 boolean remapGlobalOrd = true;
                 if (cardinality == CardinalityUpperBound.ONE && factories == AggregatorFactories.EMPTY && includeExclude == null) {
                     /*
@@ -298,15 +298,18 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     remapGlobalOrd = false;
                 }
 
+                ValuesSource.Bytes.WithOrdinals.FieldData ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource;
+                SortedSetDocValues values = TermsAggregatorFactory.globalOrdsValues(context, ordinalsValuesSource); 
                 return new GlobalOrdinalsStringTermsAggregator(
                     name,
                     factories,
                     a -> a.new SignificantTermsResults(lookup, significanceHeuristic, cardinality),
-                    (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource,
+                    ordinalsValuesSource,
+                    values,
                     null,
                     format,
                     bucketCountThresholds,
-                    filter,
+                    TermsAggregatorFactory.gloabalOrdsFilter(includeExclude, format, values),
                     context,
                     parent,
                     remapGlobalOrd,

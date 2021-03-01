@@ -16,8 +16,6 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -91,8 +89,7 @@ public final class TransportFreezeIndexAction extends
     }
 
     @Override
-    protected void masterOperation(Task task, FreezeRequest request, ClusterState state,
-                                   ActionListener<FreezeResponse> listener) throws Exception {
+    protected void masterOperation(Task task, FreezeRequest request, ClusterState state, ActionListener<FreezeResponse> listener) {
         final Index[] concreteIndices = resolveIndices(request, state);
         if (concreteIndices.length == 0) {
             listener.onResponse(new FreezeResponse(true, true));
@@ -126,31 +123,14 @@ public final class TransportFreezeIndexAction extends
     private void toggleFrozenSettings(final Index[] concreteIndices, final FreezeRequest request,
                                       final ActionListener<FreezeResponse> listener) {
         clusterService.submitStateUpdateTask("toggle-frozen-settings",
-            new AckedClusterStateUpdateTask(Priority.URGENT, request, new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                new AckedClusterStateUpdateTask(Priority.URGENT, request, listener.delegateFailure((delegate, acknowledgedResponse) -> {
                     OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
-                        .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                        .indices(concreteIndices).waitForActiveShards(request.waitForActiveShards());
-                    indexStateService.openIndex(updateRequest, new ActionListener<>() {
-                        @Override
-                        public void onResponse(ShardsAcknowledgedResponse openIndexClusterStateUpdateResponse) {
-                            listener.onResponse(new FreezeResponse(openIndexClusterStateUpdateResponse.isAcknowledged(),
-                                openIndexClusterStateUpdateResponse.isShardsAcknowledged()));
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            }) {
+                            .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
+                            .indices(concreteIndices).waitForActiveShards(request.waitForActiveShards());
+                    indexStateService.openIndex(updateRequest, delegate.delegateFailure((l, openIndexClusterStateUpdateResponse) ->
+                            l.onResponse(new FreezeResponse(openIndexClusterStateUpdateResponse.isAcknowledged(),
+                                    openIndexClusterStateUpdateResponse.isShardsAcknowledged()))));
+                })) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final Metadata.Builder builder = Metadata.builder(currentState.metadata());

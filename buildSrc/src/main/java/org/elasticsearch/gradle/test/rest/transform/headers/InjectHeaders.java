@@ -56,6 +56,7 @@ public class InjectHeaders extends FeatureInjector implements RestTestTransformB
     }
 
     @Override
+    @Internal
     public String getSkipFeatureName() {
         return "headers";
     }

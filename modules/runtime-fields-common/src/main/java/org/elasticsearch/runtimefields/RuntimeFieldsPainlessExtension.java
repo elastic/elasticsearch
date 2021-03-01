@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The painless extension that adds the grok whitelist to all the existing runtime fields contexts.
+ * The painless extension that adds the necessary whitelist for grok and dissect to all the existing runtime fields contexts.
  */
 public class RuntimeFieldsPainlessExtension implements PainlessExtension {
     private final List<Whitelist> whitelists;

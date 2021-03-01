@@ -22,7 +22,7 @@ public class Page implements Closeable {
     // released.
     private final RefCountedCloseable refCountedCloseable;
 
-    public Page(ByteBuffer byteBuffer, Runnable closeable) {
+    public Page(ByteBuffer byteBuffer, Closeable closeable) {
         this(byteBuffer, new RefCountedCloseable(closeable));
     }
 
@@ -61,16 +61,21 @@ public class Page implements Closeable {
 
     private static class RefCountedCloseable extends AbstractRefCounted {
 
-        private final Runnable closeable;
+        private final Closeable closeable;
 
-        private RefCountedCloseable(Runnable closeable) {
+        private RefCountedCloseable(Closeable closeable) {
             super("byte array page");
             this.closeable = closeable;
         }
 
         @Override
         protected void closeInternal() {
-            closeable.run();
+            try {
+                closeable.close();
+            } catch (Exception e) {
+                assert false : e;
+                throw new RuntimeException(e);
+            }
         }
     }
 }

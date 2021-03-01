@@ -14,6 +14,7 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -328,13 +329,13 @@ public class SocketChannelContextTests extends ESTestCase {
         try (SocketChannel realChannel = SocketChannel.open()) {
             when(channel.getRawChannel()).thenReturn(realChannel);
             when(channel.isOpen()).thenReturn(true);
-            Runnable closer = mock(Runnable.class);
+            Closeable closer = mock(Closeable.class);
             IntFunction<Page> pageAllocator = (n) -> new Page(ByteBuffer.allocate(n), closer);
             InboundChannelBuffer buffer = new InboundChannelBuffer(pageAllocator);
             buffer.ensureCapacity(1);
             TestSocketChannelContext context = new TestSocketChannelContext(channel, selector, exceptionHandler, handler, buffer);
             context.closeFromSelector();
-            verify(closer).run();
+            verify(closer).close();
         }
     }
 

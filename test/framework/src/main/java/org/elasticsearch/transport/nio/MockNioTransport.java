@@ -21,7 +21,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
@@ -52,6 +51,7 @@ import org.elasticsearch.transport.TcpServerChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
@@ -214,7 +214,7 @@ public class MockNioTransport extends TcpTransport {
                     return new Page(ByteBuffer.allocate(length), () -> {});
                 } else {
                     Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
-                    return new Page(ByteBuffer.wrap(bytes.v(), 0, length), bytes::close);
+                    return new Page(ByteBuffer.wrap(bytes.v(), 0, length), bytes);
                 }
             };
             MockTcpReadWriteHandler readWriteHandler = new MockTcpReadWriteHandler(nioChannel, pageCacheRecycler, MockNioTransport.this);
@@ -260,11 +260,11 @@ public class MockNioTransport extends TcpTransport {
     }
 
     private static final class LeakAwareRefCounted extends AbstractRefCounted {
-        private final LeakTracker.Leak<Releasable> leak;
+        private final LeakTracker.Leak<Closeable> leak;
 
-        private final Releasable releasable;
+        private final Closeable releasable;
 
-        LeakAwareRefCounted(Releasable releasable) {
+        LeakAwareRefCounted(Closeable releasable) {
             super("leak-aware-ref-counted");
             this.releasable = releasable;
             leak = LeakTracker.INSTANCE.track(releasable);
@@ -274,7 +274,11 @@ public class MockNioTransport extends TcpTransport {
         protected void closeInternal() {
             boolean leakReleased = leak.close(releasable);
             assert leakReleased : "leak should not have been released already";
-            releasable.close();
+            try {
+                releasable.close();
+            } catch (Exception e) {
+                throw new AssertionError("This should never throw", e);
+            }
         }
 
         @Override
@@ -306,7 +310,7 @@ public class MockNioTransport extends TcpTransport {
             for (int i = 0; i < pages.length; ++i) {
                 references[i] = BytesReference.fromByteBuffer(pages[i].byteBuffer());
             }
-            Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
+            Closeable releasable = pages.length == 1 ? pages[0] : () -> IOUtils.close(pages);
             try (ReleasableBytesReference reference =
                          new ReleasableBytesReference(CompositeBytesReference.of(references), new LeakAwareRefCounted(releasable))) {
                 pipeline.handleBytes(channel, reference);
@@ -316,8 +320,7 @@ public class MockNioTransport extends TcpTransport {
 
         @Override
         public void close() {
-            Releasables.closeWhileHandlingException(pipeline);
-            super.close();
+            Releasables.close(pipeline, super::close);
         }
     }
 

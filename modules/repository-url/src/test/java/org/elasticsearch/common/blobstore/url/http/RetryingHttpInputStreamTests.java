@@ -144,6 +144,25 @@ public class RetryingHttpInputStreamTests extends ESTestCase {
         assertThat(attempts.get(), equalTo(maxRetries + 1));
     }
 
+    public void testFailsImmediatelyAfterNotFoundResponse() throws Exception {
+        final URI blobURI = new URI("blob");
+        final int maxRetries = randomIntBetween(0, 5);
+        final AtomicInteger attempts = new AtomicInteger(0);
+
+        final URLHttpClient urlHttpClient = new URLHttpClient(null, null) {
+            @Override
+            public HttpResponse get(URI uri, Map<String, String> headers) {
+                attempts.incrementAndGet();
+                throw new URLHttpClientException(RestStatus.NOT_FOUND.getStatus());
+            }
+        };
+
+        expectThrows(IOException.class,
+            () -> Streams.readFully(new RetryingHttpInputStream("blob", blobURI, urlHttpClient, maxRetries)));
+
+        assertThat(attempts.get(), equalTo(1));
+    }
+
     static class MockHttpResponse implements URLHttpClient.HttpResponse {
         private final HttpResponseInputStream inputStream;
         private final int statusCode;

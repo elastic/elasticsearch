@@ -70,12 +70,13 @@ public final class GeoIpProcessor extends AbstractProcessor {
      */
     GeoIpProcessor(
         final String tag,
-        String description, final String field,
+        final String description,
+        final String field,
         final CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier,
         final String targetField,
         final Set<Property> properties,
         final boolean ignoreMissing,
-        boolean firstOnly) {
+        final boolean firstOnly) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
@@ -401,7 +402,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier = () -> {
                 DatabaseReaderLazyLoader loader = databaseRegistry.getDatabase(databaseFile, fallbackUsingDefaultDatabases);
                 if (loader == null) {
-                    throw new ResourceNotFoundException("database_file", "database file [" + databaseFile + "] doesn't exist");
+                    throw new ResourceNotFoundException("database file [" + databaseFile + "] doesn't exist");
                 }
                 // Only check whether the suffix has changed and not the entire database type.
                 // To sanity check whether a city db isn't overwriting with a country or asn db.

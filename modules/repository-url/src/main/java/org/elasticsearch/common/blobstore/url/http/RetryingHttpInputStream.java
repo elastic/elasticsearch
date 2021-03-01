@@ -258,7 +258,9 @@ class RetryingHttpInputStream extends InputStream {
 
                 assert upperBound >= lowerBound : "Incorrect Content-Range: lower bound > upper bound " + lowerBound + "-" + upperBound;
                 assert lowerBound == start + totalBytesRead : "Incorrect Content-Range: lower bound != specified lower bound";
-                assert upperBound == end : "Incorrect Content-Range: the returned upper bound is incorrect";
+                assert upperBound == end || upperBound <= MAX_RANGE_VAL :
+                    "Incorrect Content-Range: the returned upper bound is incorrect, expected [" + end + "] " +
+                    "got [" + upperBound + "]";
 
                 return upperBound - lowerBound + 1;
             }

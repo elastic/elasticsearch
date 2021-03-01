@@ -136,9 +136,16 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-Use the <<common-options-response-filtering,`filter_path`>> query parameter to
-filter the API response. For example, the following search returns only the
-timestamp and PID for each matching event.
+[discrete]
+[[retrieve-selected-fields]]
+== Retrieve selected fields
+
+By default, each hit in the search response includes the document `_source`,
+which is the entire JSON object that was provided when indexing the document.
+
+You can use the <<common-options-response-filtering,`filter_path`>> query
+parameter to filter the API response. For example, the following search returns
+only the timestamp and PID from the `_source` of each matching event.
 
 [source,console]
 ----
@@ -178,6 +185,117 @@ The API returns the following response.
   }
 }
 ----
+
+You can also use the `fields` parameter to retrieve and format specific fields
+in the response.
+
+include::{es-repo-dir}/search/search-your-data/retrieve-selected-fields.asciidoc[tag=fields-param-desc]
+
+The following EQL search uses the `fields` parameter to retrieve values for the
+`event.type` field, all fields starting with `process.`, and the `@timestamp`
+field. The request also uses the `filter_path` query parameter to exclude the
+`_source` of each hit.
+
+[source,console]
+----
+GET /my-index-000001/_eql/search?filter_path=-hits.events._source
+{
+  "query": """
+    process where process.name == "regsvr32.exe"
+  """,
+  "fields": [
+    "event.type",
+    "process.*",                <1>
+    {
+      "field": "@timestamp",    <2>
+      "format": "epoch_millis"  
+    }
+  ]
+}
+----
+// TEST[setup:sec_logs]
+
+include::{es-repo-dir}/search/search-your-data/retrieve-selected-fields.asciidoc[tag=fields-param-callouts]
+
+The values are returned as a flat list in the `fields` section of each hit:
+
+[source,console-result]
+----
+{
+  "is_partial": false,
+  "is_running": false,
+  "took": 60,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 2,
+      "relation": "eq"
+    },
+    "events": [
+      {
+        "_index": "my-index-000001",
+        "_id": "OQmfCaduce8zoHT93o4H",
+        "fields": {
+          "process.name": [
+            "regsvr32.exe"
+          ],
+          "process.name.keyword": [
+            "regsvr32.exe"
+          ],
+          "@timestamp": [
+            "4100324829000"
+          ],
+          "process.command_line": [
+            "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll"
+          ],
+          "process.command_line.keyword": [
+            "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll"
+          ],
+          "process.executable.keyword": [
+            "C:\\Windows\\System32\\regsvr32.exe"
+          ],
+          "process.pid": [
+            2012
+          ],
+          "process.executable": [
+            "C:\\Windows\\System32\\regsvr32.exe"
+          ]
+        }
+      },
+      {
+        "_index": "my-index-000001",
+        "_id": "xLkCaj4EujzdNSxfYLbO",
+        "fields": {
+          "process.name": [
+            "regsvr32.exe"
+          ],
+          "process.name.keyword": [
+            "regsvr32.exe"
+          ],
+          "@timestamp": [
+            "4100324830000"
+          ],
+          "event.type": [
+            "termination"
+          ],
+          "process.executable.keyword": [
+            "C:\\Windows\\System32\\regsvr32.exe"
+          ],
+          "process.pid": [
+            2012
+          ],
+          "process.executable": [
+            "C:\\Windows\\System32\\regsvr32.exe"
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
+// TESTRESPONSE[s/"_id": "xLkCaj4EujzdNSxfYLbO"/"_id": $body.hits.events.1._id/]
 
 [discrete]
 [[eql-search-sequence]]

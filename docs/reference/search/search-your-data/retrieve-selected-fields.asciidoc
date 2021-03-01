@@ -60,11 +60,13 @@ following sections:
 === Fields
 beta::[]
 
+// tag::fields-param-desc[]
 The `fields` parameter allows for retrieving a list of document fields in
 the search response. It consults both the document `_source` and the index
 mappings to return each value in a standardized way that matches its mapping
 type. By default, date fields are formatted according to the
 <<mapping-date-format,date format>> parameter in their mappings.
+// end::fields-param-desc[]
 
 The following search request uses the `fields` parameter to retrieve values
 for the `user.id` field, all fields starting with `http.response.`, and the
@@ -92,15 +94,17 @@ POST my-index-000001/_search
 ----
 // TEST[setup:my_index]
 
+// tag::fields-param-callouts[]
 <1> Both full field names and wildcard patterns are accepted.
 <2> Using object notation, you can pass a `format` parameter to apply a custom
-    format for the field's values. The date fields
-    <<date,`date`>> and <<date_nanos, `date_nanos`>> accept a
+    format for the field's values.
+    <<date,`date`>> and <<date_nanos, `date_nanos`>> fields accept a
     <<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>>
     accept either `geojson` for http://www.geojson.org[GeoJSON] (the default)
     or `wkt` for
     {wikipedia}/Well-known_text_representation_of_geometry[Well Known Text].
     Other field types do not support the `format` parameter.
+// end::fields-param-callouts[]
 
 The values are returned as a flat list in the `fields` section in each hit:
 

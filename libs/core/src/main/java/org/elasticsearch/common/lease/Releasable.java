@@ -8,12 +8,10 @@
 
 package org.elasticsearch.common.lease;
 
-import org.elasticsearch.ElasticsearchException;
-
 import java.io.Closeable;
 
 /**
- * Specialization of {@link AutoCloseable} that may only throw an {@link ElasticsearchException}.
+ * Specialization of {@link Closeable} that may only throw a {@link RuntimeException}.
  */
 public interface Releasable extends Closeable {
 

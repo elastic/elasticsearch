@@ -47,7 +47,7 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
         for (int i = 0; i < pages.length; ++i) {
             references[i] = BytesReference.fromByteBuffer(pages[i].byteBuffer());
         }
-        Releasable releasable = pages.length == 1 ? pages[0] : () -> Releasables.close(pages);
+        Releasable releasable = pages.length == 1 ? pages[0] : () -> Releasables.closeExpectNoException(pages);
         try (ReleasableBytesReference reference = new ReleasableBytesReference(CompositeBytesReference.of(references), releasable)) {
             pipeline.handleBytes(channel, reference);
             return reference.length();
@@ -56,6 +56,6 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
 
     @Override
     public void close() {
-        Releasables.close(pipeline, super::close);
+        Releasables.closeExpectNoException(pipeline, super::close);
     }
 }

@@ -50,6 +50,16 @@ public enum Releasables {
         close(Arrays.asList(releasables));
     }
 
+    /** Release the provided {@link Releasable}s expecting no exception to by thrown by any of them. */
+    public static void closeExpectNoException(Releasable... releasables) {
+        try {
+            close(releasables);
+        } catch (RuntimeException e) {
+            assert false : e;
+            throw e;
+        }
+    }
+
     /** Release the provided {@link Releasable}s, ignoring exceptions. */
     public static void closeWhileHandlingException(Releasable... releasables) {
         close(Arrays.asList(releasables), true);

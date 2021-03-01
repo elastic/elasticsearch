@@ -8,14 +8,13 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -118,10 +117,7 @@ public class InboundDecoder implements Releasable {
 
     private void cleanDecodeState() {
         try {
-            IOUtils.close(decompressor);
-        } catch (Exception e) {
-            assert false : e;
-            throw new ElasticsearchException(e);
+            Releasables.closeExpectNoException(decompressor);
         } finally {
             decompressor = null;
             totalNetworkSize = -1;

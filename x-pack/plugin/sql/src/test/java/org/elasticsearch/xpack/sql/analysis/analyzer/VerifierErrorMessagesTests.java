@@ -569,6 +569,10 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT int FROM test WHERE dep.start_date > '2020-01-30'::date AND (int > 10 OR dep.end_date IS NULL)");
         accept("SELECT int FROM test WHERE dep.start_date > '2020-01-30'::date AND (int > 10 OR dep.end_date IS NULL) " +
                "OR NOT(dep.start_date >= '2020-01-01')");
+        String operator = randomFrom("<", "<=");
+        assertEquals("1:42: WHERE isn't (yet) compatible with scalar functions on nested fields [dep.location]",
+            error("SELECT shape FROM test " +
+                "WHERE ST_Distance(dep.location, ST_WKTToSQL('point (10 20)')) " + operator + " 25"));
     }
 
     public void testOrderByOnNested() {

@@ -48,6 +48,15 @@
         },
         "foo_type" : { "type" : "foo" },
         "point": {"type" : "geo_point"},
-        "shape": {"type" : "geo_shape"}
+        "shape": {"type" : "geo_shape"},
+        "nested": {
+            "type": "nested",
+            "properties": {
+                "field" : {
+                    "type" : "keyword"
+                },
+                "point": {"type" : "geo_point"}
+            }
+        }
     }
 }

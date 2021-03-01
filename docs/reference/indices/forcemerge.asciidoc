@@ -69,9 +69,12 @@ You can force merge multiple indices with a single request by targeting:
 * All data streams and indices in a cluster
 
 Each targeted shard is force-merged separately using <<modules-threadpool,the
-`force_merge` threadpool>>. This means that the shard-level operations are
-executed in parallel on each node if its `force_merge` threadpool has multiple
-threads. Force merge makes the storage for the shard being merged temporarily
+`force_merge` threadpool>>. By default each node only has a single
+`force_merge` thread which means that the shards on that node are force-merged
+one at a time. If you expand the `force_merge` threadpool on a node then it
+will force merge its shards in parallel.
+
+Force merge makes the storage for the shard being merged temporarily
 increase, up to double its size in case `max_num_segments` parameter is set to
 `1`, as all segments need to be rewritten into a new one.
 

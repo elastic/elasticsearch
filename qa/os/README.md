@@ -73,7 +73,7 @@ public class MyTestDefaultTar extends MyTestCase {
 ```
 
 That way when a test fails the user gets told explicitly that `MyTestDefaultTar`
-failed, and to reproduce it they should run that class. See [ArchiveTestCase](https://github.com/elastic/elasticsearch/blob/master/qa/os/src/test/java/org/elasticsearch/packaging/test/ArchiveTests.java)
+failed, and to reproduce it they should run that class. See [ArchiveTestCase](src/test/java/org/elasticsearch/packaging/test/ArchiveTests.java)
 and its children for an example of this.
 
 ## Running external commands

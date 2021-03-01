@@ -169,32 +169,6 @@ method or function call. Each primitive type has a corresponding reference type
 (or boxed type) as shown in the following list. For example, the reference type
 for `byte` is `Byte`.
 
-You can declare a primitive type <<script-spec-variables,variable>> or access a
-primitive type member field from a reference type instance, and assign it a
-primitive type value for evaluation during later operations.
-
-Use the field access operator or method call operator on a primitive type value
-to force evaluation as its corresponding reference type value.
-
-Let's take our shortened script and incorporate some primitive types:
-
-[source,console]
-----
-POST /_scripts/painless/_execute
-{
-  "script": {
-    "source": """
-        int my_int; <1>
-        my_int = 1; <2>
-        double my_double = 2.0; <3>
-    """
-  }
-}
-----
-<1> Primitive `int` type declaration
-<2> Primitive `int` type assignment with an `int` constant
-<3> Primitive `double` type declaration with assignment of a `double` constant
-
 [[available-primitive-types]]
 .**Available primitive types**
 [%collapsible]
@@ -224,11 +198,59 @@ POST /_scripts/painless/_execute
     logical quantity with two possible values of `true` and `false`. Default: `false`.
 ====
 
+You can declare a primitive type <<script-spec-variables,variable>> or access a
+primitive type member field from a reference type instance, and assign it a
+primitive type value for evaluation during later operations.
+
+Use the field access operator or method call operator on a primitive type value
+to force evaluation as its corresponding reference type value.
+
+Let's take our shortened script and incorporate some primitive types:
+
+[source,console]
+----
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": """
+        int my_int; <1>
+        my_int = 1; <2>
+        double my_double = 2.0; <3>
+    """
+  }
+}
+----
+<1> Primitive `int` type declaration
+<2> Primitive `int` type assignment with an `int` constant
+<3> Primitive `double` type declaration with assignment of a `double` constant
+
 [discrete]
 [[script-type-reference]]
 ==== Reference types
 A reference type is an object that potentially represents multiple pieces of
 data and logic to manipulate that data, defined as part of the API for scripts.
+A reference type is comprised of an instance, value, and variable.
+
+A reference type _instance_ is a single set of data for one reference type
+object allocated to the heap. Use a reference type instance to load from, store
+to, and mainpulate complex data.
+
+A reference type _value_ refers to an instance, and multiple values can refer to
+the same instance. A change to an instance affects all values referring to that
+specific instance.
+
+To access a reference type _variable_, declare the variable or access a
+reference type member field from an instance. You can then assign the variable
+a value and reference the variable in various operations. The default value for
+a newly-declared reference type variable is `null`.
+
+Let's expand our example to include some reference types. The following example
+adds a `Map` type declaration called `my_map`. Then, the `my_map` variable is
+assigned a value with a new instance of `HashMap`.
+
+Reference types are complex types that have method and fields available to
+modify internal state. In the example, the `my_map.put` statement modifies the
+`my_map` variable to include two instances of `my_int`.
 
 [source,console]
 ----
@@ -250,14 +272,58 @@ POST /_scripts/painless/_execute
 ----
 <1> Reference `Map` type declaration
 <2> Reference `Map` type assignment with a new instance of a `HashMap`
-<3> Reference types are complex types that have method and fields available to
-modify internal state
-
+<3> Modification of the `my_map` variable
 
 [discrete]
 [[script-type-dynamic]]
 ==== Dynamic types
+A dynamic type can represent the value of any primitive type or reference type
+using a single type named `def`. A `def` type value mimics the behavior of
+whatever value it represents at runtime, and always represents the last child
+descendant type value of any type value when evaluated.
 
+To access a `def` type _variable_, declare the variable or access a
+reference type member field from an instance. You can then assign the variable
+a value and reference the variable in various operations. The default value for
+a newly-declared `def` type variable is `null`.
+
+Let's implement a `def` type to the previous example. You can declare the
+primitive type `int`, name it `my_int`, and then assign it avalue of `1`:
+
+[source,console]
+----
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": """
+        int my_int;
+        my_int = 1;
+    """
+  }
+}
+----
+
+Instead, you can use a `def` type variable to simplify the declaration:
+
+[source,console]
+----
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": """
+        def my_int = 1;
+    """
+  }
+}
+----
+
+This declaration declares a `def` type named `my_int` and assigns it a value of
+`1` in a single statement. Because a `def` type can mimic a primitive type,
+this statement implicitly casts `my_int` as type `int` without having to
+declare it.
+
+NOTE: Using the `def` type can have a slight impact on performance. Use only
+primitive types and reference types directly when performance is critical.
 
 [discrete]
 [[types-whats-next]]

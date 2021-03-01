@@ -269,7 +269,7 @@ class RetryingHttpInputStream extends InputStream {
             return contentLength == null ? 0 : Long.parseLong(contentLength);
 
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("Unable to parse response headers while reading [{}]", blobURI), e);
+            logger.debug(new ParameterizedMessage("Unable to parse response headers while reading [{}]", blobURI), e);
             return MAX_RANGE_VAL;
         }
     }

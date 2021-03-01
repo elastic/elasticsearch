@@ -40,6 +40,7 @@ public class TimeRetentionPolicyConfig implements RetentionPolicyConfig {
         ConstructingObjectParser<TimeRetentionPolicyConfig, Void> parser = new ConstructingObjectParser<>(NAME, lenient, args -> {
             String field = (String) args[0];
             TimeValue maxAge = (TimeValue) args[1];
+
             return new TimeRetentionPolicyConfig(field, maxAge);
         });
         parser.declareString(constructorArg(), TransformField.FIELD);
@@ -78,6 +79,14 @@ public class TimeRetentionPolicyConfig implements RetentionPolicyConfig {
                 validationException
             );
         }
+
+        if (maxAge.compareTo(TimeValue.MAX_VALUE) > 0) {
+            validationException = addValidationError(
+                "retention_policy.time.max_age must not be greater than [" + TimeValue.MAX_VALUE + "]",
+                validationException
+            );
+        }
+
         return validationException;
     }
 

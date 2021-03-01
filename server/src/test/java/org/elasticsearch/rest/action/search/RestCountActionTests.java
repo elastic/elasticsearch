@@ -8,8 +8,14 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchResponseSections;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
@@ -31,7 +37,26 @@ public class RestCountActionTests extends RestActionTestCase {
             .build();
 
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
+        verifyingClient.setExecuteVerifier(
+            (arg1, arg2) -> new SearchResponse(
+                new SearchResponseSections(
+                    new SearchHits(new SearchHit[0], new TotalHits(5, TotalHits.Relation.EQUAL_TO), 0.0f),
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1
+                ),
+                null,
+                1,
+                1,
+                0,
+                10,
+                new ShardSearchFailure[0],
+                null
+            )
+        );
 
         dispatchRequest(request);
         assertWarnings(RestCountAction.TYPES_DEPRECATION_MESSAGE);
@@ -48,7 +73,26 @@ public class RestCountActionTests extends RestActionTestCase {
             .build();
 
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
+        verifyingClient.setExecuteVerifier(
+            (arg1, arg2) -> new SearchResponse(
+                new SearchResponseSections(
+                    new SearchHits(new SearchHit[0], new TotalHits(5, TotalHits.Relation.EQUAL_TO), 0.0f),
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1
+                ),
+                null,
+                1,
+                1,
+                0,
+                10,
+                new ShardSearchFailure[0],
+                null
+            )
+        );
 
         dispatchRequest(request);
         assertWarnings(RestCountAction.TYPES_DEPRECATION_MESSAGE);

@@ -569,6 +569,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
+
     protected <T extends AggregationBuilder, V extends InternalAggregation> void verifyOutputFieldNames(T aggregationBuilder, V agg)
         throws IOException {
         if (aggregationBuilder.getOutputFieldNames().isPresent() == false) {

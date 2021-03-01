@@ -95,6 +95,10 @@ public class MemoryUsage implements Writeable, ToXContentObject {
         }
     }
 
+    public long getPeakUsageBytes() {
+        return peakUsageBytes;
+    }
+
     public Status getStatus() {
         return status;
     }

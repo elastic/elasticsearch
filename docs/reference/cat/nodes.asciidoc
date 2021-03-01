@@ -24,6 +24,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
+
 `full_id`::
 (Optional, Boolean) If `true`, return the full node ID.  If `false`, return the
 shortened node ID. Defaults to `false`.
@@ -60,7 +62,7 @@ Valid columns are:
 `s` (content node),
 `t` ({transform} node),
 `v` (voting-only node),
-`w` (warm node), and 
+`w` (warm node), and
 `-` (coordinating node only).
 +
 For example, `dim` indicates a master-eligible data and ingest node. See

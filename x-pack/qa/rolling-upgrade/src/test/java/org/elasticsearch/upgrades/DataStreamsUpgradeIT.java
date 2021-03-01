@@ -22,6 +22,7 @@ import static org.elasticsearch.upgrades.IndexingIT.assertCount;
 
 public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69689")
     public void testDataStreams() throws IOException {
         assumeTrue("no data streams in versions before " + Version.V_7_9_0, UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_9_0));
         assumeTrue("data streams supported from 7.9.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_9_0));

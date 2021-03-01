@@ -178,7 +178,8 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                 throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is read-only");
             }
             final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-            final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(new BlobPath().add(request.blobPath));
+            final BlobPath path = blobStoreRepository.basePath().add(request.blobPath);
+            final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(path);
 
             logger.trace("handling [{}]", request);
 

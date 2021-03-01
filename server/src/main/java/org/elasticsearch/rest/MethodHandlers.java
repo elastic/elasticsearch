@@ -9,6 +9,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.rest.RestRequest.Method;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -20,12 +21,12 @@ import java.util.Set;
 final class MethodHandlers {
 
     private final String path;
-    private final Map<RestRequest.Method, Map<RestApiCompatibleVersion, RestHandler>> methodHandlers;
+    private final Map<Method, Map<RestApiCompatibleVersion, RestHandler>> methodHandlers;
 
-    MethodHandlers(String path, RestHandler handler, RestRequest.Method... methods) {
+    MethodHandlers(String path, RestHandler handler, Method... methods) {
         this.path = path;
         this.methodHandlers = new HashMap<>(methods.length);
-        for (RestRequest.Method method : methods) {
+        for (Method method : methods) {
             methodHandlers.computeIfAbsent(method, k -> new HashMap<>())
                 .put(handler.compatibleWithVersion(), handler);
         }
@@ -35,8 +36,8 @@ final class MethodHandlers {
      * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
      * does not allow replacing the handler for an already existing method.
      */
-    MethodHandlers addMethods(RestHandler handler, RestRequest.Method... methods) {
-        for (RestRequest.Method method : methods) {
+    MethodHandlers addMethods(RestHandler handler, Method... methods) {
+        for (Method method : methods) {
             RestHandler existing = methodHandlers.computeIfAbsent(method, k -> new HashMap<>())
                 .putIfAbsent(handler.compatibleWithVersion(), handler);
             if (existing != null) {
@@ -54,7 +55,7 @@ final class MethodHandlers {
      * (as opposed to non-compatible/breaking)
      * or {@code null} if none exists.
      */
-    RestHandler getHandler(RestRequest.Method method, RestApiCompatibleVersion version) {
+    RestHandler getHandler(Method method, RestApiCompatibleVersion version) {
         Map<RestApiCompatibleVersion, RestHandler> versionToHandlers = methodHandlers.get(method);
         if (versionToHandlers == null) {
             return null; //method not found
@@ -67,7 +68,7 @@ final class MethodHandlers {
     /**
      * Return a set of all valid HTTP methods for the particular path
      */
-    Set<RestRequest.Method> getValidMethods() {
+    Set<Method> getValidMethods() {
         return methodHandlers.keySet();
     }
 }

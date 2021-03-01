@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
@@ -91,7 +92,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
-        registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", (request, channel, clnt) ->
+        registerHandlerNoWrap(Method.GET, "/favicon.ico", (request, channel, clnt) ->
             channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE)));
     }
 
@@ -103,7 +104,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param handler The handler to actually execute
      * @param deprecationMessage The message to log and send as a header in the response
      */
-    protected void registerAsDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler, String deprecationMessage) {
+    protected void registerAsDeprecatedHandler(Method method, String path, RestHandler handler, String deprecationMessage) {
         assert (handler instanceof DeprecationRestHandler) == false;
 
         registerHandler(method, path, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger));
@@ -133,8 +134,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param deprecatedMethod GET, POST, etc.
      * @param deprecatedPath <em>Deprecated</em> path to handle (e.g., "/_optimize")
      */
-    protected void registerWithReplacedHandler(RestRequest.Method method, String path, RestHandler handler,
-                                               RestRequest.Method deprecatedMethod, String deprecatedPath) {
+    protected void registerWithReplacedHandler(Method method, String path, RestHandler handler,
+                                               Method deprecatedMethod, String deprecatedPath) {
         // e.g., [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
         final String deprecationMessage =
             "[" + deprecatedMethod.name() + " " + deprecatedPath + "] is deprecated! Use [" + method.name() + " " + path + "] instead.";
@@ -150,14 +151,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param handler The handler to actually execute
      * @param method GET, POST, etc.
      */
-    protected void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
+    protected void registerHandler(Method method, String path, RestHandler handler) {
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
         registerHandlerNoWrap(method, path, handlerWrapper.apply(handler));
     }
 
-    private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
+    private void registerHandlerNoWrap(Method method, String path, RestHandler maybeWrappedHandler) {
         final RestApiCompatibleVersion version = maybeWrappedHandler.compatibleWithVersion();
         assert RestApiCompatibleVersion.minimumSupported() == version || RestApiCompatibleVersion.currentVersion() == version
             : "REST API compatibility is only supported for version " + RestApiCompatibleVersion.minimumSupported().major;
@@ -266,11 +267,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private boolean handleNoHandlerFound(String rawPath, RestRequest.Method method, String uri, RestChannel channel) {
+    private boolean handleNoHandlerFound(String rawPath, Method method, String uri, RestChannel channel) {
         // Get the map of matching handlers for a request, for the full set of HTTP methods.
-        final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
+        final Set<Method> validMethodSet = getValidHandlerMethodSet(rawPath);
         if (validMethodSet.contains(method) == false) {
-            if (method == RestRequest.Method.OPTIONS) {
+            if (method == Method.OPTIONS) {
                 handleOptionsRequest(channel, validMethodSet);
                 return true;
             }
@@ -323,7 +324,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         final String rawPath = request.rawPath();
         final String uri = request.uri();
-        final RestRequest.Method requestMethod;
+        final Method requestMethod;
 
         RestApiCompatibleVersion restApiCompatibleVersion = request.getRestApiCompatibleVersion();
         try {
@@ -385,9 +386,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * 10.4.6 - 405 Method Not Allowed</a>).
      */
     private void handleUnsupportedHttpMethod(String uri,
-                                             @Nullable RestRequest.Method method,
+                                             @Nullable Method method,
                                              final RestChannel channel,
-                                             final Set<RestRequest.Method> validMethodSet,
+                                             final Set<Method> validMethodSet,
                                              @Nullable final IllegalArgumentException exception) {
         try {
             final StringBuilder msg = new StringBuilder();
@@ -418,7 +419,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * <a href="https://tools.ietf.org/html/rfc2616#section-9.2">HTTP/1.1 - 9.2
      * - Options</a>).
      */
-    private void handleOptionsRequest(RestChannel channel, Set<RestRequest.Method> validMethodSet) {
+    private void handleOptionsRequest(RestChannel channel, Set<Method> validMethodSet) {
         BytesRestResponse bytesRestResponse = new BytesRestResponse(OK, TEXT_CONTENT_TYPE, BytesArray.EMPTY);
         // When we have an OPTIONS HTTP request and no valid handlers, simply send OK by default (with the Access Control Origin header
         // which gets automatically added).
@@ -432,7 +433,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * Handle a requests with no candidate handlers (return a 400 Bad Request
      * error).
      */
-    private void handleBadRequest(String uri, RestRequest.Method method, RestChannel channel) throws IOException {
+    private void handleBadRequest(String uri, Method method, RestChannel channel) throws IOException {
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             builder.startObject();
             {
@@ -446,8 +447,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /**
      * Get the valid set of HTTP methods for a REST request.
      */
-    private Set<RestRequest.Method> getValidHandlerMethodSet(String rawPath) {
-        Set<RestRequest.Method> validMethods = new HashSet<>();
+    private Set<Method> getValidHandlerMethodSet(String rawPath) {
+        Set<Method> validMethods = new HashSet<>();
         Iterator<MethodHandlers> allHandlers = getAllHandlers(null, rawPath);
         while (allHandlers.hasNext()) {
             final MethodHandlers methodHandlers = allHandlers.next();

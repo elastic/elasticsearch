@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -49,8 +50,8 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
          * method list, passing in the RandomizedContext's Random instance,
          * before picking out a candidate sublist.
          */
-        List<RestRequest.Method> validHttpMethodArray = new ArrayList<RestRequest.Method>(Arrays.asList(RestRequest.Method.values()));
-        validHttpMethodArray.remove(RestRequest.Method.OPTIONS);
+        List<Method> validHttpMethodArray = new ArrayList<>(Arrays.asList(Method.values()));
+        validHttpMethodArray.remove(Method.OPTIONS);
         Collections.shuffle(validHttpMethodArray, random());
 
         /*
@@ -59,16 +60,16 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
          */
         validHttpMethodArray = validHttpMethodArray.subList(0, randomIntBetween(1, validHttpMethodArray.size() - 1));
         assert(validHttpMethodArray.size() > 0);
-        assert(validHttpMethodArray.size() < RestRequest.Method.values().length);
+        assert(validHttpMethodArray.size() < Method.values().length);
 
         /*
          * Generate an inverse list of one or more candidate invalid HTTP
          * methods, so we have a candidate method to fire at the test endpoint.
          */
-        List<RestRequest.Method> invalidHttpMethodArray = new ArrayList<RestRequest.Method>(Arrays.asList(RestRequest.Method.values()));
+        List<Method> invalidHttpMethodArray = new ArrayList<>(Arrays.asList(Method.values()));
         invalidHttpMethodArray.removeAll(validHttpMethodArray);
         // Remove OPTIONS, or else we'll get a 200 instead of 405
-        invalidHttpMethodArray.remove(RestRequest.Method.OPTIONS);
+        invalidHttpMethodArray.remove(Method.OPTIONS);
         assert(invalidHttpMethodArray.size() > 0);
 
         // Initialize test candidate RestController
@@ -92,7 +93,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         };
 
         // Register valid test handlers with test RestController
-        for (RestRequest.Method method : validHttpMethodArray) {
+        for (Method method : validHttpMethodArray) {
             restController.registerHandler(method, "/", restHandler);
         }
 
@@ -140,7 +141,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
      * Convert an RestRequest.Method array to a String array, so it can be
      * compared with the expected 'Allow' header String array.
      */
-    private List<String> getMethodNameStringArray(List<RestRequest.Method> methodArray) {
+    private List<String> getMethodNameStringArray(List<Method> methodArray) {
         return methodArray.stream().map(method -> method.toString()).collect(Collectors.toList());
     }
 

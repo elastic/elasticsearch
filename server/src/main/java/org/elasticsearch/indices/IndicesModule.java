@@ -11,7 +11,7 @@ package org.elasticsearch.indices;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxSinglePrimarySizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.common.ParseField;
@@ -23,7 +23,6 @@ import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
-import org.elasticsearch.index.mapper.DynamicRuntimeFieldsBuilder;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -52,6 +51,13 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.runtimefields.mapper.BooleanScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.DateScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.DoubleScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.GeoPointScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.IpScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.KeywordScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.LongScriptFieldType;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -70,7 +76,7 @@ public class IndicesModule extends AbstractModule {
 
     public IndicesModule(List<MapperPlugin> mapperPlugins) {
         this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getRuntimeFieldTypes(mapperPlugins),
-            getDynamicRuntimeFieldsBuilder(mapperPlugins), getMetadataMappers(mapperPlugins), getFieldFilter(mapperPlugins));
+            getMetadataMappers(mapperPlugins), getFieldFilter(mapperPlugins));
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -78,7 +84,7 @@ public class IndicesModule extends AbstractModule {
             new NamedWriteableRegistry.Entry(Condition.class, MaxAgeCondition.NAME, MaxAgeCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxDocsCondition.NAME, MaxDocsCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxSizeCondition.NAME, MaxSizeCondition::new),
-            new NamedWriteableRegistry.Entry(Condition.class, MaxSinglePrimarySizeCondition.NAME, MaxSinglePrimarySizeCondition::new)
+            new NamedWriteableRegistry.Entry(Condition.class, MaxPrimaryShardSizeCondition.NAME, MaxPrimaryShardSizeCondition::new)
         );
     }
 
@@ -90,8 +96,8 @@ public class IndicesModule extends AbstractModule {
                 MaxDocsCondition.fromXContent(p)),
             new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxSizeCondition.NAME), (p, c) ->
                 MaxSizeCondition.fromXContent(p)),
-            new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxSinglePrimarySizeCondition.NAME), (p, c) ->
-                MaxSinglePrimarySizeCondition.fromXContent(p))
+            new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxPrimaryShardSizeCondition.NAME), (p, c) ->
+                MaxPrimaryShardSizeCondition.fromXContent(p))
         );
     }
 
@@ -132,6 +138,14 @@ public class IndicesModule extends AbstractModule {
 
     private static Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes(List<MapperPlugin> mapperPlugins) {
         Map<String, RuntimeFieldType.Parser> runtimeParsers = new LinkedHashMap<>();
+        runtimeParsers.put(BooleanFieldMapper.CONTENT_TYPE, BooleanScriptFieldType.PARSER);
+        runtimeParsers.put(NumberFieldMapper.NumberType.LONG.typeName(), LongScriptFieldType.PARSER);
+        runtimeParsers.put(NumberFieldMapper.NumberType.DOUBLE.typeName(), DoubleScriptFieldType.PARSER);
+        runtimeParsers.put(IpFieldMapper.CONTENT_TYPE, IpScriptFieldType.PARSER);
+        runtimeParsers.put(DateFieldMapper.CONTENT_TYPE, DateScriptFieldType.PARSER);
+        runtimeParsers.put(KeywordFieldMapper.CONTENT_TYPE, KeywordScriptFieldType.PARSER);
+        runtimeParsers.put(GeoPointFieldMapper.CONTENT_TYPE, GeoPointScriptFieldType.PARSER);
+
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             for (Map.Entry<String, RuntimeFieldType.Parser> entry : mapperPlugin.getRuntimeFieldTypes().entrySet()) {
                 if (runtimeParsers.put(entry.getKey(), entry.getValue()) != null) {
@@ -140,19 +154,6 @@ public class IndicesModule extends AbstractModule {
             }
         }
         return Collections.unmodifiableMap(runtimeParsers);
-    }
-
-    private static DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder(List<MapperPlugin> mapperPlugins) {
-        DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder = null;
-        for (MapperPlugin mapperPlugin : mapperPlugins) {
-            if (mapperPlugin.getDynamicRuntimeFieldsBuilder() != null) {
-                if (dynamicRuntimeFieldsBuilder != null) {
-                    throw new IllegalArgumentException("Dynamic runtime fields builder already registered");
-                }
-                dynamicRuntimeFieldsBuilder = mapperPlugin.getDynamicRuntimeFieldsBuilder();
-            }
-        }
-        return dynamicRuntimeFieldsBuilder;
     }
 
     private static final Map<String, MetadataFieldMapper.TypeParser> builtInMetadataMappers = initBuiltInMetadataMappers();

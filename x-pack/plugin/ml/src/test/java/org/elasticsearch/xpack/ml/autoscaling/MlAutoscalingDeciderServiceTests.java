@@ -400,8 +400,10 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         DeciderContext deciderContext = new DeciderContext(clusterState, autoscalingCapacity);
 
         AutoscalingDeciderResult result = service.scale(settings, deciderContext);
-        assertThat(result.reason().summary(),
-            containsString("Passing currently perceived capacity as there are analytics and anomaly jobs in the queue"));
+        assertThat(
+            result.reason().summary(),
+            containsString("but the number in the queue is less than the configured maximum allowed")
+        );
         assertThat(result.requiredCapacity(), equalTo(autoscalingCapacity));
     }
 

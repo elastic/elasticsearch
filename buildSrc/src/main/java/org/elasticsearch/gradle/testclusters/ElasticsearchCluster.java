@@ -54,7 +54,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final File workingDirBase;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final Project project;
-    private final ReaperService reaper;
+    private final Provider<ReaperService> reaper;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private final ExecOperations execOperations;
@@ -64,7 +64,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         String path,
         String clusterName,
         Project project,
-        ReaperService reaper,
+        Provider<ReaperService> reaper,
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         ExecOperations execOperations,

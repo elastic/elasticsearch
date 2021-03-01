@@ -56,7 +56,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private static final Logger logger = LogManager.getLogger(CachedBlobContainerIndexInput.class);
     private static final int COPY_BUFFER_SIZE = ByteSizeUnit.KB.toIntBytes(8);
 
-    private final SearchableSnapshotDirectory directory;
     private final CacheFileReference cacheFileReference;
     private final int defaultRangeSize;
     private final int recoveryRangeSize;
@@ -84,7 +83,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             fileInfo.length(),
             new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()),
             rangeSize,
-            recoveryRangeSize
+            recoveryRangeSize,
+            directory.getBlobCacheByteRange(fileInfo.physicalName(), fileInfo.length())
         );
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
         stats.incrementOpenCount();
@@ -100,10 +100,10 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long length,
         CacheFileReference cacheFileReference,
         int rangeSize,
-        int recoveryRangeSize
+        int recoveryRangeSize,
+        ByteRange blobCacheByteRange
     ) {
-        super(logger, resourceDesc, directory.blobContainer(), fileInfo, context, stats, offset, length);
-        this.directory = directory;
+        super(logger, resourceDesc, directory, fileInfo, context, stats, offset, length, blobCacheByteRange);
         this.cacheFileReference = cacheFileReference;
         this.lastReadPosition = this.offset;
         this.lastSeekPosition = this.offset;
@@ -157,30 +157,18 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             }
 
             // Requested data is not on disk, so try the cache index next.
-
             final ByteRange indexCacheMiss; // null if not a miss
 
-            // We try to use the cache index if:
-            // - the file is small enough to be fully cached
-            final boolean canBeFullyCached = fileInfo.length() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE * 2;
-            // - we're reading the first N bytes of the file
-            final boolean isStartOfFile = (position + length <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
-
-            if (canBeFullyCached || isStartOfFile) {
-                final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), 0L, length);
+            if (blobCacheByteRange.contains(position, position + length)) {
+                final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), blobCacheByteRange);
+                assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || cachedBlob.from() <= position;
+                assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || length <= cachedBlob.length();
 
                 if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
                     // We would have liked to find a cached entry but we did not find anything: the cache on the disk will be requested
                     // so we compute the region of the file we would like to have the next time. The region is expressed as a tuple of
                     // {start, end} where positions are relative to the whole file.
-
-                    if (canBeFullyCached) {
-                        // if the index input is smaller than twice the size of the blob cache, it will be fully indexed
-                        indexCacheMiss = ByteRange.of(0L, fileInfo.length());
-                    } else {
-                        // the index input is too large to fully cache, so just cache the initial range
-                        indexCacheMiss = ByteRange.of(0L, BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
-                    }
+                    indexCacheMiss = blobCacheByteRange;
 
                     // We must fill in a cache miss even if CACHE_NOT_READY since the cache index is only created on the first put.
                     // TODO TBD use a different trigger for creating the cache index and avoid a put in the CACHE_NOT_READY case.
@@ -192,15 +180,15 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         position
                     );
                     stats.addIndexCacheBytesRead(cachedBlob.length());
-
-                    final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(toIntBytes(position), length).iterator();
-                    BytesRef bytesRef;
-                    while ((bytesRef = cachedBytesIterator.next()) != null) {
-                        b.put(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-                    }
-                    assert b.position() == length : "copied " + b.position() + " but expected " + length;
-
                     try {
+                        final int sliceOffset = toIntBytes(position - cachedBlob.from());
+                        final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(sliceOffset, length).iterator();
+                        BytesRef bytesRef;
+                        while ((bytesRef = cachedBytesIterator.next()) != null) {
+                            b.put(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                        }
+                        assert b.position() == length : "copied " + b.position() + " but expected " + length;
+
                         final ByteRange cachedRange = ByteRange.of(cachedBlob.from(), cachedBlob.to());
                         cacheFile.populateAndRead(
                             cachedRange,
@@ -278,7 +266,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     // - use a BigArrays for allocation
                     // - use an intermediate copy buffer to read the file in sensibly-sized chunks
                     // - release the buffer once the indexing operation is complete
-                    assert indexCacheMissLength <= COPY_BUFFER_SIZE : indexCacheMiss;
 
                     final ByteBuffer byteBuffer = ByteBuffer.allocate(indexCacheMissLength);
                     Channels.readFromFileChannelWithEofException(channel, indexCacheMiss.start(), byteBuffer);
@@ -600,7 +587,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             length,
             cacheFileReference,
             defaultRangeSize,
-            recoveryRangeSize
+            recoveryRangeSize,
+            ByteRange.EMPTY // TODO implement blob cache for slices when it makes sense (like CFs)
         );
         slice.isClone = true;
         return slice;

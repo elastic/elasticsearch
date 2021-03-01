@@ -28,7 +28,7 @@ class SequencePayload extends AbstractPayload {
             List<SearchHit> hits = docs.get(i);
             List<Event> events = new ArrayList<>(hits.size());
             for (SearchHit hit : hits) {
-                events.add(new Event(hit.getIndex(), hit.getId(), hit.getSourceRef()));
+                events.add(new Event(hit.getIndex(), hit.getId(), hit.getSourceRef(), hit.getFields()));
             }
             values.add(new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence(s.key().asList(), events));
         }

@@ -35,12 +35,13 @@ public final class Features {
             "stash_in_path",
             "stash_path_replace",
             "warnings",
+            "warnings_regex",
             "yaml",
             "contains",
             "transform_and_set",
             "arbitrary_key",
-            "allowed_warnings"));
-
+            "allowed_warnings",
+            "allowed_warnings_regex");
     private static final String SPI_ON_CLASSPATH_SINCE_JDK_9 = "spi_on_classpath_jdk9";
 
     private Features() {

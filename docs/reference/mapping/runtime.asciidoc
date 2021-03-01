@@ -1,6 +1,5 @@
 [[runtime]]
 == Runtime fields
-beta::[]
 A _runtime field_ is a field that is evaluated at query time. Runtime fields
 enable you to:
 
@@ -71,7 +70,6 @@ against runtime fields.
 
 [[runtime-mapping-fields]]
 === Map a runtime field
-beta::[]
 You map runtime fields by adding a `runtime` section under the mapping
 definition and defining
 <<modules-scripting-using,a Painless script>>. This script has access to the
@@ -199,7 +197,6 @@ to `boolean`, or if the runtime field is removed.
 
 [[runtime-search-request]]
 === Define runtime fields in a search request
-beta::[]
 You can specify a `runtime_mappings` section in a search request to create
 runtime fields that exist only as part of the query. You specify a script
 as part of the `runtime_mappings` section, just as you would if adding a
@@ -246,7 +243,6 @@ section of the index mapping.
 
 [[runtime-override-values]]
 === Override field values at query time
-beta::[]
 If you create a runtime field with the same name as a field that
 already exists in the mapping, the runtime field shadows the mapped field. At
 query time, {es} evaluates the runtime field, calculates a value based on the
@@ -433,7 +429,6 @@ which still returns in the response:
 
 [[runtime-retrieving-fields]]
 === Retrieve a runtime field
-beta::[]
 Use the <<search-fields,`fields`>> parameter on the `_search` API to retrieve
 the values of runtime fields. Runtime fields won't display in `_source`, but
 the `fields` API works for all fields, even those that were not sent as part of
@@ -612,7 +607,6 @@ address.
 
 [[runtime-examples]]
 === Explore your data with runtime fields
-beta::[]
 Consider a large set of log data that you want to extract fields from.
 Indexing the data is time consuming and uses a lot of disk space, and you just
 want to explore the data structure without committing to a schema up front.

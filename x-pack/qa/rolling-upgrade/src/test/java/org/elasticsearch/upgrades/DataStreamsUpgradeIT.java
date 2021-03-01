@@ -49,12 +49,19 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 b.append("{\"create\":{\"_index\":\"").append("logs-foobar").append("\"}}\n");
                 b.append("{\"@timestamp\":\"2020-12-12\",\"test\":\"value").append(i).append("\"}\n");
             }
+
+            b.append("{\"create\":{\"_index\":\"").append("logs-foobar-2021.01.13").append("\"}}\n");
+            b.append("{\"@timestamp\":\"2020-12-12\",\"test\":\"value").append(0).append("\"}\n");
+
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
             bulk.addParameter("filter_path", "errors");
             bulk.setJsonEntity(b.toString());
             Response response = client().performRequest(bulk);
             assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+
+            Request rolloverRequest = new Request("POST", "/logs-foobar-2021.01.13/_rollover");
+            client().performRequest(rolloverRequest);
         } else if (CLUSTER_TYPE == ClusterType.MIXED) {
             long nowMillis = System.currentTimeMillis();
             Request rolloverRequest = new Request("POST", "/logs-foobar/_rollover");

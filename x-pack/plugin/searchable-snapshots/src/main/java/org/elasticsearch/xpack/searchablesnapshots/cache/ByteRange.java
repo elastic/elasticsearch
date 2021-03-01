@@ -73,6 +73,10 @@ public final class ByteRange implements Comparable<ByteRange> {
         return of(Math.max(start, other.start()), Math.min(end, other.end()));
     }
 
+    public boolean contains(long start, long end) {
+        return start() <= start && end <= end();
+    }
+
     @Override
     public int hashCode() {
         return 31 * Long.hashCode(start) + Long.hashCode(end);
@@ -92,7 +96,7 @@ public final class ByteRange implements Comparable<ByteRange> {
 
     @Override
     public String toString() {
-        return "ByteRange{" + start + "}{" + end + "}";
+        return "ByteRange [" + start + "-" + end + ']';
     }
 
     @Override

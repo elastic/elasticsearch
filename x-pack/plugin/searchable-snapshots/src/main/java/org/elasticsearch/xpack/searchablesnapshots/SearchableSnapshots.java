@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
@@ -92,6 +93,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -185,6 +187,31 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         Setting.Property.PrivateIndex,
         Setting.Property.NotCopyableOnResize
     );
+    public static final String SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH = "index.store.snapshot.blob_cache.metadata_files.max_length";
+    public static final Setting<ByteSizeValue> SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING = new Setting<>(
+        new Setting.SimpleKey(SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH),
+        s -> new ByteSizeValue(64L, ByteSizeUnit.KB).getStringRep(),
+        s -> Setting.parseByteSize(
+            s,
+            new ByteSizeValue(1L, ByteSizeUnit.KB),
+            new ByteSizeValue(Long.MAX_VALUE),
+            SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH
+        ),
+        value -> {
+            if (value.getBytes() % BufferedIndexInput.BUFFER_SIZE != 0L) {
+                final String message = String.format(
+                    Locale.ROOT,
+                    "failed to parse value [%s] for setting [%s], must be a multiple of [%s] bytes",
+                    value.getStringRep(),
+                    SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH,
+                    BufferedIndexInput.BUFFER_SIZE
+                );
+                throw new IllegalArgumentException(message);
+            }
+        },
+        Setting.Property.IndexScope,
+        Setting.Property.NotCopyableOnResize
+    );
 
     /**
      * Prefer to allocate to the cold tier, then the frozen tier, then the warm tier, then the hot tier
@@ -262,6 +289,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING,
             SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
             SNAPSHOT_PARTIAL_SETTING,
+            SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING,
             CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING,
@@ -303,7 +331,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             final FrozenCacheService frozenCacheService = new FrozenCacheService(environment, threadPool);
             this.frozenCacheService.set(frozenCacheService);
             components.add(cacheService);
-            final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(threadPool, client, SNAPSHOT_BLOB_CACHE_INDEX);
+            final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(
+                clusterService,
+                threadPool,
+                client,
+                SNAPSHOT_BLOB_CACHE_INDEX
+            );
             this.blobStoreCacheService.set(blobStoreCacheService);
             components.add(blobStoreCacheService);
         } else {

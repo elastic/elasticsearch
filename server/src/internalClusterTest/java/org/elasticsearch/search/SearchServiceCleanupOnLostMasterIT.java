@@ -31,7 +31,7 @@ public class SearchServiceCleanupOnLostMasterIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(MockTransportService.TestPlugin.class);
+        return org.elasticsearch.common.collect.List.of(MockTransportService.TestPlugin.class);
     }
 
     @Override

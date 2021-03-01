@@ -221,8 +221,11 @@ public class JobNodeSelectorTests extends ESTestCase {
             false);
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), containsString("because this node has insufficient available memory. "
-            + "Available memory for ML [" + currentlyRunningJobMemory + "], memory required by existing jobs ["
-            + currentlyRunningJobMemory + "], estimated memory required for this job [" + JOB_MEMORY_REQUIREMENT.getBytes() + "]"));
+            + "Available memory for ML [" + currentlyRunningJobMemory + " (" + ByteSizeValue.ofBytes(currentlyRunningJobMemory)
+            + ")], memory required by existing jobs ["
+            + currentlyRunningJobMemory + " (" + ByteSizeValue.ofBytes(currentlyRunningJobMemory)
+            + ")], estimated memory required for this job [" + JOB_MEMORY_REQUIREMENT.getBytes()
+            + " (" + ByteSizeValue.ofBytes(JOB_MEMORY_REQUIREMENT.getBytes()) + ")]"));
     }
 
     public void testSelectLeastLoadedMlNodeForDataFrameAnalyticsJob_givenTaskHasNullState() {
@@ -275,8 +278,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             false);
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), containsString("because this node has insufficient available memory. "
-            + "Available memory for ML [" + (firstJobTotalMemory - 1)
-            + "], memory required by existing jobs [0], estimated memory required for this job [" + firstJobTotalMemory + "]"));
+            + "Available memory for ML [" + (firstJobTotalMemory - 1) + " (" + ByteSizeValue.ofBytes((firstJobTotalMemory - 1))
+            + ")], memory required by existing jobs [0 (0b)], estimated memory required for this job ["
+            + firstJobTotalMemory + " (" + ByteSizeValue.ofBytes(firstJobTotalMemory) + ")]"));
     }
 
     public void testSelectLeastLoadedMlNodeForDataFrameAnalyticsJob_maxCapacityMemoryLimiting() {
@@ -311,8 +315,10 @@ public class JobNodeSelectorTests extends ESTestCase {
             false);
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), containsString("because this node has insufficient available memory. "
-            + "Available memory for ML [" + currentlyRunningJobMemory + "], memory required by existing jobs ["
-            + currentlyRunningJobMemory + "], estimated memory required for this job [" + JOB_MEMORY_REQUIREMENT.getBytes() + "]"));
+            + "Available memory for ML [" + currentlyRunningJobMemory + " (" + ByteSizeValue.ofBytes(currentlyRunningJobMemory)
+            +")], memory required by existing jobs [" + currentlyRunningJobMemory + " (" + ByteSizeValue.ofBytes(currentlyRunningJobMemory)
+            +")], estimated memory required for this job [" + JOB_MEMORY_REQUIREMENT.getBytes() + " ("
+            + ByteSizeValue.ofBytes(JOB_MEMORY_REQUIREMENT.getBytes()) + ")]"));
     }
 
     public void testSelectLeastLoadedMlNodeForDataFrameAnalyticsJob_firstJobTooBigMemoryLimiting() {
@@ -342,8 +348,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             false);
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), containsString("because this node has insufficient available memory. "
-            + "Available memory for ML [" + (firstJobTotalMemory - 1)
-            + "], memory required by existing jobs [0], estimated memory required for this job [" + firstJobTotalMemory + "]"));
+            + "Available memory for ML [" + (firstJobTotalMemory - 1) + " (" + ByteSizeValue.ofBytes(firstJobTotalMemory - 1)
+            + ")], memory required by existing jobs [0 (0b)], estimated memory required for this job ["
+            + firstJobTotalMemory + " (" + ByteSizeValue.ofBytes(firstJobTotalMemory) + ")]"));
     }
 
     public void testSelectLeastLoadedMlNode_noMlNodes() {

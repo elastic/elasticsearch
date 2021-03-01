@@ -61,6 +61,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -528,7 +529,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 }
             }
         }
-        assertTrue(taskDescriptions.toString(), taskDescriptions.isEmpty());
+        assertThat(taskDescriptions.toString(), taskDescriptions.length(), equalTo(0));
 
         NodesRequest request = new NodesRequest("Test Request");
         NodesResponse responses = ActionTestUtils.executeBlocking(actions[0], request);

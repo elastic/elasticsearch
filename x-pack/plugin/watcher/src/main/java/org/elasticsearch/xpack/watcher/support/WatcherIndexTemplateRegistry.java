@@ -72,8 +72,13 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     }
 
     public static boolean validate(ClusterState state) {
-        return (state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME) ||
-            state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM));
+        return state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME) ||
+            state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM) ||
+            // Template versions 12 or 13 are also ok to have (no breaking changes). At some point these will be upgraded to version 14.
+            state.getMetadata().templatesV2().containsKey(".watch-history-12") ||
+            state.getMetadata().templatesV2().containsKey(".watch-history-no-ilm-12") ||
+            state.getMetadata().templatesV2().containsKey(".watch-history-13") ||
+            state.getMetadata().templatesV2().containsKey(".watch-history-no-ilm-13");
     }
 
     @Override

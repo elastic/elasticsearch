@@ -65,7 +65,9 @@ The `fields` parameter allows for retrieving a list of document fields in
 the search response. It consults both the document `_source` and the index
 mappings to return each value in a standardized way that matches its mapping
 type. By default, date fields are formatted according to the
-<<mapping-date-format,date format>> parameter in their mappings.
+<<mapping-date-format,date format>> parameter in their mappings. You can also
+use the `fields` parameter to retrieve <<runtime-retrieving-fields,runtime field
+values>>.
 // end::fields-param-desc[]
 
 The following search request uses the `fields` parameter to retrieve values

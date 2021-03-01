@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.fleet;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * A plugin to manage and provide access to the system indices used by Fleet.
@@ -21,13 +24,15 @@ import java.util.Collection;
  */
 public class Fleet extends Plugin implements SystemIndexPlugin {
 
+    private static final List<String> ALLOWED_PRODUCTS = Arrays.asList("kibana", "fleet-server");
+
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return org.elasticsearch.common.collect.List.of(
-            new SystemIndexDescriptor(".fleet-servers*", "Configuration of fleet servers"),
-            new SystemIndexDescriptor(".fleet-policies*", "Policies and enrollment keys"),
-            new SystemIndexDescriptor(".fleet-agents*", "Agents and agent checkins"),
-            new SystemIndexDescriptor(".fleet-actions*", "Fleet actions")
+            new SystemIndexDescriptor(".fleet-servers*", "Configuration of fleet servers", Type.EXTERNAL_UNMANAGED, ALLOWED_PRODUCTS),
+            new SystemIndexDescriptor(".fleet-policies*", "Policies and enrollment keys", Type.EXTERNAL_UNMANAGED, ALLOWED_PRODUCTS),
+            new SystemIndexDescriptor(".fleet-agents*", "Agents and agent checkins", Type.EXTERNAL_UNMANAGED, ALLOWED_PRODUCTS),
+            new SystemIndexDescriptor(".fleet-actions*", "Fleet actions", Type.EXTERNAL_UNMANAGED, ALLOWED_PRODUCTS)
         );
     }
 

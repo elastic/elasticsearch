@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -203,7 +203,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     static class Resolver extends IndexNameExpressionResolver {
         Resolver() {
-            super(new ThreadContext(Settings.EMPTY));
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
         }
 
         @Override
@@ -233,7 +233,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     actionFilters,
                     indexNameExpressionResolver,
                     new IndexingPressure(Settings.EMPTY),
-                    new SystemIndices(emptyMap()),
+                    EmptySystemIndices.INSTANCE,
                     relativeTimeProvider);
         }
     }

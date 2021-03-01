@@ -37,10 +37,10 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
-import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -1502,7 +1502,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 null,
                 xContentRegistry,
-                new SystemIndices(Collections.emptyMap()),
+                EmptySystemIndices.INSTANCE,
                 true
         );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(null, createIndexService,
@@ -1559,7 +1559,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 null,
                 xContentRegistry(),
-                new SystemIndices(Collections.emptyMap()),
+                EmptySystemIndices.INSTANCE,
                 true
         );
         return new MetadataIndexTemplateService(

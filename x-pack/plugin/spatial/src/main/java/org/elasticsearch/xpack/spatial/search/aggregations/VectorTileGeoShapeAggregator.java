@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
-import com.wdtinc.mapbox_vector_tile.VectorTile;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -24,10 +24,10 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.vectortile.FeatureFactory;
+import org.elasticsearch.xpack.spatial.vectortile.PointFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,15 +36,15 @@ import java.util.Map;
 
 /**
  * Aggregator over a geo shape field. It skips shapes where bounding box is smaller
- * than the distance between two pixels. It reads Geometry from source which can
- * be really slow.
+ * than the distance between two pixels. It reads Geometry from source which is slow.
  */
 public class VectorTileGeoShapeAggregator extends AbstractVectorTileAggregator {
 
-    private static final int extent = 4096;
     private final String fieldName;
-    private final double latPrecision;
-    private final double lonPrecision;
+    private final double latPolygonPrecision;
+    private final double lonPolygonPrecision;
+    private final double latLinePrecision;
+    private final double lonLinePrecision;
     private final MappedFieldType sourceField;
     private final GeometryParser parser = new GeometryParser(true, false, false);
 
@@ -58,18 +58,23 @@ public class VectorTileGeoShapeAggregator extends AbstractVectorTileAggregator {
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, valuesSourceConfig, z, x, y, extent, context, parent, metadata);
-        Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
-        this.latPrecision = 2 * (rectangle.getMaxLat() - rectangle.getMinLat()) / extent;
-        this.lonPrecision = 2 * (rectangle.getMaxLon() - rectangle.getMinLon()) / extent;
+        super(name, valuesSourceConfig, z, x, y, context, parent, metadata);
         this.sourceField = context.getFieldType(SourceFieldMapper.NAME);
         this.fieldName = valuesSourceConfig.fieldType().name();
+        Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
+        // TODO: Reason the logic for when we should skip a complex geometry
+        this.latPolygonPrecision = 5 * (rectangle.getMaxLat() - rectangle.getMinLat()) / POLYGON_EXTENT;
+        this.lonPolygonPrecision = 5 * (rectangle.getMaxLon() - rectangle.getMinLon()) / POLYGON_EXTENT;
+        this.latLinePrecision = 5 * (rectangle.getMaxLat() - rectangle.getMinLat()) / LINE_EXTENT;
+        this.lonLinePrecision = 5 * (rectangle.getMaxLon() - rectangle.getMinLon()) / LINE_EXTENT;
+
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) {
         final GeoShapeValues values = ((GeoShapeValuesSource) valuesSource).geoShapeValues(ctx);
-        final FeatureFactory featureFactory = new FeatureFactory(z, x, y, extent);
+        final FeatureFactory featureFactory = new FeatureFactory(z, x, y, POLYGON_EXTENT);
+        final PointFactory pointFactory = new PointFactory();
         final List<Object> fieldVisitorCollector = new ArrayList<>();
         final SingleFieldsVisitor visitor = new SingleFieldsVisitor(sourceField, fieldVisitorCollector);
         return new LeafBucketCollectorBase(sub, values) {
@@ -77,33 +82,52 @@ public class VectorTileGeoShapeAggregator extends AbstractVectorTileAggregator {
             public void collect(int doc, long bucket) throws IOException {
                 if (values.advanceExact(doc)) {
                     GeoShapeValues.GeoShapeValue shapeValue = values.value();
-                    boolean skip = skip(shapeValue);
-                    if (skip == false) {
-                        fieldVisitorCollector.clear();
-                        ctx.reader().document(doc, visitor);
-                        Geometry geometry = getGeometry((BytesRef) fieldVisitorCollector.get(0));
-                        List<VectorTile.Tile.Feature> features = featureFactory.getFeatures(geometry);
-                        for (VectorTile.Tile.Feature feature : features) {
-                            layerBuilder.addFeatures(feature);
+                        switch (shapeValue.dimensionalShapeType()) {
+                            case POINT:
+                                List<Point> points = pointFactory.getPoints(getGeometry(ctx, doc, fieldVisitorCollector, visitor));
+                                for(Point point : points) {
+                                    addPoint(point.getLat(), point.getLon());
+                                }
+                                break;
+                            case LINE:
+                                if (skipLine(shapeValue) == false) {
+                                    addLineFeatures(featureFactory.getFeatures(getGeometry(ctx, doc, fieldVisitorCollector, visitor)));
+                                }
+                                break;
+                            case POLYGON:
+                                if (skipPolygon(shapeValue) == false) {
+                                    addPolygonFeatures(featureFactory.getFeatures(getGeometry(ctx, doc, fieldVisitorCollector, visitor)));
+                                }
+                                break;
                         }
-                    }
                 }
             }
         };
     }
 
-    private boolean skip(GeoShapeValues.GeoShapeValue shapeValue) {
-        if (shapeValue.dimensionalShapeType() != DimensionalShapeType.POINT) {
-            final double width = shapeValue.boundingBox().maxX() - shapeValue.boundingBox().minX();
-            final double height = shapeValue.boundingBox().maxY() - shapeValue.boundingBox().minY();
-            return width <= this.lonPrecision && height <= this.latPrecision;
-        }
-        return false;
+    private boolean skipPolygon(GeoShapeValues.GeoShapeValue shapeValue) {
+        final double width = shapeValue.boundingBox().maxX() - shapeValue.boundingBox().minX();
+        final double height = shapeValue.boundingBox().maxY() - shapeValue.boundingBox().minY();
+        return width <= this.lonPolygonPrecision && height <= this.latPolygonPrecision;
     }
 
-    private Geometry getGeometry(BytesRef bytes) {
+    private boolean skipLine(GeoShapeValues.GeoShapeValue shapeValue) {
+        final double width = shapeValue.boundingBox().maxX() - shapeValue.boundingBox().minX();
+        final double height = shapeValue.boundingBox().maxY() - shapeValue.boundingBox().minY();
+        return width <= this.lonLinePrecision && height <= this.latLinePrecision;
+    }
+
+    private Geometry getGeometry(LeafReaderContext ctx,
+                                  int doc,
+                                  List<Object> fieldVisitorCollector,
+                                  SingleFieldsVisitor visitor) throws IOException {
+        // TODO: Incomplete as we should vbe calling prepareForIndexing.
+        // Already pretty slow, can we add this info to the doc value?
+        fieldVisitorCollector.clear();
+        ctx.reader().document(doc, visitor);
         final SourceLookup lookup = new SourceLookup();
-        lookup.setSource(new BytesArray(bytes));
+        lookup.setSource(new BytesArray((BytesRef) fieldVisitorCollector.get(0)));
         return parser.parseGeometry(lookup.get(fieldName));
     }
+
 }

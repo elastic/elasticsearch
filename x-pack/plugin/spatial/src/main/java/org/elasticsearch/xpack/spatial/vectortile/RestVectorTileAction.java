@@ -40,13 +40,12 @@ public class RestVectorTileAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        // TODO: support wildcards and comma separated list?
         final String index  = restRequest.param("index");
         final String field  = restRequest.param("field");
         final int z = Integer.parseInt(restRequest.param("z"));
         final int x = Integer.parseInt(restRequest.param("x"));
         final int y = Integer.parseInt(restRequest.param("y"));
-        final SearchRequestBuilder builder = searchBuilder(client, index, field, z, x, y);
+        final SearchRequestBuilder builder = searchBuilder(client, index.split(","), field, z, x, y);
         // TODO: how do we handle cancellations?
         return channel -> builder.execute( new RestResponseListener<>(channel) {
 
@@ -60,7 +59,7 @@ public class RestVectorTileAction extends BaseRestHandler {
         });
     }
 
-    public static SearchRequestBuilder searchBuilder(Client client, String index, String field, int z, int x, int y) throws IOException {
+    public static SearchRequestBuilder searchBuilder(Client client, String[] index, String field, int z, int x, int y) throws IOException {
         final Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
         final GeoShapeQueryBuilder qBuilder = QueryBuilders.geoShapeQuery(field, rectangle);
         final VectorTileAggregationBuilder aBuilder = new VectorTileAggregationBuilder(field).field(field).z(z).x(x).y(y);

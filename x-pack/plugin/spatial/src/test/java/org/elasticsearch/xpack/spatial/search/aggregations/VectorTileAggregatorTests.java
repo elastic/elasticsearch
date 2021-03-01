@@ -34,10 +34,10 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
-import org.elasticsearch.xpack.spatial.vectortile.FeatureFactory;
 import org.hamcrest.Matchers;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 
@@ -63,12 +63,6 @@ public class VectorTileAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             points.add(GeometryTestUtils.randomPoint());
         }
-        final VectorTile.Tile.Layer.Builder layerBuilder = VectorTile.Tile.Layer.newBuilder();
-        layerBuilder.setVersion(2);
-        layerBuilder.setExtent(256);
-        layerBuilder.setName("my_agg");
-        // TODO: It would be nice to use different tiles?
-        final FeatureFactory factory = new FeatureFactory(0, 0, 0, 256);
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (Point point : points) {
@@ -77,20 +71,11 @@ public class VectorTileAggregatorTests extends AggregatorTestCase {
                 BytesRef val = new BytesRef("{\"field\" : \"" + WellKnownText.INSTANCE.toWKT(point) + "\"}");
                 document.add(new StoredField("_source", val));
                 w.addDocument(document);
-                List<VectorTile.Tile.Feature> features = factory.getFeatures(point);
-                for (VectorTile.Tile.Feature feature : features) {
-                    layerBuilder.addFeatures(feature);
-                }
             }
-            // force using a single aggregator to compute the centroid
-            w.forceMerge(1);
-            final VectorTile.Tile.Builder tileBuilder = VectorTile.Tile.newBuilder();
-            // Build MVT layer
-            final VectorTile.Tile.Layer layer = layerBuilder.build();
-            // Add built layer to MVT
-            tileBuilder.addLayers(layer);
-            VectorTile.Tile expecteTile = tileBuilder.build();
-            assertVectorTile(w, expecteTile, new GeoPointFieldMapper.GeoPointFieldType("field"));
+            if (randomBoolean()) {
+                w.forceMerge(1);
+            }
+            assertVectorTile(w, 0, 0, numDocs, new GeoPointFieldMapper.GeoPointFieldType("field"));
         }
     }
 
@@ -105,23 +90,18 @@ public class VectorTileAggregatorTests extends AggregatorTestCase {
                 GeometryTestUtils::randomPoint,
                 GeometryTestUtils::randomPolygon,
                 GeometryTestUtils::randomMultiLine,
-                GeometryTestUtils::randomMultiPoint,
                 GeometryTestUtils::randomMultiPolygon
             );
             Geometry geometry = geometryGenerator.apply(false);
             try {
-                indexer.prepareForIndexing(geometry);
-                geometries.add(geometry);
-                // geometries.add(indexer.prepareForIndexing(geometry));
+                geometries.add(indexer.prepareForIndexing(geometry));
             } catch (InvalidShapeException e) {
                 // do not include geometry
             }
         }
-        final VectorTile.Tile.Layer.Builder layerBuilder = VectorTile.Tile.Layer.newBuilder();
-        layerBuilder.setVersion(2);
-        layerBuilder.setName("my_agg");
-        // TODO: It would be nice to use different tiles?
-        final FeatureFactory factory = new FeatureFactory(0, 0, 0, 4096);
+        int expectedPolygons = 0;
+        int expectedLines = 0;
+        int expectedPoints = 0;
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (Geometry geometry : geometries) {
@@ -130,26 +110,30 @@ public class VectorTileAggregatorTests extends AggregatorTestCase {
                 BytesRef val = new BytesRef("{\"field\" : \"" + WellKnownText.INSTANCE.toWKT(geometry) + "\"}");
                 document.add(new StoredField("_source", val));
                 w.addDocument(document);
-                List<VectorTile.Tile.Feature> features = factory.getFeatures(geometry);
-                for (VectorTile.Tile.Feature feature : features) {
-                    layerBuilder.addFeatures(feature);
+                GeoShapeValues.GeoShapeValue value = GeoTestUtils.geoShapeValue(geometry);
+                switch (value.dimensionalShapeType()) {
+                    case POINT:
+                        expectedPoints++;
+                        break;
+                    case LINE:
+                        expectedLines++;
+                        break;
+                    case POLYGON:
+                        expectedPolygons++;
+                        break;
                 }
             }
-            // force using a single aggregator to compute the centroid
-            w.forceMerge(1);
-            final VectorTile.Tile.Builder tileBuilder = VectorTile.Tile.newBuilder();
-            // Build MVT layer
-            final VectorTile.Tile.Layer layer = layerBuilder.build();
-            // Add built layer to MVT
-            tileBuilder.addLayers(layer);
-            VectorTile.Tile expectedtile = tileBuilder.build();
+            if (randomBoolean()) {
+                w.forceMerge(1);
+            }
             MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field",
                 true, true, ShapeBuilder.Orientation.RIGHT, null, Collections.emptyMap());
-            assertVectorTile(w, expectedtile, fieldType);
+            assertVectorTile(w, expectedPolygons, expectedLines, expectedPoints, fieldType);
         }
     }
 
-    private void assertVectorTile(RandomIndexWriter w, VectorTile.Tile tile, MappedFieldType fieldType) throws IOException {
+    private void assertVectorTile(RandomIndexWriter w, int expectedPolygons, int expectedLines,
+                                  int expectedPoints, MappedFieldType fieldType) throws IOException {
         MappedFieldType sourceFieldType = new SourceFieldMapper.Builder().build().fieldType();
         VectorTileAggregationBuilder aggBuilder = new VectorTileAggregationBuilder("my_agg")
             .field("field");
@@ -159,11 +143,52 @@ public class VectorTileAggregatorTests extends AggregatorTestCase {
             assertEquals("my_agg", result.getName());
             VectorTile.Tile tileResult = VectorTile.Tile.newBuilder().mergeFrom(result.getVectorTile()).build();
             assertNotNull(tileResult);
-            assertThat(tile.getLayersCount(), Matchers.equalTo(tileResult.getLayersCount()));
-            assertThat(tile.getLayers(0).getExtent(), Matchers.equalTo(tileResult.getLayers(0).getExtent()));
-            assertThat(tile.getLayers(0).getName(), Matchers.equalTo(tileResult.getLayers(0).getName()));
-            assertThat(tile.getLayers(0).getVersion(), Matchers.equalTo(tileResult.getLayers(0).getVersion()));
-            assertThat(tile.getLayers(0).getFeaturesCount(), Matchers.equalTo(tileResult.getLayers(0).getFeaturesCount()));
+            int expectedLayers = (expectedPolygons > 0 ? 1 : 0) + (expectedLines > 0 ? 1 : 0) + (expectedPoints > 0 ? 1 : 0);
+            assertThat(expectedLayers, Matchers.equalTo(tileResult.getLayersCount()));
+            if (expectedPolygons > 0) {
+                VectorTile.Tile.Layer polygons = null;
+                for (int i = 0; i < tileResult.getLayersCount(); i++) {
+                    VectorTile.Tile.Layer layer = tileResult.getLayers(i);
+                    if (AbstractVectorTileAggregator.POLYGON_LAYER.equals(layer.getName())) {
+                        polygons = layer;
+                        break;
+                    }
+                }
+                assertThat(polygons, Matchers.notNullValue());
+                assertThat(AbstractVectorTileAggregator.POLYGON_EXTENT, Matchers.equalTo(polygons.getExtent()));
+                assertThat(2, Matchers.equalTo(polygons.getVersion()));
+                assertThat(expectedPolygons, Matchers.greaterThanOrEqualTo(polygons.getFeaturesCount()));
+            }
+
+            if (expectedLines > 0) {
+                VectorTile.Tile.Layer lines = null;
+                for (int i = 0; i < tileResult.getLayersCount(); i++) {
+                    VectorTile.Tile.Layer layer = tileResult.getLayers(i);
+                    if (AbstractVectorTileAggregator.LINE_LAYER.equals(layer.getName())) {
+                        lines = layer;
+                        break;
+                    }
+                }
+                assertThat(lines, Matchers.notNullValue());
+                assertThat(AbstractVectorTileAggregator.LINE_EXTENT, Matchers.equalTo(lines.getExtent()));
+                assertThat(2, Matchers.equalTo(lines.getVersion()));
+                assertThat(expectedLines, Matchers.greaterThanOrEqualTo(lines.getFeaturesCount()));
+            }
+
+            if (expectedPoints > 0) {
+                VectorTile.Tile.Layer points = null;
+                for (int i = 0; i < tileResult.getLayersCount(); i++) {
+                    VectorTile.Tile.Layer layer = tileResult.getLayers(i);
+                    if (AbstractVectorTileAggregator.POINT_LAYER.equals(layer.getName())) {
+                        points = layer;
+                        break;
+                    }
+                }
+                assertThat(points, Matchers.notNullValue());
+                assertThat(AbstractVectorTileAggregator.POINT_EXTENT, Matchers.equalTo(points.getExtent()));
+                assertThat(2, Matchers.equalTo(points.getVersion()));
+                assertThat(expectedPoints, Matchers.greaterThanOrEqualTo(points.getFeaturesCount()));
+            }
         }
     }
 

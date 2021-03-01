@@ -44,9 +44,12 @@ public class FeatureFactory {
     private final JTSGeometryBuilder builder;
 
     private final Envelope tileEnvelope;
+    private final Envelope clipEnvelope;
 
     public FeatureFactory(int z, int x, int y, int extent) {
         this.tileEnvelope = VectorTileUtils.getJTSTileBounds(z, x, y);
+        this.clipEnvelope = VectorTileUtils.getJTSTileBounds(z, x, y);
+        this.clipEnvelope.expandBy(tileEnvelope.getWidth() * 0.1d, tileEnvelope.getHeight() * 0.1d);
         this.builder = new JTSGeometryBuilder(geomFactory);
         // TODO: Not sure what is the difference between extent and tile size?
         this.layerParams  = new MvtLayerParams(extent, extent);
@@ -54,7 +57,8 @@ public class FeatureFactory {
 
     public List<VectorTile.Tile.Feature> getFeatures(Geometry geometry) {
         TileGeomResult tileGeom =
-            JtsAdapter.createTileGeom(geometry.visit(builder), tileEnvelope, geomFactory, layerParams, acceptAllGeomFilter);
+            JtsAdapter.createTileGeom(JtsAdapter.flatFeatureList(geometry.visit(builder)),
+                tileEnvelope, clipEnvelope, geomFactory, layerParams, acceptAllGeomFilter);
         // MVT tile geometry to MVT features
         return JtsAdapter.toFeatures(tileGeom.mvtGeoms, layerProps, ignoreUserData);
     }

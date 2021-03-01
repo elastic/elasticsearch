@@ -48,7 +48,7 @@ class VectorTileAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-       return new AbstractVectorTileAggregator(name, config, z, x, y, 256, context, parent, metadata) {
+       return new AbstractVectorTileAggregator(name, config, z, x, y, context, parent, metadata) {
            @Override
            protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
                return LeafBucketCollector.NO_OP_COLLECTOR;

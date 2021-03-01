@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -15,14 +14,15 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.vectortile.FeatureFactory;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,12 +34,12 @@ public class InternalVectorTileTests extends InternalAggregationTestCase<Interna
         return new SpatialPlugin();
     }
 
-    static VectorTile.Tile randomVectorTile(int shapes) {
+    static VectorTile.Tile.Layer randomPolygonLayer(int shapes) {
         final VectorTile.Tile.Layer.Builder layerBuilder = VectorTile.Tile.Layer.newBuilder();
         layerBuilder.setVersion(2);
-        layerBuilder.setName(randomAlphaOfLength(15));
-        // TODO: It would be nice to use different tiles?
-        final FeatureFactory factory = new FeatureFactory(0, 0, 0, 4096);
+        layerBuilder.setName(AbstractVectorTileAggregator.POLYGON_LAYER);
+        layerBuilder.setExtent(AbstractVectorTileAggregator.POLYGON_EXTENT);
+        final FeatureFactory factory = new FeatureFactory(0, 0, 0, AbstractVectorTileAggregator.POLYGON_EXTENT);
         for (int i =0; i < shapes; i++) {
             int count = layerBuilder.getFeaturesCount();
             while(true) {
@@ -53,27 +53,58 @@ public class InternalVectorTileTests extends InternalAggregationTestCase<Interna
                 }
             }
         }
-        final VectorTile.Tile.Builder tileBuilder = VectorTile.Tile.newBuilder();
-        // Build MVT layer
-        final VectorTile.Tile.Layer layer = layerBuilder.build();
-        // Add built layer to MVT
-        tileBuilder.addLayers(layer);
-        return tileBuilder.build();
+        return layerBuilder.build();
+
+    }
+
+    static VectorTile.Tile.Layer randomLineLayer(int shapes) {
+        final VectorTile.Tile.Layer.Builder layerBuilder = VectorTile.Tile.Layer.newBuilder();
+        layerBuilder.setVersion(2);
+        layerBuilder.setName(AbstractVectorTileAggregator.POLYGON_LAYER);
+        layerBuilder.setExtent(AbstractVectorTileAggregator.POLYGON_EXTENT);
+        final FeatureFactory factory = new FeatureFactory(0, 0, 0, AbstractVectorTileAggregator.POLYGON_EXTENT);
+        for (int i =0; i < shapes; i++) {
+            int count = layerBuilder.getFeaturesCount();
+            while(true) {
+                Geometry geometry = GeometryTestUtils.randomLine(false);
+                List<VectorTile.Tile.Feature> features = factory.getFeatures(geometry);
+                for (VectorTile.Tile.Feature feature : features) {
+                    layerBuilder.addFeatures(feature);
+                }
+                if (count < layerBuilder.getFeaturesCount()) {
+                    break;
+                }
+            }
+        }
+        return layerBuilder.build();
+
+    }
+
+    static long[] randomPoints() {
+        long[] points  = new long[AbstractVectorTileAggregator.POINT_EXTENT * AbstractVectorTileAggregator.POINT_EXTENT];
+        for( int i = 0; i < points.length;  i++) {
+            points[i] = randomInt(10);
+        }
+        return points;
     }
 
     @Override
     protected InternalVectorTile createTestInstance(String name, Map<String, Object> metadata) {
-        int size = randomIntBetween(10, 20);
-        VectorTile.Tile tile = randomVectorTile(size);
-        return new InternalVectorTile(name, tile.toByteArray(), metadata);
+        int size = randomIntBetween(5, 10);
+        VectorTile.Tile.Layer polygons = randomBoolean() ? randomPolygonLayer(size) : null;
+        VectorTile.Tile.Layer lines = randomBoolean() ? randomLineLayer(size) : null;
+        long[] points = randomBoolean() ? randomPoints() : null;
+        return new InternalVectorTile(name, polygons, lines, points, metadata);
     }
 
     @Override
     protected InternalVectorTile mutateInstance(InternalVectorTile instance) {
         String name = instance.getName();
-        byte[] tile = instance.getVectorTile();
+        VectorTile.Tile.Layer polygons = instance.polygons;
+        VectorTile.Tile.Layer lines = instance.lines;
+        long[] points = instance.points;
         Map<String, Object> metadata = instance.getMetadata();
-        switch (randomIntBetween(0, 2)) {
+        switch (randomIntBetween(0, 4)) {
             case 0:
                 name += randomAlphaOfLength(5);
                 break;
@@ -86,35 +117,51 @@ public class InternalVectorTileTests extends InternalAggregationTestCase<Interna
                 metadata.put(randomAlphaOfLength(15), randomInt());
                 break;
             case 2:
-                tile = randomVectorTile(randomIntBetween(10, 20)).toByteArray();
+                polygons = randomPolygonLayer(randomIntBetween(10, 20));
+                break;
+            case 3:
+                lines = randomLineLayer(randomIntBetween(10, 20));
+                break;
+            case 4:
+                points = randomPoints();
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalVectorTile(name,tile, metadata);
+        return new InternalVectorTile(name, polygons, lines, points, metadata);
     }
 
     @Override
     protected List<InternalVectorTile> randomResultsToReduce(String name, int size) {
         List<InternalVectorTile> instances = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            // use the magicDecimal to have absolute ordering between heap-sort and testing array sorting
-            instances.add(new InternalVectorTile(name, randomVectorTile(randomIntBetween(10, 20)).toByteArray(), null));
+            instances.add(createTestInstance(name, null));
         }
         return instances;
     }
 
     @Override
     protected void assertReduced(InternalVectorTile reduced, List<InternalVectorTile> inputs) {
-        final VectorTile.Tile.Builder tileBuilder = VectorTile.Tile.newBuilder();
-        for (InternalAggregation aggregation : inputs) {
-            try {
-                tileBuilder.mergeFrom(((InternalVectorTile) aggregation).getVectorTile());
-            } catch (InvalidProtocolBufferException ex) {
-                fail(ex.getMessage());
+        int numPolygons = 0;
+        int numLines = 0;
+        long numPoints = 0;
+        for (InternalVectorTile input : inputs) {
+            if (input.polygons != null) {
+                numPolygons += input.polygons.getFeaturesCount();
+            }
+            if (input.lines != null) {
+                numLines += input.lines.getFeaturesCount();
+            }
+            if (input.points != null) {
+                numPoints += Arrays.stream(input.points).sum();
             }
         }
-        assertArrayEquals(reduced.getVectorTile(), tileBuilder.build().toByteArray());
+        int numReducedPolygons = reduced.polygons != null ? reduced.polygons.getFeaturesCount() : 0;
+        assertThat(numReducedPolygons, Matchers.equalTo(numPolygons));
+        int numReducedLines = reduced.lines != null ? reduced.lines.getFeaturesCount() : 0;
+        assertThat(numReducedLines, Matchers.equalTo(numLines));
+        long numReducedPoints = reduced.points != null ? Arrays.stream(reduced.points).sum() : 0;
+        assertThat(numReducedPoints, Matchers.equalTo(numPoints));
     }
 
     @Override

@@ -79,6 +79,12 @@ setup:
                }
             }
           }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model_alias:
+        model_alias: "my-regression"
+        model_id: "a-unused-regression-model1"
 ---
 "Test get stats given missing trained model":
 
@@ -175,3 +181,20 @@ setup:
   - match: { count: 1 }
   - match: { trained_model_stats.0.model_id: another-regression-model }
   - match: { trained_model_stats.0.pipeline_count: 0 }
+
+
+# test with model alias
+  - do:
+      ml.get_trained_models_stats:
+        model_id: "my-regression"
+
+  - match: { count: 1 }
+  - match: { trained_model_stats.0.model_id: a-unused-regression-model1 }
+
+  - do:
+      ml.get_trained_models_stats:
+        model_id: "my-regression,another-regression-model"
+
+  - match: { count: 2 }
+  - match: { trained_model_stats.0.model_id: a-unused-regression-model1 }
+  - match: { trained_model_stats.1.model_id: another-regression-model }

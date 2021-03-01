@@ -55,7 +55,7 @@ The information still needs to be searchable, but it’s okay if those queries a
 
 [[glossary-cold-tier]] cold tier::
 // tag::cold-tier-def[]
-A <<glossary-data-tier, data tier>> that contains nodes that hold time series data 
+A <<glossary-data-tier, data tier>> that contains nodes that hold time series data
 that is accessed occasionally and not normally updated.
 // end::cold-tier-def[]
 
@@ -67,7 +67,7 @@ A building block for constructing <<index-templates,index templates>> that speci
 
 [[glossary-content-tier]] content tier::
 // tag::content-tier-def[]
-A <<glossary-data-tier, data tier>> that contains nodes that handle the indexing and query load for 
+A <<glossary-data-tier, data tier>> that contains nodes that handle the indexing and query load for
 content such as a product catalog.
 // end::content-tier-def[]
 
@@ -230,7 +230,7 @@ that is accessed rarely and not normally updated.
 
 [[glossary-hidden-index]] hidden index ::
 // tag::hidden-index-def[]
-An index that is excluded by default when you access indices using a wildcard expression. 
+An index that is excluded by default when you access indices using a wildcard expression.
 You can specify the `expand_wildcards` parameter to include hidden indices.
 Note that hidden indices _are_ included if the wildcard expression starts with a dot, for example `.watcher-history*`.
 // end::hidden-index-def[]
@@ -243,8 +243,8 @@ In the hot phase, an index is actively updated and queried.
 
 [[glossary-hot-tier]] hot tier::
 // tag::hot-tier-def[]
-A <<glossary-data-tier, data tier>> that contains nodes that handle the indexing load 
-for time series data such as logs or metrics and hold your most recent, 
+A <<glossary-data-tier, data tier>> that contains nodes that handle the indexing load
+for time series data such as logs or metrics and hold your most recent,
 most-frequently-accessed data.
 // end::hot-tier-def[]
 
@@ -518,6 +518,15 @@ in the <<glossary-mapping,mapping>>.
 // end::routing-def[]
 --
 
+[[glossary-runtime-fields]] runtime field ::
+// tag::runtime-fields-def[]
+A runtime field is a field that is evaluated at query time. You access runtime
+fields from the search API like any other field, and {es} sees runtime fields
+no differently. You can define runtime fields in the
+{ref}/runtime-mapping-fields.html[index mapping] or in the
+{ref}/runtime-search-request.html[search request].
+// end::runtime-fields-def[]
+
 [[glossary-searchable-snapshot]] searchable snapshot ::
 // tag::searchable-snapshot-def[]
 A <<glossary-snapshot, snapshot>> of an index that has been mounted as a
@@ -606,8 +615,8 @@ See the {ref}/indices-split-index.html[split index API].
 
 [[glossary-system-index]] system index ::
 // tag::system-index-def[]
-An index that contains configuration information or other data used internally by the system, 
-such as the `.security` index. 
+An index that contains configuration information or other data used internally by the system,
+such as the `.security` index.
 The name of a system index is always prefixed with a dot.
 You should not directly access or modify system indices.
 // end::system-index-def[]
@@ -656,6 +665,6 @@ In the warm phase, an index is generally optimized for search and no longer upda
 
 [[glossary-warm-tier]] warm tier::
 // tag::warm-tier-def[]
-A <<glossary-data-tier, data tier>> that contains nodes that hold time series data 
+A <<glossary-data-tier, data tier>> that contains nodes that hold time series data
 that is accessed less frequently and rarely needs to be updated.
 // end::warm-tier-def[]

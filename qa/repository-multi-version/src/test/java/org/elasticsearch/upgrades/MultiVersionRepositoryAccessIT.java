@@ -197,7 +197,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             // 7.12.0+ will try to load RepositoryData during repo creation if verify is true, which is impossible in case of version
             // incompatibility in the downgrade test step. We verify that it is impossible here and then create the repo using verify=false
             // to check behavior on other operations below.
-            final boolean verify = TEST_STEP != TestStep.STEP3_OLD_CLUSTER || SnapshotsService.includesClusterUUID(minNodeVersion)
+            final boolean verify = TEST_STEP != TestStep.STEP3_OLD_CLUSTER || SnapshotsService.includesUUIDs(minNodeVersion)
                     || minNodeVersion.before(Version.V_7_12_0);
             if (verify == false) {
                 expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> createRepository(client, repoName, false, true));
@@ -223,7 +223,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                     ensureSnapshotRestoreWorks(client, repoName, "snapshot-2", shards);
                 }
             } else {
-                if (SnapshotsService.includesClusterUUID(minNodeVersion) == false) {
+                if (SnapshotsService.includesUUIDs(minNodeVersion) == false) {
                     assertThat(TEST_STEP, is(TestStep.STEP3_OLD_CLUSTER));
                     expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> listSnapshots(repoName));
                     expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> deleteSnapshot(client, repoName, "snapshot-1"));

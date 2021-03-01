@@ -30,6 +30,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.WriteableZoneId;
@@ -85,7 +87,15 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     protected void masterOperation(Task task, RollupAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         String originalIndexName = request.getSourceIndex();
-        String tmpIndexName = ".rolluptmp-" + request.getRollupIndex();
+
+        final String rollupIndexName;
+        if (request.getRollupIndex() == null) {
+            rollupIndexName = "rollup-" + originalIndexName + "-" + UUIDs.randomBase64UUID(Randomness.get());
+        } else {
+            rollupIndexName = request.getRollupIndex();
+        }
+
+        String tmpIndexName = ".rolluptmp-" + rollupIndexName;
 
         final XContentBuilder mapping;
         try {
@@ -119,7 +129,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                         if (updateSettingsResponse.isAcknowledged()) {
                             client.admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(resizeResponse -> {
                                 if (resizeResponse.isAcknowledged()) {
-                                    publishMetadata(request, originalIndexName, tmpIndexName, listener);
+                                    publishMetadata(request.getRollupConfig(), originalIndexName, tmpIndexName, rollupIndexName, listener);
                                 } else {
                                     deleteTmpIndex(originalIndexName, tmpIndexName, listener,
                                         new ElasticsearchException("Unable to resize temp rollup index [" + tmpIndexName + "]"));
@@ -198,7 +208,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         return builder.endObject();
     }
 
-    private void publishMetadata(RollupAction.Request request, String originalIndexName, String tmpIndexName,
+    private void publishMetadata(RollupActionConfig config, String originalIndexName, String tmpIndexName, String rollupIndexName,
                                  ActionListener<AcknowledgedResponse> listener) {
         // update Rollup metadata to include this index
         clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
@@ -210,29 +220,22 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
             @Override
             public ClusterState execute(ClusterState currentState) throws IOException {
-                String rollupIndexName = request.getRollupIndex();
-                // TODO(talevy): find better spot to get the original index name
-                // extract created rollup index original index name to be used as metadata key
-                String originalIndexName = request.getSourceIndex();
-                IndexAbstraction originalIndex = currentState.getMetadata().getIndicesLookup().get(originalIndexName);
                 IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
                 Index rollupIndex = rollupIndexMetadata.getIndex();
+                Map<String, String> idxMetadata = currentState.getMetadata().index(originalIndexName)
+                    .getCustomData(RollupIndexMetadata.TYPE);
 
                 // Add the source index name to the rollup index metadata. If the original index is a rollup index itself
                 // we will add the name of the raw index that we initially rolled up.
-                Map<String, String> idxMetadata = currentState.getMetadata().index(originalIndexName)
-                    .getCustomData(RollupIndexMetadata.TYPE);
                 String rollupSourceIndexName = idxMetadata != null ?
                     idxMetadata.get(RollupIndexMetadata.SOURCE_INDEX_NAME_META_FIELD) : originalIndexName;
                 Map<String, String> rollupIndexRollupMetadata = new HashMap<>();
                 rollupIndexRollupMetadata.put(RollupIndexMetadata.SOURCE_INDEX_NAME_META_FIELD, rollupSourceIndexName);
-
                 // Add metadata about the rollup configuration
-                RollupActionConfig rollupConfig = request.getRollupConfig();
-                RollupActionDateHistogramGroupConfig dateConfig = rollupConfig.getGroupConfig().getDateHistogram();
+                RollupActionDateHistogramGroupConfig dateConfig = config.getGroupConfig().getDateHistogram();
                 WriteableZoneId rollupDateZoneId = WriteableZoneId.of(dateConfig.getTimeZone());
                 Map<String, List<String>> metricsConfig = new HashMap<>();
-                for (MetricConfig mconfig : rollupConfig.getMetricsConfig()) {
+                for (MetricConfig mconfig : config.getMetricsConfig()) {
                     metricsConfig.put(mconfig.getField(), mconfig.getMetrics());
                 }
                 RollupIndexMetadata rollupInfo = new RollupIndexMetadata(dateConfig.getInterval(), rollupDateZoneId, metricsConfig);
@@ -241,10 +244,10 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     rollupInfo.toXContent(builder, ToXContent.EMPTY_PARAMS);
                     rollupIndexRollupMetadata.put(RollupIndexMetadata.ROLLUP_META_FIELD, Strings.toString(builder));
                 }
-
                 Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata())
                     .put(IndexMetadata.builder(rollupIndexMetadata).putCustom(RollupIndexMetadata.TYPE, rollupIndexRollupMetadata));
 
+                IndexAbstraction originalIndex = currentState.getMetadata().getIndicesLookup().get(originalIndexName);
                 if (originalIndex.getParentDataStream() != null) {
                     // If rolling up a backing index of a data stream, add rolled up index to backing data stream
                     DataStream originalDataStream = originalIndex.getParentDataStream().getDataStream();

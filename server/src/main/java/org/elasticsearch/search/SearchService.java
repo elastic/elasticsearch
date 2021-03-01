@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
@@ -289,6 +290,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // to release memory and let references to the filesystem go etc.
         if (reason == IndexRemovalReason.DELETED || reason == IndexRemovalReason.CLOSED || reason == IndexRemovalReason.REOPENED) {
             freeAllContextForIndex(index);
+        }
+    }
+
+    @Override
+    public void beforeIndexShardCreated(ShardRouting routing, Settings indexSettings) {
+        // if a shard is reassigned to a node where we still have searches against the same shard and it is not a relocate, we prefer
+        // to stop searches to restore full availability as fast as possible. A known scenario here is that we lost connection to master
+        // or master(s) were restarted.
+        assert routing.initializing();
+        if (routing.isRelocationTarget() == false) {
+            freeAllContextsForShard(routing.shardId());
         }
     }
 
@@ -803,6 +815,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert index != null;
         for (ReaderContext ctx : activeReaders.values()) {
             if (index.equals(ctx.indexShard().shardId().getIndex())) {
+                freeReaderContext(ctx.id());
+            }
+        }
+    }
+
+    private void freeAllContextsForShard(ShardId shardId) {
+        assert shardId != null;
+        for (ReaderContext ctx : activeReaders.values()) {
+            if (shardId.equals(ctx.indexShard().shardId())) {
                 freeReaderContext(ctx.id());
             }
         }

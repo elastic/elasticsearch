@@ -417,7 +417,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
 
         DataFrameAnalyticsConfig config = builder.buildForExplain();
 
-        assertThat(config.getId(), equalTo("dummy"));
+        assertThat(config.getId(), equalTo(DataFrameAnalyticsConfig.BLANK_ID));
     }
 
     public void testBuildForExplain_MissingDest() {
@@ -428,7 +428,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
 
         DataFrameAnalyticsConfig config = builder.buildForExplain();
 
-        assertThat(config.getDest().getIndex(), equalTo("dummy"));
+        assertThat(config.getDest().getIndex(), equalTo(DataFrameAnalyticsConfig.BLANK_DEST_INDEX));
     }
 
     public void testPreventCreateTimeInjection() throws IOException {

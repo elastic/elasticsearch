@@ -17,6 +17,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
+import org.elasticsearch.index.analysis.AnalysisMode;
 
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -40,6 +41,7 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
 
     private final CharArraySet keywordLookup;
     private final Pattern keywordPattern;
+    private final AnalysisMode analysisMode;
 
     KeywordMarkerTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -67,6 +69,13 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
             keywordLookup = new CharArraySet(rules, ignoreCase);
             keywordPattern = null;
         }
+        boolean updateable = settings.getAsBoolean("updateable", false);
+        this.analysisMode = updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
+    }
+
+    @Override
+    public AnalysisMode getAnalysisMode() {
+        return this.analysisMode;
     }
 
     @Override

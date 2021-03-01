@@ -56,12 +56,13 @@ public class RestGetSourceActionTests extends RestActionTestCase {
      */
     public void testTypeInPath() {
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
+        verifyingClient.setExecuteVerifier(
+            (action, r) -> new GetResponse(new GetResult("index", "_doc", "id", 0, 1, 0, true, new BytesArray("{}"), null, null))
+        );
         for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {
             // Ensure we have a fresh context for each request so we don't get duplicate headers
             try (ThreadContext.StoredContext ignore = verifyingClient.threadPool().getThreadContext().stashContext()) {
-                RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                    .withMethod(method)
+                RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(method)
                     .withPath("/some_index/some_type/id/_source")
                     .build();
 
@@ -76,19 +77,20 @@ public class RestGetSourceActionTests extends RestActionTestCase {
      */
     public void testTypeParameter() {
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
+        verifyingClient.setExecuteVerifier(
+            (action, r) -> new GetResponse(new GetResult("index", "_doc", "id", 0, 1, 0, true, new BytesArray("{}"), null, null))
+        );
         Map<String, String> params = new HashMap<>();
         params.put("type", "some_type");
         for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {
             // Ensure we have a fresh context for each request so we don't get duplicate headers
             try (ThreadContext.StoredContext ignore = verifyingClient.threadPool().getThreadContext().stashContext()) {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                    .withMethod(method)
+                RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(method)
                     .withPath("/some_index/_source/id")
                     .withParams(params)
                     .build();
-            dispatchRequest(request);
-            assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+                dispatchRequest(request);
+                assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
             }
         }
     }

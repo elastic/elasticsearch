@@ -1,5 +1,8 @@
 ---
 "Test cat nodes output":
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/69757"
 
   - do:
       cat.nodes: {}

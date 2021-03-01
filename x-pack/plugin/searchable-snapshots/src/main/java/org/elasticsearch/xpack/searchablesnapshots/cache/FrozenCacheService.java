@@ -253,14 +253,13 @@ public class FrozenCacheService implements Releasable {
                 return (region - (isMetaFile ? 0 : 1)) * regionSize + (isMetaFile ? 0 : tinyRegionSize);
             case SMALL: {
                 final int largeRegions = largeRegions(fileSize, isMetaFile);
-                return largeRegions * regionSize + smallRegions(fileSize, isMetaFile) * smallRegionSize
-                        + (isMetaFile ? 0 : tinyRegionSize);
+                return largeRegions * regionSize + smallRegions(fileSize, isMetaFile) * smallRegionSize + (isMetaFile ? 0 : tinyRegionSize);
             }
             default:
                 final int largeRegions = largeRegions(fileSize, isMetaFile);
                 final int smallRegions = smallRegions(fileSize, isMetaFile);
-                return largeRegions * regionSize + smallRegions(fileSize, isMetaFile) * smallRegionSize
-                        + (isMetaFile ? 0 : tinyRegionSize) + (region - smallRegions - (isMetaFile ? 0 : 1)) * tinyRegionSize;
+                return largeRegions * regionSize + smallRegions(fileSize, isMetaFile) * smallRegionSize + (isMetaFile ? 0 : tinyRegionSize)
+                    + (region - smallRegions - (isMetaFile ? 0 : 1)) * tinyRegionSize;
         }
     }
 
@@ -874,8 +873,11 @@ public class FrozenCacheService implements Releasable {
             final Executor executor
         ) {
             StepListener<Integer> stepListener = null;
-            for (int i = getRegion(rangeToWrite.start(), fileSize, cacheKey.isMetaFile());
-                 i <= getRegion(rangeToWrite.end(), fileSize, cacheKey.isMetaFile()); i++) {
+            for (int i = getRegion(rangeToWrite.start(), fileSize, cacheKey.isMetaFile()); i <= getRegion(
+                rangeToWrite.end(),
+                fileSize,
+                cacheKey.isMetaFile()
+            ); i++) {
                 final int region = i;
                 final ByteRange subRangeToWrite = mapSubRangeToRegion(rangeToWrite, region, fileSize, cacheKey.isMetaFile());
                 final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region, fileSize, cacheKey.isMetaFile());
@@ -918,8 +920,11 @@ public class FrozenCacheService implements Releasable {
         public StepListener<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
             StepListener<Integer> stepListener = null;
             final long start = rangeToRead.start();
-            for (int i = getRegion(rangeToRead.start(), fileSize, cacheKey.isMetaFile());
-                 i <= getRegion(rangeToRead.end(), fileSize, cacheKey.isMetaFile()); i++) {
+            for (int i = getRegion(rangeToRead.start(), fileSize, cacheKey.isMetaFile()); i <= getRegion(
+                rangeToRead.end(),
+                fileSize,
+                cacheKey.isMetaFile()
+            ); i++) {
                 final int region = i;
                 final CacheFileRegion fileRegion = get(cacheKey, fileSize, region, cacheKey.isMetaFile());
                 final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region, fileRegion.fileSize, cacheKey.isMetaFile());

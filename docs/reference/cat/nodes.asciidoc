@@ -24,8 +24,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
-
 `full_id`::
 (Optional, Boolean) If `true`, return the full node ID.  If `false`, return the
 shortened node ID. Defaults to `false`.
@@ -318,6 +316,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 
 [[cat-nodes-api-example]]
 ==== {api-examples-title}

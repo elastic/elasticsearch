@@ -143,3 +143,31 @@ Let's break Painless down into more palatable chunks in the next section.
 A Painless script is structured as one or more statements and optionally
 has one or more user-defined functions at the beginning. A script must always
 have at least one statement.
+
+==== Types Examples
+
+[source,console]
+----
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": """
+        int my_int; <1>
+        my_int = 1; <2>
+        double my_double = 2.0; <2>
+        Map my_map; <4>
+        my_map = new HashMap(); <5>
+        my_map.put("my_int", my_int); <6>
+        my_double.put("my_double", my_double);
+        return my_map;
+    """
+  }
+}
+----
+[TEST]
+<1> primitive `int` type declaration
+<2> primitive `int` type assignment with an `int` constant
+<3> primitive `double` type declaration with assignment of a `double` constant
+<4> reference `Map` type declaration
+<5> reference `Map` type assignment with a new instance of a `HashMap`
+<6> reference types are complex types that have method and fields avaiable to modify internal state

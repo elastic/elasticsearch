@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -29,7 +31,7 @@ public class RestPreviewDataFrameAnalyticsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
+        return unmodifiableList(asList(
             new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics/_preview"),
             new Route(POST, MachineLearning.BASE_PATH + "data_frame/analytics/_preview"),
             new Route(
@@ -40,7 +42,7 @@ public class RestPreviewDataFrameAnalyticsAction extends BaseRestHandler {
                 POST,
                 MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_preview"
             )
-        );
+        ));
     }
 
     @Override

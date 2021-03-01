@@ -122,4 +122,12 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
             state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM_10));
     }
 
+
+    @Override
+    protected boolean requiresMasterNode() {
+        // These installs a composable index template which is only supported in early versions of 7.x
+        // In mixed cluster without this set to true can result in errors in the logs during rolling upgrades.
+        // If these template(s) are only installed via elected master node then composable templates are available.
+        return true;
+    }
 }

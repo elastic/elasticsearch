@@ -10,13 +10,13 @@ snapshot.
 
 [source,console]
 -----------------------------------
-GET /_snapshottable_features
+GET /_features
 -----------------------------------
 
 [[get-snapshottable-features-api-request]]
 ==== {api-request-title}
 
-`GET /_snapshottable_features`
+`GET /_features`
 
 
 [[get-snapshottable-features-api-desc]]

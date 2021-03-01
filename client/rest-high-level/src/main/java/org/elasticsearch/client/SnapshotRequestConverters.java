@@ -193,7 +193,7 @@ final class SnapshotRequestConverters {
     }
 
     static Request getSnapshottableFeatures(GetSnapshottableFeaturesRequest getSnapshottableFeaturesRequest) {
-        String endpoint = "/_snapshottable_features";
+        String endpoint = "/_features";
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withMasterTimeout(getSnapshottableFeaturesRequest.masterNodeTimeout());

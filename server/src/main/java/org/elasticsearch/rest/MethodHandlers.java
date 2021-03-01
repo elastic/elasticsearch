@@ -23,26 +23,21 @@ final class MethodHandlers {
     private final String path;
     private final Map<Method, Map<RestApiCompatibleVersion, RestHandler>> methodHandlers;
 
-    MethodHandlers(String path, RestHandler handler, Method... methods) {
+    MethodHandlers(String path) {
         this.path = path;
-        this.methodHandlers = new HashMap<>(methods.length);
-        for (Method method : methods) {
-            methodHandlers.computeIfAbsent(method, k -> new HashMap<>())
-                .put(handler.compatibleWithVersion(), handler);
-        }
+        this.methodHandlers = new HashMap<>(1);
     }
 
     /**
      * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
      * does not allow replacing the handler for an already existing method.
      */
-    MethodHandlers addMethods(RestHandler handler, Method... methods) {
-        for (Method method : methods) {
-            RestHandler existing = methodHandlers.computeIfAbsent(method, k -> new HashMap<>())
-                .putIfAbsent(handler.compatibleWithVersion(), handler);
-            if (existing != null) {
-                throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);
-            }
+    MethodHandlers addMethod(Method method, RestHandler handler) {
+        RestHandler existing = methodHandlers
+            .computeIfAbsent(method, k -> new HashMap<>())
+            .putIfAbsent(handler.compatibleWithVersion(), handler);
+        if (existing != null) {
+            throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);
         }
         return this;
     }
@@ -62,7 +57,6 @@ final class MethodHandlers {
         }
         final RestHandler handler = versionToHandlers.get(version);
         return handler == null ? versionToHandlers.get(RestApiCompatibleVersion.currentVersion()) : handler;
-
     }
 
     /**

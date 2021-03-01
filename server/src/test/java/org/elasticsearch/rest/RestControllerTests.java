@@ -121,7 +121,7 @@ public class RestControllerTests extends ESTestCase {
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
         final RestController spyRestController = spy(restController);
         when(spyRestController.getAllHandlers(null, fakeRequest.rawPath()))
-            .thenReturn(new Iterator<MethodHandlers>() {
+            .thenReturn(new Iterator<>() {
                 @Override
                 public boolean hasNext() {
                     return false;
@@ -129,11 +129,12 @@ public class RestControllerTests extends ESTestCase {
 
                 @Override
                 public MethodHandlers next() {
-                    return new MethodHandlers("/", (RestRequest request, RestChannel channel, NodeClient client) -> {
-                        assertEquals("true", threadContext.getHeader("header.1"));
-                        assertEquals("true", threadContext.getHeader("header.2"));
-                        assertNull(threadContext.getHeader("header.3"));
-                    }, GET);
+                    return new MethodHandlers("/")
+                        .addMethod(GET, (request, channel, client) -> {
+                            assertEquals("true", threadContext.getHeader("header.1"));
+                            assertEquals("true", threadContext.getHeader("header.2"));
+                            assertNull(threadContext.getHeader("header.3"));
+                        });
                 }
             });
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
@@ -168,12 +169,8 @@ public class RestControllerTests extends ESTestCase {
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "foo"));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).withPath("/bar").build();
-        restController.registerHandler(GET, "/bar", new RestHandler() {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-            }
-        });
+        restController.registerHandler(GET, "/bar", (request, channel, client) ->
+            channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.OK);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         assertTrue(channel.getSendResponseCalled());
@@ -543,8 +540,8 @@ public class RestControllerTests extends ESTestCase {
 
     public void testFaviconWithWrongHttpMethod() {
         final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
-                randomValueOtherThanMany(m -> m == GET || m == OPTIONS,
-                        () -> randomFrom(Method.values())))
+            randomValueOtherThanMany(m -> m == GET || m == OPTIONS,
+                () -> randomFrom(Method.values())))
             .withPath("/favicon.ico")
             .build();
         final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.METHOD_NOT_ALLOWED);

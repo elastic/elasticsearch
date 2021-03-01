@@ -18,59 +18,73 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class MethodHandlersTests extends ESTestCase {
 
+    private final RestApiCompatibleVersion current = RestApiCompatibleVersion.currentVersion();
+    private final RestApiCompatibleVersion previous = current.previousMajor();
+
     public void testLookupForDifferentMethodsSameVersion() {
         RestHandler putHandler = new CurrentVersionHandler();
         RestHandler postHandler = new CurrentVersionHandler();
-        MethodHandlers methodHandlers = new MethodHandlers("path", putHandler, PUT);
-        methodHandlers.addMethods(postHandler, POST);
+        MethodHandlers methodHandlers = new MethodHandlers("path")
+            .addMethod(PUT, putHandler)
+            .addMethod(POST, postHandler);
 
-        RestHandler handler = methodHandlers.getHandler(PUT, RestApiCompatibleVersion.currentVersion());
-        assertThat(handler, sameInstance(putHandler));
+        RestHandler found = methodHandlers.getHandler(PUT, current);
+        assertThat(found, sameInstance(putHandler));
     }
 
     public void testLookupForHandlerUnderMultipleMethods() {
         RestHandler handler = new CurrentVersionHandler();
-        MethodHandlers methodHandlers = new MethodHandlers("path", handler, PUT, POST);
+        MethodHandlers methodHandlers = new MethodHandlers("path")
+            .addMethod(PUT, handler)
+            .addMethod(POST, handler);
 
-        RestHandler handlerFound = methodHandlers.getHandler(PUT, RestApiCompatibleVersion.currentVersion());
-        assertThat(handlerFound, sameInstance(handler));
+        RestHandler found = methodHandlers.getHandler(PUT, current);
+        assertThat(found, sameInstance(handler));
 
-        handlerFound = methodHandlers.getHandler(POST, RestApiCompatibleVersion.currentVersion());
-        assertThat(handlerFound, sameInstance(handler));
+        found = methodHandlers.getHandler(POST, current);
+        assertThat(found, sameInstance(handler));
     }
 
     public void testLookupForHandlersUnderDifferentVersions() {
         RestHandler currentVersionHandler = new CurrentVersionHandler();
         RestHandler previousVersionHandler = new PreviousVersionHandler();
-        MethodHandlers methodHandlers = new MethodHandlers("path", currentVersionHandler, PUT);
-        methodHandlers.addMethods(previousVersionHandler, PUT);
+        MethodHandlers methodHandlers = new MethodHandlers("path")
+            .addMethod(PUT, currentVersionHandler)
+            .addMethod(PUT, previousVersionHandler);
 
-        RestHandler handler = methodHandlers.getHandler(PUT, RestApiCompatibleVersion.currentVersion());
-        assertThat(handler, sameInstance(currentVersionHandler));
+        RestHandler found = methodHandlers.getHandler(PUT, current);
+        assertThat(found, sameInstance(currentVersionHandler));
 
-        handler = methodHandlers.getHandler(PUT, RestApiCompatibleVersion.currentVersion().previousMajor());
-        assertThat(handler, sameInstance(previousVersionHandler));
+        found = methodHandlers.getHandler(PUT, previous);
+        assertThat(found, sameInstance(previousVersionHandler));
     }
 
     public void testExceptionOnOverride() {
-        RestHandler currentVersionHandler = new CurrentVersionHandler();
+        RestHandler handler = (request, channel, client) -> {};
+        MethodHandlers methodHandlers = new MethodHandlers("path")
+            .addMethod(PUT, handler);
 
-        MethodHandlers methodHandlers = new MethodHandlers("path", currentVersionHandler, PUT);
-        expectThrows(IllegalArgumentException.class, () -> methodHandlers.addMethods(currentVersionHandler, PUT));
+        expectThrows(IllegalArgumentException.class, () -> methodHandlers.addMethod(PUT, handler));
     }
 
-    public void testMissingCurrentHandler(){
+    public void testMissingCurrentHandler() {
         RestHandler previousVersionHandler = new PreviousVersionHandler();
-        MethodHandlers methodHandlers = new MethodHandlers("path", previousVersionHandler, PUT, POST);
-        RestHandler handler = methodHandlers.getHandler(PUT, RestApiCompatibleVersion.currentVersion());
-        assertNull(handler);
+        MethodHandlers methodHandlers = new MethodHandlers("path")
+            .addMethod(PUT, previousVersionHandler)
+            .addMethod(POST, previousVersionHandler);
+
+        RestHandler found = methodHandlers.getHandler(PUT, current);
+        assertNull(found);
     }
 
-    public void testMissingPriorHandlerReturnsCurrentHandler(){
+    public void testMissingPriorHandlerReturnsCurrentHandler() {
         RestHandler currentVersionHandler = new CurrentVersionHandler();
-        MethodHandlers methodHandlers = new MethodHandlers("path", currentVersionHandler, PUT, POST);
-        RestHandler handler = methodHandlers.getHandler(PUT, RestApiCompatibleVersion.currentVersion().previousMajor());
-        assertThat(handler, sameInstance(currentVersionHandler));
+        MethodHandlers methodHandlers = new MethodHandlers("path")
+            .addMethod(PUT, currentVersionHandler)
+            .addMethod(POST, currentVersionHandler);
+
+        RestHandler found = methodHandlers.getHandler(PUT, previous);
+        assertThat(found, sameInstance(currentVersionHandler));
     }
 
     static class CurrentVersionHandler implements RestHandler {

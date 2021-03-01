@@ -72,9 +72,9 @@ public class Page implements Releasable {
         protected void closeInternal() {
             try {
                 closeable.close();
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
                 assert false : e;
-                throw new RuntimeException(e);
+                throw e;
             }
         }
     }

@@ -40,7 +40,7 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SharedCacheConfiguration;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -56,9 +56,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE;
 
 /**
  * Internal startup code.
@@ -172,13 +169,7 @@ final class Bootstrap {
                 BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings),
                 BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
 
-        final long cacheSize = SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
-        final long regionSize = SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
-        final long smallRegionSize = Math.min(SNAPSHOT_CACHE_SMALL_REGION_SIZE.get(settings).getBytes(), regionSize / 2);
-        final float smallRegionShare = SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.get(settings);
-        final int numRegions = Math.round(Math.toIntExact(cacheSize / regionSize) * (1 - smallRegionShare));
-        final int numSmallRegions = Math.round(Math.toIntExact(cacheSize / smallRegionSize) * smallRegionShare);
-        final long fileSize = numRegions * regionSize + numSmallRegions * smallRegionSize;
+        final long fileSize = new SharedCacheConfiguration(settings).totalSize();
         if (fileSize > 0) {
             try {
                 Natives.tryCreateCacheFile(environment, fileSize);

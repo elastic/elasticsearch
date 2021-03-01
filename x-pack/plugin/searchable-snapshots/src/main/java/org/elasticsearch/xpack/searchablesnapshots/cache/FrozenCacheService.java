@@ -29,6 +29,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.SparseFileTracker;
+import org.elasticsearch.snapshots.SharedCacheConfiguration;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -52,7 +53,6 @@ import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_REGION
 import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING;
 import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE;
 import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class FrozenCacheService implements Releasable {
@@ -92,8 +92,6 @@ public class FrozenCacheService implements Releasable {
     private final long regionSize;
     private final long smallRegionSize;
 
-    private final long tinyRegionSize;
-
     private final ByteSizeValue rangeSize;
     private final ByteSizeValue recoveryRangeSize;
 
@@ -117,7 +115,6 @@ public class FrozenCacheService implements Releasable {
         final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
         this.smallRegionSize = Math.min(SNAPSHOT_CACHE_SMALL_REGION_SIZE.get(settings).getBytes(), regionSize / 2);
-        this.tinyRegionSize = SNAPSHOT_CACHE_TINY_REGION_SIZE.get(settings).getBytes();
         final float smallRegionShare = SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.get(settings);
         final int numRegions = Math.round(Math.toIntExact(cacheSize / regionSize) * (1 - smallRegionShare));
         final int numSmallRegions = Math.round(Math.toIntExact(cacheSize / smallRegionSize) * smallRegionShare);
@@ -143,7 +140,7 @@ public class FrozenCacheService implements Releasable {
         regionFreqs = new Entry[maxFreq];
         smallRegionFreqs = new Entry[maxFreq];
         try {
-            sharedBytes = new SharedBytes(numRegions, regionSize, numSmallRegions, smallRegionSize, environment);
+            sharedBytes = new SharedBytes(new SharedCacheConfiguration(settings), environment);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -573,7 +570,7 @@ public class FrozenCacheService implements Releasable {
         }
 
         public boolean isSmall() {
-            return sharedBytesPos >= sharedBytes.numRegions;
+            return sharedBytesPos >= sharedBytes.sharedCacheConfiguration.numRegions();
         }
 
         public long physicalStartOffset() {

@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.snapshots.SharedCacheConfiguration;
 import org.elasticsearch.snapshots.SnapshotUtils;
 import org.elasticsearch.snapshots.SnapshotsService;
 
@@ -35,10 +36,7 @@ public class SharedBytes extends AbstractRefCounted {
         StandardOpenOption.WRITE,
         StandardOpenOption.CREATE };
 
-    final int numRegions;
-    final int numSmallRegions;
-    final long regionSize;
-    final long smallRegionSize;
+    final SharedCacheConfiguration sharedCacheConfiguration;
 
     // TODO: for systems like Windows without true p-write/read support we should split this up into multiple channels since positional
     // operations in #IO are not contention-free there (https://bugs.java.com/bugdatabase/view_bug.do?bug_id=6265734)
@@ -46,14 +44,10 @@ public class SharedBytes extends AbstractRefCounted {
 
     private final Path path;
 
-    SharedBytes(int numRegions, long regionSize, int numSmallRegions, long smallRegionSize, Environment environment) throws IOException {
+    SharedBytes(SharedCacheConfiguration sharedCacheConfiguration, Environment environment) throws IOException {
         super("shared-bytes");
-        this.numRegions = numRegions;
-        this.regionSize = regionSize;
-        this.numSmallRegions = numSmallRegions;
-        this.smallRegionSize = smallRegionSize;
-        assert smallRegionSize < regionSize;
-        final long fileSize = numRegions * regionSize + smallRegionSize * numSmallRegions;
+        this.sharedCacheConfiguration = sharedCacheConfiguration;
+        final long fileSize = sharedCacheConfiguration.totalSize();
         Path cacheFile = null;
         if (fileSize > 0) {
             cacheFile = SnapshotUtils.findCacheSnapshotCacheFilePath(environment, fileSize);
@@ -123,15 +117,7 @@ public class SharedBytes extends AbstractRefCounted {
     }
 
     long getPhysicalOffset(long chunkPosition) {
-        long physicalOffset;
-        if (chunkPosition > numRegions) {
-            physicalOffset = numRegions * regionSize + (chunkPosition - numRegions) * smallRegionSize;
-            assert physicalOffset <= numRegions * regionSize + numSmallRegions * regionSize;
-        } else {
-            physicalOffset = chunkPosition * regionSize;
-            assert physicalOffset <= numRegions * regionSize;
-        }
-        return physicalOffset;
+        return sharedCacheConfiguration.getPhysicalOffset(chunkPosition);
     }
 
     public final class IO extends AbstractRefCounted {
@@ -158,7 +144,7 @@ public class SharedBytes extends AbstractRefCounted {
         }
 
         private void checkOffsets(long position, long length) {
-            final long regionSize = pageStart >= numRegions * SharedBytes.this.regionSize ? smallRegionSize : SharedBytes.this.regionSize;
+            final long regionSize = sharedCacheConfiguration.regionSize(pageStart);
             long pageEnd = pageStart + regionSize;
             if (position < pageStart || position > pageEnd || position + length > pageEnd) {
                 assert false;

@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -142,15 +143,19 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
             try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject();
                 {
-                    builder.startObject("_meta");
-                    builder.field("version", Version.CURRENT.toString());
-                    builder.endObject();
-
-                    builder.field("dynamic", "strict");
-                    builder.startObject("properties");
+                    builder.startObject(SINGLE_MAPPING_NAME);
                     {
-                        builder.startObject("some_field");
-                        builder.field("type", "keyword");
+                        builder.startObject("_meta");
+                        builder.field("version", Version.CURRENT.toString());
+                        builder.endObject();
+
+                        builder.field("dynamic", "strict");
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("some_field");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+                        }
                         builder.endObject();
                     }
                     builder.endObject();

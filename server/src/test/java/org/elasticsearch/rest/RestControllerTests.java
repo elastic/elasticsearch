@@ -32,6 +32,7 @@ import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -94,10 +95,10 @@ public class RestControllerTests extends ESTestCase {
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         client = new NoOpNodeClient(this.getTestName());
         restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
-        restController.registerHandler(GET, "/",
+        restController.registerHandler(new Route(GET, "/"),
             (request, channel, client) -> channel.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
-        restController.registerHandler(GET, "/error", (request, channel, client) -> {
+        restController.registerHandler(new Route(GET, "/error"), (request, channel, client) -> {
             throw new IllegalArgumentException("test error");
         });
 
@@ -169,7 +170,7 @@ public class RestControllerTests extends ESTestCase {
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "foo"));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).withPath("/bar").build();
-        restController.registerHandler(GET, "/bar", (request, channel, client) ->
+        restController.registerHandler(new Route(GET, "/bar"), (request, channel, client) ->
             channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.OK);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
@@ -224,10 +225,10 @@ public class RestControllerTests extends ESTestCase {
 
         RestHandler handler = v8mockHandler();
 
-        restController.registerHandler(firstMethod, path + "/{wildcard1}", handler);
+        restController.registerHandler(new Route(firstMethod, path + "/{wildcard1}"), handler);
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> restController.registerHandler(secondMethod, path + "/{wildcard2}", handler));
+            () -> restController.registerHandler(new Route(secondMethod, path + "/{wildcard2}"), handler));
 
         assertThat(exception.getMessage(), equalTo("Trying to use conflicting wildcard names for same path: wildcard1 and wildcard2"));
     }
@@ -249,7 +250,7 @@ public class RestControllerTests extends ESTestCase {
                     assertSame(handler, h);
                     return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
                 }, client, circuitBreakerService, usageService);
-        restController.registerHandler(GET, "/wrapped", handler);
+        restController.registerHandler(new Route(GET, "/wrapped"), handler);
         RestRequest request = testRestRequest("/wrapped", "{}", XContentType.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
@@ -312,7 +313,7 @@ public class RestControllerTests extends ESTestCase {
         RestRequest request = testRestRequest("/", content, null);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.NOT_ACCEPTABLE);
         restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService);
-        restController.registerHandler(GET, "/",
+        restController.registerHandler(new Route(GET, "/"),
             (r, c, client) -> c.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
 
@@ -336,7 +337,7 @@ public class RestControllerTests extends ESTestCase {
             .withContent(new BytesArray(content), null).withPath("/foo")
             .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("text/plain"))).build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
-        restController.registerHandler(GET, "/foo", new RestHandler() {
+        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
@@ -366,7 +367,7 @@ public class RestControllerTests extends ESTestCase {
             .withContent(new BytesArray(content), null).withPath("/foo")
             .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(mediaType))).build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
-        restController.registerHandler(GET, "/foo", new RestHandler() {
+        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 assertThat(request.contentParser().getRestApiCompatibleVersion(), is(RestApiCompatibleVersion.currentVersion()));
@@ -393,7 +394,7 @@ public class RestControllerTests extends ESTestCase {
             .withContent(new BytesArray(content), RestRequest.parseContentType(contentTypeHeader)).withPath("/foo")
             .withHeaders(Collections.singletonMap("Content-Type", contentTypeHeader)).build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
-        restController.registerHandler(GET, "/foo", new RestHandler() {
+        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 assertThat(request.contentParser().getRestApiCompatibleVersion(), is(RestApiCompatibleVersion.currentVersion()));
@@ -416,7 +417,7 @@ public class RestControllerTests extends ESTestCase {
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray("{}"), null).withPath("/foo").build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
-        restController.registerHandler(GET, "/foo", new RestHandler() {
+        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
@@ -438,7 +439,7 @@ public class RestControllerTests extends ESTestCase {
             .withContent(BytesReference.bytes(YamlXContent.contentBuilder().startObject().endObject()),
                 XContentType.YAML).withPath("/foo").build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
-        restController.registerHandler(GET, "/foo", new RestHandler() {
+        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
@@ -460,7 +461,7 @@ public class RestControllerTests extends ESTestCase {
             .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("foo/bar")))
             .build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
-        restController.registerHandler(GET, "/foo", new RestHandler() {
+        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
@@ -489,7 +490,7 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDoesNotConsumeContent() throws Exception {
         final Method method = randomFrom(Method.values());
-        restController.registerHandler(method, "/notconsumed", new RestHandler() {
+        restController.registerHandler(new Route(method, "/notconsumed"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
@@ -634,7 +635,7 @@ public class RestControllerTests extends ESTestCase {
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
         // dispatch to a compatible handler
-        restController.registerHandler(GET, "/foo", new RestHandler() {
+        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 // in real use case we will use exact version RestApiCompatibleVersion.V_7
@@ -666,7 +667,7 @@ public class RestControllerTests extends ESTestCase {
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
 
         // dispatch to a CURRENT newly added handler
-        restController.registerHandler(GET, "/foo", new RestHandler() {
+        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
 
@@ -711,7 +712,7 @@ public class RestControllerTests extends ESTestCase {
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
 
         // dispatch to a CURRENT newly added handler
-        restController.registerHandler(GET, "/foo", new RestHandler() {
+        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 // the media type is in application/vnd.elasticsearch form but with compatible-with=CURRENT.

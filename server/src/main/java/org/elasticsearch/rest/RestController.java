@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.usage.UsageService;
 
@@ -168,24 +169,26 @@ public class RestController implements HttpServerTransport.Dispatcher {
             (handlers, ignoredHandler) -> handlers.addMethod(method, handler));
     }
 
+    public void registerHandler(final Route route, final RestHandler handler) {
+        if (route.isReplacement()) {
+            Route replaced = route.getReplacedRoute();
+            registerWithReplacedHandler(route.getMethod(), route.getPath(), handler,
+                replaced.getMethod(), replaced.getPath());
+        } else if (route.isDeprecated()) {
+            registerAsDeprecatedHandler(route.getMethod(), route.getPath(), handler,
+                route.getDeprecationMessage());
+        } else {
+            // it's just a normal route
+            registerHandler(route.getMethod(), route.getPath(), handler);
+        }
+    }
+
     /**
      * Registers a REST handler with the controller. The REST handler declares the {@code method}
      * and {@code path} combinations.
      */
-    public void registerHandler(final RestHandler restHandler) {
-        restHandler.routes().forEach(route -> {
-            if (route.isReplacement()) {
-                RestHandler.Route replaced = route.getReplacedRoute();
-                registerWithReplacedHandler(route.getMethod(), route.getPath(), restHandler,
-                    replaced.getMethod(), replaced.getPath());
-            } else if (route.isDeprecated()) {
-                registerAsDeprecatedHandler(route.getMethod(), route.getPath(), restHandler,
-                    route.getDeprecationMessage());
-            } else {
-                // it's just a normal route
-                registerHandler(route.getMethod(), route.getPath(), restHandler);
-            }
-        });
+    public void registerHandler(final RestHandler handler) {
+        handler.routes().forEach(route -> registerHandler(route, handler));
     }
 
     @Override

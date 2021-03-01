@@ -50,23 +50,34 @@ public enum Releasables {
         close(Arrays.asList(releasables));
     }
 
-    /** Release the provided {@link Releasable}s, ignoring exceptions. */
-    public static void closeWhileHandlingException(Iterable<? extends Releasable> releasables) {
-        close(releasables, true);
+    /** Release the provided {@link Releasable}s expecting no exception to by thrown by any of them. */
+    public static void closeExpectNoException(Releasable... releasables) {
+        try {
+            close(releasables);
+        } catch (RuntimeException e) {
+            assert false : e;
+            throw e;
+        }
+    }
+
+    /** Release the provided {@link Releasable} expecting no exception to by thrown. */
+    public static void closeExpectNoException(Releasable releasable) {
+        try {
+            close(releasable);
+        } catch (RuntimeException e) {
+            assert false : e;
+            throw e;
+        }
     }
 
     /** Release the provided {@link Releasable}s, ignoring exceptions. */
     public static void closeWhileHandlingException(Releasable... releasables) {
-        closeWhileHandlingException(Arrays.asList(releasables));
+        close(Arrays.asList(releasables), true);
     }
 
     /** Release the provided {@link Releasable}s, ignoring exceptions if <code>success</code> is {@code false}. */
     public static void close(boolean success, Iterable<Releasable> releasables) {
-        if (success) {
-            close(releasables);
-        } else {
-            closeWhileHandlingException(releasables);
-        }
+        close(releasables, success == false);
     }
 
     /** Release the provided {@link Releasable}s, ignoring exceptions if <code>success</code> is {@code false}. */

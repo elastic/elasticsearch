@@ -353,6 +353,29 @@ any where true
 ----
 
 [discrete]
+[[eql-syntax-check-field-exists]]
+=== Check if a field exists
+
+To match events containing any value for a field, compare the field to `null`
+using the `!=` operator:
+
+[source,eql]
+----
+my_field != null
+----
+
+To match events that do not contain a field value, compare the field to `null`
+using the `==` operator:
+
+[source,eql]
+----
+my_field == null
+----
+
+IMPORTANT: To avoid errors, the field must contain a non-`null` value in at
+least one document or be <<explicit-mapping,explicitly mapped>>.
+
+[discrete]
 [[eql-syntax-strings]]
 === Strings
 

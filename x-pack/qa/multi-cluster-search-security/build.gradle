@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
@@ -19,6 +20,9 @@ tasks.register('remote-cluster', RestIntegTestTask) {
   systemProperty 'tests.rest.suite', 'remote_cluster'
 }
 
+// randomise between sniff and proxy modes
+boolean proxyMode = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+
 testClusters {
   'remote-cluster' {
     testDistribution = 'DEFAULT'
@@ -38,8 +42,15 @@ testClusters {
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
-    setting 'cluster.remote.my_remote_cluster.seeds', {
-      testClusters.'remote-cluster'.getAllTransportPortURI().collect { "\"$it\"" }.toString()
+    if (proxyMode) {
+      setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
+      setting 'cluster.remote.my_remote_cluster.proxy_address', {
+        "\"${testClusters.'remote-cluster'.getAllTransportPortURI().get(0)}\""
+      }
+    } else {
+      setting 'cluster.remote.my_remote_cluster.seeds', {
+        testClusters.'remote-cluster'.getAllTransportPortURI().collect { "\"$it\"" }.toString()
+      }
     }
     setting 'cluster.remote.connections_per_cluster', "1"
 
@@ -51,6 +62,14 @@ tasks.register('mixed-cluster', RestIntegTestTask) {
   dependsOn 'remote-cluster'
   useCluster testClusters.'remote-cluster'
   systemProperty 'tests.rest.suite', 'multi_cluster'
+  if (proxyMode) {
+    systemProperty 'tests.rest.blacklist', [
+      'multi_cluster/10_basic/Add transient remote cluster based on the preset cluster',
+      'multi_cluster/20_info/Add transient remote cluster based on the preset cluster and check remote info',
+      'multi_cluster/20_info/Fetch remote cluster info for existing cluster',
+      'multi_cluster/70_connection_mode_configuration/*',
+    ].join(",")
+  }
 }
 
 tasks.register("integTest") {

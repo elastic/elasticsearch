@@ -35,6 +35,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1011,6 +1012,38 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = b.build();
         assertThat(metadata.dataStreams().size(), equalTo(1));
         assertThat(metadata.dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
+    }
+
+    public void testOverlappingDataStreamNamesWithBackingIndexDatePattern() {
+        final String dataStreamName1 = "logs-foobar-2021.01.13";
+        Metadata.Builder b = Metadata.builder();
+        IndexMetadata ds1Index1 = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName1, 1, Version.V_7_10_2))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        b.put(ds1Index1, false);
+        IndexMetadata ds1Index2 = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName1, 2, Version.V_7_10_2))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        b.put(ds1Index2, false);
+        b.put(new DataStream(dataStreamName1, createTimestampField("@timestamp"),
+            Arrays.asList(ds1Index1.getIndex(), ds1Index2.getIndex()), 2, null));
+
+        final String dataStreamName2 = "logs-foobar";
+        IndexMetadata ds2Index1 = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName2, 1, Version.V_7_10_2))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        b.put(ds2Index1, false);
+        b.put(new DataStream(dataStreamName2, createTimestampField("@timestamp"),
+            Collections.singletonList(ds2Index1.getIndex()), 1, null));
+
+        Metadata metadata = b.build();
+        assertThat(metadata.dataStreams().size(), equalTo(2));
     }
 
     public void testBuildIndicesLookupForDataStreams() {

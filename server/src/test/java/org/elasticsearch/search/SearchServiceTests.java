@@ -29,6 +29,10 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -264,13 +268,18 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         AtomicBoolean running = new AtomicBoolean(true);
         CountDownLatch startGun = new CountDownLatch(1);
         Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
-
+        ShardRouting routing = TestShardRouting.newShardRouting(indexShard.shardId(), randomAlphaOfLength(5), randomBoolean(),
+            ShardRoutingState.INITIALIZING);
         final Thread thread = new Thread() {
             @Override
             public void run() {
                 startGun.countDown();
                 while(running.get()) {
-                    service.afterIndexRemoved(indexService.index(), indexService.getIndexSettings(), DELETED);
+                    if (randomBoolean()) {
+                        service.afterIndexRemoved(indexService.index(), indexService.getIndexSettings(), DELETED);
+                    } else {
+                        service.beforeIndexShardCreated(routing, indexService.getIndexSettings().getSettings());
+                    }
                     if (randomBoolean()) {
                         // here we trigger some refreshes to ensure the IR go out of scope such that we hit ACE if we access a search
                         // context in a non-sane way.
@@ -395,6 +404,25 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(0, totalStats.getQueryCurrent());
         assertEquals(0, totalStats.getScrollCurrent());
         assertEquals(0, totalStats.getFetchCurrent());
+    }
+
+    public void testBeforeShardLockDuringShardCreate() {
+        IndexService indexService = createIndex("index", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
+        assertThat(searchResponse.getScrollId(), is(notNullValue()));
+        SearchService service = getInstanceFromNode(SearchService.class);
+
+        assertEquals(1, service.getActiveContexts());
+        service.beforeIndexShardCreated(TestShardRouting.newShardRouting("test", 0, randomAlphaOfLength(5),
+            randomAlphaOfLength(5), randomBoolean(), ShardRoutingState.INITIALIZING), indexService.getIndexSettings().getSettings());
+        assertEquals(1, service.getActiveContexts());
+
+        service.beforeIndexShardCreated(TestShardRouting.newShardRouting(new ShardId(indexService.index(), 0),
+            randomAlphaOfLength(5),
+            randomBoolean(),
+            ShardRoutingState.INITIALIZING), indexService.getIndexSettings().getSettings());
+        assertEquals(0, service.getActiveContexts());
     }
 
     public void testTimeout() throws IOException {

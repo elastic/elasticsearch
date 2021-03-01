@@ -48,6 +48,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
      * This failure can be avoided by ensuring that a database is only closed when no
      * geoip processor instance is using the related {@link DatabaseReaderLazyLoader} instance
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69475")
     public void test() throws Exception {
         ThreadPool threadPool = new TestThreadPool("test");
         Settings settings = Settings.builder().put("resource.reload.interval.high", TimeValue.timeValueMillis(100)).build();

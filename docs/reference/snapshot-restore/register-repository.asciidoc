@@ -172,7 +172,7 @@ The `url` parameter supports the following protocols:
 
 `http_socket_timeout`::
 
-     Specifies the max time to wait for data to be transferred over a connection before timing out. The default value is `50s`.
+     Specifies the maximum time to wait for data to be transferred over a connection before timing out. The default value is `50s`.
 
 URLs using the `file` protocol must point to the location of a shared filesystem
 accessible to all master and data nodes in the cluster. This location must be

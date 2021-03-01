@@ -11,7 +11,6 @@ package org.elasticsearch.common.blobstore.url.http;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.rest.RestStatus;
 
@@ -199,7 +198,6 @@ class RetryingHttpInputStream extends InputStream {
         return e;
     }
 
-    @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
     private HttpResponseInputStream openInputStream() throws IOException {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<HttpResponseInputStream>) () -> {

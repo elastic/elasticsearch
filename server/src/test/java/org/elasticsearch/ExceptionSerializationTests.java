@@ -673,7 +673,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(7, org.elasticsearch.http.BindHttpException.class);
         ids.put(8, org.elasticsearch.action.search.ReduceSearchPhaseException.class);
         ids.put(9, org.elasticsearch.node.NodeClosedException.class);
-        ids.put(10, null); // SnapshotFailedEngineException, never instantiated in 6.0+ and never thrown across clusters
+        ids.put(10, null); // SnapshotFailedEngineException, never instantiated in 6.2.0+ and never thrown across clusters
         ids.put(11, org.elasticsearch.index.shard.ShardNotFoundException.class);
         ids.put(12, org.elasticsearch.transport.ConnectTransportException.class);
         ids.put(13, org.elasticsearch.transport.NotSerializableTransportException.class);

@@ -741,7 +741,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.action.search.ReduceSearchPhaseException::new, 8, UNKNOWN_VERSION_ADDED),
         NODE_CLOSED_EXCEPTION(org.elasticsearch.node.NodeClosedException.class,
                 org.elasticsearch.node.NodeClosedException::new, 9, UNKNOWN_VERSION_ADDED),
-        // 10 was for SnapshotFailedEngineException, never instantiated in 6.0+ and never thrown across clusters
+        // 10 was for SnapshotFailedEngineException, never instantiated in 6.2.0+ and never thrown across clusters
         SHARD_NOT_FOUND_EXCEPTION(org.elasticsearch.index.shard.ShardNotFoundException.class,
                 org.elasticsearch.index.shard.ShardNotFoundException::new, 11, UNKNOWN_VERSION_ADDED),
         CONNECT_TRANSPORT_EXCEPTION(org.elasticsearch.transport.ConnectTransportException.class,

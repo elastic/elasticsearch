@@ -10,32 +10,49 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.internal.ContextIndexSearcherTests.DocumentSubsetDirectoryReader;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -46,6 +63,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -203,27 +221,43 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * Test that we perform the appropriate unwrapping to merged queries.
+     * Test that we perform the appropriate unwrapping to merge queries.
      */
-    public void testFilterMatchingBoth() throws IOException {
-        Query topLevelQuery = LongPoint.newRangeQuery(
-            "test",
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01"),
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-02-01")
+    public void testMergingQueries() throws IOException {
+        DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("test");
+        Query topLevelQuery = ft.rangeQuery("2020-01-01", "2020-02-01", true, true, null, null, null, mock(SearchExecutionContext.class));
+        FiltersAggregationBuilder builder = new FiltersAggregationBuilder(
+            "t",
+            // The range query will be wrapped in IndexOrDocValuesQuery by the date field type 
+            new KeyedFilter("k", new RangeQueryBuilder("test").from("2020-01-01").to("2020-02-01"))
         );
-        Query filterQuery = LongPoint.newRangeQuery(
-            "test",
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01"),
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-02-01")
-        );
-        Query matchingBoth = FiltersAggregator.filterMatchingBoth(new IndexOrDocValuesQuery(topLevelQuery, mock(Query.class)), filterQuery);
-        /*
-         * The topLevelQuery is entirely contained within the filter query so
-         * it is good enough to match that. See MergedPointRangeQueryTests for
-         * tons more tests around this. Really in this test we're just excited
-         * to prove that we unwrapped the IndexOrDocValuesQuery above.
-         */
-        assertThat(matchingBoth, equalTo(topLevelQuery));
+        withAggregator(builder, topLevelQuery, iw -> {
+            /*
+             * There has to be a document inside the query and one outside
+             * the query or we'll end up with MatchAll or MathNone.
+             */
+            long time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02");
+            iw.addDocument(List.of(new LongPoint("test", time), new SortedNumericDocValuesField("test", time)));
+            time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02");
+            iw.addDocument(List.of(new LongPoint("test", time), new SortedNumericDocValuesField("test", time)));
+            time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01");
+            iw.addDocument(List.of(new LongPoint("test", time), new SortedNumericDocValuesField("test", time)));
+            time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-02-01");
+            iw.addDocument(List.of(new LongPoint("test", time), new SortedNumericDocValuesField("test", time)));
+        }, (searcher, aggregator) -> {
+            /*
+             * The topLevelQuery is entirely contained within the filter query so
+             * it is good enough to match that. See MergedPointRangeQueryTests for
+             * tons more tests around this. Really in this test we're just excited
+             * to prove that we unwrapped the IndexOrDocValuesQuery that the date
+             * field mapper adds
+             */
+            QueryToFilterAdapter<?> filter = ((FiltersAggregator) aggregator).filters().get(0);
+            assertThat(filter.query(), equalTo(((IndexOrDocValuesQuery) topLevelQuery).getIndexQuery()));
+            Map<String, Object> debug = new HashMap<>();
+            filter.collectDebugInfo(debug::put);
+            assertThat(debug, hasEntry("query", ((IndexOrDocValuesQuery) topLevelQuery).getIndexQuery().toString()));
+        }, ft);
     }
 
     public void testWithMergedPointRangeQueries() throws IOException {
@@ -274,13 +308,17 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 FiltersAggregator.FilterByFilter filterByFilter = (FiltersAggregator.FilterByFilter) agg;
                 int maxDoc = searcher.getIndexReader().maxDoc();
                 assertThat(filterByFilter.estimateCost(maxDoc), equalTo(1L));
-                assertThat(filterByFilter.scorersCached(), equalTo(true));
                 Map<String, Object> debug = new HashMap<>();
                 filterByFilter.collectDebugInfo(debug::put);
                 assertThat(debug, hasEntry("segments_with_deleted_docs", 0));
                 assertThat(debug, hasEntry("estimated_cost", 1L));
                 assertThat(debug, hasEntry("max_cost", (long) maxDoc));
                 assertThat(debug, hasEntry("estimate_cost_time", 0L));
+                List<?> filtersDebug = (List<?>) debug.get("filters");
+                for (int i = 0; i < filterByFilter.filters().size(); i++) {
+                    Map<?, ?> filterDebug = (Map<?, ?>) filtersDebug.get(i);
+                    assertThat((int) filterDebug.get("scorers_prepared_while_estimating_cost"), greaterThan(0));
+                }
             },
             ft
         );
@@ -319,9 +357,176 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testMatchAll() throws IOException {
+        AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder()));
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 0; i < 10; i++) {
+                iw.addDocument(List.of());
+            }
+        };
+        withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
+            assertThat(aggregator, instanceOf(FiltersAggregator.FilterByFilter.class));
+            // The estimated cost is 0 because we're going to read from metadata
+            assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(0L));
+            Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
+            assertThat(debug, hasEntry("specialized_for", "match_all"));
+            assertThat((int) debug.get("results_from_metadata"), greaterThan(0));
+        });
+        testCase(
+            builder,
+            new MatchAllDocsQuery(),
+            buildIndex,
+            (InternalFilters result) -> {
+                assertThat(result.getBuckets(), hasSize(1));
+                assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(10L));
+            }
+        );
+    }
+
+    public void testMatchAllWithDocCount() throws IOException {
+        AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder()));
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 0; i < 10; i++) {
+                iw.addDocument(List.of(new CustomTermFreqField(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME, i + 1)));
+            }
+        };
+        withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
+            assertThat(aggregator, instanceOf(FiltersAggregator.FilterByFilter.class));
+            // The estimated cost is 0 because we're going to read from metadata
+            assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(10L));
+            Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
+            assertThat(debug, hasEntry("specialized_for", "match_all"));
+            assertThat(debug, hasEntry("results_from_metadata", 0));
+        });
+        testCase(
+            builder,
+            new MatchAllDocsQuery(),
+            buildIndex,
+            (InternalFilters result) -> {
+                assertThat(result.getBuckets(), hasSize(1));
+                assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(55L));
+            }
+        );
+    }
+
+    /**
+     * This runs {@code filters} with a single {@code match_all} filter with
+     * the index set up kind of like document level security. As a bonus, this
+     * "looks" to the agg just like an index with deleted documents. 
+     */
+    public void testMatchAllOnFilteredIndex() throws IOException {
+        AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder()));
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+            for (int i = 0; i < 10; i++) {
+                indexWriter.addDocument(List.of(new LongPoint("t", i)));
+            }
+            indexWriter.close();
+
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(createIndexSettings(), new BitsetFilterCache.Listener() {
+                    @Override
+                    public void onRemoval(ShardId shardId, Accountable accountable) {}
+
+                    @Override
+                    public void onCache(ShardId shardId, Accountable accountable) {}
+                });
+                IndexReader limitedReader = new DocumentSubsetDirectoryReader(
+                    ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(bitsetFilterCache.index(), 0)),
+                    bitsetFilterCache,
+                    LongPoint.newRangeQuery("t", 5, Long.MAX_VALUE)
+                );
+                IndexSearcher searcher = newIndexSearcher(limitedReader);
+                AggregationContext context = createAggregationContext(searcher, new MatchAllDocsQuery());
+                FiltersAggregator.FilterByFilter aggregator = createAggregator(builder, context);
+                // The estimated cost is 0 because we're going to read from metadata
+                assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(10L));
+                aggregator.preCollection();
+                searcher.search(context.query(), aggregator);
+                aggregator.postCollection();
+                InternalAggregation result = aggregator.buildTopLevel();
+                result = result.reduce(
+                    List.of(result),
+                    InternalAggregation.ReduceContext.forFinalReduction(
+                        context.bigArrays(),
+                        getMockScriptService(),
+                        b -> {},
+                        PipelineTree.EMPTY
+                    )
+                );
+                InternalFilters filters = (InternalFilters) result;
+                assertThat(filters.getBuckets(), hasSize(1));
+                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(5L));
+                Map<String, Object> debug = new HashMap<>();
+                ((FiltersAggregator.FilterByFilter) aggregator).filters().get(0).collectDebugInfo(debug::put);
+                assertThat(debug, hasEntry("specialized_for", "match_all"));
+                assertThat(debug, hasEntry("results_from_metadata", 0));
+            }
+        }
+    }
+
+    public void testMatchNone() throws IOException {
+        AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new RangeQueryBuilder("missing").gte(0)));
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 0; i < 10; i++) {
+                iw.addDocument(List.of(new LongPoint("t", i)));
+            }
+        };
+        withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
+            assertThat(aggregator, instanceOf(FiltersAggregator.FilterByFilter.class));
+            // The estimated cost is 0 because we're going to read from metadata
+            assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(0L));
+            Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
+            assertThat(debug, hasEntry("specialized_for", "match_none"));
+        });
+        testCase(
+            builder,
+            new MatchAllDocsQuery(),
+            buildIndex,
+            (InternalFilters result) -> {
+                assertThat(result.getBuckets(), hasSize(1));
+                assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(0L));
+            }
+        );
+    }
+
+    public void testTermQuery() throws IOException {
+        KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType("f", true, false, null);
+        AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchQueryBuilder("f", "0")));
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 0; i < 10; i++) {
+                BytesRef bytes = new BytesRef(Integer.toString(i % 3));
+                iw.addDocument(List.of(new Field("f", bytes, KeywordFieldMapper.Defaults.FIELD_TYPE)));
+            }
+        };
+        withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
+            assertThat(aggregator, instanceOf(FiltersAggregator.FilterByFilter.class));
+            // The estimated cost is 0 because we're going to read from metadata
+            assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(0L));
+            Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
+            assertThat(debug, hasEntry("specialized_for", "term"));
+            assertThat((int) debug.get("results_from_metadata"), greaterThan(0));
+            assertThat((int) debug.get("scorers_prepared_while_estimating_cost"), equalTo(0));
+        }, ft);
+        testCase(builder, new MatchAllDocsQuery(), buildIndex, (InternalFilters result) -> {
+            assertThat(result.getBuckets(), hasSize(1));
+            assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(4L));
+        }, ft);
+    }
+
     @Override
     protected List<ObjectMapper> objectMappers() {
         return MOCK_OBJECT_MAPPERS;
+    }
+
+    private Map<String, Object> collectAndGetFilterDebugInfo(IndexSearcher searcher, Aggregator aggregator) throws IOException {
+        aggregator.preCollection();
+        for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
+            expectThrows(CollectionTerminatedException.class, () -> aggregator.getLeafCollector(ctx));
+        }
+        Map<String, Object> debug = new HashMap<>();
+        ((FiltersAggregator.FilterByFilter) aggregator).filters().get(0).collectDebugInfo(debug::put);
+        return debug;
     }
 
     static final List<ObjectMapper> MOCK_OBJECT_MAPPERS = List.of(NestedAggregatorTests.nestedObject("nested_chapters"));

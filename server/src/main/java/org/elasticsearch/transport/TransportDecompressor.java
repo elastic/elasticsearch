@@ -14,16 +14,16 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
-public class TransportDecompressor implements Closeable {
+public class TransportDecompressor implements Releasable {
 
     private final Inflater inflater;
     private final PageCacheRecycler recycler;

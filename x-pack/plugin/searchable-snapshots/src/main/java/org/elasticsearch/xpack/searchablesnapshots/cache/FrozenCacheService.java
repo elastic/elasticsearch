@@ -46,13 +46,7 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.snapshots.SnapshotsService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SHARED_CACHE_SETTINGS_PREFIX;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE;
+import static org.elasticsearch.snapshots.SnapshotsService.*;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class FrozenCacheService implements Releasable {
@@ -97,9 +91,11 @@ public class FrozenCacheService implements Releasable {
 
     private final ConcurrentLinkedQueue<Integer> freeRegions = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<Integer> freeSmallRegions = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<Integer> freeTinyRegions = new ConcurrentLinkedQueue<>();
 
     private final Entry<CacheFileRegion>[] regionFreqs;
     private final Entry<CacheFileRegion>[] smallRegionFreqs;
+    private final Entry<CacheFileRegion>[] tinyRegionFreqs;
 
     private final int maxFreq;
     private final long minTimeDelta;
@@ -133,12 +129,16 @@ public class FrozenCacheService implements Releasable {
         for (int i = 0; i < numSmallRegions; i++) {
             freeSmallRegions.add(numRegions + i);
         }
+        for (int i = 0; i < numSmallRegions; i++) {
+            freeTinyRegions.add(numRegions + numSmallRegions + i);
+        }
         this.regionSize = regionSize;
         assert regionSize > 0L;
         this.maxFreq = SNAPSHOT_CACHE_MAX_FREQ_SETTING.get(settings);
         this.minTimeDelta = SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING.get(settings).millis();
         regionFreqs = new Entry[maxFreq];
         smallRegionFreqs = new Entry[maxFreq];
+        tinyRegionFreqs = new Entry[maxFreq];
         try {
             sharedBytes = new SharedBytes(new SharedCacheConfiguration(settings), environment);
         } catch (IOException e) {
@@ -159,9 +159,10 @@ public class FrozenCacheService implements Releasable {
     }
 
     // Number of large regions used when caching a file of the given length
-    private int largeRegions(long fileLength) {
-        final int largeRegions = Math.toIntExact(fileLength / regionSize);
-        final long remainder = fileLength % regionSize;
+    private int largeRegions(long fileLength, boolean isMetaFile) {
+        final long nonHeaderLength = isMetaFile ? fileLength : fileLength - sharedBytes.sharedCacheConfiguration.tinyRegionSize();
+        final int largeRegions = Math.toIntExact(nonHeaderLength / regionSize);
+        final long remainder = nonHeaderLength % regionSize;
         if (remainder == 0) {
             return largeRegions;
         }
@@ -181,9 +182,38 @@ public class FrozenCacheService implements Releasable {
         return largeRegions + 1;
     }
 
+    private int smallRegions(long fileLength, boolean isMetaFile) {
+        final long tinyRegionSize = sharedBytes.sharedCacheConfiguration.tinyRegionSize();
+        final long nonHeaderLength = isMetaFile ? fileLength : fileLength - tinyRegionSize;
+        final int largeRegionCount = largeRegions(fileLength, isMetaFile);
+        final long remainingLength = nonHeaderLength - largeRegionCount * sharedBytes.sharedCacheConfiguration.standardRegionSize();
+        if (remainingLength <= 0) {
+            return 0;
+        }
+        final int smallRegions = Math.toIntExact(remainingLength / smallRegionSize);
+        final long remainder = remainingLength % smallRegionSize;
+        if (remainder == 0) {
+            return smallRegions;
+        }
+        // if we fill up the next region more than 50%, add another region
+        if (remainder > regionSize / 2) {
+            return smallRegions + 1;
+        }
+        final int tinyRegionsNeeded = Math.toIntExact(remainder / tinyRegionSize);
+        // arbitrary heuristic: don't create more than twice the value of (large regions + 1) to strike a balance between not wasting too
+        // much space to fragmentation and not having to manage too many regions.
+        // TODO: this would be nicer if we had a fixed or power of 2 ratio between the region sizes?
+        if (tinyRegionsNeeded <= 2 * (smallRegions + largeRegionCount + 1)) {
+            return smallRegions;
+        }
+        // It would have taken too many small regions to cache the last partial large page so we just use another large one at the cost of
+        // disk space over number of regions
+        return smallRegions + 1;
+    }
+
     // get the region of a file of the given size that the given position belongs to
-    private int getRegion(long position, long fileSize) {
-        final int numberOfLargeRegions = largeRegions(fileSize);
+    private int getRegion(long position, long fileSize, boolean isMetaFile) {
+        final int numberOfLargeRegions = largeRegions(fileSize, isMetaFile);
         final int largeRegionIndex = Math.toIntExact(position / regionSize);
         if (largeRegionIndex < numberOfLargeRegions) {
             return largeRegionIndex;
@@ -195,45 +225,69 @@ public class FrozenCacheService implements Releasable {
     }
 
     // get the relative position from the start of its region for the given position in a file of given size
-    private long getRegionRelativePosition(long position, long fileSize) {
-        final int region = getRegion(position, fileSize);
-        return isSmallRegion(region, fileSize) ? (position % regionSize) % smallRegionSize : position % regionSize;
+    private long getRegionRelativePosition(long position, long fileSize, boolean isMetaFile) {
+        final int region = getRegion(position, fileSize, isMetaFile);
+        if (region == 0) {
+            return position;
+        }
+        final long tinyRegionSize = sharedBytes.sharedCacheConfiguration.tinyRegionSize();
+        final long afterHeaderSize = isMetaFile ? fileSize : fileSize - tinyRegionSize;
+        switch (isSmallRegion(region, fileSize, isMetaFile)) {
+            case TINY:
+                return ((afterHeaderSize % regionSize) % smallRegionSize) % tinyRegionSize;
+            case SMALL:
+                return (afterHeaderSize % regionSize) % smallRegionSize;
+            default:
+                return afterHeaderSize % regionSize;
+        }
     }
 
     // get the number of bytes between the beginning of a file of the given size and the start of the given region
-    private long getRegionStart(int region, long fileSize) {
-        final int largeRegions = largeRegions(fileSize);
-        return isSmallRegion(region, fileSize)
-            ? largeRegions * regionSize + (region - largeRegions) * smallRegionSize
-            : region * regionSize;
+    private long getRegionStart(int region, long fileSize, boolean isMetaFile) {
+        if (region == 0) {
+            return 0L;
+        }
+        final long tinyRegionSize = sharedBytes.sharedCacheConfiguration.tinyRegionSize();
+        switch (isSmallRegion(region, fileSize, isMetaFile)) {
+            case STANDARD:
+                return (region - (isMetaFile ? 0 : 1)) * regionSize + (isMetaFile ? 0 : tinyRegionSize);
+            case SMALL: {
+                final int largeRegions = largeRegions(fileSize, isMetaFile);
+                return largeRegions * regionSize + smallRegions(fileSize, isMetaFile) * smallRegionSize
+                        + (isMetaFile ? 0 : tinyRegionSize);
+            }
+            default:
+                final int largeRegions = largeRegions(fileSize, isMetaFile);
+                final int smallRegions = smallRegions(fileSize, isMetaFile);
+                return largeRegions * regionSize + smallRegions(fileSize, isMetaFile) * smallRegionSize
+                        + (isMetaFile ? 0 : tinyRegionSize) + (region - smallRegions - (isMetaFile ? 0 : 1)) * tinyRegionSize;
+        }
     }
 
-    private ByteRange mapSubRangeToRegion(ByteRange range, int region, long fileLength) {
-        final long regionStart = getRegionStart(region, fileLength);
-        ByteRange regionRange = ByteRange.of(regionStart, regionStart + (isSmallRegion(region, fileLength) ? smallRegionSize : regionSize));
+    private ByteRange mapSubRangeToRegion(ByteRange range, int region, long fileLength, boolean isMetaFile) {
+        final long regionStart = getRegionStart(region, fileLength, isMetaFile);
+        final long regionSize = regionSize(region, fileLength, isMetaFile);
+        final ByteRange regionRange = ByteRange.of(regionStart, regionStart + regionSize);
         if (range.hasOverlap(regionRange) == false) {
             return ByteRange.EMPTY;
         }
         final ByteRange overlap = regionRange.overlap(range);
         return ByteRange.of(
-            getRegionRelativePosition(overlap.start(), fileLength),
-            overlap.end() == regionRange.end()
-                ? (isSmallRegion(region, fileLength) ? smallRegionSize : regionSize)
-                : getRegionRelativePosition(overlap.end(), fileLength)
+            getRegionRelativePosition(overlap.start(), fileLength, isMetaFile),
+            overlap.end() == regionRange.end() ? regionSize : getRegionRelativePosition(overlap.end(), fileLength, isMetaFile)
         );
     }
 
-    private long getRegionSize(long fileLength, int region) {
-        final boolean small = isSmallRegion(region, fileLength);
-        final long currentRegionSize = small ? smallRegionSize : this.regionSize;
+    private long getRegionSize(long fileLength, int region, boolean isMetaFile) {
+        final long currentRegionSize = regionSize(region, fileLength, isMetaFile);
         assert fileLength > 0;
-        final int maxRegion = getRegion(fileLength, fileLength);
+        final int maxRegion = getRegion(fileLength, fileLength, isMetaFile);
         assert region >= 0 && region <= maxRegion;
         final long effectiveRegionSize;
-        final long regionStart = getRegionStart(region, fileLength);
+        final long regionStart = getRegionStart(region, fileLength, isMetaFile);
         if (region == maxRegion && regionStart + currentRegionSize != fileLength) {
-            assert getRegionRelativePosition(fileLength, fileLength) != 0L;
-            effectiveRegionSize = getRegionRelativePosition(fileLength, fileLength);
+            assert getRegionRelativePosition(fileLength, fileLength, isMetaFile) != 0L;
+            effectiveRegionSize = getRegionRelativePosition(fileLength, fileLength, isMetaFile);
         } else {
             effectiveRegionSize = currentRegionSize;
         }
@@ -241,12 +295,29 @@ public class FrozenCacheService implements Releasable {
         return effectiveRegionSize;
     }
 
-    private boolean isSmallRegion(int region, long fileSize) {
-        return region >= largeRegions(fileSize);
+    private RegionSize isSmallRegion(int region, long fileSize, boolean isMetaFile) {
+        if (isMetaFile == false && region == 0) {
+            return RegionSize.TINY;
+        }
+        final int largeRegionCount = largeRegions(fileSize, isMetaFile);
+        if (region < largeRegionCount) {
+            return RegionSize.STANDARD;
+        }
     }
 
-    public CacheFileRegion get(CacheKey cacheKey, long fileLength, int region) {
-        final long regionSize = getRegionSize(fileLength, region);
+    private long regionSize(int region, long fileSize, boolean isMetaFile) {
+        switch (isSmallRegion(region, fileSize, isMetaFile)) {
+            case TINY:
+                return sharedBytes.sharedCacheConfiguration.tinyRegionSize();
+            case SMALL:
+                return sharedBytes.sharedCacheConfiguration.smallRegionSize();
+            default:
+                return sharedBytes.sharedCacheConfiguration.standardRegionSize();
+        }
+    }
+
+    public CacheFileRegion get(CacheKey cacheKey, long fileLength, int region, boolean isMetaFile) {
+        final long regionSize = getRegionSize(fileLength, region, isMetaFile);
         try (Releasable ignore = keyedLock.acquire(cacheKey)) {
             final RegionKey regionKey = new RegionKey(cacheKey, region);
             final long now = currentTimeSupplier.getAsLong();
@@ -259,7 +330,7 @@ public class FrozenCacheService implements Releasable {
                 assert entry.freq == 0;
                 assert entry.prev == null;
                 assert entry.next == null;
-                final boolean isSmall = isSmallRegion(region, fileLength);
+                final boolean isSmall = isSmallRegion(region, fileLength, isMetaFile);
                 final Integer freeSlot = tryPollFreeSlot(isSmall);
                 if (freeSlot != null) {
                     // no need to evict an item, just add
@@ -307,7 +378,7 @@ public class FrozenCacheService implements Releasable {
 
     public void onClose(CacheFileRegion chunk) {
         assert regionOwners[chunk.sharedBytesPos].compareAndSet(chunk, null);
-        if (chunk.isSmall()) {
+        if (chunk.regionSize()) {
             freeSmallRegions.add(chunk.sharedBytesPos);
         } else {
             freeRegions.add(chunk.sharedBytesPos);
@@ -324,9 +395,14 @@ public class FrozenCacheService implements Releasable {
         return freeSmallRegions.size();
     }
 
+    // used by tests
+    int freeTinyRegionCount() {
+        return freeTinyRegions.size();
+    }
+
     private synchronized boolean invariant(final Entry<CacheFileRegion> e, boolean present) {
         boolean found = false;
-        final Entry<CacheFileRegion>[] freqs = e.chunk.isSmall() ? smallRegionFreqs : regionFreqs;
+        final Entry<CacheFileRegion>[] freqs = e.chunk.regionSize() ? smallRegionFreqs : regionFreqs;
         for (int i = 0; i < maxFreq; i++) {
             assert freqs[i] == null || freqs[i].prev != null;
             assert freqs[i] == null || freqs[i].prev != freqs[i] || freqs[i].next == null;
@@ -354,9 +430,20 @@ public class FrozenCacheService implements Releasable {
         return true;
     }
 
-    private void maybeEvict(boolean small) {
+    private void maybeEvict(RegionSize size) {
         assert Thread.holdsLock(this);
-        final Entry<CacheFileRegion>[] freqs = small ? smallRegionFreqs : regionFreqs;
+        final Entry<CacheFileRegion>[] freqs;
+        switch (size) {
+            case STANDARD:
+                freqs = regionFreqs;
+                break;
+            case SMALL:
+                freqs = smallRegionFreqs;
+                break;
+            default:
+                freqs = tinyRegionFreqs;
+                break;
+        }
         for (int i = 0; i < maxFreq; i++) {
             for (Entry<CacheFileRegion> entry = freqs[i]; entry != null; entry = entry.next) {
                 boolean evicted = entry.chunk.tryEvict();
@@ -374,7 +461,7 @@ public class FrozenCacheService implements Releasable {
         assert invariant(entry, false);
         assert entry.prev == null;
         assert entry.next == null;
-        final Entry<CacheFileRegion>[] freqs = entry.chunk.isSmall() ? smallRegionFreqs : regionFreqs;
+        final Entry<CacheFileRegion>[] freqs = entry.chunk.regionSize() ? smallRegionFreqs : regionFreqs;
         final Entry<CacheFileRegion> currFront = freqs[entry.freq];
         if (currFront == null) {
             freqs[entry.freq] = entry;
@@ -399,7 +486,7 @@ public class FrozenCacheService implements Releasable {
         assert Thread.holdsLock(this);
         assert invariant(entry, true);
         assert entry.prev != null;
-        final Entry<CacheFileRegion>[] freqs = entry.chunk.isSmall() ? smallRegionFreqs : regionFreqs;
+        final Entry<CacheFileRegion>[] freqs = entry.chunk.regionSize() ? smallRegionFreqs : regionFreqs;
         final Entry<CacheFileRegion> currFront = freqs[entry.freq];
         assert currFront != null;
         if (currFront == entry) {
@@ -569,8 +656,15 @@ public class FrozenCacheService implements Releasable {
             tracker = new SparseFileTracker("file", regionSize);
         }
 
-        public boolean isSmall() {
-            return sharedBytesPos >= sharedBytes.sharedCacheConfiguration.numRegions();
+        public RegionSize regionSize() {
+            final long rsize = sharedBytes.sharedCacheConfiguration.regionSize(sharedBytesPos);
+            if (rsize == smallRegionSize) {
+                return RegionSize.SMALL;
+            } else if (rsize == regionSize) {
+                return RegionSize.STANDARD;
+            }
+            assert rsize == sharedBytes.sharedCacheConfiguration.tinyRegionSize();
+            return RegionSize.TINY;
         }
 
         public long physicalStartOffset() {
@@ -780,11 +874,12 @@ public class FrozenCacheService implements Releasable {
             final Executor executor
         ) {
             StepListener<Integer> stepListener = null;
-            for (int i = getRegion(rangeToWrite.start(), fileSize); i <= getRegion(rangeToWrite.end(), fileSize); i++) {
+            for (int i = getRegion(rangeToWrite.start(), fileSize, cacheKey.isMetaFile());
+                 i <= getRegion(rangeToWrite.end(), fileSize, cacheKey.isMetaFile()); i++) {
                 final int region = i;
-                final ByteRange subRangeToWrite = mapSubRangeToRegion(rangeToWrite, region, fileSize);
-                final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region, fileSize);
-                final CacheFileRegion fileRegion = get(cacheKey, fileSize, region);
+                final ByteRange subRangeToWrite = mapSubRangeToRegion(rangeToWrite, region, fileSize, cacheKey.isMetaFile());
+                final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region, fileSize, cacheKey.isMetaFile());
+                final CacheFileRegion fileRegion = get(cacheKey, fileSize, region, cacheKey.isMetaFile());
                 final StepListener<Integer> lis = fileRegion.populateAndRead(
                     subRangeToWrite,
                     subRangeToRead,
@@ -812,9 +907,9 @@ public class FrozenCacheService implements Releasable {
         }
 
         private long distToStart(long start, int region, CacheFileRegion fileRegion, long channelPos, long relativePos, long length) {
-            final long distanceToStart = region == getRegion(start, fileRegion.fileSize)
-                ? relativePos - getRegionRelativePosition(start, fileRegion.fileSize)
-                : getRegionStart(region, fileRegion.fileSize) + relativePos - start;
+            final long distanceToStart = region == getRegion(start, fileRegion.fileSize, cacheKey.isMetaFile())
+                ? relativePos - getRegionRelativePosition(start, fileRegion.fileSize, cacheKey.isMetaFile())
+                : getRegionStart(region, fileRegion.fileSize, cacheKey.isMetaFile()) + relativePos - start;
             assert channelPos >= fileRegion.physicalStartOffset() && channelPos + length <= fileRegion.physicalEndOffset();
             return distanceToStart;
         }
@@ -823,10 +918,11 @@ public class FrozenCacheService implements Releasable {
         public StepListener<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
             StepListener<Integer> stepListener = null;
             final long start = rangeToRead.start();
-            for (int i = getRegion(rangeToRead.start(), fileSize); i <= getRegion(rangeToRead.end(), fileSize); i++) {
+            for (int i = getRegion(rangeToRead.start(), fileSize, cacheKey.isMetaFile());
+                 i <= getRegion(rangeToRead.end(), fileSize, cacheKey.isMetaFile()); i++) {
                 final int region = i;
-                final CacheFileRegion fileRegion = get(cacheKey, fileSize, region);
-                final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region, fileRegion.fileSize);
+                final CacheFileRegion fileRegion = get(cacheKey, fileSize, region, cacheKey.isMetaFile());
+                final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region, fileRegion.fileSize, cacheKey.isMetaFile());
                 final StepListener<Integer> lis = fileRegion.readIfAvailableOrPending(
                     subRangeToRead,
                     (channel, channelPos, relativePos, length) -> reader.onRangeAvailable(
@@ -869,5 +965,11 @@ public class FrozenCacheService implements Releasable {
     public interface RangeMissingHandler {
         void fillCacheRange(SharedBytes.IO channel, long channelPos, long relativePos, long length, Consumer<Long> progressUpdater)
             throws IOException;
+    }
+
+    private enum RegionSize {
+        STANDARD,
+        SMALL,
+        TINY
     }
 }

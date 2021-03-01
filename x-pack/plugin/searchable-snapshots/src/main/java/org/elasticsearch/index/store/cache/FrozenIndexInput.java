@@ -17,7 +17,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
-import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
@@ -26,6 +25,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.FrozenCacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.cache.SharedBytes;
@@ -78,7 +78,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             recoveryRangeSize,
             directory.getBlobCacheByteRange(fileInfo.physicalName(), fileInfo.length())
         );
-        assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
+        assert getBufferSize() <= SnapshotsService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
         stats.incrementOpenCount();
     }
 

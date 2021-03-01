@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.index.store.cache;
 
+import org.apache.lucene.index.IndexFileNames;
+import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Objects;
@@ -16,12 +18,18 @@ public class CacheKey {
     private final String snapshotIndexName;
     private final ShardId shardId;
     private final String fileName;
+    private final boolean isMetaFile;
 
     public CacheKey(String snapshotUUID, String snapshotIndexName, ShardId shardId, String fileName) {
         this.snapshotUUID = Objects.requireNonNull(snapshotUUID);
         this.snapshotIndexName = Objects.requireNonNull(snapshotIndexName);
         this.shardId = Objects.requireNonNull(shardId);
         this.fileName = Objects.requireNonNull(fileName);
+        isMetaFile = BlobStoreCacheService.METADATA_FILES_EXTENSIONS.contains(IndexFileNames.getExtension(fileName));
+    }
+
+    public boolean isMetaFile() {
+        return isMetaFile;
     }
 
     public String getSnapshotUUID() {

@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
@@ -56,7 +57,6 @@ public class BlobStoreCacheService {
      */
     private static final Version OLD_CACHED_BLOB_SIZE_VERSION = Version.V_8_0_0; // TODO adjust after backport
 
-    public static final int DEFAULT_CACHED_BLOB_SIZE = ByteSizeUnit.KB.toIntBytes(1);
     private static final Cache<String, String> LOG_EXCEEDING_FILES_CACHE = CacheBuilder.<String, String>builder()
         .setExpireAfterAccess(TimeValue.timeValueMinutes(60L))
         .build();
@@ -176,7 +176,7 @@ public class BlobStoreCacheService {
         }
     }
 
-    private static final Set<String> METADATA_FILES_EXTENSIONS;
+    public static final Set<String> METADATA_FILES_EXTENSIONS;
     private static final Set<String> OTHER_FILES_EXTENSIONS;
     static {
         // List of Lucene file extensions that are considered as "metadata" and should therefore be fully cached in the blob store cache.
@@ -250,7 +250,7 @@ public class BlobStoreCacheService {
             }
             return ByteRange.of(0L, Math.min(fileLength, maxAllowedLengthInBytes));
         }
-        return ByteRange.of(0L, Math.min(fileLength, DEFAULT_CACHED_BLOB_SIZE));
+        return ByteRange.of(0L, Math.min(fileLength, SnapshotsService.DEFAULT_CACHED_BLOB_SIZE));
     }
 
     protected boolean useLegacyCachedBlobSizes() {

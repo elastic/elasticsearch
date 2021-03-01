@@ -31,7 +31,7 @@ public final class SharedCacheConfiguration {
         final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
         this.regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
         this.smallRegionSize = Math.min(SNAPSHOT_CACHE_SMALL_REGION_SIZE.get(settings).getBytes(), regionSize / 2);
-        this.tinyRegionSize = Math.min(SNAPSHOT_CACHE_TINY_REGION_SIZE.get(settings).getBytes(), smallRegionSize / 2);
+        this.tinyRegionSize = SNAPSHOT_CACHE_TINY_REGION_SIZE.get(settings).getBytes();
         final float smallRegionShare = SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.get(settings);
         final float tinyRegionShare = SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE.get(settings);
         this.numRegions = Math.round(Math.toIntExact(cacheSize / regionSize) * (1 - smallRegionShare - tinyRegionShare));
@@ -69,6 +69,18 @@ public final class SharedCacheConfiguration {
             }
             return smallRegionSize;
         }
+        return regionSize;
+    }
+
+    public long tinyRegionSize() {
+        return tinyRegionSize;
+    }
+
+    public long smallRegionSize() {
+        return smallRegionSize;
+    }
+
+    public long standardRegionSize() {
         return regionSize;
     }
 }

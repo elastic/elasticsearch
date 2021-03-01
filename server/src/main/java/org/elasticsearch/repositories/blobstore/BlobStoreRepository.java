@@ -138,7 +138,6 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
-import static org.elasticsearch.repositories.RepositoryData.MISSING_UUID;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
@@ -1028,43 +1027,29 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             deleteFromContainer(blobContainer(), blobsToDelete);
             return blobsToDelete;
-        } catch (IOException e) {
+        } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage(
                 "[{}] The following blobs are no longer part of any snapshot [{}] but failed to remove them",
                 metadata.name(), blobsToDelete), e);
-        } catch (Exception e) {
-            // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
-            //       Currently this catch exists as a stop gap solution to tackle unexpected runtime exceptions from implementations
-            //       bubbling up and breaking the snapshot functionality.
-            assert false : e;
-            logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of root level blobs", metadata.name()), e);
         }
         return Collections.emptyList();
     }
 
     private DeleteResult cleanupStaleIndices(Map<String, BlobContainer> foundIndices, Set<String> survivingIndexIds) {
         DeleteResult deleteResult = DeleteResult.ZERO;
-        try {
-            for (Map.Entry<String, BlobContainer> indexEntry : foundIndices.entrySet()) {
-                final String indexSnId = indexEntry.getKey();
-                try {
-                    if (survivingIndexIds.contains(indexSnId) == false) {
-                        logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
-                        deleteResult = deleteResult.add(indexEntry.getValue().delete());
-                        logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
-                    }
-                } catch (IOException e) {
-                    logger.warn(() -> new ParameterizedMessage(
-                        "[{}] index {} is no longer part of any snapshots in the repository, " +
-                            "but failed to clean up their index folders", metadata.name(), indexSnId), e);
+        for (Map.Entry<String, BlobContainer> indexEntry : foundIndices.entrySet()) {
+            final String indexSnId = indexEntry.getKey();
+            try {
+                if (survivingIndexIds.contains(indexSnId) == false) {
+                    logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
+                    deleteResult = deleteResult.add(indexEntry.getValue().delete());
+                    logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
                 }
+            } catch (Exception e) {
+                logger.warn(() -> new ParameterizedMessage(
+                        "[{}] index {} is no longer part of any snapshot in the repository, " +
+                                "but failed to clean up its index folder", metadata.name(), indexSnId), e);
             }
-        } catch (Exception e) {
-            // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
-            //       Currently this catch exists as a stop gap solution to tackle unexpected runtime exceptions from implementations
-            //       bubbling up and breaking the snapshot functionality.
-            assert false : e;
-            logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of stale indices", metadata.name()), e);
         }
         return deleteResult;
     }
@@ -1906,17 +1891,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryData updateRepositoryData(RepositoryData repositoryData, Version repositoryMetaversion, long newGen) {
-        if (SnapshotsService.includesClusterUUID(repositoryMetaversion)) {
+        if (SnapshotsService.includesUUIDs(repositoryMetaversion)) {
             final String clusterUUID = clusterService.state().metadata().clusterUUID();
             if (repositoryData.getClusterUUID().equals(clusterUUID) == false) {
                 repositoryData = repositoryData.withClusterUuid(clusterUUID);
             }
         }
-        if (SnapshotsService.includesRepositoryUuid(repositoryMetaversion) && repositoryData.getUuid().equals(MISSING_UUID)) {
-            return repositoryData.withGenId(newGen).withUuid(UUIDs.randomBase64UUID());
-        } else {
-            return repositoryData.withGenId(newGen);
-        }
+        return repositoryData.withGenId(newGen);
     }
 
     /**
@@ -2363,7 +2344,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
                              RecoveryState recoveryState, ActionListener<Void> listener) {
         final ShardId shardId = store.shardId();
-        final ActionListener<Void> restoreListener = ActionListener.delegateResponse(listener,
+        final ActionListener<Void> restoreListener = listener.delegateResponse(
             (l, e) -> l.onFailure(new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e)));
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         final BlobContainer container = shardContainer(indexId, snapshotShardId);
@@ -2469,7 +2450,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static ActionListener<Void> fileQueueListener(BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> files, int workers,
                                                           ActionListener<Collection<Void>> listener) {
-        return ActionListener.delegateResponse(new GroupedActionListener<>(listener, workers), (l, e) -> {
+        return new GroupedActionListener<>(listener, workers).delegateResponse((l, e) -> {
             files.clear(); // Stop uploading the remaining files if we run into any exception
             l.onFailure(e);
         });

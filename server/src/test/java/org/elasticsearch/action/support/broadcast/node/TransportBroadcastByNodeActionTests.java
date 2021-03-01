@@ -10,6 +10,7 @@ package org.elasticsearch.action.support.broadcast.node;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -139,15 +140,17 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         }
 
         @Override
-        protected EmptyResult shardOperation(Request request, ShardRouting shardRouting, Task task) {
-            if (rarely()) {
-                shards.put(shardRouting, Boolean.TRUE);
-                return EmptyResult.INSTANCE;
-            } else {
-                ElasticsearchException e = new ElasticsearchException("operation failed");
-                shards.put(shardRouting, e);
-                throw e;
-            }
+        protected void shardOperation(Request request, ShardRouting shardRouting, Task task, ActionListener<EmptyResult> listener) {
+            ActionListener.completeWith(listener, () -> {
+                if (rarely()) {
+                    shards.put(shardRouting, Boolean.TRUE);
+                    return EmptyResult.INSTANCE;
+                } else {
+                    ElasticsearchException e = new ElasticsearchException("operation failed");
+                    shards.put(shardRouting, e);
+                    throw e;
+                }
+            });
         }
 
         @Override
@@ -329,10 +332,11 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
         TestTransportChannel channel = new TestTransportChannel(future);
 
-        expectThrows(TaskCancelledException.class, () -> handler.messageReceived(
-                action.new NodeRequest(nodeId, new Request(), new ArrayList<>(shards)),
-                channel,
-                cancelledTask()));
+        handler.messageReceived(
+            action.new NodeRequest(nodeId, new Request(), new ArrayList<>(shards)),
+            channel,
+            cancelledTask());
+        expectThrows(TaskCancelledException.class, future::actionGet);
 
         assertThat(action.getResults(), anEmptyMap());
     }

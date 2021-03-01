@@ -71,7 +71,7 @@ public class Page implements Releasable {
 
         @Override
         protected void closeInternal() {
-            Releasables.close(closeable);
+            Releasables.closeExpectNoException(closeable);
         }
     }
 }

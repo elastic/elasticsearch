@@ -23,6 +23,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
@@ -55,6 +56,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     protected Settings repositorySettings(String repoName) {
         Settings.Builder settingsBuilder = Settings.builder()
                 .put(super.repositorySettings(repoName))
+                .put(AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.MB))
                 .put(AzureRepository.Repository.CONTAINER_SETTING.getKey(), "container")
                 .put(AzureStorageSettings.ACCOUNT_SETTING.getKey(), "test");
         if (randomBoolean()) {
@@ -118,11 +120,6 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
                 @Override
                 long getUploadBlockSize() {
-                    return ByteSizeUnit.MB.toBytes(1);
-                }
-
-                @Override
-                long getSizeThresholdForMultiBlockUpload() {
                     return ByteSizeUnit.MB.toBytes(1);
                 }
             };

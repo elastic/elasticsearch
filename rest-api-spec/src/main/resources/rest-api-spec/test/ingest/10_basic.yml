@@ -155,6 +155,10 @@
 
 ---
 "Test Get Summarized Pipelines":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "change to appropriate 7.x release after backport"
+
   - do:
       ingest.put_pipeline:
         id: "first_pipeline"

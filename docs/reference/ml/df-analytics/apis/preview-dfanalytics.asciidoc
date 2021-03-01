@@ -76,7 +76,7 @@ been processed and indicate what will be sent to the model for training.
 --------------------------------------------------
 POST _ml/data_frame/analytics/_preview
 {
-  "config:" {
+  "config": {
     "source": {
       "index": "houses_sold_last_10_yrs"
     },

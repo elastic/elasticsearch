@@ -15,6 +15,8 @@ additional security by building on the existing layer.
 These scenarios don't cover every situation, but provide a framework for
 securing {es} and the Elastic Stack based on typical use cases.
 
+image::images/elastic-security-overview.png[Elastic Security layers]
+
 [discrete]
 [[security-minimal-overview]]
 === Minimal security

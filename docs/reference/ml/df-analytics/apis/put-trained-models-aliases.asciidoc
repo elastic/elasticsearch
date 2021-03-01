@@ -1,17 +1,17 @@
 [role="xpack"]
 [testenv="platinum"]
 [[put-trained-models-aliases]]
-= Put Trained Models Aliases API
+= Create or update trained model aliases API
 [subs="attributes"]
 ++++
-<titleabbrev>Put Trained Models Aliases</titleabbrev>
+<titleabbrev>Create or update trained model aliases</titleabbrev>
 ++++
 
-Creates a trained models alias. These model aliases can be used instead of the trained model ID
-when referencing the model in the stack. Model aliases must be unique, and a trained model can have
-more than one model alias referring to it. But a model alias can only refer to a single trained model.
-
 beta::[]
+
+Creates or updates a trained model alias.
+
+A trained model alias is a logical name used to reference a single trained model.
 
 [[ml-put-trained-models-aliases-request]]
 == {api-request-title}
@@ -23,7 +23,7 @@ beta::[]
 == {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following
-built-in roles and privileges:
+built-in role:
 
 * `machine_learning_admin`
 
@@ -33,43 +33,51 @@ For more information, see <<built-in-roles>>, <<security-privileges>>, and
 [[ml-put-trained-models-aliases-desc]]
 == {api-description-title}
 
-This API creates a new model alias to refer to trained models, or updates an existing
-trained model's alias.
+You can use aliases instead of trained model identifiers to make it easier to
+reference your models. For example, you can use aliases in {infer} aggregations
+and processors.
 
-When updating an existing model alias to a new model ID, this API will return a error if the models
-are of different inference types. Example, if attempting to put the model alias
-`flights-delay-prediction` from a regression model to a classification model, the API will error.
+An alias must be unique and refer to only a single trained model. However,
+you can have multiple aliases for each trained model.
 
-The API will return a warning if there are very few input fields in common between the old
-and new models for the model alias.
+If you use this API to update an alias such that it references a different
+trained model ID and the model uses a different type of {dfanalytics}, an error
+occurs. For example, this situation occurs if you have a trained model for
+{reganalysis} and a trained model for {classanalysis}; you cannot reassign an
+alias from one type of trained model to another.
+
+If you use this API to update an alias and there are very few input fields in
+common between the old and new trained models for the model alias, the API
+returns a warning.
 
 [[ml-put-trained-models-aliases-path-params]]
 == {api-path-parms-title}
 
-`model_id`::
-(Required, string)
-The trained model ID to which the model alias should refer.
-
 `model_alias`::
 (Required, string)
-The model alias to create or update. The model_alias cannot end in numbers.
+The alias to create or update. This value cannot end in numbers.
+
+`model_id`::
+(Required, string)
+The identifier for the trained model that the alias refers to.
 
 [[ml-put-trained-models-aliases-query-params]]
 == {api-query-parms-title}
 
 `reassign`::
 (Optional, boolean)
-Should the `model_alias` get reassigned to the provided `model_id` if it is already
-assigned to a model. Defaults to false. The API will return an error if the `model_alias`
-is already assigned to a model but this parameter is `false`.
+Specifies whether the alias gets reassigned to the specified trained model if it
+is already assigned to a different model. If the alias is already assigned and
+this parameter is `false`, the API returns an error. Defaults to `false`. 
 
 [[ml-put-trained-models-aliases-example]]
 == {api-examples-title}
 
 [[ml-put-trained-models-aliases-example-new-alias]]
-=== Creating a new model alias
+=== Create a trained model alias
 
-The following example shows how to create a new model alias for a trained model ID.
+The following example shows how to create an alias (`flight_delay_model`) for a
+trained model (`flight-delay-prediction-1574775339910`):
 
 [source,console]
 --------------------------------------------------
@@ -78,9 +86,10 @@ PUT _ml/trained_models/flight-delay-prediction-1574775339910/model_aliases/fligh
 // TEST[skip:setup kibana sample data]
 
 [[ml-put-trained-models-aliases-example-put-alias]]
-=== Updating an existing model alias
+=== Update a trained model alias
 
-The following example shows how to reassign an existing model alias for a trained model ID.
+The following example shows how to reassign an alias (`flight_delay_model`) to a
+different trained model (`flight-delay-prediction-1580004349800`):
 
 [source,console]
 --------------------------------------------------

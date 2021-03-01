@@ -34,7 +34,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Locale;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -44,7 +43,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
     private static final ShardId SHARD_ID = new ShardId(new Index("_index_name", "_index_id"), 0);
 
     public void testRandomReads() throws IOException {
-        final String fileName = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
+        final String fileName = randomAlphaOfLength(5) + randomFileExtension();
         final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 100_000));
 
         final byte[] fileData = bytes.v2();
@@ -104,7 +103,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             directory.loadSnapshot(createRecoveryState(true), ActionListener.wrap(() -> {}));
 
             // TODO does not test using the recovery range size
-            final IndexInput indexInput = directory.openInput(fileName, newIOContext(random()));
+            final IndexInput indexInput = directory.openInput(fileName, randomIOContext());
             assertThat(indexInput, instanceOf(FrozenIndexInput.class));
             assertEquals(fileData.length, indexInput.length());
             assertEquals(0, indexInput.getFilePointer());

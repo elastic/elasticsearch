@@ -66,7 +66,6 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         return List.of(TestPlugin.class, LocalStateCompositeXPackPlugin.class, SnapshotRepositoryTestKit.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69219")
     public void testRepositoryAnalysis() {
 
         createRepositoryNoVerify("test-repo", TestPlugin.ASSERTING_REPO_TYPE);
@@ -99,7 +98,9 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         if (usually()) {
-            request.maxTotalDataSize(new ByteSizeValue(between(1, 1 << 20)));
+            request.maxTotalDataSize(
+                new ByteSizeValue(request.getMaxBlobSize().getBytes() + request.getBlobCount() - 1 + between(0, 1 << 20))
+            );
             blobStore.ensureMaxTotalBlobSize(request.getMaxTotalDataSize().getBytes());
         }
 

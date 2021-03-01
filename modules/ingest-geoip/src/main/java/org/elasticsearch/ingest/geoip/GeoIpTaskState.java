@@ -116,7 +116,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+        return Version.V_7_13_0;
     }
 
     @Override

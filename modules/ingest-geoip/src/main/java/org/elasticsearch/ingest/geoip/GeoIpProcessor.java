@@ -398,7 +398,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
                         + databaseType + "]");
                 }
             }
-
             CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier = () -> {
                 DatabaseReaderLazyLoader loader = databaseRegistry.getDatabase(databaseFile, fallbackUsingDefaultDatabases);
                 if (loader == null) {

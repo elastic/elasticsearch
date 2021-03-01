@@ -41,6 +41,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -633,10 +635,16 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(delegate.get("delegate"), equalTo("FiltersAggregator.FilterByFilter"));
             Map<?, ?> delegateDebug = (Map<?, ?>) delegate.get("delegate_debug");
             assertThat(delegateDebug, hasEntry("segments_with_deleted_docs", 0));
-            assertThat(delegateDebug, hasEntry("segments_with_doc_count", 0));
+            assertThat(delegateDebug, hasEntry("segments_with_doc_count_field", 0));
             assertThat(delegateDebug, hasEntry("max_cost", (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2));
             assertThat(delegateDebug, hasEntry("estimated_cost", (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2));
             assertThat((long) delegateDebug.get("estimate_cost_time"), greaterThanOrEqualTo(0L));  // ~1,276,734 nanos is normal
+            List<?> filtersDebug = (List<?>) delegateDebug.get("filters");
+            assertThat(filtersDebug, hasSize(1));
+            Map<?, ?> queryDebug = (Map<?, ?>) filtersDebug.get(0);
+            assertThat(queryDebug, hasKey("scorers_prepared_while_estimating_cost"));
+            assertThat((int) queryDebug.get("scorers_prepared_while_estimating_cost"), greaterThan(0));
+            assertThat(queryDebug, hasEntry("query", "ConstantScore(DocValuesFieldExistsQuery [field=date])"));
         }
     }
 }

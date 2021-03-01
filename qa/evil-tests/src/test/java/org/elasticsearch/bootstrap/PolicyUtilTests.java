@@ -210,6 +210,9 @@ public class PolicyUtilTests extends ESTestCase {
     }
 
     static final List<String> PLUGIN_TEST_PERMISSIONS = List.of(
+        // TODO: move this back to module test permissions, see https://github.com/elastic/elasticsearch/issues/69464
+        "java.io.FilePermission /foo/bar read",
+
         "java.lang.reflect.ReflectPermission suppressAccessChecks",
         "java.lang.RuntimePermission createClassLoader",
         "java.lang.RuntimePermission getClassLoader",
@@ -270,7 +273,6 @@ public class PolicyUtilTests extends ESTestCase {
     }
 
     static final List<String> MODULE_TEST_PERMISSIONS = List.of(
-        "java.io.FilePermission /foo/bar read",
         "java.io.FilePermission /foo/bar write",
         "java.lang.RuntimePermission getFileStoreAttributes",
         "java.lang.RuntimePermission accessUserInformation"

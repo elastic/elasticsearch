@@ -163,7 +163,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String sourceIndex = "test-outlier-detection-preview";
 
         client().admin().indices().prepareCreate(sourceIndex)
-            .setMapping("numeric_1", "type=double", "numeric_2", "type=unsigned_long", "categorical_1", "type=keyword")
+            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=unsigned_long", "categorical_1", "type=keyword")
             .get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();

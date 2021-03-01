@@ -8,13 +8,16 @@
 
 package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.info.BuildParams;
 import org.gradle.api.GradleException;
-import org.gradle.api.Project;
+import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
+import org.gradle.api.services.BuildService;
+import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.internal.jvm.Jvm;
 
 import java.io.FileWriter;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -26,24 +29,12 @@ import java.nio.file.Paths;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class ReaperService {
+public abstract class ReaperService implements BuildService<ReaperService.Params>, AutoCloseable {
 
     private static final String REAPER_CLASS = "org/elasticsearch/gradle/reaper/Reaper.class";
     private static final Pattern REAPER_JAR_PATH_PATTERN = Pattern.compile("file:(.*)!/" + REAPER_CLASS);
-    private final Logger logger;
-    private final boolean isInternal;
-    private final Path buildDir;
-    private final Path inputDir;
-    private final Path logFile;
     private volatile Process reaperProcess;
-
-    public ReaperService(Project project, Path buildDir, Path inputDir) {
-        this.logger = project.getLogger();
-        this.isInternal = BuildParams.isInternal();
-        this.buildDir = buildDir;
-        this.inputDir = inputDir;
-        this.logFile = inputDir.resolve("reaper.log");
-    }
+    private final Logger logger = Logging.getLogger(getClass());
 
     /**
      * Register a pid that will be killed by the reaper.
@@ -70,7 +61,7 @@ public class ReaperService {
     }
 
     private Path getCmdFile(String serviceId) {
-        return inputDir.resolve(serviceId.replaceAll("[^a-zA-Z0-9]", "-") + ".cmd");
+        return getParameters().getInputDir().get().getAsFile().toPath().resolve(serviceId.replaceAll("[^a-zA-Z0-9]", "-") + ".cmd");
     }
 
     public void unregister(String serviceId) {
@@ -88,6 +79,7 @@ public class ReaperService {
                 reaperProcess.getOutputStream().close();
                 logger.info("Waiting for reaper to exit normally");
                 if (reaperProcess.waitFor() != 0) {
+                    Path inputDir = getParameters().getInputDir().get().getAsFile().toPath();
                     throw new GradleException("Reaper process failed. Check log at " + inputDir.resolve("error.log") + " for details");
                 }
             } catch (Exception e) {
@@ -101,10 +93,10 @@ public class ReaperService {
         if (reaperProcess == null) {
             try {
                 Path jarPath = locateReaperJar();
+                Path inputDir = getParameters().getInputDir().get().getAsFile().toPath();
 
                 // ensure the input directory exists
                 Files.createDirectories(inputDir);
-
                 // start the reaper
                 ProcessBuilder builder = new ProcessBuilder(
                     Jvm.current().getJavaExecutable().toString(), // same jvm as gradle
@@ -117,8 +109,9 @@ public class ReaperService {
                 logger.info("Launching reaper: " + String.join(" ", builder.command()));
                 // be explicit for stdin, we use closing of the pipe to signal shutdown to the reaper
                 builder.redirectInput(ProcessBuilder.Redirect.PIPE);
-                builder.redirectOutput(logFile.toFile());
-                builder.redirectError(logFile.toFile());
+                File logFile = logFilePath().toFile();
+                builder.redirectOutput(logFile);
+                builder.redirectError(logFile);
                 reaperProcess = builder.start();
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -128,8 +121,12 @@ public class ReaperService {
         }
     }
 
+    private Path logFilePath() {
+        return getParameters().getInputDir().get().getAsFile().toPath().resolve("reaper.log");
+    }
+
     private Path locateReaperJar() {
-        if (isInternal) {
+        if (getParameters().getInternal()) {
             // when running inside the Elasticsearch build just pull find the jar in the runtime classpath
             URL main = this.getClass().getClassLoader().getResource(REAPER_CLASS);
             String mainPath = main.getFile();
@@ -143,7 +140,7 @@ public class ReaperService {
             }
         } else {
             // copy the reaper jar
-            Path jarPath = buildDir.resolve("reaper").resolve("reaper.jar");
+            Path jarPath = getParameters().getBuildDir().get().getAsFile().toPath().resolve("reaper").resolve("reaper.jar");
             try {
                 Files.createDirectories(jarPath.getParent());
             } catch (IOException e) {
@@ -166,7 +163,22 @@ public class ReaperService {
 
     private void ensureReaperAlive() {
         if (reaperProcess.isAlive() == false) {
-            throw new IllegalStateException("Reaper process died unexpectedly! Check the log at " + logFile.toString());
+            throw new IllegalStateException("Reaper process died unexpectedly! Check the log at " + logFilePath().toString());
         }
+    }
+
+    @Override
+    public void close() throws Exception {
+        shutdown();
+    }
+
+    interface Params extends BuildServiceParameters {
+        Boolean getInternal();
+
+        void setInternal(Boolean internal);
+
+        DirectoryProperty getBuildDir();
+
+        DirectoryProperty getInputDir();
     }
 }

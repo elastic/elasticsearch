@@ -25,6 +25,7 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING;
 import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE;
+import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE;
 
 public class FrozenCacheServiceTests extends ESTestCase {
 
@@ -33,6 +34,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
             .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
+            .put(SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), "10b")
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
@@ -88,6 +90,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
             .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
+            .put(SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), "10b")
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
@@ -143,6 +146,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
             .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
             .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), "20b")
+            .put(SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), "10b")
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
@@ -221,6 +225,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
             .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
+            .put(SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), "10b")
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
@@ -233,15 +238,15 @@ public class FrozenCacheServiceTests extends ESTestCase {
             final CacheKey cacheKey2 = generateCacheKey();
             assertEquals(4, cacheService.freeRegionCount());
             final CacheFileRegion region0 = cacheService.get(cacheKey1, 250, 0);
-            assertEquals(3, cacheService.freeRegionCount());
+            assertEquals(4, cacheService.freeRegionCount());
             final CacheFileRegion region1 = cacheService.get(cacheKey2, 250, 1);
-            assertEquals(2, cacheService.freeRegionCount());
+            assertEquals(3, cacheService.freeRegionCount());
             assertFalse(region0.isEvicted());
             assertFalse(region1.isEvicted());
             cacheService.removeFromCache(cacheKey1);
             assertTrue(region0.isEvicted());
             assertFalse(region1.isEvicted());
-            assertEquals(3, cacheService.freeRegionCount());
+            assertEquals(4, cacheService.freeRegionCount());
         }
     }
 
@@ -250,6 +255,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
             .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
+            .put(SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), "10b")
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());

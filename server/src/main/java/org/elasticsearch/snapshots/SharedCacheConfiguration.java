@@ -62,6 +62,14 @@ public final class SharedCacheConfiguration {
         return numRegions;
     }
 
+    public int numTinyRegions() {
+        return numTinyRegions;
+    }
+
+    public int numSmallRegions() {
+        return numSmallRegions;
+    }
+
     public long regionSize(long pageStart) {
         if (pageStart >= numRegions * regionSize) {
             if (pageStart >= numRegions * regionSize + numSmallRegions * smallRegionSize) {

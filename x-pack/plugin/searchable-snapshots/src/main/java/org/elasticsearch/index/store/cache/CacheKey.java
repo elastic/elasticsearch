@@ -25,7 +25,8 @@ public class CacheKey {
         this.snapshotIndexName = Objects.requireNonNull(snapshotIndexName);
         this.shardId = Objects.requireNonNull(shardId);
         this.fileName = Objects.requireNonNull(fileName);
-        isMetaFile = BlobStoreCacheService.METADATA_FILES_EXTENSIONS.contains(IndexFileNames.getExtension(fileName));
+        final String extension = IndexFileNames.getExtension(fileName);
+        isMetaFile = extension != null && BlobStoreCacheService.METADATA_FILES_EXTENSIONS.contains(extension);
     }
 
     public boolean isMetaFile() {

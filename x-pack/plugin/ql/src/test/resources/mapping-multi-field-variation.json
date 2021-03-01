@@ -52,9 +52,6 @@
         "nested": {
             "type": "nested",
             "properties": {
-                "field" : {
-                    "type" : "keyword"
-                },
                 "point": {"type" : "geo_point"}
             }
         }

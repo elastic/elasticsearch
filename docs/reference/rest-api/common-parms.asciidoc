@@ -31,14 +31,6 @@ tag::aliases[]
 index. See <<indices-aliases>>.
 end::aliases[]
 
-tag::index-alias-filter[]
-<<query-dsl-bool-query, Filter query>>
-used to limit the index alias.
-+
-If specified,
-the index alias only applies to documents returned by the filter.
-end::index-alias-filter[]
-
 tag::target-index-aliases[]
 `aliases`::
 (Optional, <<indices-aliases,alias object>>)

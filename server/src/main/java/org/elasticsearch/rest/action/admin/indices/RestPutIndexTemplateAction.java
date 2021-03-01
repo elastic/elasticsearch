@@ -30,8 +30,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(POST, "/_template/{name}"),
-            new Route(PUT, "/_template/{name}")
-        );
+            new Route(PUT, "/_template/{name}"));
     }
 
     @Override

@@ -40,8 +40,7 @@ public class RestSyncedFlushAction extends BaseRestHandler {
             new Route(GET, "/_flush/synced"),
             new Route(POST, "/_flush/synced"),
             new Route(GET, "/{index}/_flush/synced"),
-            new Route(POST, "/{index}/_flush/synced")
-        );
+            new Route(POST, "/{index}/_flush/synced"));
     }
 
     @Override

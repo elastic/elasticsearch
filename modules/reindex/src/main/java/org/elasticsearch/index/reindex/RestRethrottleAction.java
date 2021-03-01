@@ -32,8 +32,7 @@ public class RestRethrottleAction extends BaseRestHandler {
         return List.of(
             new Route(POST, "/_update_by_query/{taskId}/_rethrottle"),
             new Route(POST, "/_delete_by_query/{taskId}/_rethrottle"),
-            new Route(POST, "/_reindex/{taskId}/_rethrottle")
-        );
+            new Route(POST, "/_reindex/{taskId}/_rethrottle"));
     }
 
     @Override

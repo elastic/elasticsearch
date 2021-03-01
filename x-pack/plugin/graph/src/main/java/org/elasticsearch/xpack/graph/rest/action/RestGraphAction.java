@@ -61,8 +61,7 @@ public class RestGraphAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/{index}/_graph/explore"),
-            new Route(POST, "/{index}/_graph/explore")
-        );
+            new Route(POST, "/{index}/_graph/explore"));
     }
 
     @Override

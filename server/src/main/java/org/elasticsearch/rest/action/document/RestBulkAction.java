@@ -49,8 +49,7 @@ public class RestBulkAction extends BaseRestHandler {
             new Route(POST, "/_bulk"),
             new Route(PUT, "/_bulk"),
             new Route(POST, "/{index}/_bulk"),
-            new Route(PUT, "/{index}/_bulk")
-        );
+            new Route(PUT, "/{index}/_bulk"));
     }
 
     @Override

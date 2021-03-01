@@ -40,8 +40,7 @@ public class RestSnapshotAction extends AbstractCatAction {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_cat/snapshots"),
-            new Route(GET, "/_cat/snapshots/{repository}")
-        );
+            new Route(GET, "/_cat/snapshots/{repository}"));
     }
 
     @Override

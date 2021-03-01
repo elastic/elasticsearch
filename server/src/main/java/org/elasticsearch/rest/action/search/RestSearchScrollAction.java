@@ -38,8 +38,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
             new Route(GET, "/_search/scroll"),
             new Route(POST, "/_search/scroll"),
             new Route(GET, "/_search/scroll/{scroll_id}"),
-            new Route(POST, "/_search/scroll/{scroll_id}")
-        );
+            new Route(POST, "/_search/scroll/{scroll_id}"));
     }
 
     @Override

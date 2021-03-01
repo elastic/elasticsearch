@@ -47,8 +47,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_cat/thread_pool"),
-            new Route(GET, "/_cat/thread_pool/{thread_pool_patterns}")
-        );
+            new Route(GET, "/_cat/thread_pool/{thread_pool_patterns}"));
     }
 
     @Override

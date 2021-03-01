@@ -30,8 +30,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
             new Route(GET, "/_settings/{name}"),
             new Route(GET, "/{index}/_settings"),
             new Route(GET, "/{index}/_settings/{name}"),
-            new Route(GET, "/{index}/_setting/{name}")
-        );
+            new Route(GET, "/{index}/_setting/{name}"));
     }
 
     @Override

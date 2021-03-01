@@ -31,8 +31,7 @@ public class RestRecoveryAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_recovery"),
-            new Route(GET, "/{index}/_recovery")
-        );
+            new Route(GET, "/{index}/_recovery"));
     }
 
     @Override

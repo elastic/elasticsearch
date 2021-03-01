@@ -31,8 +31,7 @@ public class RestMainAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/"),
-            new Route(HEAD, "/")
-        );
+            new Route(HEAD, "/"));
     }
 
     @Override

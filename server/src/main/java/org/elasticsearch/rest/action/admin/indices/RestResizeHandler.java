@@ -49,8 +49,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         public List<Route> routes() {
             return List.of(
                 new Route(POST, "/{index}/_shrink/{target}"),
-                new Route(PUT, "/{index}/_shrink/{target}")
-            );
+                new Route(PUT, "/{index}/_shrink/{target}"));
         }
 
         @Override
@@ -71,8 +70,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         public List<Route> routes() {
             return List.of(
                 new Route(POST, "/{index}/_split/{target}"),
-                new Route(PUT, "/{index}/_split/{target}")
-            );
+                new Route(PUT, "/{index}/_split/{target}"));
         }
 
         @Override
@@ -93,8 +91,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         public List<Route> routes() {
             return List.of(
                 new Route(POST, "/{index}/_clone/{target}"),
-                new Route(PUT, "/{index}/_clone/{target}")
-            );
+                new Route(PUT, "/{index}/_clone/{target}"));
         }
 
         @Override

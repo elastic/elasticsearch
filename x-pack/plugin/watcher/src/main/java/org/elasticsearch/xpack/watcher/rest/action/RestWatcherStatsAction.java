@@ -30,8 +30,7 @@ public class RestWatcherStatsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_watcher/stats"),
-            new Route(GET, "/_watcher/stats/{metric}")
-        );
+            new Route(GET, "/_watcher/stats/{metric}"));
     }
 
     @Override

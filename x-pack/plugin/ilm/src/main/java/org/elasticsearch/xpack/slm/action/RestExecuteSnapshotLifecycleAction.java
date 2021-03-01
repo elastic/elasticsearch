@@ -24,8 +24,7 @@ public class RestExecuteSnapshotLifecycleAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(POST, "/_slm/policy/{name}/_execute"),
-            new Route(PUT, "/_slm/policy/{name}/_execute")
-        );
+            new Route(PUT, "/_slm/policy/{name}/_execute"));
     }
 
     @Override

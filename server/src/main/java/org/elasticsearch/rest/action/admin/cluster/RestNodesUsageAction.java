@@ -36,8 +36,7 @@ public class RestNodesUsageAction extends BaseRestHandler {
             new Route(GET, "/_nodes/usage"),
             new Route(GET, "/_nodes/{nodeId}/usage"),
             new Route(GET, "/_nodes/usage/{metric}"),
-            new Route(GET, "/_nodes/{nodeId}/usage/{metric}")
-        );
+            new Route(GET, "/_nodes/{nodeId}/usage/{metric}"));
     }
 
     @Override

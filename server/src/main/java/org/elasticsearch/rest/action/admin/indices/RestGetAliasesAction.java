@@ -53,8 +53,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
             new Route(GET, "/{index}/_alias"),
             new Route(HEAD, "/{index}/_alias"),
             new Route(GET, "/{index}/_alias/{name}"),
-            new Route(HEAD, "/{index}/_alias/{name}")
-        );
+            new Route(HEAD, "/{index}/_alias/{name}"));
     }
 
     @Override

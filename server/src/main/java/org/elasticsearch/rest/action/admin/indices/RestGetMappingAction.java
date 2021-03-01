@@ -45,8 +45,7 @@ public class RestGetMappingAction extends BaseRestHandler {
             new Route(GET, "/_mapping"),
             new Route(GET, "/_mappings"),
             new Route(GET, "/{index}/_mapping"),
-            new Route(GET, "/{index}/_mappings")
-        );
+            new Route(GET, "/{index}/_mappings"));
     }
 
     @Override

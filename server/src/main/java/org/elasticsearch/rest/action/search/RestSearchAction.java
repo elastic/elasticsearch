@@ -74,8 +74,7 @@ public class RestSearchAction extends BaseRestHandler {
             new Route(GET, "/_search"),
             new Route(POST, "/_search"),
             new Route(GET, "/{index}/_search"),
-            new Route(POST, "/{index}/_search")
-        );
+            new Route(POST, "/{index}/_search"));
     }
 
     @Override

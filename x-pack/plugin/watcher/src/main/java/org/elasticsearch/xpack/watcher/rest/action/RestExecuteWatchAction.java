@@ -54,8 +54,7 @@ public class RestExecuteWatchAction extends BaseRestHandler implements RestReque
             new Route(POST, "/_watcher/watch/{id}/_execute"),
             new Route(PUT, "/_watcher/watch/{id}/_execute"),
             new Route(POST, "/_watcher/watch/_execute"),
-            new Route(PUT, "/_watcher/watch/_execute")
-        );
+            new Route(PUT, "/_watcher/watch/_execute"));
     }
 
     @Override

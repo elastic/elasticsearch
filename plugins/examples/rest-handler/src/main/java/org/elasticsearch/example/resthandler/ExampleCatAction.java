@@ -28,8 +28,7 @@ public class ExampleCatAction extends AbstractCatAction {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_cat/example"),
-            new Route(POST, "/_cat/example")
-        );
+            new Route(POST, "/_cat/example"));
     }
 
     @Override

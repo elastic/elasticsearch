@@ -26,8 +26,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_cluster/stats"),
-            new Route(GET, "/_cluster/stats/nodes/{nodeId}")
-        );
+            new Route(GET, "/_cluster/stats/nodes/{nodeId}"));
     }
 
     @Override

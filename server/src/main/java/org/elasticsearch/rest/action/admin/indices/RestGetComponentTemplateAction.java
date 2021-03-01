@@ -32,8 +32,7 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
         return List.of(
             new Route(GET, "/_component_template"),
             new Route(GET, "/_component_template/{name}"),
-            new Route(HEAD, "/_component_template/{name}")
-        );
+            new Route(HEAD, "/_component_template/{name}"));
     }
 
     @Override

@@ -31,8 +31,7 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
             new Route(GET, "/_search_shards"),
             new Route(POST, "/_search_shards"),
             new Route(GET, "/{index}/_search_shards"),
-            new Route(POST, "/{index}/_search_shards")
-        );
+            new Route(POST, "/{index}/_search_shards"));
     }
 
     @Override

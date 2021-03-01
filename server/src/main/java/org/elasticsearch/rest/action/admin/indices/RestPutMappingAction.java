@@ -34,8 +34,7 @@ public class RestPutMappingAction extends BaseRestHandler {
             new Route(POST, "/{index}/_mapping/"),
             new Route(PUT, "/{index}/_mapping/"),
             new Route(POST, "/{index}/_mappings/"),
-            new Route(PUT, "/{index}/_mappings/")
-        );
+            new Route(PUT, "/{index}/_mappings/"));
     }
 
     @Override

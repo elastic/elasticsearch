@@ -38,8 +38,7 @@ public class RestMultiGetAction extends BaseRestHandler {
             new Route(GET, "/_mget"),
             new Route(POST, "/_mget"),
             new Route(GET, "/{index}/_mget"),
-            new Route(POST, "/{index}/_mget")
-        );
+            new Route(POST, "/{index}/_mget"));
     }
 
     @Override

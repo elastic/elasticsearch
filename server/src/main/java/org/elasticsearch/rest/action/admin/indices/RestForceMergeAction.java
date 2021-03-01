@@ -27,8 +27,7 @@ public class RestForceMergeAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(POST, "/_forcemerge"),
-            new Route(POST, "/{index}/_forcemerge")
-        );
+            new Route(POST, "/{index}/_forcemerge"));
     }
 
     @Override

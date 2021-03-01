@@ -32,8 +32,7 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
             new Route(GET, "/_field_caps"),
             new Route(POST, "/_field_caps"),
             new Route(GET, "/{index}/_field_caps"),
-            new Route(POST, "/{index}/_field_caps")
-        );
+            new Route(POST, "/{index}/_field_caps"));
     }
 
     @Override

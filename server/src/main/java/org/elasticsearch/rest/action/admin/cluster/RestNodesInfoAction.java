@@ -41,8 +41,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
             new Route(GET, "/_nodes/{nodeId}"),
             new Route(GET, "/_nodes/{nodeId}/{metrics}"),
             // added this endpoint to be aligned with stats
-            new Route(GET, "/_nodes/{nodeId}/info/{metrics}")
-        );
+            new Route(GET, "/_nodes/{nodeId}/info/{metrics}"));
     }
 
     @Override

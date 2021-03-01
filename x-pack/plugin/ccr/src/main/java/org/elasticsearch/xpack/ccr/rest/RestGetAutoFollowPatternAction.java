@@ -23,8 +23,7 @@ public class RestGetAutoFollowPatternAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_ccr/auto_follow/{name}"),
-            new Route(GET, "/_ccr/auto_follow")
-        );
+            new Route(GET, "/_ccr/auto_follow"));
     }
 
     @Override

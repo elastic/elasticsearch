@@ -40,8 +40,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
             new Route(POST, "/_noop_bulk"),
             new Route(PUT, "/_noop_bulk"),
             new Route(POST, "/{index}/_noop_bulk"),
-            new Route(PUT, "/{index}/_noop_bulk")
-        );
+            new Route(PUT, "/{index}/_noop_bulk"));
     }
 
     @Override

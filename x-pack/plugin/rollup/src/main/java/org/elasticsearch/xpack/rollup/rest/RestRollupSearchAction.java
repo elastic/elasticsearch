@@ -31,8 +31,7 @@ public class RestRollupSearchAction extends BaseRestHandler {
             new Route(GET, "_rollup_search"),
             new Route(POST, "_rollup_search"),
             new Route(GET, "{index}/_rollup_search"),
-            new Route(POST, "{index}/_rollup_search")
-        );
+            new Route(POST, "{index}/_rollup_search"));
     }
 
     @Override

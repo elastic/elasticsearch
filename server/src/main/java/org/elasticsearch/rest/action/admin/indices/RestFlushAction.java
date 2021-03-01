@@ -30,8 +30,7 @@ public class RestFlushAction extends BaseRestHandler {
             new Route(GET, "/_flush"),
             new Route(POST, "/_flush"),
             new Route(GET, "/{index}/_flush"),
-            new Route(POST, "/{index}/_flush")
-        );
+            new Route(POST, "/{index}/_flush"));
     }
 
     @Override

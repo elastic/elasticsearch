@@ -29,8 +29,7 @@ public class RestAliasAction extends AbstractCatAction {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_cat/aliases"),
-            new Route(GET, "/_cat/aliases/{alias}")
-        );
+            new Route(GET, "/_cat/aliases/{alias}"));
     }
 
     @Override

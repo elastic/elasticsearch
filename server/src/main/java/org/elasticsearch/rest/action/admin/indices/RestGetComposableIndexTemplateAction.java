@@ -32,8 +32,7 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
         return List.of(
             new Route(GET, "/_index_template"),
             new Route(GET, "/_index_template/{name}"),
-            new Route(HEAD, "/_index_template/{name}")
-        );
+            new Route(HEAD, "/_index_template/{name}"));
     }
 
     @Override

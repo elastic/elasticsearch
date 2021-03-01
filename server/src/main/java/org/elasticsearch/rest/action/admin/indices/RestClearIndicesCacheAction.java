@@ -27,8 +27,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(POST, "/_cache/clear"),
-            new Route(POST, "/{index}/_cache/clear")
-        );
+            new Route(POST, "/{index}/_cache/clear"));
     }
 
     @Override

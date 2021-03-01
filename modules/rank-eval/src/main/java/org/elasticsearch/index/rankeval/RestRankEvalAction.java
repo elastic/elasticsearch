@@ -85,8 +85,7 @@ public class RestRankEvalAction extends BaseRestHandler {
             new Route(GET, "/" + ENDPOINT),
             new Route(POST, "/" + ENDPOINT),
             new Route(GET, "/{index}/" + ENDPOINT),
-            new Route(POST, "/{index}/" + ENDPOINT)
-        );
+            new Route(POST, "/{index}/" + ENDPOINT));
     }
 
     @Override

@@ -62,8 +62,7 @@ public class RestIndicesAction extends AbstractCatAction {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_cat/indices"),
-            new Route(GET, "/_cat/indices/{index}")
-        );
+            new Route(GET, "/_cat/indices/{index}"));
     }
 
     @Override

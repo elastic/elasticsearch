@@ -31,8 +31,7 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
             new Route(GET, "/_ingest/pipeline/{id}/_simulate"),
             new Route(POST, "/_ingest/pipeline/{id}/_simulate"),
             new Route(GET, "/_ingest/pipeline/_simulate"),
-            new Route(POST, "/_ingest/pipeline/_simulate")
-        );
+            new Route(POST, "/_ingest/pipeline/_simulate"));
     }
 
     @Override

@@ -26,8 +26,7 @@ public class RestNoopSearchAction extends BaseRestHandler {
             new Route(GET, "/_noop_search"),
             new Route(POST, "/_noop_search"),
             new Route(GET, "/{index}/_noop_search"),
-            new Route(POST, "/{index}/_noop_search")
-        );
+            new Route(POST, "/{index}/_noop_search"));
     }
 
     @Override

@@ -39,8 +39,7 @@ public class RestCountAction extends BaseRestHandler {
             new Route(GET, "/_count"),
             new Route(POST, "/_count"),
             new Route(GET, "/{index}/_count"),
-            new Route(POST, "/{index}/_count")
-        );
+            new Route(POST, "/{index}/_count"));
     }
 
     @Override

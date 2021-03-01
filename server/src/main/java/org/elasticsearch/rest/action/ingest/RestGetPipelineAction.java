@@ -26,8 +26,7 @@ public class RestGetPipelineAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_ingest/pipeline"),
-            new Route(GET, "/_ingest/pipeline/{id}")
-        );
+            new Route(GET, "/_ingest/pipeline/{id}"));
     }
 
     @Override

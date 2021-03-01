@@ -25,8 +25,7 @@ public class RestDeprecationInfoAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_migration/deprecations"),
-            new Route(GET, "/{index}/_migration/deprecations")
-        );
+            new Route(GET, "/{index}/_migration/deprecations"));
     }
 
     @Override

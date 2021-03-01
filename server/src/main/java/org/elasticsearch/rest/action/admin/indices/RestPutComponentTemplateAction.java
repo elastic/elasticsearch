@@ -27,8 +27,7 @@ public class RestPutComponentTemplateAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(POST, "/_component_template/{name}"),
-            new Route(PUT, "/_component_template/{name}")
-        );
+            new Route(PUT, "/_component_template/{name}"));
     }
 
     @Override

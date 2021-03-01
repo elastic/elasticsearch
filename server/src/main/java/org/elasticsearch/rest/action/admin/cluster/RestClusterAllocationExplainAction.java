@@ -36,8 +36,7 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_cluster/allocation/explain"),
-            new Route(POST, "/_cluster/allocation/explain")
-        );
+            new Route(POST, "/_cluster/allocation/explain"));
     }
 
     @Override

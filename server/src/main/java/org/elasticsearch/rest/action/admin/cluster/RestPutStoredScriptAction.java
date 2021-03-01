@@ -30,8 +30,7 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
             new Route(POST, "/_scripts/{id}"),
             new Route(PUT, "/_scripts/{id}"),
             new Route(POST, "/_scripts/{id}/{context}"),
-            new Route(PUT, "/_scripts/{id}/{context}")
-        );
+            new Route(PUT, "/_scripts/{id}/{context}"));
     }
 
     @Override

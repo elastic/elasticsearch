@@ -24,8 +24,7 @@ public class RestGetSnapshotLifecycleAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_slm/policy"),
-            new Route(GET, "/_slm/policy/{name}")
-        );
+            new Route(GET, "/_slm/policy/{name}"));
     }
 
     @Override

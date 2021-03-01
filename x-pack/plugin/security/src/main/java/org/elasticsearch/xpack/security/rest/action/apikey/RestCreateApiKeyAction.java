@@ -41,8 +41,7 @@ public final class RestCreateApiKeyAction extends SecurityBaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(POST, "/_security/api_key"),
-            new Route(PUT, "/_security/api_key")
-        );
+            new Route(PUT, "/_security/api_key"));
     }
 
     @Override

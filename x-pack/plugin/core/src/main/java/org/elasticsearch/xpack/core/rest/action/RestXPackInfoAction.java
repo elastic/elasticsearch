@@ -30,8 +30,7 @@ public class RestXPackInfoAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_xpack"),
-            new Route(HEAD, "/_xpack")
-        );
+            new Route(HEAD, "/_xpack"));
     }
 
     @Override

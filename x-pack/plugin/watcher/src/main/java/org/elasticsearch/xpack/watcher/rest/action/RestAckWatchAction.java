@@ -37,8 +37,7 @@ public class RestAckWatchAction extends BaseRestHandler {
             new Route(POST, "/_watcher/watch/{id}/_ack"),
             new Route(PUT, "/_watcher/watch/{id}/_ack"),
             new Route(POST, "/_watcher/watch/{id}/_ack/{actions}"),
-            new Route(PUT, "/_watcher/watch/{id}/_ack/{actions}")
-        );
+            new Route(PUT, "/_watcher/watch/{id}/_ack/{actions}"));
     }
 
     @Override

@@ -41,8 +41,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             new Route(GET, "/_search/template"),
             new Route(POST, "/_search/template"),
             new Route(GET, "/{index}/_search/template"),
-            new Route(POST, "/{index}/_search/template")
-        );
+            new Route(POST, "/{index}/_search/template"));
     }
 
     @Override

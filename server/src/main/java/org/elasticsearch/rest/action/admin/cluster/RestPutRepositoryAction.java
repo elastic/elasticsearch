@@ -31,8 +31,7 @@ public class RestPutRepositoryAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(POST, "/_snapshot/{repository}"),
-            new Route(PUT, "/_snapshot/{repository}")
-        );
+            new Route(PUT, "/_snapshot/{repository}"));
     }
 
     @Override

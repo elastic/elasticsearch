@@ -66,8 +66,7 @@ public final class RestGrantApiKeyAction extends SecurityBaseRestHandler impleme
     public List<Route> routes() {
         return List.of(
             new Route(POST, "/_security/api_key/grant"),
-            new Route(PUT, "/_security/api_key/grant")
-        );
+            new Route(PUT, "/_security/api_key/grant"));
     }
 
     @Override

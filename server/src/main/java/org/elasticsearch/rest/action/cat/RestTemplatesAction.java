@@ -32,8 +32,7 @@ public class RestTemplatesAction extends AbstractCatAction {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_cat/templates"),
-            new Route(GET, "/_cat/templates/{name}")
-        );
+            new Route(GET, "/_cat/templates/{name}"));
     }
 
     @Override

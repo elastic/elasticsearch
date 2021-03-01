@@ -28,8 +28,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
             new Route(GET, "/_analyze"),
             new Route(POST, "/_analyze"),
             new Route(GET, "/{index}/_analyze"),
-            new Route(POST, "/{index}/_analyze")
-        );
+            new Route(POST, "/{index}/_analyze"));
     }
 
     @Override

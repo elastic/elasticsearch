@@ -38,8 +38,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
             new Route(GET, "/{index}/_termvectors"),
             new Route(POST, "/{index}/_termvectors"),
             new Route(GET, "/{index}/_termvectors/{id}"),
-            new Route(POST, "/{index}/_termvectors/{id}")
-        );
+            new Route(POST, "/{index}/_termvectors/{id}"));
     }
 
     @Override

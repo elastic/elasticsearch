@@ -32,8 +32,7 @@ public class RestFielddataAction extends AbstractCatAction {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_cat/fielddata"),
-            new Route(GET, "/_cat/fielddata/{fields}")
-        );
+            new Route(GET, "/_cat/fielddata/{fields}"));
     }
 
     @Override

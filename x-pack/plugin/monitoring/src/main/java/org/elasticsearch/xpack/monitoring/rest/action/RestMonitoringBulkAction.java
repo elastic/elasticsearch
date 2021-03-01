@@ -51,8 +51,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(POST, "/_monitoring/bulk"),
-            new Route(PUT, "/_monitoring/bulk")
-        );
+            new Route(PUT, "/_monitoring/bulk"));
     }
 
     @Override

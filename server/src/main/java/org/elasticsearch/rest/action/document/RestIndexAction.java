@@ -34,8 +34,7 @@ public class RestIndexAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(POST, "/{index}/_doc/{id}"),
-            new Route(PUT, "/{index}/_doc/{id}")
-        );
+            new Route(PUT, "/{index}/_doc/{id}"));
     }
 
     @Override
@@ -54,8 +53,7 @@ public class RestIndexAction extends BaseRestHandler {
         public List<Route> routes() {
             return List.of(
                 new Route(POST, "/{index}/_create/{id}"),
-                new Route(PUT, "/{index}/_create/{id}")
-            );
+                new Route(PUT, "/{index}/_create/{id}"));
         }
 
         @Override

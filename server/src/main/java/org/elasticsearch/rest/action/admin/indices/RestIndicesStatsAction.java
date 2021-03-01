@@ -39,8 +39,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             new Route(GET, "/_stats"),
             new Route(GET, "/_stats/{metric}"),
             new Route(GET, "/{index}/_stats"),
-            new Route(GET, "/{index}/_stats/{metric}")
-        );
+            new Route(GET, "/{index}/_stats/{metric}"));
     }
 
     @Override

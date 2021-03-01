@@ -61,8 +61,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             new Route(GET, "/_msearch"),
             new Route(POST, "/_msearch"),
             new Route(GET, "/{index}/_msearch"),
-            new Route(POST, "/{index}/_msearch")
-        );
+            new Route(POST, "/{index}/_msearch"));
     }
 
     @Override

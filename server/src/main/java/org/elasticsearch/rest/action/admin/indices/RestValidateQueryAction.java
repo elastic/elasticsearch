@@ -38,8 +38,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
             new Route(GET, "/_validate/query"),
             new Route(POST, "/_validate/query"),
             new Route(GET, "/{index}/_validate/query"),
-            new Route(POST, "/{index}/_validate/query")
-        );
+            new Route(POST, "/{index}/_validate/query"));
     }
 
     @Override

@@ -36,8 +36,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_mapping/field/{fields}"),
-            new Route(GET, "/{index}/_mapping/field/{fields}")
-        );
+            new Route(GET, "/{index}/_mapping/field/{fields}"));
     }
 
     @Override

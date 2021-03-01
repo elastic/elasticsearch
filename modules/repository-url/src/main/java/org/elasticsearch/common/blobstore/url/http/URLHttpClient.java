@@ -41,6 +41,7 @@ public class URLHttpClient implements Closeable {
                 .setSSLContext(SSLContexts.createSystemDefault())
                 .setConnectionManager(connManager)
                 .disableAutomaticRetries()
+                .setConnectionManagerShared(true)
                 .build();
 
             return new URLHttpClient(apacheHttpClient, settings);

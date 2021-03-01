@@ -1132,7 +1132,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         ensureHealth("", requestConsumer);
     }
 
-    protected static void ensureHealth(String index, Consumer<Request> requestConsumer) throws IOException {
+    public static void ensureHealth(String index, Consumer<Request> requestConsumer) throws IOException {
         ensureHealth(client(), index, requestConsumer);
     }
 

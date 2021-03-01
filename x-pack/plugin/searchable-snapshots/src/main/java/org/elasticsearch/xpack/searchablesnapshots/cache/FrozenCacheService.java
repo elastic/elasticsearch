@@ -214,6 +214,7 @@ public class FrozenCacheService implements Releasable {
 
     // get the region of a file of the given size that the given position belongs to
     private int getRegion(long position, long fileSize, boolean isMetaFile) {
+        // TODO: adjust for tiny
         final int numberOfLargeRegions = largeRegions(fileSize, isMetaFile);
         final int largeRegionIndex = Math.toIntExact(position / regionSize);
         if (largeRegionIndex < numberOfLargeRegions) {

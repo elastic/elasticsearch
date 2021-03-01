@@ -317,11 +317,16 @@ public class IndexNameExpressionResolver {
     private void checkSystemIndexAccess(Context context, Metadata metadata, Set<Index> concreteIndices, String[] originalPatterns) {
         final SystemIndexAccessLevel systemIndexAccessLevel = context.getSystemIndexAccessLevel();
         if (systemIndexAccessLevel != SystemIndexAccessLevel.ALL) {
-            final Predicate<IndexMetadata> systemIndexAccessLevelPredicate = systemIndexAccessLevel == SystemIndexAccessLevel.NONE ?
-                indexMetadata -> true :
-                systemIndices
+            final Predicate<IndexMetadata> systemIndexAccessLevelPredicate;
+            if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
+                // everything should be included in the deprecation message
+                systemIndexAccessLevelPredicate = indexMetadata -> true;
+            } else {
+                // everything other than allowed should be included in the deprecation message
+                systemIndexAccessLevelPredicate = systemIndices
                     .getProductSystemIndexMetadataPredicate(threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY))
                     .negate();
+            }
             final List<String> resolvedSystemIndices = concreteIndices.stream()
                 .map(metadata::index)
                 .filter(IndexMetadata::isSystem)

@@ -340,8 +340,9 @@ public class SystemIndexDescriptor {
 
     /**
      * The specific type of system index that this descriptor represents. System indices have three defined types, which is used to
-     * control behavior. Elasticsearch itself has system indices that are necessary for features of Elasticsearch; these system indices
-     * are referred to as internal system indices. Internal system indices are always managed indices that Elasticsearch itself manages.
+     * control behavior. Elasticsearch itself and plugins have system indices that are necessary for their features;
+     * these system indices are referred to as internal system indices. Internal system indices are always managed indices that
+     * Elasticsearch manages.
      *
      * System indices can also belong to features outside of Elasticsearch that may be part of other Elastic stack components. These are
      * external system indices as the intent is for these to be accessed via normal APIs with a special value. Within external system
@@ -390,7 +391,7 @@ public class SystemIndexDescriptor {
         private String origin = null;
         private Version minimumNodeVersion = null;
         private Type type = Type.INTERNAL;
-        private List<String> allowedStackComponents = List.of();
+        private List<String> allowedElasticProductOrigins = List.of();
 
         private Builder() {}
 
@@ -454,8 +455,8 @@ public class SystemIndexDescriptor {
             return this;
         }
 
-        public Builder setAllowedStackComponents(List<String> allowedStackComponents) {
-            this.allowedStackComponents = allowedStackComponents;
+        public Builder setAllowedElasticProductOrigins(List<String> allowedElasticProductOrigins) {
+            this.allowedElasticProductOrigins = allowedElasticProductOrigins;
             return this;
         }
 
@@ -477,7 +478,7 @@ public class SystemIndexDescriptor {
                 origin,
                 minimumNodeVersion,
                 type,
-                allowedStackComponents
+                allowedElasticProductOrigins
             );
         }
     }

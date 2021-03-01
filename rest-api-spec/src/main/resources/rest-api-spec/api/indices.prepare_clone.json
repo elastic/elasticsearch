@@ -1,0 +1,35 @@
+{
+  "indices.prepare_clone": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-prepare-clone-index.html",
+      "description": "Prepare and Clones an index"
+    },
+    "stability": "stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/{index}/_prepare_clone/{target}",
+          "methods": [
+            "PUT",
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "The name of the source index to clone"
+            },
+            "target": {
+              "type": "string",
+              "description": "The name of the target index to clone into"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

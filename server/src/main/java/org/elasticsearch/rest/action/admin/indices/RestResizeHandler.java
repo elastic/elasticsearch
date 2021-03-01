@@ -106,4 +106,24 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     }
 
+    public static class RestPrepareReindexTargetAction extends RestResizeHandler {
+
+        @Override
+        public List<Route> routes() {
+            return List.of(
+                new Route(POST, "/{index}/_prepare_clone/{target}"),
+                new Route(PUT, "/{index}/_prepare_clone/{target}"));
+        }
+
+        @Override
+        public String getName() {
+            return "prepare_clone_index_action";
+        }
+
+        @Override
+        ResizeType getResizeType() {
+            return ResizeType.PREPARE_CLONE;
+        }
+    }
+
 }

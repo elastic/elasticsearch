@@ -8,9 +8,13 @@
 
 package org.elasticsearch.action.admin.indices.shrink;
 
-/**
- * The type of the resize operation
- */
-public enum  ResizeType {
-    SHRINK, SPLIT, CLONE, PREPARE_CLONE;
+import org.elasticsearch.action.ActionType;
+
+public class PrepareReindexTargetAction extends ActionType<ResizeResponse> {
+    public static final PrepareReindexTargetAction INSTANCE = new PrepareReindexTargetAction();
+    public static final String NAME = "indices:admin/prepare_clone";
+
+    private PrepareReindexTargetAction() {
+        super(NAME, ResizeResponse::new);
+    }
 }

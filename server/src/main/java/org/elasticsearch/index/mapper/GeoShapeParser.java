@@ -8,19 +8,12 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.geo.GeometryFormat;
 import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Geometry;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.text.ParseException;
-import java.util.Collections;
 
 public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry> {
     private final GeometryParser geometryParser;
@@ -39,25 +32,4 @@ public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry>
         return geometryParser.geometryFormat(format).toXContentAsObject(value);
     }
 
-    @Override
-    public Object parseAndFormatObject(Object value, String format) {
-        try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-            Collections.singletonMap("dummy_field", value), XContentType.JSON)) {
-            parser.nextToken(); // start object
-            parser.nextToken(); // field name
-            parser.nextToken(); // field value
-
-            GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(parser);
-            if (geometryFormat.name().equals(format)) {
-                return value;
-            }
-
-            Geometry geometry = geometryFormat.fromXContent(parser);
-            return format(geometry, format);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } catch (ParseException e) {
-            throw new RuntimeException(e);
-        }
-    }
 }

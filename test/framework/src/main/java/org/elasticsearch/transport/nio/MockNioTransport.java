@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.BytesWriteHandler;
@@ -214,7 +213,7 @@ public class MockNioTransport extends TcpTransport {
                     return new Page(ByteBuffer.allocate(length), () -> {});
                 } else {
                     Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
-                    return new Page(ByteBuffer.wrap(bytes.v(), 0, length), bytes::close);
+                    return new Page(ByteBuffer.wrap(bytes.v(), 0, length), bytes);
                 }
             };
             MockTcpReadWriteHandler readWriteHandler = new MockTcpReadWriteHandler(nioChannel, pageCacheRecycler, MockNioTransport.this);
@@ -274,7 +273,7 @@ public class MockNioTransport extends TcpTransport {
         protected void closeInternal() {
             boolean leakReleased = leak.close(releasable);
             assert leakReleased : "leak should not have been released already";
-            releasable.close();
+            Releasables.closeExpectNoException(releasable);
         }
 
         @Override
@@ -306,7 +305,7 @@ public class MockNioTransport extends TcpTransport {
             for (int i = 0; i < pages.length; ++i) {
                 references[i] = BytesReference.fromByteBuffer(pages[i].byteBuffer());
             }
-            Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
+            Releasable releasable = pages.length == 1 ? pages[0] : () -> Releasables.closeExpectNoException(pages);
             try (ReleasableBytesReference reference =
                          new ReleasableBytesReference(CompositeBytesReference.of(references), new LeakAwareRefCounted(releasable))) {
                 pipeline.handleBytes(channel, reference);
@@ -316,8 +315,7 @@ public class MockNioTransport extends TcpTransport {
 
         @Override
         public void close() {
-            Releasables.closeWhileHandlingException(pipeline);
-            super.close();
+            Releasables.closeExpectNoException(pipeline, super::close);
         }
     }
 

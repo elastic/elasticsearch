@@ -141,6 +141,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
+
 [role="child_attributes"]
 [[cluster-nodes-stats-api-response-body]]
 ==== {api-response-body-title}

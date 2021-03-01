@@ -264,7 +264,7 @@ POST /_scripts/painless/_execute
         Map my_map; <1>
         my_map = new HashMap(); <2>
         my_map.put("my_int", my_int); <3>
-        my_double.put("my_double", my_double);
+        my_map.put("my_double", my_double);
         return my_map;
     """
   }
@@ -273,6 +273,16 @@ POST /_scripts/painless/_execute
 <1> Reference `Map` type declaration
 <2> Reference `Map` type assignment with a new instance of a `HashMap`
 <3> Modification of the `my_map` variable
+
+The response includes the result of the `Map` named `my_map`:
+
+[source,console-result]
+----
+{
+  "result" : "{my_int=1, my_double=2.0}"
+}
+----
+// TEST[continued]
 
 [discrete]
 [[script-type-dynamic]]

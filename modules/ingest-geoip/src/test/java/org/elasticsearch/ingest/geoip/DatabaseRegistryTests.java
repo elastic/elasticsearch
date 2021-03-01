@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchRequest;
@@ -85,6 +86,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@LuceneTestCase.SuppressFileSystems(value = "ExtrasFS") // Don't randomly add 'extra' files to directory.
 public class DatabaseRegistryTests extends ESTestCase {
 
     private Client client;
@@ -139,7 +141,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), notNullValue());
         verify(client, times(2)).search(any());
-        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases")).filter(Files::isRegularFile)) {
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
             assertThat(files.collect(Collectors.toList()), hasSize(1));
         }
     }
@@ -165,7 +167,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         verify(client, never()).search(any());
-        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases")).filter(Files::isRegularFile)) {
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
             assertThat(files.collect(Collectors.toList()), empty());
         }
     }
@@ -189,7 +191,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         verify(client, never()).search(any());
-        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases")).filter(Files::isRegularFile)) {
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
             assertThat(files.collect(Collectors.toList()), empty());
         }
     }
@@ -211,7 +213,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         verify(client, never()).search(any());
-        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases")).filter(Files::isRegularFile)) {
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
             assertThat(files.collect(Collectors.toList()), empty());
         }
     }

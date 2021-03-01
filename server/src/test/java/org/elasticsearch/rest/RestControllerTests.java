@@ -193,25 +193,25 @@ public class RestControllerTests extends ESTestCase {
         verify(controller).registerHandler(eq(method), eq(path), any(DeprecationRestHandler.class));
     }
 
-    public void testRegisterWithDeprecatedHandler() {
+    public void testRegisterAsReplacedHandler() {
         final RestController controller = mock(RestController.class);
 
         final Method method = randomFrom(Method.values());
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         final RestHandler handler = v8mockHandler();
-        final Method deprecatedMethod = randomFrom(Method.values());
-        final String deprecatedPath = "/_" + randomAlphaOfLengthBetween(1, 6);
+        final Method replacedMethod = randomFrom(Method.values());
+        final String replacedPath = "/_" + randomAlphaOfLengthBetween(1, 6);
 
-        final String deprecationMessage = "[" + deprecatedMethod.name() + " " + deprecatedPath + "] is deprecated! Use [" +
+        final String deprecationMessage = "[" + replacedMethod.name() + " " + replacedPath + "] is deprecated! Use [" +
             method.name() + " " + path + "] instead.";
 
         // don't want to test everything -- just that it actually wraps the handlers
-        doCallRealMethod().when(controller).registerWithReplacedHandler(method, path, handler, deprecatedMethod, deprecatedPath);
+        doCallRealMethod().when(controller).registerAsReplacedHandler(method, path, handler, replacedMethod, replacedPath);
 
-        controller.registerWithReplacedHandler(method, path, handler, deprecatedMethod, deprecatedPath);
+        controller.registerAsReplacedHandler(method, path, handler, replacedMethod, replacedPath);
 
         verify(controller).registerHandler(method, path, handler);
-        verify(controller).registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage);
+        verify(controller).registerAsDeprecatedHandler(replacedMethod, replacedPath, handler, deprecationMessage);
     }
 
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {

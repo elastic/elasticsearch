@@ -113,7 +113,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     /**
      * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request, or when provided
-     * with {@code deprecatedMethod} and {@code deprecatedPath}. Expected usage:
+     * with {@code replacedMethod} and {@code replacedPath}. Expected usage:
      * <pre><code>
      * // remove deprecation in next major release
      * controller.registerWithDeprecatedHandler(POST, "/_forcemerge", this,
@@ -123,7 +123,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * </code></pre>
      * <p>
      * The registered REST handler ({@code method} with {@code path}) is a normal REST handler that is not deprecated and it is
-     * replacing the deprecated REST handler ({@code deprecatedMethod} with {@code deprecatedPath}) that is using the <em>same</em>
+     * replacing the deprecated REST handler ({@code replacedMethod} with {@code replacedPath}) that is using the <em>same</em>
      * {@code handler}.
      * <p>
      * Deprecated REST handlers without a direct replacement should be deprecated directly using {@link #registerAsDeprecatedHandler}
@@ -132,17 +132,17 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param method GET, POST, etc.
      * @param path Path to handle (e.g., "/_forcemerge")
      * @param handler The handler to actually execute
-     * @param deprecatedMethod GET, POST, etc.
-     * @param deprecatedPath <em>Deprecated</em> path to handle (e.g., "/_optimize")
+     * @param replacedMethod GET, POST, etc.
+     * @param replacedPath <em>Deprecated</em> path to handle (e.g., "/_optimize")
      */
-    protected void registerWithReplacedHandler(Method method, String path, RestHandler handler,
-                                               Method deprecatedMethod, String deprecatedPath) {
+    protected void registerAsReplacedHandler(Method method, String path, RestHandler handler,
+                                             Method replacedMethod, String replacedPath) {
         // e.g., [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
         final String deprecationMessage =
-            "[" + deprecatedMethod.name() + " " + deprecatedPath + "] is deprecated! Use [" + method.name() + " " + path + "] instead.";
+            "[" + replacedMethod.name() + " " + replacedPath + "] is deprecated! Use [" + method.name() + " " + path + "] instead.";
 
         registerHandler(method, path, handler);
-        registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage);
+        registerAsDeprecatedHandler(replacedMethod, replacedPath, handler, deprecationMessage);
     }
 
     /**
@@ -172,7 +172,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     public void registerHandler(final Route route, final RestHandler handler) {
         if (route.isReplacement()) {
             Route replaced = route.getReplacedRoute();
-            registerWithReplacedHandler(route.getMethod(), route.getPath(), handler,
+            registerAsReplacedHandler(route.getMethod(), route.getPath(), handler,
                 replaced.getMethod(), replaced.getPath());
         } else if (route.isDeprecated()) {
             registerAsDeprecatedHandler(route.getMethod(), route.getPath(), handler,

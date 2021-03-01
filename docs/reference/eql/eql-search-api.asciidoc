@@ -185,6 +185,34 @@ returned.
 +
 A greater `fetch_size` value often increases search speed but uses more memory.
 
+`fields`::
+(Optional, array of strings and objects)
+Array of wildcard (`*`) patterns. The response returns values for field names
+matching these patterns in the `fields` property of each hit.
++
+You can specify items in the array as a string or object.
++
+.Properties of `fields` objects
+[%collapsible%open]
+====
+`field`::
+(Required, string)
+Wildcard pattern. The request returns values for field names matching this
+pattern.
+
+`format`::
+(Optional, string)
+Format in which the values are returned.
++
+<<date,`date`>> and <<date_nanos, `date_nanos`>> fields accept a
+<<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>>
+accept either `geojson` for http://www.geojson.org[GeoJSON] (the default) or
+`wkt` for {wikipedia}/Well-known_text_representation_of_geometry[Well Known
+Text].
++
+For other field data types, this parameter is not supported.
+====
+
 `filter`::
 (Optional, <<query-dsl,Query DSL object>>)
 Query, written in Query DSL, used to filter the events on which the EQL query

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.unit.TimeValue;
+
 import java.util.Map;
 
 /**
@@ -35,4 +37,8 @@ public abstract class TemplateScript {
     }
 
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("template", Factory.class);
+
+    // Remove compilation rate limit for ingest
+    public static final ScriptContext<Factory> INGEST_CONTEXT = new ScriptContext<>("ingest_template", Factory.class,
+            200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple());
 }

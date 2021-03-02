@@ -691,14 +691,14 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.SECONDS);
         assertTrue(failIndexerCalled.get());
         verify(contextListener, times(1)).fail(
-            matches("task encountered irrecoverable failure: org.elasticsearch.ElasticsearchParseException: failed to parse date field;.*"),
+            matches("task encountered irrecoverable failure: ElasticsearchParseException\\[failed to parse date field\\].*"),
             any()
         );
 
         assertThat(
             failureMessage.get(),
             matchesRegex(
-                "task encountered irrecoverable failure: org.elasticsearch.ElasticsearchParseException: failed to parse date field;.*"
+                "task encountered irrecoverable failure: ElasticsearchParseException\\[failed to parse date field\\].*"
             )
         );
     }

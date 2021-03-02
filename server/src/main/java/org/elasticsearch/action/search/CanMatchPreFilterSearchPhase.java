@@ -143,42 +143,43 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
                                                   GroupShardsIterator<SearchShardIterator> shardsIts,
                                                   FixedBitSet possibleMatches) {
         // Map with key the index that will be replaced by an optimal rollup index. The optimal index
-        // will be its replacement. In the end all indices contained in the keys will be ignored.
-        Map<String, Tuple<String, Long>> indexReplacements = new HashMap<>(shardsIts.size());
+        // will be its substitute. The value is a tuple containing the name of the substitute index
+        // and its priority. In the end all indices contained in the keys will be ignored.
+        Map<String, Tuple<String, Long>> indexSubstitute = new HashMap<>(shardsIts.size());
 
         int i = 0;
         for (SearchShardIterator iter : shardsIts) {
-            if (possibleMatches.get(i)) {
-                final String indexName = iter.shardId().getIndexName();
-                final String indexID = iter.shardId().getIndex().getUUID();
-                Long priority = results.getPriorities()[i];
-                String sourceIndex = results.getSourceIndices()[i];
-                i++;
+            CanMatchResponse result = results.getResult(i++);
+            if (result.canMatch()) {
+                String indexName = iter.shardId().getIndexName();
+                String indexID = iter.shardId().getIndex().getUUID();
+                Long priority = result.priority();
+                String sourceIndex = result.sourceIndex();
                 IndexAbstraction originalIndex = clusterState.getMetadata().getIndicesLookup().get(indexName);
 
                 // If index is not a member of a data stream or is not a rollup index, it will not be replaced
                 // Also, if an index has already been marked to be replaced, it should be skipped.
                 if (originalIndex.getParentDataStream() == null || sourceIndex == null || priority == null
-                    || indexReplacements.containsKey(indexName)) {
+                    || indexSubstitute.containsKey(indexName)) {
                     continue;
                 }
 
-                if (indexReplacements.containsKey(sourceIndex)) {
+                if (indexSubstitute.containsKey(sourceIndex)) {
                     // Retrieve the previously optimal index and compare it with the current index
                     // Find a new optimal index and replace source index and suboptimal rollup index
                     // with the new optimal index.
-                    Tuple<String, Long> previousOptimalIndex = indexReplacements.get(sourceIndex);
+                    Tuple<String, Long> previousOptimalIndex = indexSubstitute.get(sourceIndex);
                     String newOptimalIndex = previousOptimalIndex.v2() >= priority ? previousOptimalIndex.v1() : indexName;
                     Tuple<String, Long> optimalTuple = Tuple.tuple(newOptimalIndex, Math.max(priority, previousOptimalIndex.v2()));
 
                     // Replace original index with the new optimal index
-                    indexReplacements.put(sourceIndex, optimalTuple);
+                    indexSubstitute.put(sourceIndex, optimalTuple);
 
                     // Replace suboptimal index with the new optimal index
                     String suboptimalIndex = indexName.equals(newOptimalIndex) == false ? indexName : previousOptimalIndex.v1();
-                    indexReplacements.put(suboptimalIndex, optimalTuple);
+                    indexSubstitute.put(suboptimalIndex, optimalTuple);
                 } else {
-                    indexReplacements.put(sourceIndex, Tuple.tuple(indexName, priority));
+                    indexSubstitute.put(sourceIndex, Tuple.tuple(indexName, priority));
                 }
             }
         }
@@ -187,7 +188,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         i = 0;
         for (SearchShardIterator iter : shardsIts) {
             // TODO: Replace the following with iter.shardId().getIndex().getUUID()
-            if (newMatches.get(i) && indexReplacements.containsKey(iter.shardId().getIndexName())) {
+            if (newMatches.get(i) && indexSubstitute.containsKey(iter.shardId().getIndexName())) {
                 newMatches.clear(i);
             }
             i++;
@@ -265,22 +266,20 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         private final FixedBitSet possibleMatches;
         private final MinAndMax<?>[] minAndMaxes;
         private int numPossibleMatches;
-        private final String[] sourceIndices;
-        private final Long[] priorities;
+
+        private final CanMatchResponse[] results;
 
         CanMatchSearchPhaseResults(int size) {
             super(size);
             possibleMatches = new FixedBitSet(size);
             minAndMaxes = new MinAndMax[size];
-            sourceIndices = new String[size];
-            priorities = new Long[size];
+            results = new CanMatchResponse[size];
         }
 
         @Override
         void consumeResult(CanMatchResponse result, Runnable next) {
             try {
-                consumeResult(result.getShardIndex(), result.canMatch(), result.estimatedMinAndMax(),
-                    result.sourceIndex(), result.priority());
+                consumeResult(result.getShardIndex(), result);
             } finally {
                 next.run();
             }
@@ -294,17 +293,15 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         @Override
         void consumeShardFailure(int shardIndex) {
             // we have to carry over shard failures in order to account for them in the response.
-            consumeResult(shardIndex, true, null, null, null);
+            consumeResult(shardIndex, new CanMatchResponse(true, null, null, null));
         }
 
-        synchronized void consumeResult(int shardIndex, boolean canMatch, MinAndMax<?> minAndMax, String sourceIndex, Long priority) {
-            if (canMatch) {
+        synchronized void consumeResult(int shardIndex, CanMatchResponse result) {
+            if (result.canMatch()) {
                 possibleMatches.set(shardIndex);
                 numPossibleMatches++;
             }
-            minAndMaxes[shardIndex] = minAndMax;
-            sourceIndices[shardIndex] = sourceIndex;
-            priorities[shardIndex] = priority;
+            results[shardIndex] = result;
         }
 
         synchronized int getNumPossibleMatches() {
@@ -320,12 +317,8 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             return Stream.empty();
         }
 
-        synchronized String[] getSourceIndices() {
-            return sourceIndices;
-        }
-
-        synchronized Long[] getPriorities() {
-            return priorities;
+        synchronized CanMatchResponse getResult(int shardIndex) {
+            return results[shardIndex];
         }
     }
 }

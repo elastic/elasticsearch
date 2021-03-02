@@ -12,7 +12,6 @@ public class RollupV2 {
     public static final boolean ROLLUP_V2_FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.rollup_v2_feature_flag_enabled"));
 
     public static boolean isEnabled() {
-//        return ROLLUP_V2_FEATURE_FLAG_ENABLED;
-        return true;
+        return ROLLUP_V2_FEATURE_FLAG_ENABLED;
     }
 }

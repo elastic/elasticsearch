@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.oneOf;
 
 public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
-    
+
     private static final String TRANSFORM_ENDPOINT = "/_transform/";
     private static final String TRANSFORM_ENDPOINT_DEPRECATED = "/_data_frame/transforms/";
     private static final String CONTINUOUS_TRANSFORM_ID = "continuous-transform-upgrade-job";
@@ -291,7 +291,10 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private String getTransformEndpoint() {
-        return CLUSTER_TYPE == ClusterType.UPGRADED ? TRANSFORM_ENDPOINT : TRANSFORM_ENDPOINT_DEPRECATED;
+        // always hit the destination cluster on the non-deprecated endpoint, sometimes hit the source cluster on the non-deprecated
+        // endpoint, unless we're upgrading from 8.0.0, in which case always hit the non-deprecated endpoint
+        return (CLUSTER_TYPE == ClusterType.UPGRADED) || randomBoolean() || UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0) ?
+            TRANSFORM_ENDPOINT : TRANSFORM_ENDPOINT_DEPRECATED;
     }
 
     private void putTransform(String id, TransformConfig config) throws IOException {

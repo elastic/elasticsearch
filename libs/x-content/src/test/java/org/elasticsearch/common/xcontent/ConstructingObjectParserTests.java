@@ -573,15 +573,17 @@ public class ConstructingObjectParserTests extends ESTestCase {
             // The declaration is only available for lookup when parser has compatibility set
             PARSER.declareInt(constructorArg(),
                 new ParseField("new_name", "old_name")
-                    .withRestApiCompatibilityVersions(RestApiCompatibleVersion.minimumSupported()));
+                    .withRestCompatibility(RestApiCompatibleVersion.equalTo(RestApiCompatibleVersion.minimumSupported())));
 
             // declare `new_name` to be parsed when compatibility is NOT used
             PARSER.declareInt(constructorArg(),
-                new ParseField("new_name").withRestApiCompatibilityVersions(RestApiCompatibleVersion.currentVersion()));
+                new ParseField("new_name")
+                    .withRestCompatibility(RestApiCompatibleVersion.equalTo(RestApiCompatibleVersion.currentVersion())));
 
             // declare `old_name` to throw exception when compatibility is NOT used
             PARSER.declareInt((r,s) -> failWithException(),
-                new ParseField("old_name").withRestApiCompatibilityVersions(RestApiCompatibleVersion.currentVersion()));
+                new ParseField("old_name")
+                    .withRestCompatibility(RestApiCompatibleVersion.equalTo(RestApiCompatibleVersion.currentVersion())));
         }
         private int intField;
 
@@ -649,11 +651,12 @@ public class ConstructingObjectParserTests extends ESTestCase {
             // The deprecation shoudl be done manually
             PARSER.declareInt(logWarningDoNothing("old_name"),
                 new ParseField("old_name")
-                    .withRestApiCompatibilityVersions(RestApiCompatibleVersion.minimumSupported()));
+                    .withRestCompatibility(RestApiCompatibleVersion.equalTo(RestApiCompatibleVersion.minimumSupported())));
 
             // declare `old_name` to throw exception when compatibility is NOT used
             PARSER.declareInt((r,s) -> failWithException(),
-                new ParseField("old_name").withRestApiCompatibilityVersions(RestApiCompatibleVersion.currentVersion()));
+                new ParseField("old_name")
+                    .withRestCompatibility(RestApiCompatibleVersion.equalTo(RestApiCompatibleVersion.currentVersion())));
         }
 
         private final String secondField;

@@ -336,10 +336,14 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     private Map<RestApiCompatibleVersion, Integer> addConstructorArg(BiConsumer<?, ?> consumer, ParseField parseField) {
 
         boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
-        for (RestApiCompatibleVersion restApiCompatibleVersion : parseField.getRestApiCompatibleVersions()) {
 
-            constructorArgInfos.computeIfAbsent(restApiCompatibleVersion, (v)-> new ArrayList<>())
-                    .add(new ConstructorArgInfo(parseField, required));
+        if (RestApiCompatibleVersion.minimumSupported().matches(parseField.getRestApiCompatibleVersions())) {
+            constructorArgInfos.computeIfAbsent(RestApiCompatibleVersion.minimumSupported(), (v)-> new ArrayList<>())
+                .add(new ConstructorArgInfo(parseField, required));
+        }
+        if (RestApiCompatibleVersion.currentVersion().matches(parseField.getRestApiCompatibleVersions())) {
+            constructorArgInfos.computeIfAbsent(RestApiCompatibleVersion.currentVersion(), (v)-> new ArrayList<>())
+                .add(new ConstructorArgInfo(parseField, required));
         }
 
         //calculate the positions for the arguments

@@ -8,6 +8,9 @@
 
 package org.elasticsearch.common.compatibility;
 
+import java.util.Collection;
+import java.util.function.Function;
+
 /**
  * A enum representing versions which are used by a REST Compatible API.
  * A CURRENT instance, represents a major Version.CURRENT from server module.
@@ -30,6 +33,10 @@ public enum RestApiCompatibleVersion {
         return fromMajorVersion(major - 1);
     }
 
+    public boolean matches(Collection<Function<RestApiCompatibleVersion, Boolean>> restApiCompatibleVersionFunctions){
+        return restApiCompatibleVersionFunctions.stream().anyMatch(r -> r.apply(this));
+    }
+
     public static RestApiCompatibleVersion fromMajorVersion(int majorVersion) {
         return valueOf("V_" + majorVersion);
     }
@@ -41,4 +48,12 @@ public enum RestApiCompatibleVersion {
     public static RestApiCompatibleVersion currentVersion() {
         return CURRENT;
     };
+
+    public static Function<RestApiCompatibleVersion, Boolean> equalTo(RestApiCompatibleVersion restApiCompatibleVersion) {
+        return r -> r.major == restApiCompatibleVersion.major;
+    }
+
+    public static Function<RestApiCompatibleVersion, Boolean> onOrAfter(RestApiCompatibleVersion restApiCompatibleVersion) {
+        return r -> r.major >= restApiCompatibleVersion.major;
+    }
 }

@@ -176,7 +176,7 @@ void addCopyDockerContextTask(Architecture architecture, boolean oss, DockerBase
 
     with dockerBuildContext(architecture, oss, base, true)
 
-    into(base == DockerBase.IRON_BANK ? 'scripts' : 'bin') {
+    into('bin') {
       from configurations.transformLog4jJar
     }
 

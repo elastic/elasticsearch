@@ -3,6 +3,15 @@ import org.elasticsearch.gradle.DockerBase
 
 apply plugin: 'base'
 
+configurations {
+  transformLog4jJar
+}
+
+dependencies {
+  transformLog4jJar project(path: ":distribution:docker:transform-log4j-config", configuration: "default")
+}
+
+
 tasks.register("buildIronBankDockerBuildContext", Tar) {
   archiveExtension = 'tar.gz'
   compression = Compression.GZIP
@@ -11,4 +20,8 @@ tasks.register("buildIronBankDockerBuildContext", Tar) {
   // We always treat Iron Bank builds as local, because that is how they
   // are built
   with dockerBuildContext(Architecture.X64, false, DockerBase.IRON_BANK, true)
+
+  into('scripts') {
+    from configurations.transformLog4jJar
+  }
 }

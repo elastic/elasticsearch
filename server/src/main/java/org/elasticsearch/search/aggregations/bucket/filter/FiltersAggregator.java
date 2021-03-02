@@ -9,25 +9,15 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.PointRangeQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -44,10 +34,13 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.IntPredicate;
+import java.util.function.LongPredicate;
 
 /**
  * Aggregator for {@code filters}. There are two known subclasses,
@@ -134,8 +127,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     public static FiltersAggregator build(
         String name,
         AggregatorFactories factories,
-        String[] keys,
-        Query[] filters,
+        List<QueryToFilterAdapter<?>> filters,
         boolean keyed,
         String otherBucketKey,
         AggregationContext context,
@@ -144,12 +136,11 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         if (canUseFilterByFilter(parent, factories, otherBucketKey)) {
-            return buildFilterByFilter(name, factories, keys, filters, keyed, otherBucketKey, context, parent, cardinality, metadata);
+            return buildFilterByFilter(name, factories, filters, keyed, otherBucketKey, context, parent, cardinality, metadata);
         }
         return new FiltersAggregator.Compatible(
             name,
             factories,
-            keys,
             filters,
             keyed,
             otherBucketKey,
@@ -178,8 +169,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     public static FilterByFilter buildFilterByFilter(
         String name,
         AggregatorFactories factories,
-        String[] keys,
-        Query[] filters,
+        List<QueryToFilterAdapter<?>> filters,
         boolean keyed,
         String otherBucketKey,
         AggregationContext context,
@@ -190,10 +180,13 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         if (false == canUseFilterByFilter(parent, factories, otherBucketKey)) {
             throw new IllegalStateException("Can't execute filter-by-filter");
         }
+        List<QueryToFilterAdapter<?>> filtersWithTopLevel = new ArrayList<>(filters.size());
+        for (QueryToFilterAdapter<?> f : filters) {
+            filtersWithTopLevel.add(f.union(context.query()));
+        }
         return new FiltersAggregator.FilterByFilter(
             name,
-            keys,
-            filters,
+            filtersWithTopLevel,
             keyed,
             context,
             parent,
@@ -202,25 +195,29 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         );
     }
 
-    private final String[] keys;
+    private final List<QueryToFilterAdapter<?>> filters;
     private final boolean keyed;
     protected final String otherBucketKey;
 
-    private FiltersAggregator(String name, AggregatorFactories factories, String[] keys, boolean keyed,
+    private FiltersAggregator(String name, AggregatorFactories factories, List<QueryToFilterAdapter<?>> filters, boolean keyed,
             String otherBucketKey, AggregationContext context, Aggregator parent, CardinalityUpperBound cardinality,
             Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, cardinality.multiply(keys.length + (otherBucketKey == null ? 0 : 1)), metadata);
+        super(name, factories, context, parent, cardinality.multiply(filters.size() + (otherBucketKey == null ? 0 : 1)), metadata);
+        this.filters = List.copyOf(filters);
         this.keyed = keyed;
-        this.keys = keys;
         this.otherBucketKey = otherBucketKey;
+    }
+
+    List<QueryToFilterAdapter<?>> filters() {
+        return filters;
     }
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForFixedBucketCount(owningBucketOrds, keys.length + (otherBucketKey == null ? 0 : 1),
+        return buildAggregationsForFixedBucketCount(owningBucketOrds, filters.size() + (otherBucketKey == null ? 0 : 1),
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
-                if (offsetInOwningOrd < keys.length) {
-                    return new InternalFilters.InternalBucket(keys[offsetInOwningOrd], docCount,
+                if (offsetInOwningOrd < filters.size()) {
+                    return new InternalFilters.InternalBucket(filters.get(offsetInOwningOrd).key().toString(), docCount,
                             subAggregationResults, keyed);
                 }
                 return new InternalFilters.InternalBucket(otherBucketKey, docCount, subAggregationResults, keyed);
@@ -230,9 +227,9 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
-        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(keys.length);
-        for (int i = 0; i < keys.length; i++) {
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(keys[i], 0, subAggs, keyed);
+        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.size() + otherBucketKey == null ? 0 : 1);
+        for (QueryToFilterAdapter<?> filter : filters) {
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(filter.key().toString(), 0, subAggs, keyed);
             buckets.add(bucket);
         }
 
@@ -244,6 +241,18 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         return new InternalFilters(name, buckets, keyed, metadata());
     }
 
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        List<Map<String, Object>> filtersDebug = new ArrayList<>(filters.size());
+        for (QueryToFilterAdapter<?> filter : filters) {
+            Map<String, Object> debug = new HashMap<>();
+            filter.collectDebugInfo(debug::put);
+            filtersDebug.add(debug);
+        }
+        add.accept("filters", filtersDebug);
+    }
+
     /**
      * Collects results by running each filter against the searcher and doesn't
      * build any {@link LeafBucketCollector}s which is generally faster than
@@ -251,7 +260,6 @@ public abstract class FiltersAggregator extends BucketsAggregator {
      * or any child aggregators.
      */
     public static class FilterByFilter extends FiltersAggregator {
-        private final Query[] filters;
         private final boolean profiling;
         private long estimatedCost = -1;
         /**
@@ -260,31 +268,23 @@ public abstract class FiltersAggregator extends BucketsAggregator {
          */
         private long maxCost = -1;
         private long estimateCostTime;
-        private Weight[] weights;
-        /**
-         * If {@link #estimateCost} was called then this'll contain a
-         * scorer per leaf per filter. If it wasn't then this'll be {@code null}.
-         */
-        private BulkScorer[][] scorers;
         private int segmentsWithDeletedDocs;
         /**
          * Count of segments with documents have consult the {@code doc_count}
          * field.
          */
-        private int segmentsWithDocCount;
+        private int segmentsWithDocCountField;
 
         private FilterByFilter(
             String name,
-            String[] keys,
-            Query[] filters,
+            List<QueryToFilterAdapter<?>> filters,
             boolean keyed,
             AggregationContext context,
             Aggregator parent,
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata
         ) throws IOException {
-            super(name, AggregatorFactories.EMPTY, keys, keyed, null, context, parent, cardinality, metadata);
-            this.filters = filters;
+            super(name, AggregatorFactories.EMPTY, filters, keyed, null, context, parent, cardinality, metadata);
             this.profiling = context.profiling();
         }
 
@@ -292,50 +292,47 @@ public abstract class FiltersAggregator extends BucketsAggregator {
          * Estimate the number of documents that this aggregation must visit. We'll
          * stop counting once we've passed {@code maxEstimatedCost} if we aren't profiling.
          */
+        @SuppressWarnings("resource") // We're not in change of anything Closeable
         public long estimateCost(long maxCost) throws IOException {
             this.maxCost = maxCost;
             if (estimatedCost != -1) {
                 return estimatedCost;
             }
-            long limit = profiling ? Long.MAX_VALUE : maxCost;
             long start = profiling ? System.nanoTime() : 0;
             estimatedCost = 0;
-            weights = buildWeights(topLevelQuery(), filters);
-            List<LeafReaderContext> leaves = searcher().getIndexReader().leaves();
-            /*
-             * Its important that we save a copy of the BulkScorer because for
-             * queries like PointInRangeQuery building the scorer can be a big
-             * chunk of the run time.
-             */
-            scorers = new BulkScorer[leaves.size()][];
-            for (LeafReaderContext ctx : leaves) {
-                scorers[ctx.ord] = new BulkScorer[filters.length];
-                for (int f = 0; f < filters.length; f++) {
-                    scorers[ctx.ord][f] = weights[f].bulkScorer(ctx);
-                    if (scorers[ctx.ord][f] == null) {
-                        // Doesn't find anything in this leaf
-                        continue;
+            for (LeafReaderContext ctx : searcher().getIndexReader().leaves()) {
+                CheckedSupplier<Boolean, IOException> canUseMetadata = canUseMetadata(ctx);
+                for (QueryToFilterAdapter<?> filter : filters()) {
+                    estimatedCost += filter.estimateCountCost(ctx, canUseMetadata);
+                    if (estimatedCost < 0) {
+                        // We've overflowed so we cap out and stop counting.
+                        estimatedCost = Long.MAX_VALUE;
+                        if (profiling && estimateCostTime == 0) {
+                            estimateCostTime = System.nanoTime() - start;
+                        }
+                        return estimatedCost;
                     }
-                    if (estimatedCost >= 0 && estimatedCost <= limit) {
-                        // If we've overflowed or are past the limit skip the cost
-                        estimatedCost += scorers[ctx.ord][f].cost();
+                    if (estimatedCost > maxCost) {
+                        if (profiling) {
+                            /*
+                             * If we're profiling we stop the timer the first
+                             * time we pass the limit but we keep counting so
+                             * we get an accurate estimate.
+                             */
+                            if (estimateCostTime == 0) {
+                                estimateCostTime = System.nanoTime() - start;
+                            }
+                        } else {
+                            // We're past the limit and not profiling. No use counting further.
+                            return estimatedCost;
+                        }
                     }
                 }
             }
-            if (profiling) {
+            if (profiling && estimateCostTime == 0) {
                 estimateCostTime = System.nanoTime() - start;
             }
-            // If we've overflowed use Long.MAX_VALUE
-            return estimatedCost < 0 ? Long.MAX_VALUE : estimatedCost;
-        }
-
-        /**
-         * Are the scorers cached?
-         * <p>
-         * Package private for testing.
-         */
-        boolean scorersCached() {
-            return scorers != null;
+            return estimatedCost;
         }
 
         /**
@@ -347,29 +344,13 @@ public abstract class FiltersAggregator extends BucketsAggregator {
          */
         @Override
         protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-            if (weights == null) {
-                weights = buildWeights(topLevelQuery(), filters);
-            }
             Bits live = ctx.reader().getLiveDocs();
             Counter counter = new Counter(docCountProvider);
             if (false == docCountProvider.alwaysOne()) {
-                segmentsWithDocCount++;
+                segmentsWithDocCountField++;
             }
-            for (int filterOrd = 0; filterOrd < filters.length; filterOrd++) {
-                BulkScorer scorer;
-                if (scorers == null) {
-                    // No cached scorers
-                    scorer = weights[filterOrd].bulkScorer(ctx);
-                } else {
-                    // Scorers cached when calling estimateCost
-                    scorer = scorers[ctx.ord][filterOrd];
-                }
-                if (scorer == null) {
-                    // the filter doesn't match any docs
-                    continue;
-                }
-                scorer.score(counter, live);
-                incrementBucketDocCount(filterOrd, counter.readAndReset(ctx));
+            for (int filterOrd = 0; filterOrd < filters().size(); filterOrd++) {
+                incrementBucketDocCount(filterOrd, filters().get(filterOrd).count(ctx, counter, live));
             }
             // Throwing this exception is how we communicate to the collection mechanism that we don't need the segment.
             throw new CollectionTerminatedException();
@@ -379,7 +360,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         public void collectDebugInfo(BiConsumer<String, Object> add) {
             super.collectDebugInfo(add);
             add.accept("segments_with_deleted_docs", segmentsWithDeletedDocs);
-            add.accept("segments_with_doc_count", segmentsWithDocCount);
+            add.accept("segments_with_doc_count_field", segmentsWithDocCountField);
             if (estimatedCost != -1) {
                 // -1 means we didn't estimate it.
                 add.accept("estimated_cost", estimatedCost);
@@ -388,52 +369,42 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             }
         }
 
-        /**
-         * Counts collected documents, delegating to {@link DocCountProvider} for
-         * how many documents each search hit is "worth".
-         */
-        private static class Counter implements LeafCollector {
-            private final DocCountProvider docCount;
-            private long count;
+        CheckedSupplier<Boolean, IOException> canUseMetadata(LeafReaderContext ctx) {
+            return new CheckedSupplier<Boolean, IOException>() {
+                Boolean canUse;
 
-            Counter(DocCountProvider docCount) {
-                this.docCount = docCount;
-            }
+                @Override
+                public Boolean get() throws IOException {
+                    if (canUse == null) {
+                        canUse = canUse();
+                    }
+                    return canUse;
+                }
 
-            public long readAndReset(LeafReaderContext ctx) throws IOException {
-                long result = count;
-                count = 0;
-                docCount.setLeafReaderContext(ctx);
-                return result;
-            }
-
-            @Override
-            public void collect(int doc) throws IOException {
-                count += docCount.getDocCount(doc);
-            }
-
-            @Override
-            public void setScorer(Scorable scorer) throws IOException {}
+                private boolean canUse() throws IOException {
+                    if (ctx.reader().getLiveDocs() != null) {
+                        return false;
+                    }
+                    docCountProvider.setLeafReaderContext(ctx);
+                    return docCountProvider.alwaysOne();
+                }
+            };
         }
     }
 
     /**
-     * Collects results by building a {@link Bits} per filter and testing if
+     * Collects results by building a {@link LongPredicate} per filter and testing if
      * each doc sent to its {@link LeafBucketCollector} is in each filter
      * which is generally slower than {@link FilterByFilter} but is compatible
      * with parent and child aggregations.
      */
     private static class Compatible extends FiltersAggregator {
-        private final Query[] filters;
-        private Weight[] filterWeights;
-
         private final int totalNumKeys;
 
         Compatible(
             String name,
             AggregatorFactories factories,
-            String[] keys,
-            Query[] filters,
+            List<QueryToFilterAdapter<?>> filters,
             boolean keyed,
             String otherBucketKey,
             AggregationContext context,
@@ -441,36 +412,32 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata
         ) throws IOException {
-            super(name, factories, keys, keyed, otherBucketKey, context, parent, cardinality, metadata);
-            this.filters = filters;
+            super(name, factories, filters, keyed, otherBucketKey, context, parent, cardinality, metadata);
             if (otherBucketKey == null) {
-                this.totalNumKeys = keys.length;
+                this.totalNumKeys = filters.size();
             } else {
-                this.totalNumKeys = keys.length + 1;
+                this.totalNumKeys = filters.size() + 1;
             }
         }
 
         @Override
         protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-            if (filterWeights == null) {
-                filterWeights = buildWeights(new MatchAllDocsQuery(), filters);
-            }
-            final Bits[] bits = new Bits[filters.length];
-            for (int i = 0; i < filters.length; ++i) {
-                bits[i] = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), filterWeights[i].scorerSupplier(ctx));
+            IntPredicate[] docFilters = new IntPredicate[filters().size()];
+            for (int filterOrd = 0; filterOrd < filters().size(); filterOrd++) {
+                docFilters[filterOrd] = filters().get(filterOrd).matchingDocIds(ctx); 
             }
             return new LeafBucketCollectorBase(sub, null) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
                     boolean matched = false;
-                    for (int i = 0; i < bits.length; i++) {
-                        if (bits[i].get(doc)) {
+                    for (int i = 0; i < docFilters.length; i++) {
+                        if (docFilters[i].test(doc)) {
                             collectBucket(sub, doc, bucketOrd(bucket, i));
                             matched = true;
                         }
                     }
                     if (otherBucketKey != null && false == matched) {
-                        collectBucket(sub, doc, bucketOrd(bucket, bits.length));
+                        collectBucket(sub, doc, bucketOrd(bucket, docFilters.length));
                     }
                 }
             };
@@ -481,51 +448,31 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         }
     }
 
-    protected Weight[] buildWeights(Query topLevelQuery, Query filters[]) throws IOException{
-        Weight[] weights = new Weight[filters.length];
-        for (int i = 0; i < filters.length; ++i) {
-            Query filter = filterMatchingBoth(topLevelQuery, filters[i]);
-            weights[i] = searcher().createWeight(searcher().rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1);
-        }
-        return weights;
-    }
-
     /**
-     * Make a filter that matches both queries, merging the
-     * {@link PointRangeQuery}s together if possible. The "merging together"
-     * part is provides a fairly substantial speed boost then executing a
-     * top level query on a date and a filter on a date. This kind of thing
-     * is very common when visualizing logs and metrics.
+     * Counts collected documents, delegating to {@link DocCountProvider} for
+     * how many documents each search hit is "worth".
      */
-    static Query filterMatchingBoth(Query lhs, Query rhs) {
-        if (lhs instanceof MatchAllDocsQuery) {
-            return rhs;
-        }
-        if (rhs instanceof MatchAllDocsQuery) {
-            return lhs;
-        }
-        Query unwrappedLhs = unwrap(lhs);
-        Query unwrappedRhs = unwrap(rhs);
-        if (unwrappedLhs instanceof PointRangeQuery && unwrappedRhs instanceof PointRangeQuery) {
-            Query merged = MergedPointRangeQuery.merge((PointRangeQuery) unwrappedLhs, (PointRangeQuery) unwrappedRhs);
-            if (merged != null) {
-                // Should we rewrap here?
-                return merged;
-            }
-        }
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.add(lhs, BooleanClause.Occur.MUST);
-        builder.add(rhs, BooleanClause.Occur.MUST);
-        return builder.build();
-    }
+    static class Counter implements LeafCollector {
+        final DocCountProvider docCount;
+        private long count;
 
-    private static Query unwrap(Query query) {
-        if (query instanceof IndexSortSortedNumericDocValuesRangeQuery) {
-            query = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
+        Counter(DocCountProvider docCount) {
+            this.docCount = docCount;
         }
-        if (query instanceof IndexOrDocValuesQuery) {
-            query = ((IndexOrDocValuesQuery) query).getIndexQuery();
+
+        public long readAndReset(LeafReaderContext ctx) throws IOException {
+            long result = count;
+            count = 0;
+            docCount.setLeafReaderContext(ctx);
+            return result;
         }
-        return query;
+
+        @Override
+        public void collect(int doc) throws IOException {
+            count += docCount.getDocCount(doc);
+        }
+
+        @Override
+        public void setScorer(Scorable scorer) throws IOException {}
     }
 }

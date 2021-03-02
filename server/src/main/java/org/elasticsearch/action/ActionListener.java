@@ -62,7 +62,15 @@ public interface ActionListener<Response> {
 
         @Override
         public void onFailure(Exception e) {
-            delegate.onFailure(e);
+            try {
+                delegate.onFailure(e);
+            } catch (RuntimeException ex) {
+                if (ex != e) {
+                    ex.addSuppressed(e);
+                }
+                assert false : new AssertionError("listener.onFailure failed", ex);
+                throw ex;
+            }
         }
 
         @Override
@@ -94,19 +102,6 @@ public interface ActionListener<Response> {
             } catch (RuntimeException e) {
                 assert false : new AssertionError("map: listener.onResponse failed", e);
                 throw e;
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            try {
-                delegate.onFailure(e);
-            } catch (RuntimeException ex) {
-                if (ex != e) {
-                    ex.addSuppressed(e);
-                }
-                assert false : new AssertionError("map: listener.onFailure failed", ex);
-                throw ex;
             }
         }
 
@@ -191,7 +186,15 @@ public interface ActionListener<Response> {
 
         @Override
         public void onFailure(Exception e) {
-            bc.accept(delegate, e);
+            try {
+                bc.accept(delegate, e);
+            } catch (RuntimeException ex) {
+                if (ex != e) {
+                    ex.addSuppressed(e);
+                }
+                assert false : new AssertionError("listener.onFailure failed", ex);
+                throw ex;
+            }
         }
 
         @Override
@@ -316,7 +319,7 @@ public interface ActionListener<Response> {
         @Override
         public void onFailure(Exception e) {
             try {
-                delegate.onFailure(e);
+                super.onFailure(e);
             } finally {
                 runAfter.run();
             }
@@ -352,7 +355,7 @@ public interface ActionListener<Response> {
             try {
                 runBefore.run();
             } catch (Exception ex) {
-                delegate.onFailure(ex);
+                super.onFailure(ex);
                 return;
             }
             delegate.onResponse(response);
@@ -365,7 +368,7 @@ public interface ActionListener<Response> {
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
-            delegate.onFailure(e);
+            super.onFailure(e);
         }
 
         @Override

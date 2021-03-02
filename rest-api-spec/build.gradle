@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.OS
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.rest-resources'
@@ -24,6 +26,10 @@ tasks.named("test").configure {enabled = false }
 tasks.named("jarHell").configure {enabled = false }
 
 tasks.named("yamlRestCompatTest").configure {
+  onlyIf {
+    // Skip these tests on Windows since the blacklist exceeds Windows CLI limits
+    OS.current() != OS.WINDOWS
+  }
   systemProperty 'tests.rest.blacklist', [
     'bulk/11_basic_with_types/Array of objects',
     'bulk/11_basic_with_types/Empty _id',

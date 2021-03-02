@@ -27,6 +27,16 @@ Other versions:
 
 // tag::notable-highlights[]
 [discrete]
+[[eql-case-insensitivity]]
+=== EQL: Case-insensitive `in` lookups and functions
+
+The `in` and `not in` {ref}/eql-syntax.html#eql-syntax-lookup-operators[lookup
+operators] now support case-insensitive variants: `in~` and `not in~`. You can
+also {ref}/eql-syntax.html#eql-case-insensitive-functions[make an EQL function
+case-insensitive] by adding `~` after the function name, such as
+`endsWith~(process_name, ".exe")`.
+
+[discrete]
 [[eql-like-regex-keywords]]
 === EQL: `like` and `regex` keywords
 

@@ -48,7 +48,7 @@ scripting APIs, and provides the most flexibility. The other languages are less
 flexible, but typically have higher performance for certain tasks.
 
 [cols="<,<,<,<",options="header",]
-|=======================================================================
+|========
 |Language
     |Sandboxed
     |Required plugin
@@ -73,6 +73,7 @@ flexible, but typically have higher performance for certain tasks.
     |{no-icon}
     |You write it!
     |Expert API
+|========
 
 [WARNING]
 .Scripts and security

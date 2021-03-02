@@ -227,6 +227,7 @@ public abstract class TransportWriteAction<
             success = true;
         } finally {
             if (success == false) {
+                assert false : "execution should always start because of forced execution";
                 releasable.close();
             }
         }

@@ -131,7 +131,7 @@ public class RetryingHttpInputStreamTests extends ESTestCase {
                 if (randomBoolean()) {
                     final Integer statusCode =
                         randomFrom(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), RestStatus.SERVICE_UNAVAILABLE.getStatus());
-                    throw new URLHttpClientException(statusCode);
+                    throw new URLHttpClientException(statusCode, "Server error");
                 } else {
                     throw new URLHttpClientIOException("Unable to execute request", new IOException());
                 }
@@ -153,7 +153,7 @@ public class RetryingHttpInputStreamTests extends ESTestCase {
             @Override
             public HttpResponse get(URI uri, Map<String, String> headers) {
                 attempts.incrementAndGet();
-                throw new URLHttpClientException(RestStatus.NOT_FOUND.getStatus());
+                throw new URLHttpClientException(RestStatus.NOT_FOUND.getStatus(), "Not-Found");
             }
         };
 

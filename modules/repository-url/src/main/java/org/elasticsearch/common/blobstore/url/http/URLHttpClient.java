@@ -9,6 +9,9 @@
 package org.elasticsearch.common.blobstore.url.http;
 
 import org.apache.http.Header;
+import org.apache.http.HeaderElement;
+import org.apache.http.HttpEntity;
+import org.apache.http.NameValuePair;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -19,15 +22,20 @@ import org.apache.http.ssl.SSLContexts;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class URLHttpClient implements Closeable {
+    public static final int MAX_ERROR_MESSAGE_BODY_SIZE = 1024;
     private final Logger logger = LogManager.getLogger(URLHttpClient.class);
 
     private final CloseableHttpClient client;
@@ -89,16 +97,7 @@ public class URLHttpClient implements Closeable {
         final int statusCode = response.getStatusLine().getStatusCode();
 
         if (isSuccessful(statusCode) == false) {
-            if (response.getEntity() != null) {
-                try {
-                    IOUtils.closeWhileHandlingException(response.getEntity().getContent());
-                } catch (IOException e) {
-                    logger.warn("Unable to release HTTP body", e);
-                }
-            }
-            IOUtils.closeWhileHandlingException(response);
-
-            throw new URLHttpClientException(statusCode);
+            handleInvalidResponse(response);
         }
 
         return new HttpResponse() {
@@ -129,6 +128,53 @@ public class URLHttpClient implements Closeable {
                 response.close();
             }
         };
+    }
+
+    private void handleInvalidResponse(CloseableHttpResponse response) {
+        int statusCode = response.getStatusLine().getStatusCode();
+        String errorMessage = "";
+        InputStream bodyContent = null;
+        try {
+            final HttpEntity httpEntity = response.getEntity();
+            if (httpEntity != null && isValidContentTypeToParseError(httpEntity)) {
+                // Safeguard to avoid storing large error messages in memory
+                byte[] errorBodyBytes = new byte[(int) Math.min(httpEntity.getContentLength(), MAX_ERROR_MESSAGE_BODY_SIZE)];
+                bodyContent = httpEntity.getContent();
+                int bytesRead = Streams.readFully(bodyContent, errorBodyBytes);
+                if (bytesRead > 0) {
+                    final Charset utf = getCharset(httpEntity);
+                    errorMessage = new String(errorBodyBytes, utf);
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Unable to parse HTTP body to produce an error response", e);
+        } finally {
+            IOUtils.closeWhileHandlingException(bodyContent);
+            IOUtils.closeWhileHandlingException(response);
+        }
+
+        throw new URLHttpClientException(statusCode, errorMessage);
+    }
+
+    private Charset getCharset(HttpEntity httpEntity) {
+        final Header contentType = httpEntity.getContentType();
+        if (contentType == null) {
+            return StandardCharsets.UTF_8;
+        }
+        for (HeaderElement element : contentType.getElements()) {
+            final NameValuePair charset = element.getParameterByName("charset");
+            if (charset != null) {
+                return Charset.forName(charset.getValue());
+            }
+        }
+        // Fallback to UTF-8 and try to encode the error message with that
+        return StandardCharsets.UTF_8;
+    }
+
+    private boolean isValidContentTypeToParseError(HttpEntity httpEntity) {
+        Header contentType = httpEntity.getContentType();
+        return contentType != null && httpEntity.getContentLength() > 0 &&
+            (contentType.getValue().startsWith("text/") || contentType.getValue().startsWith("application/"));
     }
 
     private boolean isSuccessful(int statusCode) {

@@ -16,6 +16,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClientSettings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.mocksocket.MockHttpServer;
@@ -53,6 +54,8 @@ public class HttpURLBlobStoreTests extends AbstractURLBlobStoreTests {
 
         httpServer.createContext("/indices/" + blobName, exchange -> {
             try {
+                Streams.readFully(exchange.getRequestBody());
+
                 Headers requestHeaders = exchange.getRequestHeaders();
                 final String range = requestHeaders.getFirst("Range");
                 if (range == null) {

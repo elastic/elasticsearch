@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
+import org.elasticsearch.xpack.core.security.authz.privilege.ManageOwnApiKeyClusterPrivilege;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -128,6 +129,19 @@ public class Authentication implements ToXContentObject {
         }
         out.writeVInt(type.ordinal());
         out.writeMap(metadata);
+    }
+
+    public boolean sameUserAs(Authentication other) {
+        if (AuthenticationType.API_KEY == getAuthenticationType() && AuthenticationType.API_KEY == other.getAuthenticationType()) {
+            return getMetadata().get(ManageOwnApiKeyClusterPrivilege.API_KEY_ID_KEY)
+                .equals(other.getMetadata().get(ManageOwnApiKeyClusterPrivilege.API_KEY_ID_KEY));
+        }
+        if (false == getUser().principal().equals(other.getUser().principal())) {
+            return false;
+        }
+        final RealmRef thisRealm = getSourceRealm();
+        final RealmRef otherRealm = other.getSourceRealm();
+        return thisRealm.getName().equals(otherRealm.getName()) && thisRealm.getType().equals(otherRealm.getType());
     }
 
     @Override

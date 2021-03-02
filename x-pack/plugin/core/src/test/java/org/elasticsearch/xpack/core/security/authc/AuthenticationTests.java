@@ -29,4 +29,7 @@ public class AuthenticationTests extends ESTestCase {
         assertEquals(authenticatedBy, authentication.getSourceRealm());
     }
 
+    public void testTwoApiKeysAreNeverTheSameUser() {
+        assert false; // TODO
+    }
 }

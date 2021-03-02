@@ -458,29 +458,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             // origin is an authenticated user but current is not
             return false;
         }
-        Authentication origin = AuthenticationContextSerializer.decode(originHeaders.get(AUTHENTICATION_KEY));
-        return ensureAuthenticatedUserIsSame(origin, current);
-    }
-
-    /**
-     * Compares the {@link Authentication} that was used to create the {@link AsyncExecutionId} with the
-     * current authentication.
-     */
-    boolean ensureAuthenticatedUserIsSame(Authentication original, Authentication current) {
-        final boolean samePrincipal = original.getUser().principal().equals(current.getUser().principal());
-        final boolean sameRealmType;
-        if (original.getUser().isRunAs()) {
-            if (current.getUser().isRunAs()) {
-                sameRealmType = original.getLookedUpBy().getType().equals(current.getLookedUpBy().getType());
-            }  else {
-                sameRealmType = original.getLookedUpBy().getType().equals(current.getAuthenticatedBy().getType());
-            }
-        } else if (current.getUser().isRunAs()) {
-            sameRealmType = original.getAuthenticatedBy().getType().equals(current.getLookedUpBy().getType());
-        } else {
-            sameRealmType = original.getAuthenticatedBy().getType().equals(current.getAuthenticatedBy().getType());
-        }
-        return samePrincipal && sameRealmType;
+        return current.sameUserAs(AuthenticationContextSerializer.decode(originHeaders.get(AUTHENTICATION_KEY)));
     }
 
     /**

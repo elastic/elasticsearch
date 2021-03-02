@@ -90,3 +90,21 @@ LDAP Groups.  For example, if a user is a member of `group_1` and `group_1` is a
 member of `group_2`, only `group_1` will be discovered. However, the
 <<active-directory-realm, Active Directory Realm>> *does* support transitive
 group membership.
+
+
+[discrete]
+=== Same user check
+
+The result of <<async-search,async search>> and <<scroll-api,scroll>> can be retrieved later
+by the same user who submits the initial request. The same user check is done by comparing
+the username, authentication realm name and realm type. This logic has a few limitations:
+
+* While realms must be unique on each node, it is not the case across different nodes.
+Two different realms can in theory have the same name on different nodes. We do not
+recommend configuring realms in this inconsistent way. As such the same user check
+does not attempt to detect this inconsistency.
+* The username is computed on the fly based on configurations for some external authentication
+providers. It is in theory possible that two distinct users could end up having the
+same username. Our recommendation is to avoid this situation in the first place.
+Hence the same user check does not account for this potential discrepancy.
+

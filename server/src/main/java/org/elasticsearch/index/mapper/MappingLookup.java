@@ -67,12 +67,12 @@ public final class MappingLookup {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
-        for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+        for (MetadataFieldMapper metadataMapper : mapping.metadataMappers()) {
             if (metadataMapper != null) {
                 newFieldMappers.add(metadataMapper);
             }
         }
-        for (Mapper child : mapping.root) {
+        for (Mapper child : mapping.root()) {
             collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers);
         }
         return new MappingLookup(
@@ -189,7 +189,7 @@ public final class MappingLookup {
     }
 
     private void checkFieldLimit(long limit) {
-        if (fieldMappers.size() + objectMappers.size() - mapping.metadataMappers.length > limit) {
+        if (fieldMappers.size() + objectMappers.size() - mapping.metadataMappers().length > limit) {
             throw new IllegalArgumentException("Limit of total fields [" + limit + "] has been exceeded");
         }
     }

@@ -45,7 +45,7 @@ final class DocumentParser {
 
     ParsedDocument parseDocument(SourceToParse source,
                                  MappingLookup mappingLookup) throws MapperParsingException {
-        return parseDocument(source, mappingLookup.getMapping().metadataMappers, mappingLookup);
+        return parseDocument(source, mappingLookup.getMapping().metadataMappers(), mappingLookup);
     }
 
     ParsedDocument parseDocument(SourceToParse source,

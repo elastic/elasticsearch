@@ -24,13 +24,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.sql.JDBCType;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.assertResponse;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
@@ -63,7 +63,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
         if (explicitSourceSetting == false || enableSource) {
             Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", Arrays.asList(columnInfo("plain", "text_field", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+            expected.put("columns", asList(columnInfo("plain", "text_field", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)));
             expected.put("rows", singletonList(singletonList(text)));
             assertResponse(expected, runSql(query));
         } else {
@@ -100,7 +100,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
         if (explicitSourceSetting == false || enableSource) {
             Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", Arrays.asList(columnInfo("plain", "keyword_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+            expected.put("columns", asList(columnInfo("plain", "keyword_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
             expected.put("rows", singletonList(singletonList(ignoreAbove ? null : keyword)));
             assertResponse(expected, runSql(query));
         } else {
@@ -136,10 +136,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
         if (explicitSourceSetting == false || enableSource) {
             Map<String, Object> expected = new HashMap<>();
-            expected.put(
-                "columns",
-                Arrays.asList(columnInfo("plain", "constant_keyword_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE))
-            );
+            expected.put("columns", asList(columnInfo("plain", "constant_keyword_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
             expected.put("rows", singletonList(singletonList(value)));
             assertResponse(expected, runSql(query));
         } else {
@@ -176,7 +173,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
         if (explicitSourceSetting == false || enableSource) {
             Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", Arrays.asList(columnInfo("plain", "wildcard_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+            expected.put("columns", asList(columnInfo("plain", "wildcard_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
             expected.put("rows", singletonList(singletonList(ignoreAbove ? null : wildcard)));
             assertResponse(expected, runSql(query));
         } else {
@@ -197,10 +194,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         index("{\"" + fieldType + "_field\":\"" + floatingPointNumber + "\"}");
 
         Map<String, Object> expected = new HashMap<>();
-        expected.put(
-            "columns",
-            Arrays.asList(columnInfo("plain", fieldType + "_field", fieldType, jdbcTypeFor(fieldType), Integer.MAX_VALUE))
-        );
+        expected.put("columns", asList(columnInfo("plain", fieldType + "_field", fieldType, jdbcTypeFor(fieldType), Integer.MAX_VALUE)));
 
         // because "coerce" is true, a "123.456" floating point number STRING should be converted to 123, no matter the numeric field type
         expected.put("rows", singletonList(singletonList(123)));
@@ -231,10 +225,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         index("{\"" + fieldType + "_field\":\"" + floatingPointNumber + "\"}");
 
         Map<String, Object> expected = new HashMap<>();
-        expected.put(
-            "columns",
-            Arrays.asList(columnInfo("plain", fieldType + "_field", fieldType, jdbcTypeFor(fieldType), Integer.MAX_VALUE))
-        );
+        expected.put("columns", asList(columnInfo("plain", fieldType + "_field", fieldType, jdbcTypeFor(fieldType), Integer.MAX_VALUE)));
 
         // because "coerce" is true, a "123.456" floating point number STRING should be converted to 123.456 as number
         // and converted to 123.5 for "scaled_float" type
@@ -312,7 +303,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
         if (explicitSourceSetting == false || enableSource) {
             Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", Arrays.asList(columnInfo("plain", fieldName, fieldType, jdbcTypeFor(fieldType), Integer.MAX_VALUE)));
+            expected.put("columns", asList(columnInfo("plain", fieldName, fieldType, jdbcTypeFor(fieldType), Integer.MAX_VALUE)));
             expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : actualValue)));
             assertResponse(expected, runSql(query));
         } else {
@@ -344,7 +335,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
         if (explicitSourceSetting == false || enableSource) {
             Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", Arrays.asList(columnInfo("plain", "boolean_field", "boolean", JDBCType.BOOLEAN, Integer.MAX_VALUE)));
+            expected.put("columns", asList(columnInfo("plain", "boolean_field", "boolean", JDBCType.BOOLEAN, Integer.MAX_VALUE)));
             // adding the boolean as a String here because parsing the response will yield a "true"/"false" String
             expected.put("rows", singletonList(singletonList(booleanField)));
             assertResponse(expected, runSql(query));
@@ -384,7 +375,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
         if (explicitSourceSetting == false || enableSource) {
             Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", Arrays.asList(columnInfo("plain", "ip_field", "ip", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+            expected.put("columns", asList(columnInfo("plain", "ip_field", "ip", JDBCType.VARCHAR, Integer.MAX_VALUE)));
             expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : actualValue)));
             assertResponse(expected, runSql(query));
         } else {
@@ -423,10 +414,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
         if (explicitSourceSetting == false || enableSource) {
             Map<String, Object> expected = new HashMap<>();
-            expected.put(
-                "columns",
-                Arrays.asList(columnInfo("plain", "geo_point_field", "geo_point", JDBCType.VARCHAR, Integer.MAX_VALUE))
-            );
+            expected.put("columns", asList(columnInfo("plain", "geo_point_field", "geo_point", JDBCType.VARCHAR, Integer.MAX_VALUE)));
             expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : "POINT (-71.34 41.12)")));
             assertResponse(expected, runSql(query));
         } else {
@@ -465,10 +453,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
         if (explicitSourceSetting == false || enableSource) {
             Map<String, Object> expected = new HashMap<>();
-            expected.put(
-                "columns",
-                Arrays.asList(columnInfo("plain", "geo_shape_field", "geo_shape", JDBCType.VARCHAR, Integer.MAX_VALUE))
-            );
+            expected.put("columns", asList(columnInfo("plain", "geo_shape_field", "geo_shape", JDBCType.VARCHAR, Integer.MAX_VALUE)));
             expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : "POINT (-77.03653 38.897676)")));
             assertResponse(expected, runSql(query));
         } else {
@@ -507,7 +492,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
         if (explicitSourceSetting == false || enableSource) {
             Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", Arrays.asList(columnInfo("plain", "shape_field", "shape", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+            expected.put("columns", asList(columnInfo("plain", "shape_field", "shape", JDBCType.VARCHAR, Integer.MAX_VALUE)));
             expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : shapeField)));
             assertResponse(expected, runSql(query));
         } else {
@@ -537,13 +522,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         Map<String, Object> expected = new HashMap<>();
         expected.put(
             "columns",
-            Arrays.asList(
+            asList(
                 columnInfo("plain", "keyword_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE),
                 columnInfo("plain", "keyword_field_alias", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE),
                 columnInfo("plain", "a.b.c.keyword_field_alias", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)
             )
         );
-        expected.put("rows", singletonList(Arrays.asList(keyword, keyword, keyword)));
+        expected.put("rows", singletonList(asList(keyword, keyword, keyword)));
         assertResponse(expected, runSql("SELECT keyword_field, keyword_field_alias, a.b.c.keyword_field_alias FROM test"));
     }
 
@@ -569,13 +554,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         Map<String, Object> expected = new HashMap<>();
         expected.put(
             "columns",
-            Arrays.asList(
+            asList(
                 columnInfo("plain", "text_field", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
                 columnInfo("plain", "text_field_alias", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
                 columnInfo("plain", "a.b.c.text_field_alias", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)
             )
         );
-        expected.put("rows", singletonList(Arrays.asList(text, text, text)));
+        expected.put("rows", singletonList(asList(text, text, text)));
         assertResponse(expected, runSql("SELECT text_field, text_field_alias, a.b.c.text_field_alias FROM test"));
     }
 
@@ -601,13 +586,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         Map<String, Object> expected = new HashMap<>();
         expected.put(
             "columns",
-            Arrays.asList(
+            asList(
                 columnInfo("plain", "integer_field", "integer", JDBCType.INTEGER, Integer.MAX_VALUE),
                 columnInfo("plain", "integer_field_alias", "integer", JDBCType.INTEGER, Integer.MAX_VALUE),
                 columnInfo("plain", "a.b.c.integer_field_alias", "integer", JDBCType.INTEGER, Integer.MAX_VALUE)
             )
         );
-        expected.put("rows", singletonList(Arrays.asList(number, number, number)));
+        expected.put("rows", singletonList(asList(number, number, number)));
         assertResponse(expected, runSql("SELECT integer_field, integer_field_alias, a.b.c.integer_field_alias FROM test"));
     }
 
@@ -649,13 +634,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             Map<String, Object> expected = new HashMap<>();
             expected.put(
                 "columns",
-                Arrays.asList(
+                asList(
                     columnInfo("plain", fieldName, "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
                     columnInfo("plain", subFieldName, "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)
                 )
             );
 
-            expected.put("rows", singletonList(Arrays.asList(text, ignoreAbove ? null : text)));
+            expected.put("rows", singletonList(asList(text, ignoreAbove ? null : text)));
             assertResponse(expected, runSql(query));
         } else {
             expectSourceDisabledError(query);
@@ -704,15 +689,15 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             Map<String, Object> expected = new HashMap<>();
             expected.put(
                 "columns",
-                Arrays.asList(
+                asList(
                     columnInfo("plain", fieldName, "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
                     columnInfo("plain", subFieldName, "integer", JDBCType.INTEGER, Integer.MAX_VALUE)
                 )
             );
             if (ignoreMalformed) {
-                expected.put("rows", singletonList(Arrays.asList("foo", null)));
+                expected.put("rows", singletonList(asList("foo", null)));
             } else {
-                expected.put("rows", singletonList(Arrays.asList(String.valueOf(number), number)));
+                expected.put("rows", singletonList(asList(String.valueOf(number), number)));
             }
             assertResponse(expected, runSql(query));
         } else {
@@ -763,15 +748,15 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             Map<String, Object> expected = new HashMap<>();
             expected.put(
                 "columns",
-                Arrays.asList(
+                asList(
                     columnInfo("plain", fieldName, "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
                     columnInfo("plain", subFieldName, "ip", JDBCType.VARCHAR, Integer.MAX_VALUE)
                 )
             );
             if (ignoreMalformed) {
-                expected.put("rows", singletonList(Arrays.asList("foo", null)));
+                expected.put("rows", singletonList(asList("foo", null)));
             } else {
-                expected.put("rows", singletonList(Arrays.asList(ip, ip)));
+                expected.put("rows", singletonList(asList(ip, ip)));
             }
             assertResponse(expected, runSql(query));
         } else {
@@ -829,15 +814,15 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             Map<String, Object> expected = new HashMap<>();
             expected.put(
                 "columns",
-                Arrays.asList(
+                asList(
                     columnInfo("plain", fieldName, "integer", JDBCType.INTEGER, Integer.MAX_VALUE),
                     columnInfo("plain", subFieldName, isKeyword ? "keyword" : "text", JDBCType.VARCHAR, Integer.MAX_VALUE)
                 )
             );
             if (ignoreMalformed) {
-                expected.put("rows", singletonList(Arrays.asList(null, "foo")));
+                expected.put("rows", singletonList(asList(null, "foo")));
             } else {
-                expected.put("rows", singletonList(Arrays.asList(number, String.valueOf(number))));
+                expected.put("rows", singletonList(asList(number, String.valueOf(number))));
             }
             assertResponse(expected, runSql(query));
         } else {
@@ -899,15 +884,15 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             Map<String, Object> expected = new HashMap<>();
             expected.put(
                 "columns",
-                Arrays.asList(
+                asList(
                     columnInfo("plain", fieldName, "ip", JDBCType.VARCHAR, Integer.MAX_VALUE),
                     columnInfo("plain", subFieldName, isKeyword ? "keyword" : "text", JDBCType.VARCHAR, Integer.MAX_VALUE)
                 )
             );
             if (ignoreMalformed) {
-                expected.put("rows", singletonList(Arrays.asList(null, "foo")));
+                expected.put("rows", singletonList(asList(null, "foo")));
             } else {
-                expected.put("rows", singletonList(Arrays.asList(ip, ip)));
+                expected.put("rows", singletonList(asList(ip, ip)));
             }
             assertResponse(expected, runSql(query));
         } else {
@@ -964,14 +949,14 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         Map<String, Object> expected = new HashMap<>();
         expected.put(
             "columns",
-            Arrays.asList(
+            asList(
                 columnInfo("plain", fieldName, "integer", JDBCType.INTEGER, Integer.MAX_VALUE),
                 columnInfo("plain", subFieldName, "byte", JDBCType.TINYINT, Integer.MAX_VALUE)
             )
         );
         if (explicitSourceSetting == false || enableSource) {
             if (isByte || subFieldIgnoreMalformed) {
-                expected.put("rows", singletonList(Arrays.asList(number, isByte ? number : null)));
+                expected.put("rows", singletonList(asList(number, isByte ? number : null)));
             } else {
                 expected.put("rows", Collections.emptyList());
             }
@@ -1033,14 +1018,14 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         Map<String, Object> expected = new HashMap<>();
         expected.put(
             "columns",
-            Arrays.asList(
+            asList(
                 columnInfo("plain", fieldName, "byte", JDBCType.TINYINT, Integer.MAX_VALUE),
                 columnInfo("plain", subFieldName, "integer", JDBCType.INTEGER, Integer.MAX_VALUE)
             )
         );
         if (explicitSourceSetting == false || enableSource) {
             if (isByte || rootIgnoreMalformed) {
-                expected.put("rows", singletonList(Arrays.asList(isByte ? number : null, number)));
+                expected.put("rows", singletonList(asList(isByte ? number : null, number)));
             } else {
                 expected.put("rows", Collections.emptyList());
             }
@@ -1053,6 +1038,214 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
                 assertResponse(expected, runSql(query));
             }
         }
+    }
+
+    public void testNestedFieldsHierarchyWithMultiNestedValues() throws IOException {
+        Request request = new Request("PUT", "/test");
+        request.setJsonEntity(
+            "{"
+                + "  \"mappings\" : {"
+                + "    \"properties\" : {"
+                + "      \"h\" : {"
+                + "        \"type\" : \"nested\","
+                + "        \"properties\" : {"
+                + "          \"i\" : {"
+                + "            \"type\" : \"keyword\""
+                + "          },"
+                + "          \"j\" : {"
+                + "            \"type\" : \"keyword\""
+                + "          },"
+                + "          \"f\" : {"
+                + "            \"type\" : \"nested\","
+                + "            \"properties\" : {"
+                + "              \"o\" : {"
+                + "                \"type\" : \"keyword\""
+                + "              },"
+                + "              \"b\" : {"
+                + "                \"properties\" : {"
+                + "                  \"a\" : {"
+                + "                    \"type\" : \"keyword\""
+                + "                  }"
+                + "                }"
+                + "              }"
+                + "            }"
+                + "          }"
+                + "        }"
+                + "      }"
+                + "    }"
+                + "  }"
+                + "}"
+        );
+        client().performRequest(request);
+        index("{\"h\": [{\"i\":\"123\", \"j\":\"abc\"}, {\"i\":\"890\", \"j\":\"xyz\"}, {\"i\":\"567\", \"j\":\"klm\"}],\"test\":\"foo\"}");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put(
+            "columns",
+            asList(
+                columnInfo("plain", "h.i", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE),
+                columnInfo("plain", "h.j", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE),
+                columnInfo("plain", "test", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)
+            )
+        );
+        expected.put("rows", asList(asList("123", "abc", "foo"), asList("890", "xyz", "foo"), asList("567", "klm", "foo")));
+        assertResponse(expected, runSql("SELECT h.i, h.j, test FROM test"));
+    }
+
+    public void testNestedFieldsHierarchyWithMissingValue() throws IOException {
+        Request request = new Request("PUT", "/test");
+        request.setJsonEntity(
+            "{"
+                + "  \"mappings\" : {"
+                + "    \"properties\" : {"
+                + "      \"h\" : {"
+                + "        \"type\" : \"nested\","
+                + "        \"properties\" : {"
+                + "          \"i\" : {"
+                + "            \"type\" : \"keyword\""
+                + "          },"
+                + "          \"f\" : {"
+                + "            \"type\" : \"nested\","
+                + "            \"properties\" : {"
+                + "              \"o\" : {"
+                + "                \"type\" : \"keyword\""
+                + "              },"
+                + "              \"b\" : {"
+                + "                \"properties\" : {"
+                + "                  \"a\" : {"
+                + "                    \"type\" : \"keyword\""
+                + "                  }"
+                + "                }"
+                + "              }"
+                + "            }"
+                + "          }"
+                + "        }"
+                + "      }"
+                + "    }"
+                + "  }"
+                + "}"
+        );
+        client().performRequest(request);
+        index("{\"h\": [{\"f\":{\"b\": {\"a\": \"ABC\"}}}]}");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", singletonList(columnInfo("plain", "h.f.o", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        expected.put("rows", singletonList(singletonList(null)));
+        assertResponse(expected, runSql("SELECT h.f.o FROM test"));
+
+        expected.put("columns", singletonList(columnInfo("plain", "h.i", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        assertResponse(expected, runSql("SELECT h.i FROM test"));
+    }
+
+    public void testNestedFieldsHierarchyExtractDeeplyNestedValue() throws IOException {
+        Request request = new Request("PUT", "/test");
+        request.setJsonEntity(
+            "{"
+                + "  \"mappings\" : {"
+                + "    \"properties\" : {"
+                + "      \"h\" : {"
+                + "        \"type\" : \"nested\","
+                + "        \"properties\" : {"
+                + "          \"i\" : {"
+                + "            \"type\" : \"keyword\""
+                + "          },"
+                + "          \"f\" : {"
+                + "            \"type\" : \"nested\","
+                + "            \"properties\" : {"
+                + "              \"o\" : {"
+                + "                \"type\" : \"keyword\""
+                + "              },"
+                + "              \"b\" : {"
+                + "                \"properties\" : {"
+                + "                  \"a\" : {"
+                + "                    \"type\" : \"keyword\""
+                + "                  }"
+                + "                }"
+                + "              }"
+                + "            }"
+                + "          }"
+                + "        }"
+                + "      }"
+                + "    }"
+                + "  }"
+                + "}"
+        );
+        client().performRequest(request);
+        index("{\"h\": [{\"f\":{\"b\": {\"a\": \"ABC\"}}}]}");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", singletonList(columnInfo("plain", "h.f.b.a", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        expected.put("rows", singletonList(singletonList("ABC")));
+        assertResponse(expected, runSql("SELECT h.f.b.a FROM test"));
+    }
+
+    public void testNestedFieldsHierarchyWithArrayOfValues() throws IOException {
+        Request request = new Request("PUT", "/test");
+        request.setJsonEntity(
+            "{"
+                + "  \"mappings\" : {"
+                + "    \"properties\" : {"
+                + "      \"h\" : {"
+                + "        \"type\" : \"nested\","
+                + "        \"properties\" : {"
+                + "          \"i\" : {"
+                + "            \"type\" : \"keyword\""
+                + "          },"
+                + "          \"j\" : {"
+                + "            \"type\" : \"keyword\""
+                + "          },"
+                + "          \"f\" : {"
+                + "            \"type\" : \"nested\","
+                + "            \"properties\" : {"
+                + "              \"o\" : {"
+                + "                \"type\" : \"keyword\""
+                + "              },"
+                + "              \"b\" : {"
+                + "                \"properties\" : {"
+                + "                  \"a\" : {"
+                + "                    \"type\" : \"keyword\""
+                + "                  }"
+                + "                }"
+                + "              }"
+                + "            }"
+                + "          }"
+                + "        }"
+                + "      }"
+                + "    }"
+                + "  }"
+                + "}"
+        );
+        client().performRequest(request);
+        index(
+            "{\"h\": [{\"i\":[\"123\",\"124\",\"125\"], \"j\":\"abc\"}, {\"i\":\"890\", \"j\":\"xyz\"}, {\"i\":\"567\", \"j\":\"klm\"}],"
+                + "\"test\":\"foo\"}"
+        );
+
+        Map<String, Object> expected = new HashMap<>();
+        Map<String, Object> actual = new HashMap<>();
+        expected.put(
+            "columns",
+            asList(
+                columnInfo("plain", "h.i", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE),
+                columnInfo("plain", "h.j", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE),
+                columnInfo("plain", "test", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)
+            )
+        );
+        expected.put("rows", asList(asList("123", "abc", "foo"), asList("890", "xyz", "foo"), asList("567", "klm", "foo")));
+        Request sqlRequest = new Request("POST", RestSqlTestCase.SQL_QUERY_REST_ENDPOINT);
+        sqlRequest.addParameter("error_trace", "true");
+        sqlRequest.addParameter("pretty", "true");
+        sqlRequest.setEntity(
+            new StringEntity(
+                query("SELECT h.i, h.j, test FROM test").mode("plain").fieldMultiValueLeniency(true).toString(),
+                ContentType.APPLICATION_JSON
+            )
+        );
+        Response response = client().performRequest(sqlRequest);
+        try (InputStream content = response.getEntity().getContent()) {
+            actual = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+        }
+        assertResponse(expected, actual);
     }
 
     /*
@@ -1089,7 +1282,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      *    }
      *  }
      */
-    public void testNestedField() throws IOException {
+    public void testNestedFieldsHierarchy() throws IOException {
         final int minDepth = 2;
         final int maxDepth = 6;
         final int depth = between(minDepth, maxDepth);
@@ -1170,7 +1363,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
                     }
                     index.endObject();
                     // from time to time set a null value instead of an actual value
-                    if (randomBoolean()) {
+                    if (rarely()) {
                         randomValue.set(null);
                         bulkContent.append("\"" + fieldName + "\":{\"" + leafFieldName + "\":null");
                     } else {

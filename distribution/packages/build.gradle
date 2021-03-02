@@ -135,17 +135,17 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
     // specify it again explicitly for copying common files
     into('/usr/share/elasticsearch') {
       into('bin') {
-        with binFiles(type, oss, jdk)
+        with binFiles(type, jdk)
       }
       from(rootProject.projectDir) {
         include 'README.asciidoc'
         fileMode 0644
       }
       into('lib') {
-        with libFiles(oss)
+        with libFiles()
       }
       into('modules') {
-        with modulesFiles(oss, 'linux-' + ((architecture == 'x64') ? 'x86_64' : architecture))
+        with modulesFiles('linux-' + ((architecture == 'x64') ? 'x86_64' : architecture))
       }
       if (jdk) {
         into('jdk') {
@@ -266,7 +266,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
     conflicts('elasticsearch' + (oss ? '' : '-oss'))
 
     into '/usr/share/elasticsearch'
-    with noticeFile(oss, jdk)
+    with noticeFile(jdk)
   }
 }
 

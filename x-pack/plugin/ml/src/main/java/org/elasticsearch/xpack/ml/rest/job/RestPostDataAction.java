@@ -30,7 +30,7 @@ public class RestPostDataAction extends BaseRestHandler {
         return List.of(
             Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_data")
                 .deprecated("Posting data directly to anomaly detection jobs is deprecated, " +
-                    "in a future major version it will be compulsory to use a datafeed", RestApiCompatibleVersion.V_7
+                    "in a future major version it will be compulsory to use a datafeed", RestApiCompatibleVersion.V_8
                 ).build()
         );
     }

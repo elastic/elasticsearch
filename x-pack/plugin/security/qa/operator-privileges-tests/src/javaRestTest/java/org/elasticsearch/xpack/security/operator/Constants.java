@@ -13,8 +13,8 @@ public class Constants {
 
     public static final Set<String> NON_OPERATOR_ACTIONS = Set.of(
         // "cluster:admin/autoscaling/delete_autoscaling_policy",
-        // "cluster:admin/autoscaling/get_autoscaling_capacity",
-        // "cluster:admin/autoscaling/get_autoscaling_policy",
+        "cluster:admin/autoscaling/get_autoscaling_capacity",
+        "cluster:admin/autoscaling/get_autoscaling_policy",
         // "cluster:admin/autoscaling/put_autoscaling_policy",
         "cluster:admin/component_template/delete",
         "cluster:admin/component_template/get",

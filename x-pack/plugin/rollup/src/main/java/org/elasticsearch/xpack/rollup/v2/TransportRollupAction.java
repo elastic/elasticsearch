@@ -29,8 +29,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -61,9 +61,9 @@ import java.util.Map;
 
 /**
  * The master rollup action that coordinates
- * -  creating rollup temporary index
- * -  calling {@link TransportRollupIndexerAction} to index rolluped up documents
- * -  cleaning up state
+ *  -  creating rollup temporary index
+ *  -  calling {@link TransportRollupIndexerAction} to index rolluped up documents
+ *  -  cleaning up state
  */
 public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction<RollupAction.Request> {
 

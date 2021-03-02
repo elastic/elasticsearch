@@ -8,13 +8,16 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.Max;
@@ -28,6 +31,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -55,6 +59,7 @@ class AggregationToJsonProcessor {
     private long keyValueWrittenCount;
     private final SortedMap<Long, List<Map<String, Object>>> docsByBucketTimestamp;
     private final long startTime;
+    private final String compositeAggDateValueSourceName;
 
     /**
      * Constructs a processor that processes aggregations into JSON
@@ -63,8 +68,13 @@ class AggregationToJsonProcessor {
      * @param fields the fields to convert into JSON
      * @param includeDocCount whether to include the doc_count
      * @param startTime buckets with a timestamp before this time are discarded
+     * @param compositeAggDateValueSourceName the value source for the date_histogram source in the composite agg, if it exists
      */
-    AggregationToJsonProcessor(String timeField, Set<String> fields, boolean includeDocCount, long startTime) {
+    AggregationToJsonProcessor(String timeField,
+                               Set<String> fields,
+                               boolean includeDocCount,
+                               long startTime,
+                               @Nullable String compositeAggDateValueSourceName) {
         this.timeField = Objects.requireNonNull(timeField);
         this.fields = Objects.requireNonNull(fields);
         this.includeDocCount = includeDocCount;
@@ -72,6 +82,7 @@ class AggregationToJsonProcessor {
         docsByBucketTimestamp = new TreeMap<>();
         keyValueWrittenCount = 0;
         this.startTime = startTime;
+        this.compositeAggDateValueSourceName = compositeAggDateValueSourceName;
     }
 
     public void process(Aggregations aggs) throws IOException {
@@ -149,6 +160,9 @@ class AggregationToJsonProcessor {
             MultiBucketsAggregation bucketAgg = bucketAggregations.get(0);
             if (bucketAgg instanceof Histogram) {
                 processDateHistogram((Histogram) bucketAgg);
+            } else if (bucketAgg instanceof CompositeAggregation && compositeAggDateValueSourceName != null) {
+                // This indicates that our composite agg contains our date histogram bucketing via one of its sources
+                processCompositeAgg((CompositeAggregation) bucketAgg);
             } else {
                 // Ignore bucket aggregations that don't contain a field we
                 // are interested in. This avoids problems with pipeline bucket
@@ -185,8 +199,8 @@ class AggregationToJsonProcessor {
 
     private void processDateHistogram(Histogram agg) throws IOException {
         if (keyValuePairs.containsKey(timeField)) {
-            throw new IllegalArgumentException("More than one Date histogram cannot be used in the aggregation. " +
-                    "[" + agg.getName() + "] is another instance of a Date histogram");
+            throw new IllegalArgumentException("More than one composite or date_histogram cannot be used in the aggregation. " +
+                "[" + agg.getName() + "] is another instance of a composite or date_histogram aggregation");
         }
 
         // buckets are ordered by time, once we get to a bucket past the
@@ -208,6 +222,60 @@ class AggregationToJsonProcessor {
             processAggs(bucket.getDocCount(), childAggs);
             keyValuePairs.remove(timeField);
         }
+    }
+
+    private void processCompositeAgg(CompositeAggregation agg) throws IOException {
+        if (keyValuePairs.containsKey(timeField)) {
+            throw new IllegalArgumentException("More than one composite or date_histogram cannot be used in the aggregation. " +
+                "[" + agg.getName() + "] is another instance of a composite or date_histogram aggregation");
+        }
+        // Shouldn't ever happen
+        if (compositeAggDateValueSourceName == null) {
+            throw new IllegalArgumentException("attempted to process composite agg ["
+                + agg.getName()
+                + "] but does not contain date_histogram value source");
+        }
+
+        // the date_histogram value source should order the buckets in ascending order
+        // So, skip forward until we are within the start time
+        boolean checkBucketTime = true;
+        for (CompositeAggregation.Bucket bucket : agg.getBuckets()) {
+            if (checkBucketTime) {
+                long bucketTime = toHistogramKeyToEpoch(bucket.getKey().get(compositeAggDateValueSourceName));
+                if (bucketTime < startTime) {
+                    LOGGER.debug(() -> new ParameterizedMessage("Skipping bucket at [{}], startTime is [{}]", bucketTime, startTime));
+                    continue;
+                } else {
+                    checkBucketTime = false;
+                }
+            }
+
+            Collection<String> addedFields = processCompositeAggBucketKeys(bucket.getKey());
+            List<Aggregation> childAggs = bucket.getAggregations().asList();
+            processAggs(bucket.getDocCount(), childAggs);
+            keyValuePairs.remove(timeField);
+            for (String fieldName : addedFields) {
+                keyValuePairs.remove(fieldName);
+            }
+        }
+    }
+
+    /**
+     * It is possible that the key values in composite agg bucket contain field values we care about
+     * Make sure if they do, they get processed
+     * @param bucketKeys the composite agg bucket keys
+     * @return The field names we added to the key value pairs
+     */
+    private Collection<String> processCompositeAggBucketKeys(Map<String, Object> bucketKeys) {
+        List<String> addedFieldValues = new ArrayList<>();
+        for (Map.Entry<String, Object> bucketKey : bucketKeys.entrySet()) {
+            if (bucketKey.getKey().equals(compositeAggDateValueSourceName) == false && fields.contains(bucketKey.getKey())) {
+                // TODO any validations or processing???
+                keyValuePairs.put(bucketKey.getKey(), bucketKey.getValue());
+                addedFieldValues.add(bucketKey.getKey());
+            }
+        }
+        return addedFieldValues;
     }
 
     /*
@@ -239,6 +307,10 @@ class AggregationToJsonProcessor {
         if (fields.contains(aggregation.getName())) {
             return true;
         }
+        if (aggregation instanceof CompositeAggregation
+            && Sets.haveNonEmptyIntersection(((CompositeAggregation) aggregation).afterKey().keySet(), fields)) {
+            return true;
+        }
 
         if (aggregation.getBuckets().isEmpty()) {
             return false;
@@ -265,12 +337,17 @@ class AggregationToJsonProcessor {
 
     private void processBucket(MultiBucketsAggregation bucketAgg, boolean addField) throws IOException {
         for (MultiBucketsAggregation.Bucket bucket : bucketAgg.getBuckets()) {
+            List<String> addedFields = new ArrayList<>();
             if (addField) {
+                addedFields.add(bucketAgg.getName());
                 keyValuePairs.put(bucketAgg.getName(), bucket.getKey());
             }
+            if (bucket instanceof CompositeAggregation.Bucket) {
+                addedFields.addAll(processCompositeAggBucketKeys(((CompositeAggregation.Bucket)bucket).getKey()));
+            }
             processAggs(bucket.getDocCount(), asList(bucket.getAggregations()));
-            if (addField) {
-                keyValuePairs.remove(bucketAgg.getName());
+            for (String fieldName : addedFields) {
+                keyValuePairs.remove(fieldName);
             }
         }
     }

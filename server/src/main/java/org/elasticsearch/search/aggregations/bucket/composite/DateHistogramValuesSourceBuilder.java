@@ -212,7 +212,10 @@ public class DateHistogramValuesSourceBuilder
      *  {@code null} then it means that the interval is expressed as a fixed
      *  {@link TimeValue} and may be accessed via {@link #getIntervalAsFixed()} ()}. */
     public DateHistogramInterval getIntervalAsCalendar() {
-        return dateHistogramInterval.getAsCalendarInterval();
+        if (dateHistogramInterval.getIntervalType().equals(DateIntervalWrapper.IntervalTypeEnum.CALENDAR)) {
+            return dateHistogramInterval.getAsCalendarInterval();
+        }
+        return null;
     }
 
     /**
@@ -220,7 +223,10 @@ public class DateHistogramValuesSourceBuilder
      * the interval cannot be parsed as a fixed time.
      */
     public DateHistogramInterval getIntervalAsFixed() {
-        return dateHistogramInterval.getAsFixedInterval();
+        if (dateHistogramInterval.getIntervalType().equals(DateIntervalWrapper.IntervalTypeEnum.FIXED)) {
+            return dateHistogramInterval.getAsFixedInterval();
+        }
+        return null;
     }
 
     /**

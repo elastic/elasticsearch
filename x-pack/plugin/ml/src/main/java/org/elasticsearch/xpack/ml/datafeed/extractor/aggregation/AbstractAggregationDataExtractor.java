@@ -120,7 +120,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
 
     private void initAggregationProcessor(Aggregations aggs) throws IOException {
         aggregationToJsonProcessor = new AggregationToJsonProcessor(context.timeField, context.fields, context.includeDocCount,
-            context.start);
+            context.start, null);
         aggregationToJsonProcessor.process(aggs);
     }
 

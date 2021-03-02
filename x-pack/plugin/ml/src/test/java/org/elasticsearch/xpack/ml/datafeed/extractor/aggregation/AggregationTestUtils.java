@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -41,6 +43,24 @@ public final class AggregationTestUtils {
         return bucket;
     }
 
+    static CompositeAggregation.Bucket createCompositeBucket(long timestamp,
+                                                             String dateValueSource,
+                                                             long docCount,
+                                                             List<Aggregation> subAggregations,
+                                                             List<Tuple<String, String>> termValues) {
+        CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
+        when(bucket.getDocCount()).thenReturn(docCount);
+        Aggregations aggs = createAggs(subAggregations);
+        when(bucket.getAggregations()).thenReturn(aggs);
+        Map<String, Object> bucketKey = new HashMap<>();
+        bucketKey.put(dateValueSource, timestamp);
+        for (Tuple<String, String> termValue : termValues) {
+            bucketKey.put(termValue.v1(), termValue.v2());
+        }
+        when(bucket.getKey()).thenReturn(bucketKey);
+        return bucket;
+    }
+
     static SingleBucketAggregation createSingleBucketAgg(String name, long docCount, List<Aggregation> subAggregations) {
         SingleBucketAggregation singleBucketAggregation = mock(SingleBucketAggregation.class);
         when(singleBucketAggregation.getName()).thenReturn(name);
@@ -63,6 +83,15 @@ public final class AggregationTestUtils {
         when((List<Histogram.Bucket>)histogram.getBuckets()).thenReturn(histogramBuckets);
         when(histogram.getName()).thenReturn(name);
         return histogram;
+    }
+
+    @SuppressWarnings("unchecked")
+    static CompositeAggregation createCompositeAggregation(String name, List<CompositeAggregation.Bucket> buckets) {
+        CompositeAggregation compositeAggregation = mock(CompositeAggregation.class);
+        when((List<CompositeAggregation.Bucket>)compositeAggregation.getBuckets()).thenReturn(buckets);
+        when(compositeAggregation.getName()).thenReturn(name);
+        return compositeAggregation;
+
     }
 
     static Max createMax(String name, double value) {

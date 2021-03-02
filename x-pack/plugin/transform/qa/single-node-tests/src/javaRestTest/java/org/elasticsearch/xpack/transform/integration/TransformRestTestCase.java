@@ -74,8 +74,13 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
         if (useDeprecatedEndpoints) {
             RestClientBuilder builder = RestClient.builder(hosts);
-            configureClient(builder, settings);
+            configureClient(builder, Settings.builder()
+                .put(settings)
+                .put("request.headers.accept", "*/*;compatible-with=7")
+                .put("request.headers.content-type", "application/vnd.elasticsearch+json;compatible-with=7")
+                .build());
             builder.setStrictDeprecationMode(false);
+
             return builder.build();
         }
         return super.buildClient(settings, hosts);

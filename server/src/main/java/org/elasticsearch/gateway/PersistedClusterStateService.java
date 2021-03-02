@@ -667,15 +667,9 @@ public class PersistedClusterStateService {
                     }
                 }
 
-                Map<String, MappingMetadata> currentMappings = new HashMap<>();
-                for (ObjectObjectCursor<String, IndexMetadata> index : metadata.indices()) {
-                    MappingMetadata mapping = index.value.mapping();
-                    if(mapping!=null) {
-                        currentMappings.put(mapping.id(), mapping);
-                    }
-                }
-
+                Map<String, MappingMetadata> currentMappings = getMappingsMap(metadata);
                 currentMappings.keySet().removeAll(previouslyWrittenMappings);
+
                 for (MappingMetadata mappingMetadata : currentMappings.values()) {
                     for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
                         Document document = makeMappingMetadataDocument(mappingMetadata, documentBuffer);
@@ -683,10 +677,9 @@ public class PersistedClusterStateService {
                     }
                 }
 
-                HashSet<String> toRemove = new HashSet<>(previouslyWrittenMappings);
-                toRemove.removeAll(currentMappings.keySet());
+                previouslyWrittenMappings.removeAll(currentMappings.keySet());
 
-                for (String id : toRemove) {
+                for (String id : previouslyWrittenMappings) {
                     for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
                         metadataIndexWriter.deleteMappingMetadata(id);
                     }
@@ -738,6 +731,17 @@ public class PersistedClusterStateService {
             }
         }
 
+        private Map<String, MappingMetadata> getMappingsMap(Metadata metadata) {
+            Map<String, MappingMetadata> currentMappings = new HashMap<>();
+            for (ObjectObjectCursor<String, IndexMetadata> index : metadata.indices()) {
+                MappingMetadata mapping = index.value.mapping();
+                if (mapping != null) {
+                    currentMappings.put(mapping.id(), mapping);
+                }
+            }
+            return currentMappings;
+        }
+
         /**
          * Update the persisted metadata to match the given cluster state by removing all existing documents and then adding new documents.
          */
@@ -759,13 +763,7 @@ public class PersistedClusterStateService {
                     metadataIndexWriter.updateGlobalMetadata(globalMetadataDocument);
                 }
 
-                Map<String, MappingMetadata> currentMappings = new HashMap<>();
-                for (ObjectObjectCursor<String, IndexMetadata> index : metadata.indices()) {
-                    MappingMetadata mapping = index.value.mapping();
-                    if (mapping != null) {
-                        currentMappings.put(mapping.id(), mapping);
-                    }
-                }
+                Map<String, MappingMetadata> currentMappings = getMappingsMap(metadata);
 
                 for (MappingMetadata mappingMetadata : currentMappings.values()) {
                     for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {

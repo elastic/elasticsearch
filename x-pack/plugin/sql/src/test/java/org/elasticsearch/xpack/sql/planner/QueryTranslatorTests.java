@@ -2599,8 +2599,7 @@ public class QueryTranslatorTests extends ESTestCase {
             "WHERE i IS NOT NULL " +
             "ORDER BY i");
     }
-
-    @AwaitsFix(bugUrl = "follow-up to https://github.com/elastic/elasticsearch/pull/67216")
+    
     public void testSubqueryGroupByFilterAndOrderByByAlias() throws Exception {
         PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
             "( SELECT int AS i FROM test ) " +
@@ -2657,5 +2656,30 @@ public class QueryTranslatorTests extends ESTestCase {
         PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
             "( SELECT int AS i FROM test ) AS s " +
             "ORDER BY s.i > 10");
+    }
+    
+    public void testReferenceResolutionInSubqueries() {
+        optimizeAndPlan("SELECT i AS j FROM ( SELECT int AS i FROM test) ORDER BY j");
+        optimizeAndPlan("SELECT j AS k FROM (SELECT i AS j FROM ( SELECT int AS i FROM test)) ORDER BY k");
+        optimizeAndPlan("SELECT int_group AS g, min_date AS d " +
+            "FROM (" + 
+            "    SELECT int % 2 AS int_group, MIN(date) AS min_date " +
+            "    FROM test WHERE date > '1970-01-01'::datetime GROUP BY int_group" + 
+            ") " +
+            "ORDER BY d DESC");
+        optimizeAndPlan("SELECT int_group AS g, min_date AS d " +
+            "FROM (" + 
+            "    SELECT int % 2 AS int_group, MIN(date) AS min_date " +
+            "    FROM test WHERE date > '1970-01-01'::datetime GROUP BY int_group " + 
+            ")" +
+            "ORDER BY g DESC");
+        optimizeAndPlan("SELECT i AS j FROM ( SELECT int AS i FROM test) GROUP BY j");
+        optimizeAndPlan("SELECT j AS k FROM (SELECT i AS j FROM ( SELECT int AS i FROM test)) GROUP BY k");
+        optimizeAndPlan("SELECT g FROM (SELECT date AS f, int AS g FROM test) WHERE g IS NOT NULL GROUP BY g ORDER BY g ASC");
+    }
+    
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69758")
+    public void testFilterAfterGroupBy() {
+        optimizeAndPlan("SELECT j AS k FROM (SELECT i AS j FROM ( SELECT int AS i FROM test) GROUP BY j) WHERE j < 5");
     }
 }

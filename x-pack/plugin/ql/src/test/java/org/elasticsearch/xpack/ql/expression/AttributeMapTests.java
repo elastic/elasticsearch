@@ -17,6 +17,8 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.ql.TestUtils.fieldAttribute;
+import static org.elasticsearch.xpack.ql.TestUtils.of;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
@@ -59,6 +61,35 @@ public class AttributeMapTests extends ESTestCase {
         assertTrue(newAttributeMap.get(param1.toAttribute()) == param1.child());
         assertTrue(newAttributeMap.containsKey(param2.toAttribute()));
         assertTrue(newAttributeMap.get(param2.toAttribute()) == param2.child());
+    }
+
+    public void testResolveRecursively() {
+        AttributeMap.Builder<Object> builder = AttributeMap.builder();
+        Attribute one = a("one");
+        Attribute two = fieldAttribute("two", DataTypes.INTEGER);
+        Attribute three = fieldAttribute("three", DataTypes.INTEGER);
+        Alias threeAlias = new Alias(Source.EMPTY, "three_alias", three);
+        Alias threeAliasAlias = new Alias(Source.EMPTY, "three_alias_alias", threeAlias);
+        builder.put(one, of("one"));
+        builder.put(two, "two");
+        builder.put(three, of("three"));
+        builder.put(threeAlias.toAttribute(), threeAlias.child());
+        builder.put(threeAliasAlias.toAttribute(), threeAliasAlias.child());
+        AttributeMap<Object> map = builder.build();
+        
+        assertEquals(of("one"), map.get(one));
+        assertEquals(map.get(one), map.getOrDefault(one, null));
+        assertEquals("two", map.get(two));
+        assertEquals(map.get(two), map.getOrDefault(two, null));
+        assertEquals(of("three"), map.get(three));
+        assertEquals(map.get(three), map.getOrDefault(three, null));
+        assertEquals(map.get(three), map.getOrDefault(threeAlias, null));
+        assertEquals(map.get(three), map.get(threeAlias));
+        assertEquals(map.get(three), map.getOrDefault(threeAliasAlias, null));
+        assertEquals(map.get(three), map.get(threeAliasAlias));
+        Attribute four = a("four");
+        assertEquals("not found", map.getOrDefault(four, "not found"));
+        assertNull(map.get(four));
     }
 
     private Alias createIntParameterAlias(int index, int value) {

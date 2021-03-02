@@ -238,30 +238,52 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     @Override
     public boolean containsKey(Object key) {
         if (key instanceof NamedExpression) {
-            return delegate.keySet().contains(new AttributeWrapper(((NamedExpression) key).toAttribute()));
+            return delegate.containsKey(new AttributeWrapper(((NamedExpression) key).toAttribute()));
         }
         return false;
     }
 
     @Override
     public boolean containsValue(Object value) {
-        return delegate.values().contains(value);
+        return delegate.containsValue(value);
     }
 
+    /**
+     * @param key {@link NamedExpression} to look up
+     * @return Looks up the key in the AttributeMap recursively, meaning if the value for this key
+     * is another key in the map, it will follow it. It will return the final value or null if the key
+     * does not exist in the map.
+     */
     @Override
     public E get(Object key) {
+        return getOrDefault(key, null);
+    }
+
+    /**
+     * @param key {@link NamedExpression} to look up
+     * @return Looks up the key in the AttributeMap recursively, meaning if the value for this key
+     * is another key in the map, it will follow it. It will return the final value or the
+     * specified default value if the key does not exist in the map.
+     */
+    @Override
+    public E getOrDefault(Object key, E defaultValue) {
+        E candidate = defaultValue;
+        E value = null;
+        while (((value = lookup(key)) != null || containsKey(key)) && value != key) {
+            key = candidate = value;
+        }
+        return candidate;
+    }
+
+    /**
+     * @param key {@link NamedExpression} to look up
+     * @return Result of the non-recursive lookup of the key in the map.
+     */
+    private E lookup(Object key) {
         if (key instanceof NamedExpression) {
             return delegate.get(new AttributeWrapper(((NamedExpression) key).toAttribute()));
         }
         return null;
-    }
-
-    @Override
-    public E getOrDefault(Object key, E defaultValue) {
-        E e;
-        return (((e = get(key)) != null) || containsKey(key))
-            ? e
-            : defaultValue;
     }
 
     @Override

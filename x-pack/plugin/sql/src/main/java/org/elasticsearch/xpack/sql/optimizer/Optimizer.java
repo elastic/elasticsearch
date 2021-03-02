@@ -131,8 +131,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 );
 
         Batch refs = new Batch("Replace References", Limiter.ONCE,
-                new ReplaceReferenceAttributeWithSource()
-                );
+            new ReplaceReferenceAttributeWithSource()
+        );
 
         Batch operators = new Batch("Operator Optimization",
                 // combining
@@ -222,7 +222,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             AttributeMap.Builder<Expression> builder = AttributeMap.builder();
             // collect aliases
             plan.forEachExpressionUp(Alias.class, a -> builder.put(a.toAttribute(), a.child()));
-            final Map<Attribute, Expression> collectRefs = builder.build();
+            final AttributeMap<Expression> collectRefs = builder.build();
             java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.getOrDefault(r, r);
 
             plan = plan.transformUp(p -> {

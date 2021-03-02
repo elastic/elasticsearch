@@ -600,10 +600,12 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 else {
                     GroupByKey matchingGroup = null;
                     if (groupingContext != null) {
-                        matchingGroup = groupingContext.groupFor(target);
+                        final Expression resolvedTarget = queryC.aliases().getOrDefault(target, target);
+                        matchingGroup = groupingContext.groupFor(resolvedTarget);
                         Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
 
-                        queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, isDateBased(ne.dataType())), id);
+                        queryC = queryC.addColumn(
+                            new GroupByRef(matchingGroup.id(), null, isDateBased(ne.dataType())), Expressions.id(resolvedTarget));
                     }
                     // fallback
                     else {

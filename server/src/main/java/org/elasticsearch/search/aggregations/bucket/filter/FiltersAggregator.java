@@ -371,6 +371,9 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         @Override
         protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
             assert scoreMode().needsScores() == false;
+            if (filters().size() == 0) {
+                return LeafBucketCollector.NO_OP_COLLECTOR;
+            }
             Bits live = ctx.reader().getLiveDocs();
             if (false == docCountProvider.alwaysOne()) {
                 segmentsWithDocCountField++;

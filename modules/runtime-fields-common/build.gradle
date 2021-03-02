@@ -6,6 +6,9 @@
  * Side Public License, v 1.
  */
 
+apply plugin: 'elasticsearch.validate-rest-spec'
+apply plugin: 'elasticsearch.yaml-rest-test'
+
 esplugin {
   description 'Module for runtime fields features and extensions that have large dependencies'
   classname 'org.elasticsearch.runtimefields.RuntimeFieldsCommonPlugin'

@@ -50,10 +50,11 @@ public class NodeSelectorTests extends RestClientTestCase {
         Node coordinatingOnly = dummyNode(false, false, false);
         Node ingestOnly = dummyNode(false, false, true);
         Node data = dummyNode(false, true, randomBoolean());
-        Node dataContent = dummyNode(false, false, false, true, false, false, false);
-        Node dataHot = dummyNode(false, false, false, false, true, false, false);
-        Node dataWarm = dummyNode(false, false, false, false, false, true, false);
-        Node dataCold = dummyNode(false, false, false, false, false, false, true);
+        Node dataContent = dummyNode(false, false, false, true, false, false, false, false);
+        Node dataHot = dummyNode(false, false, false, false, true, false, false, false);
+        Node dataWarm = dummyNode(false, false, false, false, false, true, false, false);
+        Node dataCold = dummyNode(false, false, false, false, false, false, true, false);
+        Node dataFrozen = dummyNode(false, false, false, false, false, false, false, true);
         List<Node> nodes = new ArrayList<>();
         nodes.add(masterOnly);
         nodes.add(all);
@@ -66,6 +67,7 @@ public class NodeSelectorTests extends RestClientTestCase {
         nodes.add(dataHot);
         nodes.add(dataWarm);
         nodes.add(dataCold);
+        nodes.add(dataFrozen);
         Collections.shuffle(nodes, getRandom());
         List<Node> expected = new ArrayList<>(nodes);
         expected.remove(masterOnly);
@@ -74,10 +76,10 @@ public class NodeSelectorTests extends RestClientTestCase {
     }
 
     private static Node dummyNode(boolean master, boolean data, boolean ingest){
-        return dummyNode(master, data, ingest, false, false, false, false);
+        return dummyNode(master, data, ingest, false, false, false, false, false);
     }
     private static Node dummyNode(boolean master, boolean data, boolean ingest,
-                                  boolean dataContent, boolean dataHot, boolean dataWarm, boolean dataCold) {
+                                  boolean dataContent, boolean dataHot, boolean dataWarm, boolean dataCold, boolean dataFrozen) {
         final Set<String> roles = new TreeSet<>();
         if (master) {
             roles.add("master");
@@ -96,6 +98,9 @@ public class NodeSelectorTests extends RestClientTestCase {
         }
         if (dataCold) {
             roles.add("data_cold");
+        }
+        if (dataFrozen) {
+            roles.add("data_frozen");
         }
         if (ingest) {
             roles.add("ingest");

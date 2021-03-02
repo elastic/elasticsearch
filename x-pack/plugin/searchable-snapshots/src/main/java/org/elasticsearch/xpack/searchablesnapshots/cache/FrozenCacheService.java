@@ -185,8 +185,8 @@ public class FrozenCacheService implements Releasable {
 
     private int smallRegions(long fileLength, boolean isMetaFile) {
         final long tinyRegionSize = sharedBytes.sharedCacheConfiguration.tinyRegionSize();
-        final long nonHeaderLength = isMetaFile ? fileLength : fileLength - tinyRegionSize;
         final int largeRegionCount = largeRegions(fileLength, isMetaFile);
+        final long nonHeaderLength = isMetaFile ? fileLength : fileLength - tinyRegionSize;
         final long remainingLength = nonHeaderLength - largeRegionCount * sharedBytes.sharedCacheConfiguration.standardRegionSize();
         if (remainingLength <= 0) {
             return 0;
@@ -196,34 +196,25 @@ public class FrozenCacheService implements Releasable {
         if (remainder == 0) {
             return smallRegions;
         }
-        // if we fill up the next region more than 50%, add another region
-        if (remainder > regionSize / 2) {
-            return smallRegions + 1;
-        }
-        final int tinyRegionsNeeded = Math.toIntExact(remainder / tinyRegionSize);
-        // arbitrary heuristic: don't create more than twice the value of (large regions + 1) to strike a balance between not wasting too
-        // much space to fragmentation and not having to manage too many regions.
-        // TODO: this would be nicer if we had a fixed or power of 2 ratio between the region sizes?
-        if (tinyRegionsNeeded <= 2 * (smallRegions + largeRegionCount + 1)) {
-            return smallRegions;
-        }
-        // It would have taken too many small regions to cache the last partial large page so we just use another large one at the cost of
-        // disk space over number of regions
         return smallRegions + 1;
     }
 
     // get the region of a file of the given size that the given position belongs to
     private int getRegion(long position, long fileSize, boolean isMetaFile) {
-        // TODO: adjust for tiny
-        final int numberOfLargeRegions = largeRegions(fileSize, isMetaFile);
-        final int largeRegionIndex = Math.toIntExact(position / regionSize);
-        if (largeRegionIndex < numberOfLargeRegions) {
-            return largeRegionIndex;
+        final long tinyRegionSize = sharedBytes.sharedCacheConfiguration.tinyRegionSize();
+        if (isMetaFile == false && position <= tinyRegionSize) {
+            return 0;
         }
-        final long remainder = position % regionSize;
-        return numberOfLargeRegions + Math.toIntExact(remainder / smallRegionSize) + (remainder > 0 && remainder % smallRegionSize == 0
+        final long positionAfterHeader = position - (isMetaFile ? 0 : tinyRegionSize);
+        final int numberOfLargeRegions = largeRegions(fileSize, isMetaFile);
+        final int largeRegionIndex = Math.toIntExact(positionAfterHeader / regionSize);
+        if (largeRegionIndex < numberOfLargeRegions) {
+            return largeRegionIndex + (isMetaFile ? 0 : 1);
+        }
+        final long remainder = positionAfterHeader % regionSize;
+        return largeRegionIndex + Math.toIntExact(remainder / smallRegionSize) + (remainder > 0 && remainder % smallRegionSize == 0
             ? -1
-            : 0);
+            : 0) + (isMetaFile ? 0 : 1);
     }
 
     // get the relative position from the start of its region for the given position in a file of given size
@@ -234,7 +225,7 @@ public class FrozenCacheService implements Releasable {
         }
         final long tinyRegionSize = sharedBytes.sharedCacheConfiguration.tinyRegionSize();
         final long afterHeaderSize = isMetaFile ? fileSize : fileSize - tinyRegionSize;
-        switch (isSmallRegion(region, fileSize, isMetaFile)) {
+        switch (regionType(region, fileSize, isMetaFile)) {
             case TINY:
                 return ((afterHeaderSize % regionSize) % smallRegionSize) % tinyRegionSize;
             case SMALL:
@@ -250,18 +241,16 @@ public class FrozenCacheService implements Releasable {
             return 0L;
         }
         final long tinyRegionSize = sharedBytes.sharedCacheConfiguration.tinyRegionSize();
-        switch (isSmallRegion(region, fileSize, isMetaFile)) {
+        switch (regionType(region, fileSize, isMetaFile)) {
             case STANDARD:
                 return (region - (isMetaFile ? 0 : 1)) * regionSize + (isMetaFile ? 0 : tinyRegionSize);
             case SMALL: {
                 final int largeRegions = largeRegions(fileSize, isMetaFile);
-                return largeRegions * regionSize + smallRegions(fileSize, isMetaFile) * smallRegionSize + (isMetaFile ? 0 : tinyRegionSize);
+                return largeRegions * regionSize + (region - largeRegions - (isMetaFile ? 0 : 1)) * smallRegionSize + (isMetaFile ? 0 : tinyRegionSize);
             }
             default:
-                final int largeRegions = largeRegions(fileSize, isMetaFile);
-                final int smallRegions = smallRegions(fileSize, isMetaFile);
-                return largeRegions * regionSize + smallRegions(fileSize, isMetaFile) * smallRegionSize + (isMetaFile ? 0 : tinyRegionSize)
-                    + (region - smallRegions - (isMetaFile ? 0 : 1)) * tinyRegionSize;
+                assert false : "impossible, should always by 0";
+                return 0;
         }
     }
 
@@ -296,19 +285,19 @@ public class FrozenCacheService implements Releasable {
         return effectiveRegionSize;
     }
 
-    private RegionSize isSmallRegion(int region, long fileSize, boolean isMetaFile) {
+    private RegionSize regionType(int region, long fileSize, boolean isMetaFile) {
         if (isMetaFile == false && region == 0) {
             return RegionSize.TINY;
         }
         final int largeRegionCount = largeRegions(fileSize, isMetaFile);
-        if (region < largeRegionCount) {
+        if (region < (largeRegionCount + (isMetaFile ? 0 : 1))) {
             return RegionSize.STANDARD;
         }
         return RegionSize.SMALL;
     }
 
     private long regionSize(int region, long fileSize, boolean isMetaFile) {
-        switch (isSmallRegion(region, fileSize, isMetaFile)) {
+        switch (regionType(region, fileSize, isMetaFile)) {
             case TINY:
                 return sharedBytes.sharedCacheConfiguration.tinyRegionSize();
             case SMALL:
@@ -332,7 +321,7 @@ public class FrozenCacheService implements Releasable {
                 assert entry.freq == 0;
                 assert entry.prev == null;
                 assert entry.next == null;
-                final RegionSize isSmall = isSmallRegion(region, fileLength, cacheKey.isMetaFile());
+                final RegionSize isSmall = regionType(region, fileLength, cacheKey.isMetaFile());
                 final Integer freeSlot = tryPollFreeSlot(isSmall);
                 if (freeSlot != null) {
                     // no need to evict an item, just add

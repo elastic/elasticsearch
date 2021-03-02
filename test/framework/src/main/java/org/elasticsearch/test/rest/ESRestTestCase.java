@@ -1584,6 +1584,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         });
     }
 
+    //TODO: replace usages of this with warning_regex or allowed_warnings_regex
     static final Pattern CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile("^index \\[(.+)\\] matches multiple legacy " +
         "templates \\[(.+)\\], composable templates will only match a single template$");
 

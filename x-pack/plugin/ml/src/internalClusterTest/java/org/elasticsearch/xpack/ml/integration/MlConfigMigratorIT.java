@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -38,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -77,7 +77,7 @@ import static org.mockito.Mockito.when;
 
 public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
-    private final IndexNameExpressionResolver expressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+    private final IndexNameExpressionResolver expressionResolver = TestIndexNameExpressionResolver.newInstance();
     private ClusterService clusterService;
 
     @Before

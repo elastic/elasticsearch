@@ -30,6 +30,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 /**
  * Generic interface to group ActionRequest, which perform writes to a single document
  * Action requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
+ * Reference counting on implementations of this class is used by the elasticsearch internal memory management only and of no relevance
+ * to client side usage of this interface.
  */
 public interface DocWriteRequest<T> extends IndicesRequest, Accountable, RefCounted {
 

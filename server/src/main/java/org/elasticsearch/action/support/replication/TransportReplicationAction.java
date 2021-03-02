@@ -170,20 +170,12 @@ public abstract class TransportReplicationAction<
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         assert request.shardId() != null : "request shardId must be set";
-        request.incRef();
-        Releasable releaseBytes = Releasables.releaseOnce(request::decRef);
-        boolean success = false;
-        try {
-            runReroutePhase(task, request, ActionListener.runAfter(listener, releaseBytes::close), true);
-            success = true;
-        } finally {
-            if (success == false) {
-                releaseBytes.close();
-            }
-        }
+        runReroutePhase(task, request, listener, true);
     }
 
     private void runReroutePhase(Task task, Request request, ActionListener<Response> listener, boolean initiatedByNodeClient) {
+        listener = ActionListener.runAfter(listener, Releasables.releaseOnce(request::decRef)::close);
+        request.incRef();
         try {
             new ReroutePhase((ReplicationTask) task, request, listener, initiatedByNodeClient).run();
         } catch (RuntimeException e) {
@@ -284,20 +276,9 @@ public abstract class TransportReplicationAction<
 
     private void handleOperationRequest(final Request request, final TransportChannel channel, Task task) {
         Releasable releasable = checkOperationLimits(request);
-        request.incRef();
-        Releasable releaseBytes = Releasables.releaseOnce(request::decRef);
-        ActionListener<Response> listener = ActionListener.runAfter(ActionListener.runBefore(
-                new ChannelActionListener<>(channel, actionName, request), releasable::close),
-                releaseBytes::close);
-        boolean success = false;
-        try {
-            runReroutePhase(task, request, listener, false);
-            success = true;
-        } finally {
-            if (success == false) {
-                releaseBytes.close();
-            }
-        }
+        ActionListener<Response> listener =
+            ActionListener.runBefore(new ChannelActionListener<>(channel, actionName, request), releasable::close);
+        runReroutePhase(task, request, listener, false);
     }
 
     protected Releasable checkOperationLimits(final Request request) {

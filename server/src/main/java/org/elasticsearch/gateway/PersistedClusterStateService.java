@@ -498,7 +498,7 @@ public class PersistedClusterStateService {
 
         void deleteMappingMetadata(String id) throws IOException {
             this.logger.trace("removing mapping metadata for [{}]", id);
-            indexWriter.deleteDocuments(new Term(INDEX_UUID_FIELD_NAME, id));
+            indexWriter.deleteDocuments(new Term(MAPPING_ID_FIELD_NAME, id));
         }
 
         void deleteIndexMetadata(String indexUUID) throws IOException {

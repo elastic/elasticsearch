@@ -123,9 +123,6 @@ public class DistroTestPlugin implements Plugin<Project> {
 
             if ((distribution.getType() == Type.DEB || distribution.getType() == Type.RPM) && distribution.getBundledJdk()) {
                 for (Version version : BuildParams.getBwcVersions().getIndexCompatible()) {
-                    if (distribution.getFlavor() == Flavor.OSS && version.before("6.3.0")) {
-                        continue; // before opening xpack
-                    }
                     final ElasticsearchDistribution bwcDistro;
                     if (version.equals(Version.fromString(distribution.getVersion()))) {
                         // this is the same as the distribution we are testing
@@ -381,12 +378,6 @@ public class DistroTestPlugin implements Plugin<Project> {
                                 continue;
                             }
                         }
-
-                        // We don't publish the OSS distribution on UBI
-                        if (type == Type.DOCKER_UBI && flavor == Flavor.OSS) {
-                            continue;
-                        }
-
                         currentDistros.add(
                             createDistro(distributions, architecture, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch())
                         );

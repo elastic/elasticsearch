@@ -58,7 +58,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
             null,
             Type.ARCHIVE,
             Platform.LINUX,
-            Flavor.OSS,
+            Flavor.DEFAULT,
             true
         );
         assertEquals(distro.getVersion(), VersionProperties.getElasticsearch());
@@ -71,7 +71,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
             "badversion",
             Type.ARCHIVE,
             Platform.LINUX,
-            Flavor.OSS,
+            Flavor.DEFAULT,
             true,
             "Invalid version format: 'badversion'"
         );
@@ -84,7 +84,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
             "5.0.0",
             null,
             Platform.LINUX,
-            Flavor.OSS,
+            Flavor.DEFAULT,
             true
         );
         assertEquals(distro.getType(), Type.ARCHIVE);
@@ -97,7 +97,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
             "5.0.0",
             Type.ARCHIVE,
             null,
-            Flavor.OSS,
+            Flavor.DEFAULT,
             true
         );
         assertEquals(distro.getPlatform(), ElasticsearchDistribution.CURRENT_PLATFORM);
@@ -127,19 +127,6 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
             true
         );
         assertEquals(distro.getFlavor(), Flavor.DEFAULT);
-    }
-
-    public void testFlavorForIntegTest() {
-        assertDistroError(
-            createProject(null, false),
-            "testdistro",
-            "5.0.0",
-            Type.INTEG_TEST_ZIP,
-            null,
-            Flavor.OSS,
-            null,
-            "flavor [oss] not allowed for elasticsearch distribution [testdistro] of type [integ_test_zip]"
-        );
     }
 
     public void testBundledJdkDefault() {
@@ -332,9 +319,6 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
 
     private static String projectName(String base, Flavor flavor, boolean bundledJdk) {
         String prefix = "";
-        if (flavor == Flavor.OSS) {
-            prefix += "oss-";
-        }
         if (bundledJdk == false) {
             prefix += "no-jdk-";
         }

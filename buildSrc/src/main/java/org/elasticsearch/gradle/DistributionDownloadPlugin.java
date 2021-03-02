@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
 import org.elasticsearch.gradle.docker.DockerSupportPlugin;
@@ -113,7 +112,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         // for the distribution as a file, just depend on the artifact directly
         DistributionDependency distributionDependency = resolveDependencyNotation(project, distribution);
         dependencies.add(distribution.configuration.getName(), distributionDependency.getDefaultNotation());
-        // no extraction needed for rpm, deb or docker
+        // no extraction needed for rpm, deb or dockerElasticsearchDistribution.java
         if (distribution.getType().shouldExtract()) {
             // The extracted configuration depends on the artifact directly but has
             // an artifact transform registered to resolve it as an unpacked folder.
@@ -177,12 +176,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         } else if (distribution.getType() == Type.DEB) {
             classifier = ":amd64";
         }
-        String flavor = "";
-        if (distribution.getFlavor() == Flavor.OSS && distroVersion.onOrAfter("6.3.0")) {
-            flavor = "-oss";
-        }
-
         String group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP : FAKE_IVY_GROUP;
-        return group + ":elasticsearch" + flavor + ":" + distribution.getVersion() + classifier + "@" + extension;
+        return group + ":elasticsearch" + ":" + distribution.getVersion() + classifier + "@" + extension;
     }
 }

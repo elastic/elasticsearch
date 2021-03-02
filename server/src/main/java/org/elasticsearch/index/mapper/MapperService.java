@@ -151,7 +151,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
 
         } else {
-            metadataMappers.putAll(existingMapper.mapping().metadataMappersMap);
+            metadataMappers.putAll(existingMapper.mapping().getMetadataMappersMap());
         }
         return metadataMappers;
     }
@@ -297,7 +297,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason) {
         DocumentMapper newMapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
-        newMapper.root().fixRedundantIncludes();
+        newMapper.mapping().getRoot().fixRedundantIncludes();
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }

@@ -451,7 +451,7 @@ public class BigArrays {
             success = true;
         } finally {
             if (success == false) {
-                Releasables.closeWhileHandlingException(array);
+                Releasables.closeExpectNoException(array);
             }
         }
         return array;

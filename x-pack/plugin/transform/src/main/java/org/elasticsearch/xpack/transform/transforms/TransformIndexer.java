@@ -424,20 +424,29 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return;
         }
 
-        refreshDestinationIndex(ActionListener.wrap(response -> {
-            if (response.getFailedShards() > 0) {
-                logger.warn(
-                    "[{}] failed to refresh transform destination index, not all data might be available after checkpoint.",
-                    getJobId()
-                );
-            }
-            // delete data defined by retention policy
-            if (transformConfig.getRetentionPolicyConfig() != null) {
-                executeRetentionPolicy(listener);
-            } else {
-                finalizeCheckpoint(listener);
-            }
-        }, listener::onFailure));
+        ActionListener<Void> failureHandlingListener = ActionListener.wrap(listener::onResponse, failure -> {
+            handleFailure(failure);
+            listener.onFailure(failure);
+        });
+
+        try {
+            refreshDestinationIndex(ActionListener.wrap(response -> {
+                if (response.getFailedShards() > 0) {
+                    logger.warn(
+                        "[{}] failed to refresh transform destination index, not all data might be available after checkpoint.",
+                        getJobId()
+                    );
+                }
+                // delete data defined by retention policy
+                if (transformConfig.getRetentionPolicyConfig() != null) {
+                    executeRetentionPolicy(failureHandlingListener);
+                } else {
+                    finalizeCheckpoint(failureHandlingListener);
+                }
+            }, failureHandlingListener::onFailure));
+        } catch (Exception e) {
+            failureHandlingListener.onFailure(e);
+        }
     }
 
     private void executeRetentionPolicy(ActionListener<Void> listener) {
@@ -792,7 +801,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
             auditor.warning(
                 getJobId(),
-                "Transform encountered an exception: " + message + " Will attempt again at next scheduled trigger."
+                "Transform encountered an exception: " + message + "; Will attempt again at next scheduled trigger."
             );
             lastAuditedExceptionMessage = message;
         }

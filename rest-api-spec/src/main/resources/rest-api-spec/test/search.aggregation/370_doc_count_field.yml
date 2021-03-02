@@ -150,9 +150,9 @@ setup:
 ---
 "Test filters agg with doc_count":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.12.99"
       features: default_shards
-      reason: "name changed in 8.0.0, backporting to 7.13"
+      reason: "name changed in 7.13"
   - do:
       search:
         body:

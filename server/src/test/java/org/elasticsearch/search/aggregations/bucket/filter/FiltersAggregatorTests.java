@@ -115,6 +115,24 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
+    public void testNoFilters() throws IOException {
+        testCase(new FiltersAggregationBuilder("test", new KeyedFilter[0]), new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(List.of());
+        }, (InternalFilters result) -> {
+            assertThat(result.getBuckets(), hasSize(0));
+        });
+    }
+
+    public void testNoFiltersWithSubAggs() throws IOException {
+        testCase(
+            new FiltersAggregationBuilder("test", new KeyedFilter[0]).subAggregation(new MaxAggregationBuilder("m").field("i")),
+            new MatchAllDocsQuery(),
+            iw -> { iw.addDocument(List.of(new SortedNumericDocValuesField("i", 1))); },
+            (InternalFilters result) -> { assertThat(result.getBuckets(), hasSize(0)); },
+            new NumberFieldMapper.NumberFieldType("m", NumberFieldMapper.NumberType.INTEGER)
+        );
+    }
+
     public void testKeyedFilter() throws Exception {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);

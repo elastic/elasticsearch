@@ -91,7 +91,7 @@ dependencies {
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:5.0.1'
   api 'com.netflix.nebula:gradle-info-plugin:9.2.0'
   api 'org.apache.rat:apache-rat:0.11'
-  api "org.elasticsearch:jna:5.5.0"
+  api "org.elasticsearch:jna:5.7.0-1"
   api 'com.github.jengelman.gradle.plugins:shadow:6.1.0'
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
   api 'de.thetaphi:forbiddenapis:3.1'

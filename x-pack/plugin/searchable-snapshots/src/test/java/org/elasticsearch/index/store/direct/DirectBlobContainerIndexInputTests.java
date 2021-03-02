@@ -8,6 +8,7 @@ package org.elasticsearch.index.store.direct;
 
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
@@ -15,7 +16,9 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.IndexInputStats;
+import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -25,6 +28,8 @@ import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomFileExtension;
+import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -33,6 +38,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
@@ -59,9 +65,10 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
         String checksum,
         Runnable onReadBlob
     ) throws IOException {
+        final String fileName = randomAlphaOfLength(5) + randomFileExtension();
         final FileInfo fileInfo = new FileInfo(
             randomAlphaOfLength(5),
-            new StoreFileMetadata("test", input.length, checksum, Version.LATEST),
+            new StoreFileMetadata(fileName, input.length, checksum, Version.LATEST),
             partSize == input.length
                 ? randomFrom(
                     new ByteSizeValue(partSize, ByteSizeUnit.BYTES),
@@ -116,10 +123,15 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
                 };
             }
         });
+
+        final SearchableSnapshotDirectory directory = mock(SearchableSnapshotDirectory.class);
+        when(directory.getCachedBlob(anyString(), any(ByteRange.class))).thenReturn(CachedBlob.CACHE_NOT_READY);
+        when(directory.blobContainer()).thenReturn(blobContainer);
+
         final DirectBlobContainerIndexInput indexInput = new DirectBlobContainerIndexInput(
-            blobContainer,
+            directory,
             fileInfo,
-            newIOContext(random()),
+            randomIOContext(),
             new IndexInputStats(1, 0L, () -> 0L),
             minimumReadSize,
             randomBoolean() ? BufferedIndexInput.BUFFER_SIZE : between(BufferedIndexInput.MIN_BUFFER_SIZE, BufferedIndexInput.BUFFER_SIZE)

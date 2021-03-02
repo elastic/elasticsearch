@@ -410,7 +410,6 @@ public class Node implements Closeable {
                 .collect(Collectors.toUnmodifiableMap(
                     plugin -> plugin.getFeatureName(),
                     plugin -> new SystemIndices.Feature(
-                        plugin.getFeatureName(),
                         plugin.getFeatureDescription(),
                         plugin.getSystemIndexDescriptors(settings),
                         plugin.getAssociatedIndexPatterns(),

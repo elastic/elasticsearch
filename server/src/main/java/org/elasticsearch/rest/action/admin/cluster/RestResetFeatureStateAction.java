@@ -18,6 +18,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
+/** Rest handler for feature state reset requests */
 public class RestResetFeatureStateAction extends BaseRestHandler {
 
     @Override public boolean allowSystemIndexAccessByDefault() {
@@ -38,8 +39,6 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final ResetFeatureStateRequest req = new ResetFeatureStateRequest();
 
-        return restChannel -> {
-            client.execute(ResetFeatureStateAction.INSTANCE, req, new RestToXContentListener<>(restChannel));
-        };
+        return restChannel -> client.execute(ResetFeatureStateAction.INSTANCE, req, new RestToXContentListener<>(restChannel));
     }
 }

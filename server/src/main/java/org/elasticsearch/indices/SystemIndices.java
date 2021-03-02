@@ -58,6 +58,11 @@ public class SystemIndices {
     private final Map<String, Feature> featureDescriptors;
     private final Map<String, CharacterRunAutomaton> productToSystemIndicesMatcher;
 
+    /**
+     * Initialize the SystemIndices object
+     * @param pluginAndModulesDescriptors A map of this node's feature names to
+     *                                    feature objects.
+     */
     public SystemIndices(Map<String, Feature> pluginAndModulesDescriptors) {
         featureDescriptors = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
         checkForOverlappingPatterns(featureDescriptors);
@@ -246,6 +251,11 @@ public class SystemIndices {
             .collect(Collectors.toList());
     }
 
+    /**
+     * Check that a feature name is not reserved
+     * @param name Name of feature
+     * @param plugin Name of plugin providing the feature
+     */
     public static void validateFeatureName(String name, String plugin) {
         if (SnapshotsService.NO_FEATURE_STATES_VALUE.equalsIgnoreCase(name)) {
             throw new IllegalArgumentException("feature name cannot be reserved name [\"" + SnapshotsService.NO_FEATURE_STATES_VALUE +
@@ -253,31 +263,43 @@ public class SystemIndices {
         }
     }
 
+    /**
+     * Class holding a description of a stateful feature.
+     */
     public static class Feature {
-        private final String name;
         private final String description;
         private final Collection<SystemIndexDescriptor> indexDescriptors;
         private final Collection<String> associatedIndexPatterns;
         private final TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction;
 
+        /**
+         * Construct a Feature with a custom cleanup function
+         * @param description Description of the feature
+         * @param indexDescriptors Patterns describing system indices for this feature
+         * @param associatedIndexPatterns Patterns describing associated indices
+         * @param cleanUpFunction A function that will clean up the feature's state
+         */
         public Feature(
-            String name,
             String description,
             Collection<SystemIndexDescriptor> indexDescriptors,
             Collection<String> associatedIndexPatterns,
             TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction) {
-            this.name = name;
             this.description = description;
             this.indexDescriptors = indexDescriptors;
             this.associatedIndexPatterns = associatedIndexPatterns;
             this.cleanUpFunction = cleanUpFunction;
         }
 
+        /**
+         * Construct a Feature using the default clean-up function
+         * @param name Name of the feature, used in logging
+         * @param description Description of the feature
+         * @param indexDescriptors Patterns describing system indices for this feature
+         */
         public Feature(String name, String description, Collection<SystemIndexDescriptor> indexDescriptors) {
-            this(name, description, indexDescriptors, Collections.emptyList(),
-                (clusterService, client, listener) -> {
-                    cleanUpFeature(indexDescriptors, Collections.emptyList(), name, clusterService, client, listener);
-                }
+            this(description, indexDescriptors, Collections.emptyList(),
+                (clusterService, client, listener) ->
+                    cleanUpFeature(indexDescriptors, Collections.emptyList(), name, clusterService, client, listener)
             );
         }
 
@@ -297,6 +319,15 @@ public class SystemIndices {
             return cleanUpFunction;
         }
 
+        /**
+         * Clean up the state of a feature
+         * @param indexDescriptors List of descriptors of a feature's system indices
+         * @param associatedIndexPatterns List of patterns of a feature's associated indices
+         * @param name Name of the feature, used in logging
+         * @param clusterService A clusterService, for retrieving cluster metadata
+         * @param client A client, for issuing delete requests
+         * @param listener A listener to return success or failure of cleanup
+         */
         public static void cleanUpFeature(
             Collection<SystemIndexDescriptor> indexDescriptors,
             Collection<String> associatedIndexPatterns,

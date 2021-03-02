@@ -26,6 +26,12 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
 
     List<ResetFeatureStateStatus> resetFeatureStateStatusList;
 
+    /**
+     * Create a response showing which features have had state reset and success
+     * or failure status.
+     *
+     * @param statusList A list of status responses
+     */
     public ResetFeatureStateResponse(List<ResetFeatureStateStatus> statusList) {
         resetFeatureStateStatusList = new ArrayList<>();
         resetFeatureStateStatusList.addAll(statusList);
@@ -80,9 +86,13 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
             '}';
     }
 
+    /**
+     * An object with the name of a feature and a message indicating success or
+     * failure.
+     */
     public static class ResetFeatureStateStatus implements Writeable, ToXContentObject {
-        private String featureName;
-        private String status;
+        private final String featureName;
+        private final String status;
 
         public ResetFeatureStateStatus(String featureName, String status) {
             this.featureName = featureName;

@@ -1018,10 +1018,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         private IndexMetadata deduplicateMappings(IndexMetadata indexMetadata) {
             MappingMetadata mapping = indexMetadata.mapping();
-            if(mapping == null){
+            if (mapping == null) {
                 return indexMetadata;
             }
-            if(mappingsCache == null) {
+            if (mappingsCache == null) {
                 mappingsCache = StreamSupport.stream(indices.values().spliterator(), false)
                     .map(c -> c.value.mapping())
                     .filter(Objects::nonNull)

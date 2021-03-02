@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.watcher.Watcher;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;

@@ -508,6 +508,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testGroupByOrderByFieldFromGroupByFunction() {
         assertEquals("1:54: Cannot order by non-grouped column [int], expected [ABS(int)]",
                 error("SELECT ABS(int) FROM test GROUP BY ABS(int) ORDER BY int"));
+        assertEquals("1:91: Cannot order by non-grouped column [c], expected [b] or an aggregate function",
+            error("SELECT b, abs, 2 as c FROM (SELECT bool as b, ABS(int) abs FROM test) GROUP BY b ORDER BY c"));
     }
 
     public void testGroupByOrderByScalarOverNonGrouped_WithHaving() {

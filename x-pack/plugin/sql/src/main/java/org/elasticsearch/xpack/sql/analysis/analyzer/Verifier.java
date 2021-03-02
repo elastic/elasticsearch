@@ -316,11 +316,11 @@ public final class Verifier {
                 Map<Expression, Node<?>> missing = new LinkedHashMap<>();
 
                 o.order().forEach(oe -> {
-                    Expression e = oe.child();
-                    e = attributeRefs.getOrDefault(e, e);
+                    final Expression e = oe.child();
+                    final Expression resolvedE = attributeRefs.getOrDefault(e, e);
 
                     // aggregates are allowed
-                    if (Functions.isAggregate(e)) {
+                    if (Functions.isAggregate(resolvedE)) {
                         return;
                     }
 
@@ -341,8 +341,12 @@ public final class Verifier {
                     // e.g.: if "GROUP BY f2(f1(field))" you can "ORDER BY f4(f3(f2(f1(field))))"
                     //
                     // Also, make sure to compare attributes directly
-                    if (e.anyMatch(expression -> Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
-                        g -> expression.semanticEquals(attributeRefs.getOrDefault(Expressions.attribute(g), g))))) {
+                    if (resolvedE.anyMatch(expression -> Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
+                        g -> {
+                            Expression resolvedG = attributeRefs.getOrDefault(g, g);
+                            resolvedG = expression instanceof Attribute ? Expressions.attribute(resolvedG) : resolvedG;
+                            return expression.semanticEquals(resolvedG);
+                        }))) {
                         return;
                     }
 

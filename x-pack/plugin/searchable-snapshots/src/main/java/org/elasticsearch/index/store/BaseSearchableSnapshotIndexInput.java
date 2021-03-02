@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.index.store;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -13,14 +15,22 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
+
+import static org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput.checksumToBytesArray;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInput {
 
+    protected final Logger logger;
+    protected final SearchableSnapshotDirectory directory;
     protected final BlobContainer blobContainer;
     protected final FileInfo fileInfo;
     protected final IOContext context;
@@ -28,25 +38,33 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     protected final long offset;
     protected final long length;
 
+    /** Range of bytes that should be cached in the blob cache for the current index input **/
+    protected final ByteRange blobCacheByteRange;
+
     // the following are only mutable so they can be adjusted after cloning/slicing
     protected volatile boolean isClone;
     private AtomicBoolean closed;
 
     public BaseSearchableSnapshotIndexInput(
+        Logger logger,
         String resourceDesc,
-        BlobContainer blobContainer,
+        SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
         long offset,
-        long length
+        long length,
+        ByteRange blobCacheByteRange
     ) {
         super(resourceDesc, context);
-        this.blobContainer = Objects.requireNonNull(blobContainer);
+        this.logger = Objects.requireNonNull(logger);
+        this.directory = Objects.requireNonNull(directory);
+        this.blobContainer = Objects.requireNonNull(directory.blobContainer());
         this.fileInfo = Objects.requireNonNull(fileInfo);
         this.context = Objects.requireNonNull(context);
         assert fileInfo.metadata().hashEqualsContents() == false
             : "this method should only be used with blobs that are NOT stored in metadata's hash field " + "(fileInfo: " + fileInfo + ')';
+        this.blobCacheByteRange = Objects.requireNonNull(blobCacheByteRange);
         this.stats = Objects.requireNonNull(stats);
         this.offset = offset;
         this.length = length;
@@ -54,23 +72,64 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         this.isClone = false;
     }
 
-    public BaseSearchableSnapshotIndexInput(
-        String resourceDesc,
-        BlobContainer blobContainer,
-        FileInfo fileInfo,
-        IOContext context,
-        IndexInputStats stats,
-        long offset,
-        long length,
-        int bufferSize
-    ) {
-        this(resourceDesc, blobContainer, fileInfo, context, stats, offset, length);
-        setBufferSize(bufferSize);
-    }
-
     @Override
     public final long length() {
         return length;
+    }
+
+    @Override
+    protected final void readInternal(ByteBuffer b) throws IOException {
+        assert assertCurrentThreadIsNotCacheFetchAsync();
+
+        // We can detect that we're going to read the last 16 bytes (that contains the footer checksum) of the file. Such reads are often
+        // executed when opening a Directory and since we have the checksum in the snapshot metadata we can use it to fill the ByteBuffer.
+        if (maybeReadChecksumFromFileInfo(b)) {
+            logger.trace("read footer of file [{}], bypassing all caches", fileInfo.physicalName());
+            assert b.remaining() == 0L : b.remaining();
+            return;
+        }
+
+        doReadInternal(b);
+    }
+
+    protected abstract void doReadInternal(ByteBuffer b) throws IOException;
+
+    /**
+     * Detects read operations that are executed on the last 16 bytes of the index input which is where Lucene stores the footer checksum
+     * of Lucene files. If such a read is detected this method tries to complete the read operation by reading the checksum from the
+     * {@link FileInfo} in memory rather than reading the bytes from the {@link BufferedIndexInput} because that could trigger more cache
+     * operations.
+     *
+     * @return true if the footer checksum has been read from the {@link FileInfo}
+     */
+    private boolean maybeReadChecksumFromFileInfo(ByteBuffer b) throws IOException {
+        final int remaining = b.remaining();
+        if (remaining > CodecUtil.footerLength()) {
+            return false;
+        }
+        final long position = getFilePointer() + this.offset;
+        final long checksumPosition = fileInfo.length() - CodecUtil.footerLength();
+        if (position < checksumPosition) {
+            return false;
+        }
+        if (isClone) {
+            return false;
+        }
+        boolean success = false;
+        try {
+            final int checksumOffset = toIntBytes(Math.subtractExact(position, checksumPosition));
+            assert checksumOffset <= CodecUtil.footerLength() : checksumOffset;
+            assert 0 <= checksumOffset : checksumOffset;
+
+            final byte[] checksum = checksumToBytesArray(fileInfo.checksum());
+            b.put(checksum, checksumOffset, remaining);
+            success = true;
+        } catch (NumberFormatException e) {
+            // tests disable this optimisation by passing an invalid checksum
+        } finally {
+            assert b.remaining() == (success ? 0L : remaining) : b.remaining() + " remaining bytes but success is " + success;
+        }
+        return success;
     }
 
     /**
@@ -161,6 +220,20 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         return clone;
     }
 
+    @Override
+    public String toString() {
+        return super.toString() + "[length=" + length() + ", file pointer=" + getFilePointer() + ", offset=" + offset + ']';
+    }
+
+    @Override
+    protected String getFullSliceDescription(String sliceDescription) {
+        final String resourceDesc = super.toString();
+        if (sliceDescription != null) {
+            return "slice(" + sliceDescription + ") of " + resourceDesc;
+        }
+        return resourceDesc;
+    }
+
     protected void ensureOpen() throws IOException {
         if (closed.get()) {
             throw new IOException(toString() + " is closed");
@@ -173,11 +246,18 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
             if (isClone == false) {
                 stats.incrementCloseCount();
             }
-            innerClose();
+            doClose();
         }
     }
 
-    public abstract void innerClose() throws IOException;
+    public abstract void doClose() throws IOException;
+
+    protected void ensureContext(Predicate<IOContext> predicate) throws IOException {
+        if (predicate.test(context) == false) {
+            assert false : "this method should not be used with this context " + context;
+            throw new IOException("Cannot read the index input using context [context=" + context + ", input=" + this + ']');
+        }
+    }
 
     protected final boolean assertCurrentThreadMayAccessBlobStore() {
         final String threadName = Thread.currentThread().getName();
@@ -199,4 +279,15 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         return true;
     }
 
+    protected static boolean isCacheFetchAsyncThread(final String threadName) {
+        return threadName.contains('[' + SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME + ']');
+    }
+
+    protected static boolean assertCurrentThreadIsNotCacheFetchAsync() {
+        final String threadName = Thread.currentThread().getName();
+        assert false == isCacheFetchAsyncThread(threadName) : "expected the current thread ["
+            + threadName
+            + "] to belong to the cache fetch async thread pool";
+        return true;
+    }
 }

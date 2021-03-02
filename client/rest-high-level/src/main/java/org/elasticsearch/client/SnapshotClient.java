@@ -28,6 +28,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.snapshots.GetSnapshottableFeaturesRequest;
+import org.elasticsearch.client.snapshots.GetSnapshottableFeaturesResponse;
 
 import java.io.IOException;
 
@@ -377,5 +379,48 @@ public final class SnapshotClient {
         return restHighLevelClient.performRequestAsyncAndParseEntity(deleteSnapshotRequest,
             SnapshotRequestConverters::deleteSnapshot, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Get a list of features which can be included in a snapshot as feature states.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-snapshottable-features-api.html"> Get Snapshottable
+     * Features API on elastic.co</a>
+     *
+     * @param getFeaturesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetSnapshottableFeaturesResponse getFeatures(GetSnapshottableFeaturesRequest getFeaturesRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            getFeaturesRequest,
+            SnapshotRequestConverters::getSnapshottableFeatures,
+            options,
+            GetSnapshottableFeaturesResponse::parse,
+            emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously get a list of features which can be included in a snapshot as feature states.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-snapshottable-features-api.html"> Get Snapshottable
+     * Features API on elastic.co</a>
+     *
+     * @param getFeaturesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable getFeaturesAsync(GetSnapshottableFeaturesRequest getFeaturesRequest, RequestOptions options,
+                            ActionListener<GetSnapshottableFeaturesResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            getFeaturesRequest,
+            SnapshotRequestConverters::getSnapshottableFeatures,
+            options,
+            GetSnapshottableFeaturesResponse::parse,
+            listener,
+            emptySet()
+        );
     }
 }

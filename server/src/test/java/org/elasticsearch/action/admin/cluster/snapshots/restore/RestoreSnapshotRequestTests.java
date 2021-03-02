@@ -44,6 +44,18 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
 
             instance.indices(indices);
         }
+
+        if (randomBoolean()) {
+            List<String> plugins = new ArrayList<>();
+            int count = randomInt(3) + 1;
+
+            for (int i = 0; i < count; ++i) {
+                plugins.add(randomAlphaOfLength(randomInt(3) + 2));
+            }
+
+            instance.featureStates(plugins);
+        }
+
         if (randomBoolean()) {
             instance.renamePattern(randomUnicodeOfLengthBetween(1, 100));
         }

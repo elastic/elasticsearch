@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.index.store.direct;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.CheckedRunnable;
@@ -16,6 +18,8 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
+import org.elasticsearch.index.store.SearchableSnapshotDirectory;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -54,6 +58,8 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUti
  */
 public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexInput {
 
+    private static final Logger logger = LogManager.getLogger(DirectBlobContainerIndexInput.class);
+
     private long position;
 
     @Nullable // if not currently reading sequentially
@@ -63,7 +69,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private static final int COPY_BUFFER_SIZE = 8192;
 
     public DirectBlobContainerIndexInput(
-        BlobContainer blobContainer,
+        SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
@@ -72,7 +78,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     ) {
         this(
             "DirectBlobContainerIndexInput(" + fileInfo.physicalName() + ")",
-            blobContainer,
+            directory,
             fileInfo,
             context,
             stats,
@@ -87,7 +93,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     private DirectBlobContainerIndexInput(
         String resourceDesc,
-        BlobContainer blobContainer,
+        SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
@@ -97,14 +103,15 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long sequentialReadSize,
         int bufferSize
     ) {
-        super(resourceDesc, blobContainer, fileInfo, context, stats, offset, length, bufferSize);
+        super(logger, resourceDesc, directory, fileInfo, context, stats, offset, length, ByteRange.EMPTY); // TODO should use blob cache
         this.position = position;
         assert sequentialReadSize >= 0;
         this.sequentialReadSize = sequentialReadSize;
+        setBufferSize(bufferSize);
     }
 
     @Override
-    protected void readInternal(ByteBuffer b) throws IOException {
+    protected void doReadInternal(ByteBuffer b) throws IOException {
         ensureOpen();
         if (fileInfo.numberOfParts() == 1) {
             readInternalBytes(0, position, b, b.remaining());
@@ -266,7 +273,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     public DirectBlobContainerIndexInput clone() {
         final DirectBlobContainerIndexInput clone = new DirectBlobContainerIndexInput(
             "clone(" + this + ")",
-            blobContainer,
+            directory,
             fileInfo,
             context,
             stats,
@@ -286,8 +293,8 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
             final DirectBlobContainerIndexInput slice = new DirectBlobContainerIndexInput(
-                sliceDescription,
-                blobContainer,
+                getFullSliceDescription(sliceDescription),
+                directory,
                 fileInfo,
                 context,
                 stats,
@@ -319,24 +326,13 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     @Override
-    public void innerClose() throws IOException {
+    public void doClose() throws IOException {
         closeStreamForSequentialReads();
     }
 
     @Override
     public String toString() {
-        return "DirectBlobContainerIndexInput{"
-            + "resourceDesc="
-            + super.toString()
-            + ", fileInfo="
-            + fileInfo
-            + ", offset="
-            + offset
-            + ", length="
-            + length()
-            + ", position="
-            + position
-            + '}';
+        return super.toString() + "[read seq=" + (streamForSequentialReads != null ? "yes" : "no") + ']';
     }
 
     private InputStream openBlobStream(int part, long pos, long length) throws IOException {

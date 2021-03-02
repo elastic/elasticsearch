@@ -171,7 +171,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         }
         long totalDocsWritten = totalDocsWrittenSum;
         TransformConfig config = TransformConfig.builder()
-            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
             .setPivotConfig(PivotConfig.builder()
                 .setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("stars").field("stars")))
                 .setGroups(GroupConfig.builder().groupBy("user_id", TermsGroupSource.builder().setField("user_id").build()).build())

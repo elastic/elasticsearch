@@ -7,24 +7,29 @@
 package org.elasticsearch.index.store.direct;
 
 import org.apache.lucene.store.BufferedIndexInput;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.IndexInputStats;
+import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomFileExtension;
+import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -33,6 +38,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
@@ -41,20 +47,28 @@ import static org.mockito.Mockito.when;
 
 public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
-    private DirectBlobContainerIndexInput createIndexInput(final byte[] input) throws IOException {
+    private DirectBlobContainerIndexInput createIndexInput(Tuple<String, byte[]> bytes) throws IOException {
+        final byte[] input = bytes.v2();
         return createIndexInput(
             input,
             randomBoolean() ? input.length : randomIntBetween(1, input.length),
             randomIntBetween(1, 1000),
+            bytes.v1(),
             () -> {}
         );
     }
 
-    private DirectBlobContainerIndexInput createIndexInput(final byte[] input, long partSize, long minimumReadSize, Runnable onReadBlob)
-        throws IOException {
+    private DirectBlobContainerIndexInput createIndexInput(
+        final byte[] input,
+        long partSize,
+        long minimumReadSize,
+        String checksum,
+        Runnable onReadBlob
+    ) throws IOException {
+        final String fileName = randomAlphaOfLength(5) + randomFileExtension();
         final FileInfo fileInfo = new FileInfo(
             randomAlphaOfLength(5),
-            new StoreFileMetadata("test", input.length, "_checksum", Version.LATEST),
+            new StoreFileMetadata(fileName, input.length, checksum, Version.LATEST),
             partSize == input.length
                 ? randomFrom(
                     new ByteSizeValue(partSize, ByteSizeUnit.BYTES),
@@ -109,20 +123,29 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
                 };
             }
         });
-        return new DirectBlobContainerIndexInput(
-            blobContainer,
+
+        final SearchableSnapshotDirectory directory = mock(SearchableSnapshotDirectory.class);
+        when(directory.getCachedBlob(anyString(), any(ByteRange.class))).thenReturn(CachedBlob.CACHE_NOT_READY);
+        when(directory.blobContainer()).thenReturn(blobContainer);
+
+        final DirectBlobContainerIndexInput indexInput = new DirectBlobContainerIndexInput(
+            directory,
             fileInfo,
-            newIOContext(random()),
-            new IndexInputStats(0L, () -> 0L),
+            randomIOContext(),
+            new IndexInputStats(1, 0L, () -> 0L),
             minimumReadSize,
             randomBoolean() ? BufferedIndexInput.BUFFER_SIZE : between(BufferedIndexInput.MIN_BUFFER_SIZE, BufferedIndexInput.BUFFER_SIZE)
         );
+        assertEquals(input.length, indexInput.length());
+        return indexInput;
     }
 
     public void testRandomReads() throws IOException {
         for (int i = 0; i < 100; i++) {
-            byte[] input = randomUnicodeOfLength(randomIntBetween(1, 1000)).getBytes(StandardCharsets.UTF_8);
-            IndexInput indexInput = createIndexInput(input);
+            final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 1000));
+            final byte[] input = bytes.v2();
+
+            final DirectBlobContainerIndexInput indexInput = createIndexInput(bytes);
             assertEquals(input.length, indexInput.length());
             assertEquals(0, indexInput.getFilePointer());
             byte[] output = randomReadAndSlice(indexInput, input.length);
@@ -132,8 +155,10 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
     public void testRandomOverflow() throws IOException {
         for (int i = 0; i < 100; i++) {
-            byte[] input = randomUnicodeOfLength(randomIntBetween(1, 1000)).getBytes(StandardCharsets.UTF_8);
-            IndexInput indexInput = createIndexInput(input);
+            final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 1000));
+            final byte[] input = bytes.v2();
+
+            final DirectBlobContainerIndexInput indexInput = createIndexInput(bytes);
             int firstReadLen = randomIntBetween(0, input.length - 1);
             randomReadAndSlice(indexInput, firstReadLen);
             int bytesLeft = input.length - firstReadLen;
@@ -144,8 +169,10 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
     public void testSeekOverflow() throws IOException {
         for (int i = 0; i < 100; i++) {
-            byte[] input = randomUnicodeOfLength(randomIntBetween(1, 1000)).getBytes(StandardCharsets.UTF_8);
-            IndexInput indexInput = createIndexInput(input);
+            final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 1000));
+            final byte[] input = bytes.v2();
+
+            final DirectBlobContainerIndexInput indexInput = createIndexInput(bytes);
             int firstReadLen = randomIntBetween(0, input.length - 1);
             randomReadAndSlice(indexInput, firstReadLen);
             expectThrows(IOException.class, () -> {
@@ -167,12 +194,21 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
     public void testSequentialReadsShareInputStreamFromBlobStore() throws IOException {
         for (int i = 0; i < 100; i++) {
-            final byte[] input = randomUnicodeOfLength(randomIntBetween(1, 1000)).getBytes(StandardCharsets.UTF_8);
+            final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 1000));
+            final byte[] input = bytes.v2();
+
             final int minimumReadSize = randomIntBetween(1, 1000);
             final int partSize = randomBoolean() ? input.length : randomIntBetween(1, input.length);
+            final String checksum = bytes.v1();
 
             final AtomicInteger readBlobCount = new AtomicInteger();
-            final BufferedIndexInput indexInput = createIndexInput(input, partSize, minimumReadSize, readBlobCount::incrementAndGet);
+            final BufferedIndexInput indexInput = createIndexInput(
+                input,
+                partSize,
+                minimumReadSize,
+                checksum,
+                readBlobCount::incrementAndGet
+            );
 
             assertEquals(input.length, indexInput.length());
 

@@ -99,19 +99,34 @@ argument is provided, the snapshot only includes the specified data streams and 
 +
 --
 (Optional, Boolean)
-If `true`, the current cluster state is included in the snapshot.
+If `true`, the current global state is included in the snapshot.
 Defaults to `true`.
 
-The cluster state includes:
+The global state includes:
 
 * Persistent cluster settings
 * Index templates
 * Legacy index templates
 * Ingest pipelines
 * {ilm-init} lifecycle policies
+* Data stored in system indices, such as Watches and task records (configurable via `feature_states`)
 --
 +
 IMPORTANT: By default, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. You can change this behavior by setting <<create-snapshot-api-partial,`partial`>> to `true`.
+
+[[create-snapshot-api-feature-states]]
+`feature_states`::
+(Optional, array of strings)
+A list of feature states to be included in this snapshot. A list of features
+available for inclusion in the snapshot and their descriptions be can be
+retrieved using the <<get-snapshottable-features-api,get snapshottable features API>>.
+Each feature state includes one or more system indices containing data necessary
+for the function of that feature. Providing an empty array will include no feature
+states in the snapshot, regardless of the value of `include_global_state`.
++
+By default, all available feature states will be included in the snapshot if
+`include_global_state` is `true`, or no feature states if `include_global_state`
+is `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
@@ -163,6 +178,7 @@ The API returns the following response:
     "version": <version>,
     "indices": [],
     "data_streams": [],
+    "feature_states": [],
     "include_global_state": false,
     "metadata": {
       "taken_by": "user123",

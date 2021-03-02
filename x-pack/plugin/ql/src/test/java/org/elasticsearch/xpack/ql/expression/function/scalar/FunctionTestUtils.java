@@ -17,11 +17,9 @@ import java.time.ZonedDateTime;
 import java.util.BitSet;
 import java.util.Iterator;
 
-import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 
@@ -48,8 +46,7 @@ public final class FunctionTestUtils {
     }
 
     public static Literal randomDatetimeLiteral() {
-        return l(ZonedDateTime.ofInstant(Instant.ofEpochMilli(ESTestCase.randomLong()), ESTestCase.randomZone()),
-            randomFrom(DATETIME, DATETIME_NANOS));
+        return l(ZonedDateTime.ofInstant(Instant.ofEpochMilli(ESTestCase.randomLong()), ESTestCase.randomZone()), DATETIME);
     }
 
     public static class Combinations implements Iterable<BitSet> {

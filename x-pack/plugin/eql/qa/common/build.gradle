@@ -4,7 +4,7 @@ tasks.named("test").configure { enabled = false }
 dependencies {
   api project(':test:framework')
   api project(path: xpackModule('core'))
-  api project(path: xpackModule('core'), configuration: 'testArtifacts')
+  api(testArtifact(project(xpackModule('core'))))
   api project(xpackModule('ql:test'))
 
   // TOML parser for EqlActionIT tests

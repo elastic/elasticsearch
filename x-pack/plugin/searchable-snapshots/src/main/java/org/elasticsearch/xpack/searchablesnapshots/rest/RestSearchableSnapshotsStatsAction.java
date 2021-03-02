@@ -14,7 +14,9 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 public class RestSearchableSnapshotsStatsAction extends BaseRestHandler {
 
@@ -39,5 +41,12 @@ public class RestSearchableSnapshotsStatsAction extends BaseRestHandler {
             new SearchableSnapshotsStatsRequest(indices),
             new RestToXContentListener<>(channel)
         );
+    }
+
+    private static final Set<String> RESPONSE_PARAMS = Collections.singleton("level");
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 }

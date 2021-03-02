@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -22,7 +24,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchHit;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.core.transform.transforms.QueryConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -96,6 +98,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         private final Function<SearchRequest, SearchResponse> searchFunction;
         private final Function<BulkRequest, BulkResponse> bulkFunction;
+        private final Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction;
+
         private final Consumer<String> failureConsumer;
 
         // used for synchronizing with the test
@@ -115,6 +119,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             TransformContext context,
             Function<SearchRequest, SearchResponse> searchFunction,
             Function<BulkRequest, BulkResponse> bulkFunction,
+            Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction,
             Consumer<String> failureConsumer
         ) {
             super(
@@ -134,6 +139,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             );
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
+            this.deleteByQueryFunction = deleteByQueryFunction;
             this.failureConsumer = failureConsumer;
         }
 
@@ -147,7 +153,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         @Override
         protected void createCheckpoint(ActionListener<TransformCheckpoint> listener) {
-            listener.onResponse(TransformCheckpoint.EMPTY);
+            final long timestamp = System.currentTimeMillis();
+            listener.onResponse(new TransformCheckpoint(getJobId(), timestamp, 1, Collections.emptyMap(), timestamp));
         }
 
         @Override
@@ -208,12 +215,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         }
 
         @Override
-        protected void onFinish(ActionListener<Void> listener) {
-            super.onFinish(listener);
-            listener.onResponse(null);
-        }
-
-        @Override
         protected void onAbort() {
             fail("onAbort should not be called");
         }
@@ -255,15 +256,12 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         @Override
         void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
-            responseListener.onResponse(
-                new BulkByScrollResponse(
-                    TimeValue.ZERO,
-                    new BulkByScrollTask.Status(Collections.emptyList(), null),
-                    Collections.emptyList(),
-                    Collections.emptyList(),
-                    false
-                )
-            );
+            try {
+                BulkByScrollResponse response = deleteByQueryFunction.apply(deleteByQueryRequest);
+                responseListener.onResponse(response);
+            } catch (Exception e) {
+                responseListener.onFailure(e);
+            }
         }
 
         @Override
@@ -322,6 +320,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             state,
             searchFunction,
             bulkFunction,
+            null,
             null,
             threadPool,
             ThreadPool.Names.GENERIC,
@@ -405,6 +404,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             searchFunction,
             bulkFunction,
             null,
+            null,
             threadPool,
             ThreadPool.Names.GENERIC,
             auditor,
@@ -472,6 +472,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             state,
             searchFunction,
             bulkFunction,
+            null,
             failureConsumer,
             threadPool,
             ThreadPool.Names.GENERIC,
@@ -542,7 +543,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
         TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
-        createMockIndexer(config, null, null, null, null, threadPool, ThreadPool.Names.GENERIC, auditor, context);
+        createMockIndexer(config, null, null, null, null, null, threadPool, ThreadPool.Names.GENERIC, auditor, context);
         auditor.assertAllExpectationsMatched();
     }
 
@@ -597,8 +598,211 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
         TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
-        createMockIndexer(config, null, null, null, null, threadPool, ThreadPool.Names.GENERIC, auditor, context);
+        createMockIndexer(config, null, null, null, null, null, threadPool, ThreadPool.Names.GENERIC, auditor, context);
         auditor.assertAllExpectationsMatched();
+    }
+
+    public void testRetentionPolicyDeleteByQueryThrowsIrrecoverable() throws Exception {
+        String transformId = randomAlphaOfLength(10);
+        TransformConfig config = new TransformConfig(
+            transformId,
+            randomSourceConfig(),
+            randomDestConfig(),
+            null,
+            null,
+            null,
+            randomPivotConfig(),
+            null,
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null,
+            new TimeRetentionPolicyConfig(randomAlphaOfLength(10), TimeValue.timeValueSeconds(10)),
+            null,
+            null
+        );
+
+        final SearchResponse searchResponse = new SearchResponse(
+            new InternalSearchResponse(
+                new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+                // Simulate completely null aggs
+                null,
+                new Suggest(Collections.emptyList()),
+                new SearchProfileShardResults(Collections.emptyMap()),
+                false,
+                false,
+                1
+            ),
+            "",
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
+        Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
+
+        Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
+
+        Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction = deleteByQueryRequest -> {
+            throw new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                new ShardSearchFailure[] {
+                    new ShardSearchFailure(
+                        new ElasticsearchParseException("failed to parse date field", new IllegalArgumentException("illegal format"))
+                    ) }
+            );
+        };
+
+        final AtomicBoolean failIndexerCalled = new AtomicBoolean(false);
+        final AtomicReference<String> failureMessage = new AtomicReference<>();
+        Consumer<String> failureConsumer = message -> {
+            failIndexerCalled.compareAndSet(false, true);
+            failureMessage.compareAndSet(null, message);
+        };
+
+        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+        TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
+
+        MockedTransformIndexer indexer = createMockIndexer(
+            config,
+            state,
+            searchFunction,
+            bulkFunction,
+            deleteByQueryFunction,
+            failureConsumer,
+            threadPool,
+            ThreadPool.Names.GENERIC,
+            auditor,
+            context
+        );
+
+        final CountDownLatch latch = indexer.newLatch(1);
+
+        indexer.start();
+        assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+
+        latch.countDown();
+        assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.SECONDS);
+        assertTrue(failIndexerCalled.get());
+        verify(contextListener, times(1)).fail(
+            matches("task encountered irrecoverable failure: org.elasticsearch.ElasticsearchParseException: failed to parse date field;.*"),
+            any()
+        );
+
+        assertThat(
+            failureMessage.get(),
+            matchesRegex(
+                "task encountered irrecoverable failure: org.elasticsearch.ElasticsearchParseException: failed to parse date field;.*"
+            )
+        );
+    }
+
+    public void testRetentionPolicyDeleteByQueryThrowsTemporaryProblem() throws Exception {
+        String transformId = randomAlphaOfLength(10);
+        TransformConfig config = new TransformConfig(
+            transformId,
+            randomSourceConfig(),
+            randomDestConfig(),
+            null,
+            null,
+            null,
+            randomPivotConfig(),
+            null,
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null,
+            new TimeRetentionPolicyConfig(randomAlphaOfLength(10), TimeValue.timeValueSeconds(10)),
+            null,
+            null
+        );
+
+        final SearchResponse searchResponse = new SearchResponse(
+            new InternalSearchResponse(
+                new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+                // Simulate completely null aggs
+                null,
+                new Suggest(Collections.emptyList()),
+                new SearchProfileShardResults(Collections.emptyMap()),
+                false,
+                false,
+                1
+            ),
+            "",
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
+        Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
+
+        Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
+
+        Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction = deleteByQueryRequest -> {
+            throw new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                new ShardSearchFailure[] {
+                    new ShardSearchFailure(
+                        new ElasticsearchTimeoutException("timed out during dbq")
+                    ) }
+            );
+        };
+
+        final AtomicBoolean failIndexerCalled = new AtomicBoolean(false);
+        final AtomicReference<String> failureMessage = new AtomicReference<>();
+        Consumer<String> failureConsumer = message -> {
+            failIndexerCalled.compareAndSet(false, true);
+            failureMessage.compareAndSet(null, message);
+        };
+
+        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+        auditor.addExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
+                "timed out during dbq",
+                Level.WARNING,
+                transformId,
+                "Transform encountered an exception: org.elasticsearch.ElasticsearchTimeoutException: timed out during dbq;"
+                    + " Will attempt again at next scheduled trigger."
+            )
+        );
+        TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
+
+        MockedTransformIndexer indexer = createMockIndexer(
+            config,
+            state,
+            searchFunction,
+            bulkFunction,
+            deleteByQueryFunction,
+            failureConsumer,
+            threadPool,
+            ThreadPool.Names.GENERIC,
+            auditor,
+            context
+        );
+
+        final CountDownLatch latch = indexer.newLatch(1);
+
+        indexer.start();
+        assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+
+        latch.countDown();
+        assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.SECONDS);
+        assertFalse(failIndexerCalled.get());
+        assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+        auditor.assertAllExpectationsMatched();
+        assertEquals(1, context.getFailureCount());
     }
 
     private MockedTransformIndexer createMockIndexer(
@@ -606,6 +810,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         AtomicReference<IndexerState> state,
         Function<SearchRequest, SearchResponse> searchFunction,
         Function<BulkRequest, BulkResponse> bulkFunction,
+        Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction,
         Consumer<String> failureConsumer,
         ThreadPool threadPool,
         String executorName,
@@ -626,6 +831,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             context,
             searchFunction,
             bulkFunction,
+            deleteByQueryFunction,
             failureConsumer
         );
 

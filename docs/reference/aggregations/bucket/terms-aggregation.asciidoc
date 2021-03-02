@@ -8,7 +8,7 @@ A multi-bucket value source based aggregation where buckets are dynamically buil
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /products
 {
@@ -28,28 +28,26 @@ POST /products/_bulk?refresh
 {"index":{"_id":0}}
 {"genre": "rock", "product": "Product A"}
 {"index":{"_id":1}}
-{"genre": "rock"}
+{"genre": "rock", "product": "Product B"}
 {"index":{"_id":2}}
-{"genre": "rock"}
+{"genre": "rock", "product": "Product C"}
 {"index":{"_id":3}}
-{"genre": "jazz", "product": "Product Z"}
+{"genre": "jazz", "product": "Product D"}
 {"index":{"_id":4}}
-{"genre": "jazz"}
+{"genre": "jazz", "product": "Product E"}
 {"index":{"_id":5}}
-{"genre": "electronic"}
+{"genre": "electronic", "product": "Anthology A"}
 {"index":{"_id":6}}
-{"genre": "electronic"}
+{"genre": "electronic", "product": "Anthology A"}
 {"index":{"_id":7}}
-{"genre": "electronic"}
+{"genre": "electronic", "product": "Product F"}
 {"index":{"_id":8}}
-{"genre": "electronic"}
+{"genre": "electronic", "product": "Product G"}
 {"index":{"_id":9}}
-{"genre": "electronic"}
+{"genre": "electronic", "product": "Product H"}
 {"index":{"_id":10}}
-{"genre": "electronic"}
-
+{"genre": "electronic", "product": "Product I"}
 -------------------------------------------------
-// NOTCONSOLE
 // TESTSETUP
 
 //////////////////////////
@@ -407,81 +405,80 @@ WARNING: When NOT sorting on `doc_count` descending, high values of `min_doc_cou
 [[search-aggregations-bucket-terms-aggregation-script]]
 ==== Script
 
-Generating the terms using a script:
+Use a <<runtime,runtime field>> if the data in your documents doesn't
+exactly match what you'd like to aggregate. If, for example, "anthologies"
+need to be in a special category then you could run this:
 
 [source,console,id=terms-aggregation-script-example]
 --------------------------------------------------
 GET /_search
 {
+  "size": 0,
+  "runtime_mappings": {
+    "normalized_genre": {
+      "type": "keyword",
+      "script": """
+        String genre = doc['genre'].value;
+        if (doc['product'].value.startsWith('Anthology')) {
+          emit(genre + ' anthology');
+        } else {
+          emit(genre);
+        }
+      """
+    }
+  },
   "aggs": {
     "genres": {
       "terms": {
-        "script": {
-          "source": "doc['genre'].value",
-          "lang": "painless"
-        }
+        "field": "normalized_genre"
       }
     }
   }
 }
 --------------------------------------------------
 
-This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a stored script use the following syntax:
+Which will look like:
 
-//////////////////////////
-
-[source,console,id=terms-aggregation-stored-example]
+[source,console-result]
 --------------------------------------------------
-POST /_scripts/my_script
 {
-  "script": {
-    "lang": "painless",
-    "source": "doc[params.field].value"
-  }
-}
---------------------------------------------------
-
-//////////////////////////
-
-[source,console]
---------------------------------------------------
-GET /_search
-{
-  "aggs": {
+  "aggregations": {
     "genres": {
-      "terms": {
-        "script": {
-          "id": "my_script",
-          "params": {
-            "field": "genre"
-          }
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": [
+        {
+          "key": "electronic",
+          "doc_count": 4
+        },
+        {
+          "key": "rock",
+          "doc_count": 3
+        },
+        {
+          "key": "electronic anthology",
+          "doc_count": 2
+        },
+        {
+          "key": "jazz",
+          "doc_count": 2
         }
-      }
+      ]
     }
-  }
+  },
+  ...
 }
 --------------------------------------------------
-// TEST[continued]
+// TESTRESPONSE[s/\.\.\./"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"/]
 
-==== Value Script
+This is a little slower because the runtime field has to access two fields
+instead of one and because there are some optimizations that work on
+non-runtime `keyword` fields that we have to give up for for runtime
+`keyword` fields. If you need the speed, you can index the
+`normalized_genre` field.
 
-[source,console,id=terms-aggregation-value-script-example]
---------------------------------------------------
-GET /_search
-{
-  "aggs": {
-    "genres": {
-      "terms": {
-        "field": "genre",
-        "script": {
-          "source": "'Genre: ' +_value",
-          "lang": "painless"
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
+// TODO when we have calculated fields we can link to them here.
+
 
 ==== Filtering Values
 

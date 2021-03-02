@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AucRoc;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
@@ -66,12 +65,14 @@ import java.util.Set;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
@@ -891,6 +892,67 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started writing results",
             "Finished analysis");
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
+    }
+
+    public void testPreview() throws Exception {
+        initialize("preview_analytics");
+        indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
+        putAnalytics(config);
+
+        List<Map<String, Object>> preview = previewDataFrame(jobId).getFeatureValues();
+        for (Map<String, Object> feature : preview) {
+            assertThat(feature.keySet(), containsInAnyOrder(
+                BOOLEAN_FIELD,
+                KEYWORD_FIELD,
+                NUMERICAL_FIELD,
+                DISCRETE_NUMERICAL_FIELD,
+                TEXT_FIELD+".keyword",
+                NESTED_FIELD,
+                ALIAS_TO_KEYWORD_FIELD,
+                ALIAS_TO_NESTED_FIELD
+            ));
+        }
+    }
+
+    public void testPreviewWithProcessors() throws Exception {
+        initialize("processed_preview_analytics");
+        indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
+        DataFrameAnalyticsConfig config =
+            buildAnalytics(jobId, sourceIndex, destIndex, null,
+                new Classification(
+                    KEYWORD_FIELD,
+                    BoostedTreeParams.builder().setNumTopFeatureImportanceValues(0).build(),
+                    null,
+                    null,
+                    2,
+                    10.0,
+                    42L,
+                    Arrays.asList(
+                        new OneHotEncoding(NESTED_FIELD, MapBuilder.<String, String>newMapBuilder()
+                            .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_2")
+                            .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_2").map(), true),
+                        new OneHotEncoding(TEXT_FIELD, MapBuilder.<String, String>newMapBuilder()
+                            .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_3")
+                            .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_3").map(), true)
+                    ),
+                    null));
+        putAnalytics(config);
+
+        List<Map<String, Object>> preview = previewDataFrame(jobId).getFeatureValues();
+        for (Map<String, Object> feature : preview) {
+            assertThat(feature.keySet(), hasItems(
+                BOOLEAN_FIELD,
+                KEYWORD_FIELD,
+                NUMERICAL_FIELD,
+                DISCRETE_NUMERICAL_FIELD,
+                "cat_column_custom_2",
+                "dog_column_custom_2",
+                "cat_column_custom_3",
+                "dog_column_custom_3"
+            ));
+            assertThat(feature.keySet(), not(hasItems(NESTED_FIELD, TEXT_FIELD)));
+        }
     }
 
     private static <T> T getOnlyElement(List<T> list) {

@@ -770,7 +770,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 "timed out during dbq",
                 Level.WARNING,
                 transformId,
-                "Transform encountered an exception: org.elasticsearch.ElasticsearchTimeoutException: timed out during dbq Will attempt again at next scheduled trigger."
+                "Transform encountered an exception: org.elasticsearch.ElasticsearchTimeoutException: timed out during dbq; Will attempt again at next scheduled trigger."
             )
         );
         TransformContext.Listener contextListener = mock(TransformContext.Listener.class);

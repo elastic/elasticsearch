@@ -75,7 +75,7 @@ public class TimeRetentionPolicyConfig implements RetentionPolicyConfig {
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         if (maxAge.getSeconds() < MIN_AGE_SECONDS) {
             validationException = addValidationError(
-                "retention_policy.time.max_age must be more than " + MIN_AGE_SECONDS + "s, found [" + maxAge + "]",
+                "retention_policy.time.max_age must be greater than " + MIN_AGE_SECONDS + "s, found [" + maxAge + "]",
                 validationException
             );
         }

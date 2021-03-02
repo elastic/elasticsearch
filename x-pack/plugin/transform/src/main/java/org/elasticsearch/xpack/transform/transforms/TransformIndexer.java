@@ -801,7 +801,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
             auditor.warning(
                 getJobId(),
-                "Transform encountered an exception: " + message + " Will attempt again at next scheduled trigger."
+                "Transform encountered an exception: " + message + "; Will attempt again at next scheduled trigger."
             );
             lastAuditedExceptionMessage = message;
         }

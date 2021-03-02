@@ -20,7 +20,7 @@ public class TimeRetentionPolicyConfigTests extends AbstractSerializingTestCase<
     public static TimeRetentionPolicyConfig randomTimeRetentionPolicyConfig() {
         return new TimeRetentionPolicyConfig(
             randomAlphaOfLengthBetween(1, 10),
-            new TimeValue(randomLongBetween(60000, Long.MAX_VALUE - 1))
+            new TimeValue(randomLongBetween(60000, 1_000_000_000L))
         );
     }
 
@@ -48,7 +48,7 @@ public class TimeRetentionPolicyConfigTests extends AbstractSerializingTestCase<
         ActionRequestValidationException e = timeRetentionPolicyConfig.validate(null);
         assertNotNull(e);
         assertEquals(1, e.validationErrors().size());
-        assertEquals("retention_policy.time.max_age must be more than 60s, found [10s]", e.validationErrors().get(0));
+        assertEquals("retention_policy.time.max_age must be greater than 60s, found [10s]", e.validationErrors().get(0));
     }
 
     public void testValidationMax() {

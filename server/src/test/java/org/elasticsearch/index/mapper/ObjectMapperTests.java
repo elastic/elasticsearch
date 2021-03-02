@@ -111,14 +111,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MergeReason reason = randomFrom(MergeReason.values());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
         DocumentMapper mapper = mapperService.documentMapper();
-        assertNull(mapper.root().dynamic());
-        // Call mapperService.merge directly here, because we may randomly pick PREFLIGHT_CHECK
-        // as a merge reason, in which case the mapper does not get updated in-place.
-        mapper = mapperService.merge(
-            "_doc",
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict")))),
-            reason);
-        assertEquals(Dynamic.STRICT, mapper.root().dynamic());
+        assertNull(mapper.mapping().getRoot().dynamic());
+        Mapping mergeWith = mapperService.parseMapping("_doc",
+            new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict")))));
+        Mapping merged = mapper.mapping().merge(mergeWith, reason);
+        assertEquals(Dynamic.STRICT, merged.getRoot().dynamic());
     }
 
     public void testMergeEnabledForIndexTemplates() throws IOException {
@@ -133,7 +130,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         }));
 
         DocumentMapper mapper = mapperService.documentMapper();
-        assertNull(mapper.root().dynamic());
+        assertNull(mapper.mapping().getRoot().dynamic());
 
         // If we don't explicitly set 'enabled', then the mapping should not change.
         String update = Strings.toString(XContentFactory.jsonBuilder().startObject()

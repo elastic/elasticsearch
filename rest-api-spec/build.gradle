@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.OS
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.rest-resources'
@@ -24,6 +26,10 @@ tasks.named("test").configure {enabled = false }
 tasks.named("jarHell").configure {enabled = false }
 
 tasks.named("yamlRestCompatTest").configure {
+  onlyIf {
+    // Skip these tests on Windows since the blacklist exceeds Windows CLI limits
+    OS.current() != OS.WINDOWS
+  }
   systemProperty 'tests.rest.blacklist', [
     'bulk/11_basic_with_types/Array of objects',
     'bulk/11_basic_with_types/Empty _id',
@@ -365,6 +371,7 @@ tasks.named("yamlRestCompatTest").configure {
     'update/61_refresh_with_types/refresh=wait_for waits until changes are visible in search',
     'update/81_source_filtering_with_types/Source filtering',
     'update/90_mix_typeless_typeful/Update call that introduces new field mappings',
-    'update/90_mix_typeless_typeful/Update with typeless API on an index that has types'
+    'update/90_mix_typeless_typeful/Update with typeless API on an index that has types',
+    'napshot.features/10_basic/Get Features' // Temporary until https://github.com/elastic/elasticsearch/pull/69755 is backported
   ].join(',')
 }

@@ -53,7 +53,7 @@ a `format` is specified in the request.
 The following `avg_monthly_sales` aggregation uses `avg_bucket` to calculate
 average sales per month:
 
-[source,console,subs="+specialchars"]
+[source,console]
 ----
 POST _search
 {

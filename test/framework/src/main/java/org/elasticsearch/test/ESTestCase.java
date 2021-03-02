@@ -455,16 +455,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         try {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
-            assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
-            final Set<String> actualWarningValues =
+            if (expectedWarnings == null || expectedWarnings.length == 0) {
+                assertNull("expected 0 warnings, actual: " + actualWarnings, actualWarnings);
+            } else {
+                assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
+                final Set<String> actualWarningValues =
                     actualWarnings.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, stripXContentPosition))
                         .collect(Collectors.toSet());
-            for (String msg : expectedWarnings) {
-                assertThat(actualWarningValues, hasItem(HeaderWarning.escapeAndEncode(msg)));
+                for (String msg : expectedWarnings) {
+                    assertThat(actualWarningValues, hasItem(HeaderWarning.escapeAndEncode(msg)));
+                }
+                assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
+                        + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
+                    expectedWarnings.length, actualWarnings.size()
+                );
             }
-            assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
-                    + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
-                expectedWarnings.length, actualWarnings.size());
         } finally {
             resetDeprecationLogger();
         }

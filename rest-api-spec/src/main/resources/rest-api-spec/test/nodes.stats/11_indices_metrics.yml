@@ -229,8 +229,8 @@
 "Metric - _all include_unloaded_segments":
   - skip:
       features: [arbitrary_key]
-      version: " - 7.99.99"
-      reason: waiting for backport
+      version: " - 7.12.99"
+      reason: "support for include_unloaded_segments only added in 7.13"
   - do:
       nodes.info: {}
   - set:
@@ -259,8 +259,8 @@
 "Metric - segments include_unloaded_segments":
   - skip:
       features: [arbitrary_key]
-      version: " - 7.99.99"
-      reason: waiting for backport
+      version: " - 7.12.99"
+      reason: "support for include_unloaded_segments only added in 7.13"
   - do:
       nodes.info: {}
   - set:

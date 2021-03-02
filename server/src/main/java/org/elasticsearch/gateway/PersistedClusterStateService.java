@@ -411,7 +411,9 @@ public class PersistedClusterStateService {
             if (indexUUIDs.add(indexMetadata.getIndexUUID()) == false) {
                 throw new IllegalStateException("duplicate metadata found for " + indexMetadata.getIndex() + " in [" + dataPath + "]");
             }
-            indexMetadata = IndexMetadata.builder(indexMetadata).putMapping(mappings.get(indexMetadata.mapping().id())).build();
+            if (indexMetadata.mapping() != null) {
+                indexMetadata = IndexMetadata.builder(indexMetadata).putMapping(mappings.get(indexMetadata.mapping().id())).build();
+            }
             builder.put(indexMetadata, false);
         });
 

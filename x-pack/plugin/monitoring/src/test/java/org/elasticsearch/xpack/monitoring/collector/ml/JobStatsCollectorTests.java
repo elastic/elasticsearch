@@ -1,11 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.ml;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
@@ -113,8 +116,8 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final ActionFuture<Response> future = (ActionFuture<Response>)mock(ActionFuture.class);
         final Response response = new Response(new QueryPage<>(jobStats, jobStats.size(), Job.RESULTS_FIELD));
 
-        when(client.execute(eq(GetJobsStatsAction.INSTANCE), eq(new Request(Metadata.ALL)))).thenReturn(future);
-        when(future.actionGet(timeout)).thenReturn(response);
+        when(client.execute(eq(GetJobsStatsAction.INSTANCE), eq(new Request(Metadata.ALL).setTimeout(timeout)))).thenReturn(future);
+        when(future.actionGet()).thenReturn(response);
 
         final long interval = randomNonNegativeLong();
 
@@ -138,6 +141,35 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
 
             assertThat(jobStatsMonitoringDoc.getJobStats(), is(jobStat));
         }
+    }
+
+    public void testDoCollectThrowsTimeoutException() throws Exception {
+        final String clusterUuid = randomAlphaOfLength(5);
+        whenClusterStateWithUUID(clusterUuid);
+
+        final MonitoringDoc.Node node = randomMonitoringNode(random());
+        final Client client = mock(Client.class);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
+        withCollectionTimeout(JobStatsCollector.JOB_STATS_TIMEOUT, timeout);
+
+        final JobStatsCollector collector = new JobStatsCollector(Settings.EMPTY, clusterService, licenseState, client, threadContext);
+        assertEquals(timeout, collector.getCollectionTimeout());
+
+        final List<JobStats> jobStats = mockJobStats();
+
+        @SuppressWarnings("unchecked")
+        final ActionFuture<Response> future = (ActionFuture<Response>)mock(ActionFuture.class);
+        final Response response = new Response(List.of(), List.of(new FailedNodeException("node", "msg",
+                new ElasticsearchTimeoutException("test timeout"))), new QueryPage<>(jobStats, jobStats.size(), Job.RESULTS_FIELD));
+
+        when(client.execute(eq(GetJobsStatsAction.INSTANCE), eq(new Request(Metadata.ALL).setTimeout(timeout)))).thenReturn(future);
+        when(future.actionGet()).thenReturn(response);
+
+        final long interval = randomNonNegativeLong();
+
+        expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
     }
 
     private List<JobStats> mockJobStats() {

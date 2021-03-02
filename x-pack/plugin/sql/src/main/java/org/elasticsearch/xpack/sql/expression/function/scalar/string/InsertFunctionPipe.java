@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
@@ -31,12 +32,9 @@ public class InsertFunctionPipe extends Pipe {
 
     @Override
     public final Pipe replaceChildren(List<Pipe> newChildren) {
-        if (newChildren.size() != 4) {
-            throw new IllegalArgumentException("expected [4] children but received [" + newChildren.size() + "]");
-        }
         return replaceChildren(newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
-    
+
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
         Pipe newInput = input.resolveAttributes(resolver);
@@ -64,7 +62,7 @@ public class InsertFunctionPipe extends Pipe {
     public boolean resolved() {
         return input.resolved() && start.resolved() && length.resolved() && replacement.resolved();
     }
-    
+
     protected Pipe replaceChildren(Pipe newInput,
             Pipe newStart,
             Pipe newLength,
@@ -89,23 +87,23 @@ public class InsertFunctionPipe extends Pipe {
     public InsertFunctionProcessor asProcessor() {
         return new InsertFunctionProcessor(input.asProcessor(), start.asProcessor(), length.asProcessor(), replacement.asProcessor());
     }
-    
+
     public Pipe input() {
         return input;
     }
-    
+
     public Pipe start() {
         return start;
     }
-    
+
     public Pipe length() {
         return length;
     }
-    
+
     public Pipe replacement() {
         return replacement;
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(input, start, length, replacement);

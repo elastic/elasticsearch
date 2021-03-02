@@ -52,4 +52,7 @@ static_import {
   int addWithState(int, int, int, double) bound_to org.elasticsearch.painless.BindingsTests$BindingTestClass
   int addThisWithState(BindingsTests.BindingsTestScript, int, int, int, double) bound_to org.elasticsearch.painless.BindingsTests$ThisBindingTestClass
   int addEmptyThisWithState(BindingsTests.BindingsTestScript, int) bound_to org.elasticsearch.painless.BindingsTests$EmptyThisBindingTestClass
+  int classMul(int, int) from_class org.elasticsearch.painless.BindingsTests @compile_time_only
+  int compileTimeBlowUp(int, int) from_class org.elasticsearch.painless.BindingsTests @compile_time_only
+  List fancyConstant(String, String) from_class org.elasticsearch.painless.BindingsTests @compile_time_only
 }

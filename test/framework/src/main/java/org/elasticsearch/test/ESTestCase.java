@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test;
 
@@ -58,6 +47,7 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -79,6 +69,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
@@ -111,6 +102,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -121,11 +113,13 @@ import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -186,7 +180,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
-    private static final Collection<String> nettyLoggedLeaks = new ArrayList<>();
+    private static final Collection<String> loggedLeaks = new ArrayList<>();
     public static final int MIN_PRIVATE_PORT = 13301;
 
     private HeaderWarningAppender headerWarningAppender;
@@ -210,29 +204,29 @@ public abstract class ESTestCase extends LuceneTestCase {
         setTestSysProps();
         LogConfigurator.loadLog4jPlugins();
 
-        String leakLoggerName = "io.netty.util.ResourceLeakDetector";
-        Logger leakLogger = LogManager.getLogger(leakLoggerName);
-        Appender leakAppender = new AbstractAppender(leakLoggerName, null,
-            PatternLayout.newBuilder().withPattern("%m").build()) {
-            @Override
-            public void append(LogEvent event) {
-                String message = event.getMessage().getFormattedMessage();
-                if (Level.ERROR.equals(event.getLevel()) && message.contains("LEAK:")) {
-                    synchronized (nettyLoggedLeaks) {
-                        nettyLoggedLeaks.add(message);
+        for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
+            Logger leakLogger = LogManager.getLogger(leakLoggerName);
+            Appender leakAppender = new AbstractAppender(leakLoggerName, null,
+                    PatternLayout.newBuilder().withPattern("%m").build()) {
+                @Override
+                public void append(LogEvent event) {
+                    String message = event.getMessage().getFormattedMessage();
+                    if (Level.ERROR.equals(event.getLevel()) && message.contains("LEAK:")) {
+                        synchronized (loggedLeaks) {
+                            loggedLeaks.add(message);
+                        }
                     }
                 }
-            }
-        };
-        leakAppender.start();
-        Loggers.addAppender(leakLogger, leakAppender);
-
-        // shutdown hook so that when the test JVM exits, logging is shutdown too
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            leakAppender.stop();
-            LoggerContext context = (LoggerContext) LogManager.getContext(false);
-            Configurator.shutdown(context);
-        }));
+            };
+            leakAppender.start();
+            Loggers.addAppender(leakLogger, leakAppender);
+            // shutdown hook so that when the test JVM exits, logging is shutdown too
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                leakAppender.stop();
+                LoggerContext context = (LoggerContext) LogManager.getContext(false);
+                Configurator.shutdown(context);
+            }));
+        }
 
         BootstrapForTesting.ensureInitialized();
 
@@ -461,16 +455,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         try {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
-            assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
-            final Set<String> actualWarningValues =
+            if (expectedWarnings == null || expectedWarnings.length == 0) {
+                assertNull("expected 0 warnings, actual: " + actualWarnings, actualWarnings);
+            } else {
+                assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
+                final Set<String> actualWarningValues =
                     actualWarnings.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, stripXContentPosition))
                         .collect(Collectors.toSet());
-            for (String msg : expectedWarnings) {
-                assertThat(actualWarningValues, hasItem(HeaderWarning.escapeAndEncode(msg)));
+                for (String msg : expectedWarnings) {
+                    assertThat(actualWarningValues, hasItem(HeaderWarning.escapeAndEncode(msg)));
+                }
+                assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
+                        + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
+                    expectedWarnings.length, actualWarnings.size()
+                );
             }
-            assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
-                    + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
-                expectedWarnings.length, actualWarnings.size());
         } finally {
             resetDeprecationLogger();
         }
@@ -504,6 +503,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
     protected static void checkStaticState(boolean afterClass) throws Exception {
+        LeakTracker.INSTANCE.reportLeak();
         if (afterClass) {
             MockPageCacheRecycler.ensureAllPagesAreReleased();
         }
@@ -523,11 +523,11 @@ public abstract class ESTestCase extends LuceneTestCase {
                 statusData.clear();
             }
         }
-        synchronized (nettyLoggedLeaks) {
+        synchronized (loggedLeaks) {
             try {
-                assertThat(nettyLoggedLeaks, empty());
+                assertThat(loggedLeaks, empty());
             } finally {
-                nettyLoggedLeaks.clear();
+                loggedLeaks.clear();
             }
         }
     }
@@ -612,7 +612,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * The exact opposite of {@link #rarely()}.
      */
     public static boolean frequently() {
-        return !rarely();
+        return rarely() == false;
     }
 
     public static boolean randomBoolean() {
@@ -1069,6 +1069,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         return TestEnvironment.newEnvironment(build);
     }
 
+    public Environment newEnvironment(Settings settings) {
+        Settings build = buildEnvSettings(settings);
+        return TestEnvironment.newEnvironment(build);
+    }
+
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(Version version) {
         Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
@@ -1133,6 +1138,12 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
+
+    public String randomCompatibleMediaType(byte version) {
+        XContentType type = randomFrom(XContentType.VND_JSON, XContentType.VND_SMILE, XContentType.VND_CBOR, XContentType.VND_YAML);
+        return type.toParsedMediaType()
+            .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version)));
+    }
 
     public static class GeohashGenerator extends CodepointSetGenerator {
         private static final char[] ASCII_SET = "0123456789bcdefghjkmnpqrstuvwxyz".toCharArray();
@@ -1291,7 +1302,11 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, String data) throws IOException {
-        return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
+        if (randomBoolean()) {
+            return createParserWithCompatibilityFor(xContent, data, RestApiCompatibleVersion.minimumSupported());
+        } else {
+            return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
+        }
     }
 
     /**
@@ -1326,6 +1341,12 @@ public abstract class ESTestCase extends LuceneTestCase {
                     namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, array.array(), array.offset(), array.length());
         }
         return xContent.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, data.streamInput());
+    }
+
+    protected final XContentParser createParserWithCompatibilityFor(XContent xContent, String data,
+                                                            RestApiCompatibleVersion restApiCompatibleVersion) throws IOException {
+        return xContent.createParserForCompatibility(xContentRegistry(), LoggingDeprecationHandler.INSTANCE,
+            new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8)), restApiCompatibleVersion);
     }
 
     private static final NamedXContentRegistry DEFAULT_NAMED_X_CONTENT_REGISTRY =

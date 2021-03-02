@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
@@ -47,11 +48,18 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     protected abstract Settings repositorySettings();
 
     private void runSearchableSnapshotsTest(SearchableSnapshotsTestCaseBody testCaseBody) throws Exception {
+        runSearchableSnapshotsTest(testCaseBody, false);
+    }
+
+    private void runSearchableSnapshotsTest(SearchableSnapshotsTestCaseBody testCaseBody, boolean sourceOnly) throws Exception {
         final String repositoryType = repositoryType();
-        final Settings repositorySettings = repositorySettings();
+        Settings repositorySettings = repositorySettings();
+        if (sourceOnly) {
+            repositorySettings = Settings.builder().put("delegate_type", repositoryType).put(repositorySettings).build();
+        }
 
         logger.info("creating repository [{}] of type [{}]", REPOSITORY_NAME, repositoryType);
-        registerRepository(REPOSITORY_NAME, repositoryType, true, repositorySettings);
+        registerRepository(REPOSITORY_NAME, sourceOnly ? "source" : repositoryType, true, repositorySettings);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int numberOfShards = randomIntBetween(1, 5);
@@ -140,10 +148,26 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         });
     }
 
+    public void testSourceOnlyRepository() throws Exception {
+        runSearchableSnapshotsTest((indexName, numDocs) -> {
+            for (int i = 0; i < 10; i++) {
+                if (randomBoolean()) {
+                    logger.info("clearing searchable snapshots cache for [{}] before search", indexName);
+                    clearCache(indexName);
+                }
+                Map<String, Object> searchResults = search(
+                    indexName,
+                    QueryBuilders.matchAllQuery(),
+                    randomFrom(Boolean.TRUE, Boolean.FALSE, null)
+                );
+                assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
+            }
+        }, true);
+    }
+
     public void testCloseAndReopen() throws Exception {
         runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
-            final Request closeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_close");
-            assertOK(client().performRequest(closeRequest));
+            closeIndex(restoredIndexName);
             ensureGreen(restoredIndexName);
 
             final Request openRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_open");
@@ -235,6 +259,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject();
                 builder.field("indices", restoredIndexName);
+                builder.field("include_global_state", "false");
                 builder.endObject();
                 snapshotRequest.setEntity(new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
             }
@@ -324,6 +349,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     protected static void mountSnapshot(String snapshotIndexName, String mountIndexName) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + REPOSITORY_NAME + "/" + SNAPSHOT_NAME + "/_mount");
         request.addParameter("wait_for_completion", Boolean.toString(true));
+        request.addParameter("storage", randomFrom("full_copy", "shared_cache"));
 
         final XContentBuilder builder = JsonXContent.contentBuilder().startObject().field("index", snapshotIndexName);
         if (snapshotIndexName.equals(mountIndexName) == false || randomBoolean()) {
@@ -404,7 +430,9 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     }
 
     protected static Map<String, Object> searchableSnapshotStats(String index) throws IOException {
-        final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, '/' + index + "/_searchable_snapshots/stats"));
+        final Request request = new Request(HttpGet.METHOD_NAME, '/' + index + "/_searchable_snapshots/stats");
+        request.addParameter("level", "shards");
+        final Response response = client().performRequest(request);
         assertThat(
             "Failed to retrieve searchable snapshots stats for on index [" + index + "]: " + response,
             response.getStatusLine().getStatusCode(),

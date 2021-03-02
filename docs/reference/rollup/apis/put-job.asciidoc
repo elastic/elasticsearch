@@ -11,8 +11,8 @@ ifdef::permanently-unreleased-branch[]
 
 // tag::legacy-rollup-admon[]
 WARNING: This documentation is about legacy rollups. Legacy rollups are
-deprecated and will be replaced by new rollup functionality introduced in {es}
-7.x.
+deprecated and will be replaced by <<xpack-rollup,new rollup functionality>>
+introduced in {es} 7.x.
 // end::legacy-rollup-admon[]
 
 Creates a legacy {rollup-job}.

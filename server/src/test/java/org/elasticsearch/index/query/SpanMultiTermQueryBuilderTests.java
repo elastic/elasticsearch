@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -85,7 +74,8 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query,
+                                       SearchExecutionContext context) throws IOException {
         if (query instanceof SpanMatchNoDocsQuery) {
             return;
         }
@@ -118,7 +108,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
 
     private static class TermMultiTermQueryBuilder implements MultiTermQueryBuilder {
         @Override
-        public Query toQuery(QueryShardContext context) throws IOException {
+        public Query toQuery(SearchExecutionContext context) throws IOException {
             return new TermQuery(new Term("foo", "bar"));
         }
 
@@ -178,19 +168,19 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         MultiTermQueryBuilder query = new TermMultiTermQueryBuilder();
         SpanMultiTermQueryBuilder spanMultiTermQuery = new SpanMultiTermQueryBuilder(query);
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-                () -> spanMultiTermQuery.toQuery(createShardContext()));
+                () -> spanMultiTermQuery.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), startsWith("unsupported inner query"));
     }
 
     public void testToQueryInnerSpanMultiTerm() throws IOException {
-        Query query = new SpanOrQueryBuilder(createTestQueryBuilder()).toQuery(createShardContext());
+        Query query = new SpanOrQueryBuilder(createTestQueryBuilder()).toQuery(createSearchExecutionContext());
         //verify that the result is still a span query, despite the boost that might get set (SpanBoostQuery rather than BoostQuery)
         assertThat(query, instanceOf(SpanQuery.class));
     }
 
     public void testToQueryInnerTermQuery() throws IOException {
         String fieldName = randomFrom("prefix_field", "prefix_field_alias");
-        final QueryShardContext context = createShardContext();
+        final SearchExecutionContext context = createSearchExecutionContext();
         {
             Query query = new SpanMultiTermQueryBuilder(new PrefixQueryBuilder(fieldName, "foo")).toQuery(context);
             assertThat(query, instanceOf(FieldMaskingSpanQuery.class));
@@ -243,7 +233,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
 
     public void testDefaultMaxRewriteBuilder() throws Exception {
         Query query = QueryBuilders.spanMultiTermQueryBuilder(QueryBuilders.prefixQuery("body", "b"))
-            .toQuery(createShardContext());
+            .toQuery(createSearchExecutionContext());
 
         assertTrue(query instanceof SpanMultiTermQueryWrapper);
         if (query instanceof SpanMultiTermQueryWrapper) {
@@ -265,7 +255,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
                         QueryBuilder queryBuilder = new SpanMultiTermQueryBuilder(
                             QueryBuilders.prefixQuery("body", "bar")
                         );
-                        Query query = queryBuilder.toQuery(createShardContext(new IndexSearcher(reader)));
+                        Query query = queryBuilder.toQuery(createSearchExecutionContext(new IndexSearcher(reader)));
                         RuntimeException exc = expectThrows(RuntimeException.class, () -> query.rewrite(reader));
                         assertThat(exc.getMessage(), containsString("maxClauseCount"));
                     } finally {
@@ -279,7 +269,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
     public void testTopNMultiTermsRewriteInsideSpan() throws Exception {
         Query query = QueryBuilders.spanMultiTermQueryBuilder(
             QueryBuilders.prefixQuery("body", "b").rewrite("top_terms_boost_2000")
-        ).toQuery(createShardContext());
+        ).toQuery(createSearchExecutionContext());
 
         assertTrue(query instanceof SpanMultiTermQueryWrapper);
         if (query instanceof SpanMultiTermQueryWrapper) {

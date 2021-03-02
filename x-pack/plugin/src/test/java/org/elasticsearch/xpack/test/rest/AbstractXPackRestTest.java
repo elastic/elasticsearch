@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.test.rest;
 
@@ -17,12 +18,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
@@ -91,12 +92,9 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
             templates.addAll(
                 Arrays.asList(
                     NotificationsIndex.NOTIFICATIONS_INDEX,
-                    MlMetaIndex.indexName(),
                     AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
                     AnomalyDetectorsIndex.jobResultsIndexPrefix(),
-                    MlConfigIndex.indexName(),
-                    TransformInternalIndexConstants.AUDIT_INDEX,
-                    TransformInternalIndexConstants.LATEST_INDEX_NAME
+                    TransformInternalIndexConstants.AUDIT_INDEX
                 ));
 
             for (String template : templates) {
@@ -106,8 +104,6 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
             }
         }
     }
-
-
 
     /**
      * Enable monitoring and waits for monitoring documents to be collected and indexed in

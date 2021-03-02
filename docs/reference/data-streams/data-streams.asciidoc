@@ -27,14 +27,16 @@ backing indices.
 
 image::images/data-streams/data-streams-diagram.svg[align="center"]
 
-Each data stream requires a matching <<indices-templates,index template>>. The
+Each data stream requires a matching <<index-templates,index template>>. The
 template contains the mappings and settings used to configure the stream's
 backing indices.
 
+// tag::timestamp-reqs[]
 Every document indexed to a data stream must contain a `@timestamp` field,
 mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field type. If the
 index template doesn't specify a mapping for the `@timestamp` field, {es} maps
 `@timestamp` as a `date` field  with default options.
+// end::timestamp-reqs[]
 
 The same index template can be used for multiple data streams. You cannot
 delete an index template in use by a data stream.
@@ -121,7 +123,7 @@ If needed, you can <<update-delete-docs-in-a-backing-index,update or delete
 documents>> by submitting requests directly to the document's backing index.
 
 TIP: If you frequently update or delete existing documents, use an
-<<indices-add-alias,index alias>> and <<indices-templates,index template>>
+<<indices-add-alias,index alias>> and <<index-templates,index template>>
 instead of a data stream. You can still use
 <<index-lifecycle-management,{ilm-init}>> to manage indices for the alias.
 

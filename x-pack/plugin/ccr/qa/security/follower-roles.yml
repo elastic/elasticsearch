@@ -8,6 +8,7 @@ ccruser:
         - read
         - write
         - manage_follow_index
+        - view_index_metadata
     - names: [ 'clean-follower' ]
       privileges:
         - monitor

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.query;
 
@@ -102,7 +91,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
     }
 
     @Override
-    protected void doAssertLuceneQuery(GeoShapeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(GeoShapeQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         // Logic for doToQuery is complex and is hard to test here. Need to rely
         // on Integration tests to determine if created query is correct
         // TODO improve GeoShapeQueryBuilder.doToQuery() method to make it
@@ -166,9 +155,10 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
     public void testMustRewrite() throws IOException {
         GeoShapeQueryBuilder query = doCreateTestQueryBuilder(true);
 
-        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> query.toQuery(createShardContext()));
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
+            () -> query.toQuery(createSearchExecutionContext()));
         assertEquals("query must be rewritten first", e.getMessage());
-        QueryBuilder rewrite = rewriteAndFetch(query, createShardContext());
+        QueryBuilder rewrite = rewriteAndFetch(query, createSearchExecutionContext());
         GeoShapeQueryBuilder geoShapeQueryBuilder = randomBoolean() ?
             new GeoShapeQueryBuilder(fieldName(), indexedShapeToReturn) :
             new GeoShapeQueryBuilder(fieldName(), indexedShapeToReturn.buildGeometry());
@@ -183,7 +173,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
             .should(shape)
             .should(shape);
 
-        builder = rewriteAndFetch(builder, createShardContext());
+        builder = rewriteAndFetch(builder, createSearchExecutionContext());
 
         GeoShapeQueryBuilder expectedShape = randomBoolean() ?
             new GeoShapeQueryBuilder(fieldName(), indexedShapeToReturn) :
@@ -203,7 +193,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
             new GeoShapeQueryBuilder("unmapped", shape) :
             new GeoShapeQueryBuilder("unmapped", shape.buildGeometry());
         queryBuilder.ignoreUnmapped(true);
-        Query query = queryBuilder.toQuery(createShardContext());
+        Query query = queryBuilder.toQuery(createSearchExecutionContext());
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
@@ -211,7 +201,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
             new GeoShapeQueryBuilder("unmapped", shape) :
             new GeoShapeQueryBuilder("unmapped", shape.buildGeometry());
         failingQueryBuilder.ignoreUnmapped(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("failed to find type for field [unmapped]"));
     }
 
@@ -221,16 +211,16 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
         final GeoShapeQueryBuilder queryBuilder = randomBoolean() ?
             new GeoShapeQueryBuilder(TEXT_FIELD_NAME, shape) :
             new GeoShapeQueryBuilder(TEXT_FIELD_NAME, shape.buildGeometry());
-        QueryShardException e = expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("Field [mapped_string] is of unsupported type [text] for [geo_shape] query"));
     }
 
     public void testSerializationFailsUnlessFetched() throws IOException {
         QueryBuilder builder = doCreateTestQueryBuilder(true);
-        QueryBuilder queryBuilder = Rewriteable.rewrite(builder, createShardContext());
+        QueryBuilder queryBuilder = Rewriteable.rewrite(builder, createSearchExecutionContext());
         IllegalStateException ise = expectThrows(IllegalStateException.class, () -> queryBuilder.writeTo(new BytesStreamOutput(10)));
         assertEquals(ise.getMessage(), "supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
-        builder = rewriteAndFetch(builder, createShardContext());
+        builder = rewriteAndFetch(builder, createSearchExecutionContext());
         builder.writeTo(new BytesStreamOutput(10));
     }
 

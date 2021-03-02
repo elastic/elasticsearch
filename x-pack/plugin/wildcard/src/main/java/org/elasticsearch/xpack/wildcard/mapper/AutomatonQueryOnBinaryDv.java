@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.wildcard.mapper;
@@ -27,7 +28,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
- * Query that runs an Automaton across all binary doc values. 
+ * Query that runs an Automaton across all binary doc values.
  * Expensive to run so normally used in conjunction with more selective query clauses.
  */
 public class AutomatonQueryOnBinaryDv extends Query {
@@ -44,23 +45,23 @@ public class AutomatonQueryOnBinaryDv extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-                
-        
+
+
         ByteRunAutomaton bytesMatcher = new ByteRunAutomaton(automatonSupplier.get());
-        
+
         return new ConstantScoreWeight(this, boost) {
 
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
                 ByteArrayDataInput badi = new ByteArrayDataInput();
-                final BinaryDocValues values = DocValues.getBinary(context.reader(), field);               
+                final BinaryDocValues values = DocValues.getBinary(context.reader(), field);
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(values) {
                     @Override
                     public boolean matches() throws IOException {
                         BytesRef arrayOfValues = values.binaryValue();
                         badi.reset(arrayOfValues.bytes);
                         badi.setPosition(arrayOfValues.offset);
-                        
+
                         int size = badi.readVInt();
                         for (int i=0; i< size; i++) {
                             int valLength = badi.readVInt();
@@ -96,9 +97,9 @@ public class AutomatonQueryOnBinaryDv extends Query {
     public boolean equals(Object obj) {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
-          }        
+          }
         AutomatonQueryOnBinaryDv other = (AutomatonQueryOnBinaryDv) obj;
-        return Objects.equals(field, other.field)  && Objects.equals(matchPattern, other.matchPattern);            
+        return Objects.equals(field, other.field)  && Objects.equals(matchPattern, other.matchPattern);
     }
 
     @Override

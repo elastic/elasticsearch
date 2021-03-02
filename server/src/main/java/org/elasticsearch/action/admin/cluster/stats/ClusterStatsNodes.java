@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -89,7 +78,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             TransportAddress publishAddress =
                     nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();
             final InetAddress inetAddress = publishAddress.address().getAddress();
-            if (!seenAddresses.add(inetAddress)) {
+            if (seenAddresses.add(inetAddress) == false) {
                 continue;
             }
             if (nodeResponse.nodeStats().getFs() != null) {
@@ -248,6 +237,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         final int allocatedProcessors;
         final ObjectIntHashMap<String> names;
         final ObjectIntHashMap<String> prettyNames;
+        final ObjectIntHashMap<String> architectures;
         final org.elasticsearch.monitor.os.OsStats.Mem mem;
 
         /**
@@ -256,6 +246,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         private OsStats(List<NodeInfo> nodeInfos, List<NodeStats> nodeStatsList) {
             this.names = new ObjectIntHashMap<>();
             this.prettyNames = new ObjectIntHashMap<>();
+            this.architectures = new ObjectIntHashMap<>();
             int availableProcessors = 0;
             int allocatedProcessors = 0;
             for (NodeInfo nodeInfo : nodeInfos) {
@@ -267,6 +258,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 }
                 if (nodeInfo.getInfo(OsInfo.class).getPrettyName() != null) {
                     prettyNames.addTo(nodeInfo.getInfo(OsInfo.class).getPrettyName(), 1);
+                }
+                if (nodeInfo.getInfo(OsInfo.class).getArch() != null) {
+                    architectures.addTo(nodeInfo.getInfo(OsInfo.class).getArch(), 1);
                 }
             }
             this.availableProcessors = availableProcessors;
@@ -308,6 +302,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
             static final String NAMES = "names";
             static final String PRETTY_NAME = "pretty_name";
             static final String PRETTY_NAMES = "pretty_names";
+            static final String ARCH = "arch";
+            static final String ARCHITECTURES = "architectures";
             static final String COUNT = "count";
         }
 
@@ -335,6 +331,18 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     {
                         builder.field(Fields.PRETTY_NAME, prettyName.key);
                         builder.field(Fields.COUNT, prettyName.value);
+                    }
+                    builder.endObject();
+                }
+            }
+            builder.endArray();
+            builder.startArray(Fields.ARCHITECTURES);
+            {
+                for (final ObjectIntCursor<String> arch : architectures) {
+                    builder.startObject();
+                    {
+                        builder.field(Fields.ARCH, arch.key);
+                        builder.field(Fields.COUNT, arch.value);
                     }
                     builder.endObject();
                 }

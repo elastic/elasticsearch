@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
@@ -162,7 +163,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
 
     private void assertConnectionAccepted(String profile, String host) throws UnknownHostException {
         // HTTP is not applied if disabled
-        if (!httpEnabled && IPFilter.HTTP_PROFILE_NAME.equals(profile)) {
+        if (httpEnabled == false && IPFilter.HTTP_PROFILE_NAME.equals(profile)) {
             return;
         }
 
@@ -173,7 +174,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
 
     private void assertConnectionRejected(String profile, String host) throws UnknownHostException {
         // HTTP is not applied if disabled
-        if (!httpEnabled && IPFilter.HTTP_PROFILE_NAME.equals(profile)) {
+        if (httpEnabled == false && IPFilter.HTTP_PROFILE_NAME.equals(profile)) {
             return;
         }
 

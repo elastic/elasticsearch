@@ -8,7 +8,15 @@
 [[auditing-settings-description]]
 You can use <<enable-audit-logging,audit logging>> to record security-related
 events, such as authentication failures, refused connections, and data-access
-events.
+events. In addition, changes via the APIs to the security configuration, such
+as creating, updating and removing <<native-realm, native>> and
+<<built-in-users, built-in>> users, <<security-api-put-role, roles>>,
+<<security-api-put-role-mapping, role mappings>> and
+<<security-api-create-api-key, API keys>> are also recorded.
+--
+TIP: Audit logs are only available on certain subscription levels.
+For more information, see {subscriptions}.
+--
 
 If configured, auditing settings must be set on every node in the cluster.
 Static settings, such as `xpack.security.audit.enabled`, must be configured in
@@ -40,29 +48,38 @@ by using the following settings:
 // tag::xpack-sa-lf-events-include-tag[]
 `xpack.security.audit.logfile.events.include`::
 (<<dynamic-cluster-setting,Dynamic>>)
-Specifies which events to include in the auditing output. The default value is:
+Specifies the <<audit-event-types, kind of events>> to print in the auditing output.
+In addition, `_all` can be used to exhaustively audit all the events, but this is usually
+discouraged since it will get very verbose.
+The default list value contains:
 `access_denied, access_granted, anonymous_access_denied, authentication_failed,
-connection_denied, tampered_request, run_as_denied, run_as_granted`.
+connection_denied, tampered_request, run_as_denied, run_as_granted,
+security_config_change`.
 // end::xpack-sa-lf-events-include-tag[]
 
 [[xpack-sa-lf-events-exclude]]
 // tag::xpack-sa-lf-events-exclude-tag[]
 `xpack.security.audit.logfile.events.exclude`::
 (<<dynamic-cluster-setting,Dynamic>>)
-Excludes the specified events from the output. By default, no events are
-excluded.
+Excludes the specified <<audit-event-types, kind of events>> from the include list.
+This is useful in the case where the `events.include` setting contains the special value `_all`.
+The default is the empty list.
 // end::xpack-sa-lf-events-exclude-tag[]
 
 [[xpack-sa-lf-events-emit-request]]
 // tag::xpack-sa-lf-events-emit-request-tag[]
 `xpack.security.audit.logfile.events.emit_request_body`::
 (<<dynamic-cluster-setting,Dynamic>>)
-Specifies whether to include the request body from REST requests on certain
-event types such as `authentication_failed`. The default value is `false`.
+Specifies whether to include the full request body from REST requests as an
+attribute of certain kinds of audit events. This setting can be used to
+<<auditing-search-queries, audit search queries>>.
++
+The default value is `false`, so request bodies are not printed.
 +
 --
-IMPORTANT: No filtering is performed when auditing, so sensitive data may be
-audited in plain text when including the request body in audit events.
+IMPORTANT: Be advised that sensitive data may be audited in plain text when including
+the request body in audit events, even though all the security APIs, such as those that
+change the user's password, have the credentials filtered out when audited.
 --
 
 // end::xpack-sa-lf-events-emit-request-tag[]
@@ -99,8 +116,6 @@ The default value is `false`.
 `xpack.security.audit.logfile.emit_node_id`::
 (<<dynamic-cluster-setting,Dynamic>>)
 Specifies whether to include the node id as a field in each audit event.
-This is available for the new format only. That is to say, this information
-does not exist in the `<clustername>_access.log` file.
 Unlike <<node-name,node name>>, whose value might change if the administrator
 changes the setting in the config file, the node id will persist across cluster
 restarts and the administrator cannot change it.
@@ -110,11 +125,13 @@ The default value is `true`.
 [[audit-event-ignore-policies]]
 ==== Audit Logfile Event Ignore Policies
 
-These settings affect the <<audit-log-ignore-policy,ignore policies>>
+The following settings affect the <<audit-log-ignore-policy,ignore policies>>
 that enable fine-grained control over which audit events are printed to the log file.
 All of the settings with the same policy name combine to form a single policy.
-If an event matches all of the conditions for a specific policy, it is ignored
-and not printed.
+If an event matches all the conditions of any policy, it is ignored and not printed.
+Most audit events are subject to the ignore policies. The sole exception are
+events of the `security_config_change` type, which cannot be filtered out, unless
+<<xpack-sa-lf-events-exclude, excluded>> altogether.
 
 [[xpack-sa-lf-events-ignore-users]]
 // tag::xpack-sa-lf-events-ignore-users-tag[]
@@ -131,6 +148,15 @@ not print audit events for users matching these values.
 A list of authentication realm names or wildcards. The specified policy will
 not print audit events for users in these realms.
 // end::xpack-sa-lf-events-ignore-realms-tag[]
+
+[[xpack-sa-lf-events-ignore-actions]]
+// tag::xpack-sa-lf-events-ignore-actions-tag[]
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.actions`::
+(<<dynamic-cluster-setting,Dynamic>>)
+A list of action names or wildcards. Action name can be found in the `action`
+field of the audit event. The specified policy will not print audit events
+for actions matching these values.
+// end::xpack-sa-lf-events-ignore-actions-tag[]
 
 [[xpack-sa-lf-events-ignore-roles]]
 // tag::xpack-sa-lf-events-ignore-roles-tag[]

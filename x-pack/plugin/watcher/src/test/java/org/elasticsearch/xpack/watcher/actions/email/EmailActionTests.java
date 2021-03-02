@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
@@ -389,7 +390,7 @@ public class EmailActionTests extends ESTestCase {
         ExecutableEmailAction parsed = new EmailActionFactory(Settings.EMPTY, service, engine, emailAttachmentParser)
                 .parseExecutable(randomAlphaOfLength(4), randomAlphaOfLength(10), parser);
 
-        if (!hideSecrets) {
+        if (hideSecrets == false) {
             assertThat(parsed, equalTo(executable));
         } else {
             assertThat(parsed.action().getAccount(), is(executable.action().getAccount()));

@@ -19,9 +19,8 @@ default.
 identify the node as a _transform node_. If you want to run {transforms}, there 
 must be at least one {transform} node in your cluster.
 +
-By default, every node is a {transform} node. If you set `node.roles`, however,
-you must explicitly specify all the required roles for the node. To learn more, 
-refer to <<modules-node>>.
+If you set `node.roles`, you must explicitly specify all the required roles for
+the node. To learn more, refer to <<modules-node>>.
 + 
 IMPORTANT: It is strongly recommended that dedicated {transform} nodes also have 
 the `remote_cluster_client` role; otherwise, {ccs} fails when used in 

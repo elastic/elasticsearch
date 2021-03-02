@@ -6,7 +6,7 @@ esplugin {
   description 'An example spi extension plugin for security that implements an Authorization Engine'
   classname 'org.elasticsearch.example.AuthorizationEnginePlugin'
   extendedPlugins = ['x-pack-security']
-  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
 

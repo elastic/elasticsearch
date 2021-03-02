@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.searchablesnapshots;
@@ -13,8 +14,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -98,12 +97,13 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         // Either add data outside of the range, or documents that don't have timestamp data
         final boolean indexDataWithTimestamp = randomBoolean();
         if (indexDataWithTimestamp) {
-            indexDocumentsWithTimestampWithinDate(indexOutsideSearchRange, between(0, 1000), "2020-11-26T%02d:%02d:%02d.%09dZ");
+            indexDocumentsWithTimestampWithinDate(indexOutsideSearchRange, between(1, 1000), "2020-11-26T%02d:%02d:%02d.%09dZ");
         } else {
             indexRandomDocs(indexOutsideSearchRange, between(0, 1000));
         }
 
-        int numDocsWithinRange = between(0, 1000);
+        // Index enough documents to ensure that all shards have at least some documents
+        int numDocsWithinRange = between(100, 1000);
         indexDocumentsWithTimestampWithinDate(indexWithinSearchRange, numDocsWithinRange, "2020-11-28T%02d:%02d:%02d.%09dZ");
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -131,12 +131,13 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             indexOutsideSearchRange,
             restoredIndexSettings,
             Strings.EMPTY_ARRAY,
-            false
+            false,
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         );
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
 
         final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
-        assertThat(indexMetadata.getTimestampMillisRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
+        assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
         DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(indexMetadata.getIndex());
         assertThat(timestampFieldType, nullValue());
@@ -177,7 +178,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         ensureGreen(searchableSnapshotIndexOutsideSearchRange);
 
         final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
-        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampMillisRange();
+        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampRange();
         final DateFieldMapper.DateFieldType dateFieldType = indicesService.getTimestampFieldType(updatedIndexMetadata.getIndex());
         assertThat(dateFieldType, notNullValue());
         final DateFieldMapper.Resolution resolution = dateFieldType.resolution();
@@ -222,7 +223,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66774")
     public void testQueryPhaseIsExecutedInAnAvailableNodeWhenAllShardsCanBeSkipped() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -240,7 +240,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
                 .build()
         );
 
-        indexDocumentsWithTimestampWithinDate(indexOutsideSearchRange, between(0, 1000), "2020-11-26T%02d:%02d:%02d.%09dZ");
+        indexDocumentsWithTimestampWithinDate(indexOutsideSearchRange, between(1, 1000), "2020-11-26T%02d:%02d:%02d.%09dZ");
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "mock");
@@ -266,13 +266,14 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             indexOutsideSearchRange,
             restoredIndexSettings,
             Strings.EMPTY_ARRAY,
-            false
+            false,
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         );
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
         final int searchableSnapshotShardCount = indexOutsideSearchRangeShardCount;
 
         final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
-        assertThat(indexMetadata.getTimestampMillisRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
+        assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
         DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(indexMetadata.getIndex());
         assertThat(timestampFieldType, nullValue());
@@ -303,7 +304,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         ensureGreen(searchableSnapshotIndexOutsideSearchRange);
 
         final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
-        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampMillisRange();
+        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampRange();
         final DateFieldMapper.DateFieldType dateFieldType = indicesService.getTimestampFieldType(updatedIndexMetadata.getIndex());
         assertThat(dateFieldType, notNullValue());
         final DateFieldMapper.Resolution resolution = dateFieldType.resolution();
@@ -318,16 +319,20 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         internalCluster().stopNode(dataNodeHoldingSearchableSnapshot);
         waitUntilAllShardsAreUnassigned(updatedIndexMetadata.getIndex());
 
-        SearchResponse newSearchResponse = client().search(request).actionGet();
+        // busy assert since computing the time stamp field from the cluster state happens off of the CS applier thread and thus can be
+        // slightly delayed
+        assertBusy(() -> {
+            SearchResponse newSearchResponse = client().search(request).actionGet();
 
-        // All the regular index searches succeeded
-        assertThat(newSearchResponse.getSuccessfulShards(), equalTo(totalShards));
-        assertThat(newSearchResponse.getFailedShards(), equalTo(0));
-        // We have to query at least one node to construct a valid response, and we pick
-        // a shard that's available in order to construct the search response
-        assertThat(newSearchResponse.getSkippedShards(), equalTo(totalShards - 1));
-        assertThat(newSearchResponse.getTotalShards(), equalTo(totalShards));
-        assertThat(newSearchResponse.getHits().getTotalHits().value, equalTo(0L));
+            // All the regular index searches succeeded
+            assertThat(newSearchResponse.getSuccessfulShards(), equalTo(totalShards));
+            assertThat(newSearchResponse.getFailedShards(), equalTo(0));
+            // We have to query at least one node to construct a valid response, and we pick
+            // a shard that's available in order to construct the search response
+            assertThat(newSearchResponse.getSkippedShards(), equalTo(totalShards - 1));
+            assertThat(newSearchResponse.getTotalShards(), equalTo(totalShards));
+            assertThat(newSearchResponse.getHits().getTotalHits().value, equalTo(0L));
+        });
     }
 
     public void testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode() throws Exception {
@@ -374,12 +379,13 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             indexWithinSearchRange,
             restoredIndexSettings,
             Strings.EMPTY_ARRAY,
-            false
+            false,
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         );
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
 
         final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexWithinSearchRange);
-        assertThat(indexMetadata.getTimestampMillisRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
+        assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
         DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(indexMetadata.getIndex());
         assertThat(timestampFieldType, nullValue());
@@ -403,7 +409,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         ensureGreen(searchableSnapshotIndexWithinSearchRange);
 
         final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexWithinSearchRange);
-        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampMillisRange();
+        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampRange();
         final DateFieldMapper.DateFieldType dateFieldType = indicesService.getTimestampFieldType(updatedIndexMetadata.getIndex());
         assertThat(dateFieldType, notNullValue());
         final DateFieldMapper.Resolution resolution = dateFieldType.resolution();
@@ -498,10 +504,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
     }
 
     private void waitUntilAllShardsAreUnassigned(Index index) throws Exception {
-        assertBusy(() -> {
-            ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-            IndexRoutingTable indexRoutingTable = clusterService.state().getRoutingTable().index(index);
-            assertThat(indexRoutingTable.allPrimaryShardsUnassigned(), equalTo(true));
-        });
+        awaitClusterState(state -> state.getRoutingTable().index(index).allPrimaryShardsUnassigned());
     }
 }

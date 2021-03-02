@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
@@ -150,7 +151,7 @@ class DatafeedJob {
             sendPersistRequest();
         }
 
-        if (isRunning() && !isIsolated) {
+        if (isRunning() && isIsolated == false) {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED));
             LOGGER.info("[{}] Lookback has finished", jobId);
             if (isLookbackOnly) {
@@ -160,7 +161,7 @@ class DatafeedJob {
                 return nextRealtimeTimestamp();
             }
         }
-        if (!isIsolated) {
+        if (isIsolated == false) {
             LOGGER.debug("[{}] Lookback finished after being stopped", jobId);
         }
         return null;
@@ -196,7 +197,7 @@ class DatafeedJob {
     }
 
     private void checkForMissingDataIfNecessary() {
-        if (isRunning() && !isIsolated && checkForMissingDataTriggered()) {
+        if (isRunning() && isIsolated == false && checkForMissingDataTriggered()) {
 
             // Keep track of the last bucket time for which we did a missing data check
             this.lastDataCheckTimeMs = this.currentTimeSupplier.get();
@@ -310,7 +311,7 @@ class DatafeedJob {
         long recordCount = 0;
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
         while (dataExtractor.hasNext()) {
-            if ((isIsolated || !isRunning()) && !dataExtractor.isCancelled()) {
+            if ((isIsolated || isRunning() == false) && dataExtractor.isCancelled() == false) {
                 dataExtractor.cancel();
             }
             if (isIsolated) {
@@ -386,7 +387,7 @@ class DatafeedJob {
         // If the datafeed was stopped, then it is possible that by the time
         // we call flush the job is closed. Thus, we don't flush unless the
         // datafeed is still running.
-        if (isRunning() && !isIsolated) {
+        if (isRunning() && isIsolated == false) {
             Instant lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
             if (lastFinalizedBucketEnd != null) {
                 this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();

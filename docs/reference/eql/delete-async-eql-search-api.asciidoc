@@ -25,7 +25,10 @@ DELETE /_eql/search/FkpMRkJGS1gzVDRlM3g4ZzMyRGlLbkEaTXlJZHdNT09TU2VTZVBoNDM3cFZM
 [[delete-async-eql-search-api-prereqs]]
 ==== {api-prereq-title}
 
-See <<eql-required-fields>>.
+* If the {es} {security-features} are enabled, only the user who first submitted
+the EQL search can delete the search using this API.
+
+* See <<eql-required-fields>>.
 
 [[delete-async-eql-search-api-limitations]]
 ===== Limitations

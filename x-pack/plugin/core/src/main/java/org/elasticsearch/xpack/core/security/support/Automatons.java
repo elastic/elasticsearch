@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.support;
 
@@ -192,7 +193,7 @@ public final class Automatons {
 
     private static Automaton buildAutomaton(String pattern) {
         if (pattern.startsWith("/")) { // it's a lucene regexp
-            if (pattern.length() == 1 || !pattern.endsWith("/")) {
+            if (pattern.length() == 1 || pattern.endsWith("/") == false) {
                 throw new IllegalArgumentException("invalid pattern [" + pattern + "]. patterns starting with '/' " +
                     "indicate regular expression pattern and therefore must also end with '/'." +
                     " other patterns (those that do not start with '/') will be treated as simple wildcard patterns");

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.engine;
 
@@ -9,13 +10,13 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -39,10 +40,12 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -198,7 +201,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
     public void testFreezeAndUnfreeze()  {
         final IndexService originalIndexService = createIndex("index", Settings.builder().put("index.number_of_shards", 2).build());
-        assertThat(originalIndexService.getMetadata().getTimestampMillisRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+        assertThat(originalIndexService.getMetadata().getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
 
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
@@ -216,7 +219,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             assertTrue(indexService.getIndexSettings().isSearchThrottled());
             IndexShard shard = indexService.getShard(0);
             assertEquals(0, shard.refreshStats().getTotal());
-            assertThat(indexService.getMetadata().getTimestampMillisRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+            assertThat(indexService.getMetadata().getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
         }
         assertAcked(client().execute(FreezeIndexAction.INSTANCE,
             new FreezeRequest("index").setFreeze(false)).actionGet());
@@ -228,7 +231,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             IndexShard shard = indexService.getShard(0);
             Engine engine = IndexShardTestCase.getEngine(shard);
             assertThat(engine, Matchers.instanceOf(InternalEngine.class));
-            assertThat(indexService.getMetadata().getTimestampMillisRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+            assertThat(indexService.getMetadata().getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
         }
         client().prepareIndex("index").setId("4").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
     }
@@ -342,6 +345,27 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
             IndicesStatsResponse response = client().admin().indices().prepareStats("index").clear().setRefresh(true).get();
             assertEquals(0, response.getTotal().refresh.getTotal());
+
+            // Retry with point in time
+            PlainActionFuture<ShardSearchContextId> openContextFuture = new PlainActionFuture<>();
+            searchService.openReaderContext(shard.shardId(), TimeValue.timeValueSeconds(60), openContextFuture);
+            final ShardSearchContextId contextId = openContextFuture.actionGet(TimeValue.timeValueSeconds(60));
+            assertNotNull(contextId.getSearcherId());
+            sourceBuilder.query(QueryBuilders.rangeQuery("field").gt("2010-01-06T02:00").lt("2010-01-07T02:00"));
+            assertFalse(searchService.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, shard.shardId(), 0, 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, contextId, null)).canMatch());
+
+            assertTrue(searchService.freeReaderContext(contextId));
+            sourceBuilder.query(QueryBuilders.rangeQuery("field").gt("2010-01-06T02:00").lt("2010-01-07T02:00"));
+            assertFalse(searchService.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, shard.shardId(), 0, 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, contextId, null)).canMatch());
+
+            expectThrows(SearchContextMissingException.class, () -> {
+                ShardSearchContextId withoutCommitId = new ShardSearchContextId(contextId.getSessionId(), contextId.getId(), null);
+                sourceBuilder.query(QueryBuilders.rangeQuery("field").gt("2010-01-06T02:00").lt("2010-01-07T02:00"));
+                assertFalse(searchService.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, shard.shardId(), 0, 1,
+                    new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, withoutCommitId, null)).canMatch());
+            });
         }
     }
 
@@ -499,17 +523,12 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
 
         final IndexLongFieldRange timestampFieldRange
-                = client().admin().cluster().prepareState().get().getState().metadata().index("index").getTimestampMillisRange();
+                = client().admin().cluster().prepareState().get().getState().metadata().index("index").getTimestampRange();
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
         assertTrue(timestampFieldRange.isComplete());
         assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse("2010-01-05T01:02:03.456Z").toEpochMilli()));
         assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").toEpochMilli()));
-
-        for (ShardStats shardStats : client().admin().indices().prepareStats("index").clear().setRefresh(true).get().getShards()) {
-            assertThat("shard " + shardStats.getShardRouting() + " refreshed to get the timestamp range",
-                    shardStats.getStats().refresh.getTotal(), greaterThanOrEqualTo(1L));
-        }
     }
 
     public void testComputesTimestampRangeFromNanoseconds() throws IOException {
@@ -531,7 +550,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
 
         final IndexLongFieldRange timestampFieldRange
-                = client().admin().cluster().prepareState().get().getState().metadata().index("index").getTimestampMillisRange();
+                = client().admin().cluster().prepareState().get().getState().metadata().index("index").getTimestampRange();
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
         assertTrue(timestampFieldRange.isComplete());
@@ -540,11 +559,6 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             equalTo(resolution.convert(Instant.parse("2010-01-05T01:02:03.456789012Z"))));
         assertThat(timestampFieldRange.getMax(),
             equalTo(resolution.convert(Instant.parse("2010-01-06T02:03:04.567890123Z"))));
-
-        for (ShardStats shardStats : client().admin().indices().prepareStats("index").clear().setRefresh(true).get().getShards()) {
-            assertThat("shard " + shardStats.getShardRouting() + " refreshed to get the timestamp range",
-                    shardStats.getStats().refresh.getTotal(), greaterThanOrEqualTo(1L));
-        }
     }
 
 }

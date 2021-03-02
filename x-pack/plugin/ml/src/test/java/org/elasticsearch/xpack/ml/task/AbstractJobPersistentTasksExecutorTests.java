@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.task;
@@ -21,9 +22,9 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
@@ -39,7 +40,7 @@ import static org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor
 public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
 
     public void testVerifyIndicesPrimaryShardsAreActive() {
-        final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addIndices(metadata, routingTable);
@@ -56,8 +57,7 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
 
         metadata = new Metadata.Builder(cs.metadata());
         routingTable = new RoutingTable.Builder(cs.routingTable());
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
-        String indexToRemove = randomFrom(indexNameExpressionResolver.concreteIndexNames(cs, IndicesOptions.lenientExpandOpen(),
+        String indexToRemove = randomFrom(resolver.concreteIndexNames(cs, IndicesOptions.lenientExpandOpen(),
             ".ml-anomalies-shared",
             AnomalyDetectorsIndex.jobStateIndexPattern(),
             MlMetaIndex.indexName(),

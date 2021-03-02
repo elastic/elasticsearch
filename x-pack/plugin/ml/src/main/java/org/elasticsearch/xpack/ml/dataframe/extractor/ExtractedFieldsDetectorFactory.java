@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.extractor;
 
@@ -123,7 +124,10 @@ public class ExtractedFieldsDetectorFactory {
             listener::onFailure
         );
 
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).query(config.getSource().getParsedQuery());
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
+            .size(0)
+            .query(config.getSource().getParsedQuery())
+            .runtimeMappings(config.getSource().getRuntimeMappings());
         for (FieldCardinalityConstraint constraint : fieldCardinalityConstraints) {
             Map<String, FieldCapabilities> fieldCapsPerType = fieldCapabilitiesResponse.getField(constraint.getField());
             if (fieldCapsPerType == null) {
@@ -170,6 +174,7 @@ public class ExtractedFieldsDetectorFactory {
         fieldCapabilitiesRequest.indices(index);
         fieldCapabilitiesRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         fieldCapabilitiesRequest.fields("*");
+        fieldCapabilitiesRequest.runtimeFields(config.getSource().getRuntimeMappings());
         LOGGER.debug(() -> new ParameterizedMessage(
             "[{}] Requesting field caps for index {}", config.getId(), Arrays.toString(index)));
         ClientHelper.executeWithHeaders(config.getHeaders(), ML_ORIGIN, client, () -> {

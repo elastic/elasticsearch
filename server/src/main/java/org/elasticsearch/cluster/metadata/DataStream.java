@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -35,7 +24,9 @@ import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -122,19 +113,20 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
      * the updated list of backing indices and incremented generation.
      *
-     * @param newWriteIndex the new write backing index. Must conform to the naming convention for
-     *                      backing indices on data streams. See {@link #getDefaultBackingIndexName}.
+     * @param writeIndexUuid UUID for the data stream's new write index
+     * @param minNodeVersion minimum cluster node version
+     *
      * @return new {@code DataStream} instance with the rollover operation applied
      */
-    public DataStream rollover(Index newWriteIndex, Version minNodeVersion) {
-        assert newWriteIndex.getName().equals(getDefaultBackingIndexName(name, generation + 1, minNodeVersion));
+    public DataStream rollover(String writeIndexUuid, Version minNodeVersion) {
         if (replicated) {
             throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, " +
                 "because it is a replicated data stream");
         }
 
         List<Index> backingIndices = new ArrayList<>(indices);
-        backingIndices.add(newWriteIndex);
+        final String newWriteIndexName = DataStream.getDefaultBackingIndexName(getName(), getGeneration() + 1, minNodeVersion);
+        backingIndices.add(new Index(newWriteIndexName, writeIndexUuid));
         return new DataStream(name, timeStampField, backingIndices, generation + 1, metadata, hidden, replicated);
     }
 
@@ -179,6 +171,37 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public DataStream promoteDataStream() {
         return new DataStream(name, timeStampField, indices, getGeneration(), metadata, hidden, false);
+    }
+
+    /**
+     * Reconciles this data stream with a list of indices available in a snapshot. Allows snapshots to store accurate data
+     * stream definitions that do not reference backing indices not contained in the snapshot.
+     *
+     * @param indicesInSnapshot List of indices in the snapshot
+     * @return Reconciled {@link DataStream} instance or {@code null} if no reconciled version of this data stream could be built from the
+     *         given indices
+     */
+    @Nullable
+    public DataStream snapshot(Collection<String> indicesInSnapshot) {
+        // do not include indices not available in the snapshot
+        List<Index> reconciledIndices = new ArrayList<>(this.indices);
+        if (reconciledIndices.removeIf(x -> indicesInSnapshot.contains(x.getName()) == false) == false) {
+            return this;
+        }
+
+        if (reconciledIndices.size() == 0) {
+            return null;
+        }
+
+        return new DataStream(
+            name,
+            timeStampField,
+            reconciledIndices,
+            generation,
+            metadata == null ? null : new HashMap<>(metadata),
+            hidden,
+            replicated
+        );
     }
 
     /**

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
@@ -10,7 +11,6 @@ import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolverTests;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
@@ -36,6 +36,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
@@ -50,7 +51,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
         VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         String message = e.getMessage();
         assertTrue(message.startsWith("Found "));
@@ -70,7 +71,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), resolution, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), resolution, new Verifier(new Metrics()));
         return analyzer.analyze(parser.createStatement(sql), true);
     }
 
@@ -568,6 +569,10 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT int FROM test WHERE dep.start_date > '2020-01-30'::date AND (int > 10 OR dep.end_date IS NULL)");
         accept("SELECT int FROM test WHERE dep.start_date > '2020-01-30'::date AND (int > 10 OR dep.end_date IS NULL) " +
                "OR NOT(dep.start_date >= '2020-01-01')");
+        String operator = randomFrom("<", "<=");
+        assertEquals("1:42: WHERE isn't (yet) compatible with scalar functions on nested fields [dep.location]",
+            error("SELECT shape FROM test " +
+                "WHERE ST_Distance(dep.location, ST_WKTToSQL('point (10 20)')) " + operator + " 25"));
     }
 
     public void testOrderByOnNested() {
@@ -911,7 +916,24 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testAggsInWhere() {
         assertEquals("1:33: Cannot use WHERE filtering on aggregate function [MAX(int)], use HAVING instead",
-                error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));
+            error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));
+    }
+
+    public void testHavingInAggs() {
+        assertEquals("1:29: [int] field must appear in the GROUP BY clause or in an aggregate function",
+            error("SELECT int FROM test HAVING MAX(int) = 0"));
+
+        assertEquals("1:35: [int] field must appear in the GROUP BY clause or in an aggregate function",
+                error("SELECT int FROM test HAVING int = count(1)"));
+    }
+
+    public void testHavingAsWhere() {
+        // TODO: this query works, though it normally shouldn't; a check about it could only be enforced if the Filter would be qualified
+        // (WHERE vs HAVING). Otoh, this "extra flexibility" shouldn't be harmful atp.
+        accept("SELECT int FROM test HAVING int = 1");
+        accept("SELECT int FROM test HAVING SIN(int) + 5 > 5.5");
+        // HAVING's expression being AND'ed to WHERE's
+        accept("SELECT int FROM test WHERE int > 3 HAVING POWER(int, 2) < 100");
     }
 
     public void testHistogramInFilter() {
@@ -1207,5 +1229,23 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         // inexact without underlying keyword (text only)
         assertEquals("1:36: [text] of data type [text] cannot be used for [CAST()] inside the WHERE clause",
                 error("SELECT * FROM test WHERE NOT (CAST(text AS string) = 'foo') OR true"));
+    }
+
+    public void testBinaryFieldWithDocValues() {
+        accept("SELECT binary_stored FROM test WHERE binary_stored IS NOT NULL");
+        accept("SELECT binary_stored FROM test GROUP BY binary_stored HAVING count(binary_stored) > 1");
+        accept("SELECT count(binary_stored) FROM test HAVING count(binary_stored) > 1");
+        accept("SELECT binary_stored FROM test ORDER BY binary_stored");
+    }
+
+    public void testBinaryFieldWithNoDocValues() {
+        assertEquals("1:31: Binary field [binary] cannot be used for filtering unless it has the doc_values setting enabled",
+            error("SELECT binary FROM test WHERE binary IS NOT NULL"));
+        assertEquals("1:34: Binary field [binary] cannot be used in aggregations unless it has the doc_values setting enabled",
+            error("SELECT binary FROM test GROUP BY binary"));
+        assertEquals("1:45: Binary field [binary] cannot be used for filtering unless it has the doc_values setting enabled",
+            error("SELECT count(binary) FROM test HAVING count(binary) > 1"));
+        assertEquals("1:34: Binary field [binary] cannot be used for ordering unless it has the doc_values setting enabled",
+            error("SELECT binary FROM test ORDER BY binary"));
     }
 }

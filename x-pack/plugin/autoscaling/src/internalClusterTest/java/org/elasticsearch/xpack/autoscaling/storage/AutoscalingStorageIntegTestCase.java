@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -45,7 +47,7 @@ public class AutoscalingStorageIntegTestCase extends DiskUsageIntegTestCase {
     public void setTotalSpace(String dataNodeName, long totalSpace) {
         getTestFileStore(dataNodeName).setTotalSpace(totalSpace);
         final ClusterInfoService clusterInfoService = internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
-        ((InternalClusterInfoService) clusterInfoService).refresh();
+        ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
     }
 
     public GetAutoscalingCapacityAction.Response capacity() {

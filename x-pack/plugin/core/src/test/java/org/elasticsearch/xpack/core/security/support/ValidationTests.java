@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.support;
 
@@ -137,7 +138,7 @@ public class ValidationTests extends ESTestCase {
             while (true) {
                 c = randomUnicodeOfLength(1).charAt(0);
                 final char finalChar = c;
-                if (!Validation.VALID_NAME_CHARS.contains(finalChar)) {
+                if (Validation.VALID_NAME_CHARS.contains(finalChar) == false) {
                     break;
                 }
             }

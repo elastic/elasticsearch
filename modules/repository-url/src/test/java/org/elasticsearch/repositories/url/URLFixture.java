@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories.url;
 
@@ -23,6 +12,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -40,18 +30,25 @@ public class URLFixture extends AbstractHttpFixture {
     /**
      * Creates a {@link URLFixture}
      */
-    private URLFixture(final String workingDir, final String repositoryDir) {
-        super(workingDir);
+    private URLFixture(final int port, final String workingDir, final String repositoryDir) {
+        super(workingDir, port);
         this.repositoryDir = dir(repositoryDir);
     }
 
     public static void main(String[] args) throws Exception {
-        if (args == null || args.length != 2) {
-            throw new IllegalArgumentException("URLFixture <working directory> <repository directory>");
+        if (args == null || args.length != 3) {
+            throw new IllegalArgumentException("URLFixture <port> <working directory> <repository directory>");
         }
-
-        final URLFixture fixture = new URLFixture(args[0], args[1]);
-        fixture.listen();
+        String workingDirectory = args[1];
+        if(Files.exists(dir(workingDirectory)) == false) {
+            throw new IllegalArgumentException("Configured working directory " + workingDirectory + " does not exist");
+        }
+        String repositoryDirectory = args[2];
+        if(Files.exists(dir(repositoryDirectory)) == false) {
+            throw new IllegalArgumentException("Configured repository directory " + repositoryDirectory + " does not exist");
+        }
+        final URLFixture fixture = new URLFixture(Integer.parseInt(args[0]), workingDirectory, repositoryDirectory);
+        fixture.listen(InetAddress.getByName("0.0.0.0"), false);
     }
 
     @Override

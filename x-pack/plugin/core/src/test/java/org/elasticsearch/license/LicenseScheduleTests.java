@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -29,16 +30,8 @@ public class LicenseScheduleTests extends ESTestCase {
         assertThat(schedule.nextScheduledTimeAfter(license.issueDate(), triggeredTime), equalTo(license.expiryDate()));
     }
 
-    public void testGraceLicenseSchedule() throws Exception {
-        long triggeredTime = license.expiryDate() + between(1,
-                ((int) LicenseService.GRACE_PERIOD_DURATION.getMillis()));
-        assertThat(schedule.nextScheduledTimeAfter(license.issueDate(), triggeredTime),
-                equalTo(license.expiryDate() + LicenseService.GRACE_PERIOD_DURATION.getMillis()));
-    }
-
     public void testExpiredLicenseSchedule() throws Exception {
-        long triggeredTime = license.expiryDate() + LicenseService.GRACE_PERIOD_DURATION.getMillis() +
-                randomIntBetween(1, 1000);
+        long triggeredTime = license.expiryDate() + randomIntBetween(1, 1000);
         assertThat(schedule.nextScheduledTimeAfter(license.issueDate(), triggeredTime),
                 equalTo(-1L));
     }

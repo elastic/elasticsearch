@@ -102,6 +102,11 @@ tag::checkpointing-changes-last-detected-at[]
 The timestamp when changes were last detected in the source indices.
 end::checkpointing-changes-last-detected-at[]
 
+tag::checkpointing-last-search-time[]
+The timestamp of the last search in the source indices. This field is only
+shown if the transform is running.
+end::checkpointing-last-search-time[]
+
 tag::cluster-health-status[]
 (string)
 Health status of the cluster, based on the state of its primary and replica
@@ -136,6 +141,10 @@ tag::completion-fields[]
 Comma-separated list or wildcard expressions of fields
 to include in `fielddata` and `suggest` statistics.
 end::completion-fields[]
+
+tag::delete-time-ms[]
+The amount of time spent deleting, in milliseconds.
+end::delete-time-ms[]
 
 tag::default_operator[]
 `default_operator`::
@@ -190,6 +199,11 @@ Also, {es} creates extra deleted documents to internally track the recent
 history of operations on a shard.
 end::docs-deleted[]
 
+tag::docs-deleted-transform[]
+The number of documents that have been deleted from the destination index due to
+the retention policy for this {transform}.
+end::docs-deleted-transform[]
+
 tag::docs-indexed[]
 The number of documents that have been indexed into the destination index
 for the {transform}.
@@ -205,26 +219,48 @@ Enrich policy name
 used to limit the request.
 end::enrich-policy[]
 
+tag::ds-expand-wildcards[]
+`expand_wildcards`::
++
+--
+(Optional, string)
+Type of data stream that wildcard expressions can match. Supports
+comma-separated values, such as `open,hidden`. Valid values are:
+
+`all`, `hidden`::
+Match any data stream, including <<hidden-indices,hidden>> ones.
+
+`open`, `closed`::
+Matches any non-hidden data stream. Data streams cannot be closed.
+
+`none`::
+Wildcard expressions are not accepted.
+--
+end::ds-expand-wildcards[]
+
 tag::expand-wildcards[]
 `expand_wildcards`::
 +
 --
-(Optional, string) Controls what kind of indices that wildcard expressions can
-expand to. Multiple values are accepted when separated by a comma, as in
-`open,hidden`. Valid values are:
+(Optional, string)
+Type of index that wildcard expressions can match. If the request can target
+data streams, this argument determines whether wildcard expressions match
+hidden data streams. Supports comma-separated values, such as `open,hidden`.
+Valid values are:
 
 `all`::
-Expand to open and closed indices, including <<hidden-indices,hidden indices>>.
+Match any data stream or index, including <<hidden-indices,hidden>> ones.
 
 `open`::
-Expand only to open indices.
+Match open, non-hidden indices. Also matches any non-hidden data stream.
 
 `closed`::
-Expand only to closed indices.
+Match closed, non-hidden indices. Also matches any non-hidden data stream. Data
+streams cannot be closed.
 
 `hidden`::
-Expansion of wildcards will include hidden indices.
-Must be combined with `open`, `closed`, or both.
+Match hidden data streams and hidden indices. Must be combined with `open`,
+`closed`, or both.
 
 `none`::
 Wildcard expressions are not accepted.
@@ -656,7 +692,7 @@ objects define the `group by` fields and the aggregation to reduce the data.
 end::pivot[]
 
 tag::pivot-aggs[]
-Defines how to aggregate the grouped data. The following aggregations are 
+Defines how to aggregate the grouped data. The following aggregations are
 currently supported:
 +
 --
@@ -667,6 +703,7 @@ currently supported:
 * <<search-aggregations-bucket-filter-aggregation,Filter>>
 * <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
+* <<search-aggregations-metrics-geo-line,Geo line>>
 * <<search-aggregations-metrics-max-aggregation,Max>>
 * <<search-aggregations-metrics-median-absolute-deviation-aggregation,Median absolute deviation>>
 * <<search-aggregations-metrics-min-aggregation,Min>>
@@ -683,7 +720,7 @@ currently supported:
 end::pivot-aggs[]
 
 tag::pivot-group-by[]
-Defines how to group the data. More than one grouping can be defined per pivot. 
+Defines how to group the data. More than one grouping can be defined per pivot.
 The following groupings are currently supported:
 +
 --
@@ -895,6 +932,10 @@ A query clause that retrieves a subset of data from the source index. See
 <<query-dsl>>.
 end::source-query-transforms[]
 
+tag::source-runtime-mappings-transforms[]
+Definitions of search-time runtime fields that can be used by the transform.
+end::source-runtime-mappings-transforms[]
+
 tag::state-transform[]
 The status of the {transform}, which can be one of the following values:
 +
@@ -946,9 +987,27 @@ default value is `60s`.
 end::sync-time-delay[]
 
 tag::transform-latest[]
-The `latest` method transforms the data by finding the latest document for each 
+The `latest` method transforms the data by finding the latest document for each
 unique key.
 end::transform-latest[]
+
+tag::transform-retention[]
+Defines a retention policy for the {transform}. Data that meets the defined 
+criteria is deleted from the destination index.
+end::transform-retention[]
+
+tag::transform-retention-time[]
+Specifies that the {transform} uses a time field to set the retention policy.
+end::transform-retention-time[]
+
+tag::transform-retention-time-field[]
+The date field that is used to calculate the age of the document.
+end::transform-retention-time-field[]
+
+tag::transform-retention-time-max-age[]
+Specifies the maximum age of a document in the destination index. Documents that 
+are older than the configured value are removed from the destination index.
+end::transform-retention-time-max-age[]
 
 tag::transform-settings[]
 Defines optional {transform} settings.

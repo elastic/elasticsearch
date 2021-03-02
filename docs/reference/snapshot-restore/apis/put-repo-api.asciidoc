@@ -24,6 +24,12 @@ PUT /_snapshot/my_repository
 
 `POST /_snapshot/<repository>`
 
+[[put-snapshot-repo-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[put-snapshot-repo-api-desc]]
 ==== {api-description-title}
 

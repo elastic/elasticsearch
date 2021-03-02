@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr;
 
@@ -81,7 +82,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             assertBusy(() -> verifyCcrMonitoring(leaderIndexName, followIndexName), 30, TimeUnit.SECONDS);
 
             pauseFollow(followIndexName);
-            assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_close")));
+            closeIndex(followIndexName);
             assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_ccr/unfollow")));
             Exception e = expectThrows(ResponseException.class, () -> resumeFollow(followIndexName));
             assertThat(e.getMessage(), containsString("follow index [" + followIndexName + "] does not have ccr metadata"));

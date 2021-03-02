@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.async;
 
@@ -49,7 +50,7 @@ public class TransportDeleteAsyncResultAction extends HandledTransportAction<Del
         AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
         DiscoveryNode node = clusterService.state().nodes().get(searchId.getTaskId().getNodeId());
         if (clusterService.localNode().getId().equals(searchId.getTaskId().getNodeId()) || node == null) {
-            deleteResultsService.deleteResult(request, listener);
+            deleteResultsService.deleteResponse(request, listener);
         } else {
             transportService.sendRequest(node, DeleteAsyncResultAction.NAME, request,
                 new ActionListenerResponseHandler<>(listener, AcknowledgedResponse::readFrom, ThreadPool.Names.SAME));

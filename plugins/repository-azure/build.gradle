@@ -6,25 +6,15 @@ import static org.elasticsearch.gradle.PropertyNormalization.DEFAULT
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact-base'
 
 esplugin {
   description 'The Azure Repository plugin adds support for Azure storage repositories.'
@@ -48,6 +38,13 @@ versions << [
 
 dependencies {
   api project(path: 'azure-storage-blob', configuration: 'shadow')
+  if (isEclipse) {
+    /*
+     * Eclipse can't pick up the shadow dependency so we point it at *something*
+     * so it can compile things.
+     */
+    api project(path: 'azure-storage-blob')
+  }
   api "com.azure:azure-storage-common:${versions.azure}"
   api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
   api "com.azure:azure-core:${versions.azureCore}"
@@ -87,6 +84,15 @@ dependencies {
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   testImplementation project(':test:fixtures:azure-fixture')
+}
+
+testArtifacts {
+  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
+}
+
+tasks.named("internalClusterTestJar").configure {
+  // for the plugin-security.policy resource
+  from sourceSets.test.output
 }
 
 restResources {
@@ -335,13 +341,12 @@ tasks.named("processYamlRestTestResources").configure {
   MavenFilteringHack.filter(it, expansions)
 }
 
-internalClusterTest {
+tasks.named("internalClusterTest").configure {
   // this is tested explicitly in a separate test task
   exclude '**/AzureStorageCleanupThirdPartyTests.class'
 }
 
-testClusters {
-  yamlRestTest {
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
     keystore 'azure.client.integration_test.account', azureAccount
     if (azureKey != null && azureKey.isEmpty() == false) {
       keystore 'azure.client.integration_test.key', azureKey
@@ -354,15 +359,14 @@ testClusters {
       String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
       setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), System.getProperty('ignore.tests.seed') == null ? DEFAULT : IGNORE_VALUE
     }
-  }
 }
 
-task azureThirdPartyTest(type: Test) {
+tasks.register("azureThirdPartyTest", Test) {
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
-  dependsOn tasks.internalClusterTest
+  dependsOn "internalClusterTest"
   include '**/AzureStorageCleanupThirdPartyTests.class'
   systemProperty 'test.azure.account', azureAccount ? azureAccount : ""
   systemProperty 'test.azure.key', azureKey ? azureKey : ""
@@ -374,18 +378,3 @@ task azureThirdPartyTest(type: Test) {
   }
 }
 tasks.named("check").configure { dependsOn("azureThirdPartyTest") }
-
-// test jar is exported by the integTestArtifacts configuration to be used in the encrypted Azure repository test
-configurations {
-  internalClusterTestArtifacts.extendsFrom internalClusterTestImplementation
-  internalClusterTestArtifacts.extendsFrom internalClusterTestRuntime
-}
-
-def internalClusterTestJar = tasks.register("internalClusterTestJar", Jar) {
-  appendix 'internalClusterTest'
-  from sourceSets.internalClusterTest.output
-}
-
-artifacts {
-  internalClusterTestArtifacts internalClusterTestJar
-}

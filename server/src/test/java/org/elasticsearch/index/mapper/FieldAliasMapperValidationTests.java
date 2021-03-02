@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
@@ -25,6 +14,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -38,15 +29,11 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> new MappingLookup(
-                "_doc",
-                Collections.emptyList(),
+            () -> createMappingLookup(
+                emptyList(),
                 singletonList(objectMapper),
                 singletonList(aliasMapper),
-                emptyList(),
-                0,
-                null,
-                false
+                emptyList()
             )
         );
         assertEquals("Alias [some.path] is defined both as an object and an alias", e.getMessage());
@@ -59,15 +46,11 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> new MappingLookup(
-                "_doc",
+            () -> createMappingLookup(
                 Arrays.asList(field, invalidField),
                 emptyList(),
                 singletonList(invalidAlias),
-                emptyList(),
-                0,
-                null,
-                false
+                emptyList()
             )
         );
         assertEquals("Alias [invalid] is defined both as an alias and a concrete field", e.getMessage());
@@ -78,15 +61,11 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         FieldAliasMapper alias = new FieldAliasMapper("alias", "alias", "field");
         FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid-alias", "invalid-alias", "alias");
 
-        MappingLookup mappers = new MappingLookup(
-            "_doc",
+        MappingLookup mappers = createMappingLookup(
             singletonList(field),
             emptyList(),
             Arrays.asList(alias, invalidAlias),
-            emptyList(),
-            0,
-            null,
-            false
+            emptyList()
         );
         alias.validate(mappers);
 
@@ -102,15 +81,11 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid-alias", "invalid-alias", "invalid-alias");
 
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
-            MappingLookup mappers = new MappingLookup(
-                "_doc",
+            MappingLookup mappers = createMappingLookup(
                 emptyList(),
                 emptyList(),
                 singletonList(invalidAlias),
-                emptyList(),
-                0,
-                null,
-                false
+                emptyList()
             );
             invalidAlias.validate(mappers);
         });
@@ -123,15 +98,11 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid-alias", "invalid-alias", "non-existent");
 
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
-            MappingLookup mappers = new MappingLookup(
-                "_doc",
+            MappingLookup mappers = createMappingLookup(
                 emptyList(),
                 emptyList(),
                 singletonList(invalidAlias),
-                emptyList(),
-                0,
-                null,
-                false
+                emptyList()
             );
             invalidAlias.validate(mappers);
         });
@@ -144,15 +115,11 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         ObjectMapper objectMapper = createNestedObjectMapper("nested");
         FieldAliasMapper aliasMapper = new FieldAliasMapper("alias", "nested.alias", "nested.field");
 
-        MappingLookup mappers = new MappingLookup(
-            "_doc",
+        MappingLookup mappers = createMappingLookup(
             singletonList(createFieldMapper("nested", "field")),
             singletonList(objectMapper),
             singletonList(aliasMapper),
-            emptyList(),
-            0,
-            null,
-            false
+            emptyList()
         );
         aliasMapper.validate(mappers);
     }
@@ -161,15 +128,11 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
 
         FieldAliasMapper aliasMapper = new FieldAliasMapper("alias", "object2.alias", "object1.field");
 
-        MappingLookup mappers = new MappingLookup(
-            "_doc",
+        MappingLookup mappers = createMappingLookup(
             List.of(createFieldMapper("object1", "field")),
             List.of(createObjectMapper("object1"), createObjectMapper("object2")),
             singletonList(aliasMapper),
-            emptyList(),
-            0,
-            null,
-            false
+            emptyList()
         );
         aliasMapper.validate(mappers);
     }
@@ -179,15 +142,11 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         FieldAliasMapper aliasMapper = new FieldAliasMapper("alias", "alias", "nested.field");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            MappingLookup mappers = new MappingLookup(
-                "_doc",
+            MappingLookup mappers = createMappingLookup(
                 singletonList(createFieldMapper("nested", "field")),
                 Collections.singletonList(objectMapper),
                 singletonList(aliasMapper),
-                emptyList(),
-                0,
-                null,
-                false
+                emptyList()
             );
             aliasMapper.validate(mappers);
         });
@@ -202,19 +161,14 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         FieldAliasMapper aliasMapper = new FieldAliasMapper("alias", "nested2.alias", "nested1.field");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            MappingLookup mappers = new MappingLookup(
-                "_doc",
+            MappingLookup mappers = createMappingLookup(
                 singletonList(createFieldMapper("nested1", "field")),
                 List.of(createNestedObjectMapper("nested1"), createNestedObjectMapper("nested2")),
                 singletonList(aliasMapper),
-                emptyList(),
-                0,
-                null,
-                false
+                emptyList()
             );
             aliasMapper.validate(mappers);
         });
-
 
         String expectedMessage = "Invalid [path] value [nested1.field] for field alias [nested2.alias]: " +
             "an alias must have the same nested scope as its target. The alias's nested scope is [nested2], " +
@@ -238,5 +192,16 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             new Explicit<>(true, false),
             ObjectMapper.Nested.newNested(),
             ObjectMapper.Dynamic.FALSE, emptyMap(), Version.CURRENT);
+    }
+
+    private static MappingLookup createMappingLookup(List<FieldMapper> fieldMappers,
+                                                     List<ObjectMapper> objectMappers,
+                                                     List<FieldAliasMapper> fieldAliasMappers,
+                                                     List<RuntimeFieldType> runtimeFields) {
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
+        Map<String, RuntimeFieldType> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(MappedFieldType::name, r -> r));
+        builder.setRuntime(runtimeFieldTypes);
+        Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
+        return new MappingLookup(mapping, fieldMappers, objectMappers, fieldAliasMappers, null, null, null);
     }
 }

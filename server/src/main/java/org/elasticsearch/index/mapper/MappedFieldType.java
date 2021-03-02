@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -47,7 +36,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
@@ -55,7 +44,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -104,7 +93,7 @@ public abstract class MappedFieldType {
      * for metadata fields, field types should not throw {@link UnsupportedOperationException} since this
      * could cause a search retrieving multiple fields (like "fields": ["*"]) to fail.
      */
-    public abstract ValueFetcher valueFetcher(QueryShardContext context, @Nullable String format);
+    public abstract ValueFetcher valueFetcher(SearchExecutionContext context, @Nullable String format);
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
@@ -186,11 +175,11 @@ public abstract class MappedFieldType {
      *  @throws QueryShardException if the field is not searchable regardless of options
      */
     // TODO: Standardize exception types
-    public abstract Query termQuery(Object value, @Nullable QueryShardContext context);
+    public abstract Query termQuery(Object value, @Nullable SearchExecutionContext context);
 
 
     // Case insensitive form of term query (not supported by all fields so must be overridden to enable)
-    public Query termQueryCaseInsensitive(Object value, @Nullable QueryShardContext context) {
+    public Query termQueryCaseInsensitive(Object value, @Nullable SearchExecutionContext context) {
         throw new QueryShardException(context, "[" + name + "] field which is of type [" + typeName() +
             "], does not support case insensitive term queries");
     }
@@ -198,7 +187,7 @@ public abstract class MappedFieldType {
     /** Build a constant-scoring query that matches all values. The default implementation uses a
      * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
      * are generated with {@link #termQuery}. */
-    public Query termsQuery(List<?> values, @Nullable QueryShardContext context) {
+    public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Object value : values) {
             builder.add(termQuery(value, context), Occur.SHOULD);
@@ -214,48 +203,48 @@ public abstract class MappedFieldType {
         Object lowerTerm, Object upperTerm,
         boolean includeLower, boolean includeUpper,
         ShapeRelation relation, ZoneId timeZone, DateMathParser parser,
-        QueryShardContext context) {
+        SearchExecutionContext context) {
         throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
 
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions,
-                            QueryShardContext context) {
+                            SearchExecutionContext context) {
         throw new IllegalArgumentException("Can only use fuzzy queries on keyword and text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
     // Case sensitive form of prefix query
-    public final Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+    public final Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
         return prefixQuery(value, method, false, context);
     }
 
     public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, boolean caseInsensitve,
-        QueryShardContext context) {
+        SearchExecutionContext context) {
         throw new QueryShardException(context, "Can only use prefix queries on keyword, text and wildcard fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
     // Case sensitive form of wildcard query
     public final Query wildcardQuery(String value,
-        @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context
+        @Nullable MultiTermQuery.RewriteMethod method, SearchExecutionContext context
     ) {
         return wildcardQuery(value, method, false, context);
     }
 
     public Query wildcardQuery(String value,
                                @Nullable MultiTermQuery.RewriteMethod method,
-                               boolean caseInsensitve, QueryShardContext context) {
+                               boolean caseInsensitve, SearchExecutionContext context) {
         throw new QueryShardException(context, "Can only use wildcard queries on keyword, text and wildcard fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
     public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
-        @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        @Nullable MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
         throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query existsQuery(QueryShardContext context) {
+    public Query existsQuery(SearchExecutionContext context) {
         if (hasDocValues()) {
             return new DocValuesFieldExistsQuery(name());
         } else if (getTextSearchInfo().hasNorms()) {
@@ -280,12 +269,12 @@ public abstract class MappedFieldType {
             + "] which is of type [" + typeName() + "]");
     }
 
-    public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
+    public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
         throw new IllegalArgumentException("Can only use span prefix queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query distanceFeatureQuery(Object origin, String pivot, QueryShardContext context) {
+    public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
         throw new IllegalArgumentException("Illegal data type of [" + typeName() + "]!"+
             "[" + DistanceFeatureQueryBuilder.NAME + "] query can only be run on a date, date_nanos or geo_point field type!");
     }

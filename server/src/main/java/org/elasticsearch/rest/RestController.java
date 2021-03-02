@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest;
@@ -23,13 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
@@ -54,6 +43,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
@@ -91,14 +81,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
-    private final CompatibleVersion compatibleVersion;
 
     public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService,
-                          CompatibleVersion compatibleVersion) {
+                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
-        this.compatibleVersion = compatibleVersion;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
@@ -172,9 +159,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
-        final Version version = maybeWrappedHandler.compatibleWithVersion();
-        assert Version.CURRENT.minimumRestCompatibilityVersion() == version || Version.CURRENT == version
-            : "REST API compatibility is only supported for version " + Version.CURRENT.minimumRestCompatibilityVersion().major;
+        final RestApiCompatibleVersion version = maybeWrappedHandler.compatibleWithVersion();
+        assert RestApiCompatibleVersion.minimumSupported() == version || RestApiCompatibleVersion.currentVersion() == version
+            : "REST API compatibility is only supported for version " + RestApiCompatibleVersion.minimumSupported().major;
 
         handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),
             (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method));
@@ -228,7 +215,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler, Version compatibleVersion)
+    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler,
+                                 RestApiCompatibleVersion restApiCompatibleVersion)
         throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
@@ -237,7 +225,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
-            if (handler.supportsContentStream() && xContentType != XContentType.JSON && xContentType != XContentType.SMILE) {
+            //TODO consider refactoring to handler.supportsContentStream(xContentType). It is only used with JSON and SMILE
+            if (handler.supportsContentStream() && xContentType.canonical() != XContentType.JSON
+                && xContentType.canonical() != XContentType.SMILE) {
                 channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, RestStatus.NOT_ACCEPTABLE,
                     "Content-Type [" + xContentType + "] does not support stream parsing. Use JSON or SMILE instead"));
                 return;
@@ -251,16 +241,26 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, compatibleVersion);
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, restApiCompatibleVersion);
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
             }
-            if (handler.allowSystemIndexAccessByDefault() == false && request.header(ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER) == null) {
-                // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product with a plan
-                // to move away from direct access to system indices, and thus deprecation warnings should not be emitted.
+
+            final ThreadContext threadContext = client.threadPool().getThreadContext();
+            if (handler.allowSystemIndexAccessByDefault() == false) {
+                // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product and
+                // therefore we should allow a subset of external system index access.
                 // This header is intended for internal use only.
-                client.threadPool().getThreadContext().putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
+                final String prodOriginValue = request.header(ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+                if (prodOriginValue != null) {
+                    threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
+                    threadContext.putHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, prodOriginValue);
+                } else {
+                    threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
+                }
+            } else {
+                threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
             }
 
             handler.handleRequest(request, responseChannel, client);
@@ -328,8 +328,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
 
-        Version compatibleVersion = this.compatibleVersion.
-            get(request.getParsedAccept(), request.getParsedContentType(), request.hasContent());
+        RestApiCompatibleVersion restApiCompatibleVersion = request.getRestApiCompatibleVersion();
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();
@@ -341,14 +340,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 if (handlers == null) {
                     handler = null;
                 } else {
-                    handler = handlers.getHandler(requestMethod, compatibleVersion);
+                    handler = handlers.getHandler(requestMethod, restApiCompatibleVersion);
                 }
                 if (handler == null) {
                   if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
                       return;
                   }
                 } else {
-                    dispatchRequest(request, channel, handler, compatibleVersion);
+                    dispatchRequest(request, channel, handler, restApiCompatibleVersion);
                     return;
                 }
             }
@@ -466,40 +465,40 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
-        private final Version compatibleVersion;
+        private final RestApiCompatibleVersion restApiCompatibleVersion;
         private final AtomicBoolean closed = new AtomicBoolean();
 
         ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength,
-                                    Version compatibleVersion) {
+                                    RestApiCompatibleVersion restApiCompatibleVersion) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
-            this.compatibleVersion = compatibleVersion;
+            this.restApiCompatibleVersion = restApiCompatibleVersion;
         }
 
         @Override
         public XContentBuilder newBuilder() throws IOException {
             return delegate.newBuilder()
-                .withCompatibleMajorVersion(compatibleVersion.major);
+                .withCompatibleVersion(restApiCompatibleVersion);
         }
 
         @Override
         public XContentBuilder newErrorBuilder() throws IOException {
             return delegate.newErrorBuilder()
-                .withCompatibleMajorVersion(compatibleVersion.major);
+                .withCompatibleVersion(restApiCompatibleVersion);
         }
 
         @Override
         public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
             return delegate.newBuilder(xContentType, useFiltering)
-                .withCompatibleMajorVersion(compatibleVersion.major);
+                .withCompatibleVersion(restApiCompatibleVersion);
         }
 
         @Override
         public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
                 throws IOException {
             return delegate.newBuilder(xContentType, responseContentType, useFiltering)
-                .withCompatibleMajorVersion(compatibleVersion.major);
+                .withCompatibleVersion(restApiCompatibleVersion);
         }
 
         @Override

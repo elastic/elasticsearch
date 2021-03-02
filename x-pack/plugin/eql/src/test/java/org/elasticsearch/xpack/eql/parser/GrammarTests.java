@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.parser;
@@ -47,7 +48,7 @@ public class GrammarTests extends ESTestCase {
                 "Query not identified as unsupported: " + q,
                 () -> parser.createStatement(q));
 
-            if (!pe.getErrorMessage().contains("supported")) {
+            if (pe.getErrorMessage().contains("supported") == false) {
                 throw new ParsingException(new Source(pe.getLineNumber() + line.v2() - 1, pe.getColumnNumber(), q),
                     pe.getErrorMessage() + " inside statement <{}>", q);
             }

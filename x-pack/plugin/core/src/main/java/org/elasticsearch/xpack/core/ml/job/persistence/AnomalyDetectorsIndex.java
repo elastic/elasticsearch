@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
@@ -17,8 +18,6 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
  * Methods for handling index naming related functions
  */
 public final class AnomalyDetectorsIndex {
-
-    public static final int CONFIG_INDEX_MAX_RESULTS_WINDOW = 10_000;
 
     private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
     private static final String RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/anomalydetection/";

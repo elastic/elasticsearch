@@ -33,6 +33,12 @@ DELETE /_index_template/my-index-template
 
 `DELETE /_index_template/<index-template>`
 
+[[delete-template-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
 
 [[delete-template-api-desc]]
 ==== {api-description-title}

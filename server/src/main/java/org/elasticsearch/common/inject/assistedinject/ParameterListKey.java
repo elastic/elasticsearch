@@ -47,7 +47,7 @@ class ParameterListKey {
         if (o == this) {
             return true;
         }
-        if (!(o instanceof ParameterListKey)) {
+        if ((o instanceof ParameterListKey) == false) {
             return false;
         }
         ParameterListKey other = (ParameterListKey) o;

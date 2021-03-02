@@ -34,12 +34,12 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /google-.*/, to: 'google'
 }
 
-check {
+tasks.named("check").configure {
   // also execute the QA tests when testing the plugin
   dependsOn 'qa:gce:check'
 }
 
-test {
+tasks.named("test").configure {
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name
 }

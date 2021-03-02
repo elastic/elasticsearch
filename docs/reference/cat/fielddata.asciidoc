@@ -15,6 +15,11 @@ Returns the amount of heap memory currently used by the
 
 `GET /_cat/fielddata`
 
+[[cat-fielddata-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cat-fielddata-api-path-params]]
 ==== {api-path-parms-title}
@@ -88,7 +93,7 @@ following `fieldata` API request retrieves heap memory size information for the
 
 [source,console]
 --------------------------------------------------
-GET /_cat/fielddata?v&fields=body
+GET /_cat/fielddata?v=true&fields=body
 --------------------------------------------------
 // TEST[continued]
 
@@ -112,7 +117,7 @@ information for the `body` and `soul` fields.
 
 [source,console]
 --------------------------------------------------
-GET /_cat/fielddata/body,soul?v
+GET /_cat/fielddata/body,soul?v=true
 --------------------------------------------------
 // TEST[continued]
 
@@ -138,7 +143,7 @@ information all fields.
 
 [source,console]
 --------------------------------------------------
-GET /_cat/fielddata?v
+GET /_cat/fielddata?v=true
 --------------------------------------------------
 // TEST[continued]
 

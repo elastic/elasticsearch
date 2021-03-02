@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.action;
@@ -137,7 +138,9 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             ActionListener.wrap(hitsAndIds -> {
                 request.setExpandedIds(hitsAndIds.v2());
                 final ClusterState state = clusterService.state();
-                request.setNodes(TransformNodes.transformTaskNodes(hitsAndIds.v2(), state));
+                TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(hitsAndIds.v2(), state);
+                // TODO: if empty the request is send to all nodes(benign but superfluous)
+                request.setNodes(transformNodeAssignments.getExecutorNodes().toArray(new String[0]));
                 super.doExecute(task, request, ActionListener.wrap(response -> {
                     PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                     if (tasksInProgress != null) {

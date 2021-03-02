@@ -151,7 +151,7 @@ API>>.
 
 [source,console]
 ----
-GET _cat/nodes?v&h=heap.current
+GET _cat/nodes?v=true&h=heap.current
 ----
 // TEST[setup:my_index]
 
@@ -224,7 +224,7 @@ You can find these empty indices using the <<cat-count,cat count API>>.
 
 [source,console]
 ----
-GET /_cat/count/my-index-000001?v
+GET /_cat/count/my-index-000001?v=true
 ----
 // TEST[setup:my_index]
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.restart;
 
@@ -40,7 +41,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -703,11 +703,24 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             Request indexRequest = new Request("POST", "/ds/_doc/1?op_type=create&refresh");
             XContentBuilder builder = JsonXContent.contentBuilder().startObject()
                 .field("f", "v")
-                .field("@timestamp", new Date())
+                .field("@timestamp", System.currentTimeMillis())
                 .endObject();
             indexRequest.setJsonEntity(Strings.toString(builder));
             assertOK(client().performRequest(indexRequest));
         }
+
+        // It's quite possible that this test will run where the data stream backing index is
+        // created on one day, and then checked on a subsequent day. To avoid this failing the
+        // test, we store the timestamp used when the document is indexed, then when we go to
+        // check the backing index name, we retrieve the time and use it for the backing index
+        // name resolution.
+        Request getDoc = new Request("GET", "/ds/_search");
+        Map<String, Object> doc = entityAsMap(client().performRequest(getDoc));
+        logger.info("--> doc: {}", doc);
+        Map<String, Object> hits = (Map<String, Object>) doc.get("hits");
+        Map<String, Object> docBody = (Map<String, Object>) ((List<Object>) hits.get("hits")).get(0);
+        Long timestamp = (Long) ((Map<String, Object>) docBody.get("_source")).get("@timestamp");
+        logger.info("--> parsed out timestamp of {}", timestamp);
 
         Request getDataStream = new Request("GET", "/_data_stream/ds");
         Response response = client().performRequest(getDataStream);
@@ -718,10 +731,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
         assertEquals("ds", ds.get("name"));
         assertEquals(1, indices.size());
-        assertEquals(getOldClusterVersion().onOrAfter(Version.V_7_11_0)
-            ? DataStream.getDefaultBackingIndexName("ds", 1)
-            : DataStream.getLegacyDefaultBackingIndexName("ds", 1),
-            indices.get(0).get("index_name"));
+        assertEquals(DataStream.getDefaultBackingIndexName("ds", 1, timestamp, getOldClusterVersion()), indices.get(0).get("index_name"));
         assertNumHits("ds", 1, 1);
     }
 

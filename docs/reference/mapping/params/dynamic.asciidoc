@@ -39,9 +39,6 @@ PUT my-index-000001/_doc/2
 GET my-index-000001/_mapping
 ----
 
-TIP: Use the <<indices-put-mapping,PUT mapping API>> to update the `dynamic`
-setting on existing fields.
-
 [[dynamic-inner-objects]]
 ==== Setting `dynamic` on inner objects
 <<object,Inner objects>> inherit the `dynamic` setting from their parent

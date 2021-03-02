@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
@@ -148,7 +149,7 @@ public class Normalizer {
                                     boolean parentHadBigChange, Normalizable result) {
         boolean hasBigChange = false;
         if (result.isContainerOnly() == false) {
-            if (!scoresIter.hasNext()) {
+            if (scoresIter.hasNext() == false) {
                 String msg = "Error iterating normalized results";
                 LOGGER.error("[{}] {}", jobId, msg);
                 throw new ElasticsearchException(msg);
@@ -173,7 +174,7 @@ public class Normalizer {
 
         for (Normalizable.ChildType childrenType : result.getChildrenTypes()) {
             List<Normalizable> children = result.getChildren(childrenType);
-            if (!children.isEmpty()) {
+            if (children.isEmpty() == false) {
                 double maxChildrenScore = 0.0;
                 for (Normalizable child : children) {
                     maxChildrenScore = Math.max(

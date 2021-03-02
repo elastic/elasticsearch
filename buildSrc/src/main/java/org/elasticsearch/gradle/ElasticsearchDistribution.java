@@ -63,15 +63,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         }
     }
 
-    public enum Flavor {
-        DEFAULT;
-
-        @Override
-        public String toString() {
-            return super.toString().toLowerCase(Locale.ROOT);
-        }
-    }
-
     // package private to tests can use
     public static final Platform CURRENT_PLATFORM = OS.<Platform>conditional()
         .onLinux(() -> Platform.LINUX)
@@ -88,7 +79,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final Property<String> version;
     private final Property<Type> type;
     private final Property<Platform> platform;
-    private final Property<Flavor> flavor;
     private final Property<Boolean> bundledJdk;
     private final Property<Boolean> failIfUnavailable;
     private final Configuration extracted;
@@ -111,7 +101,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.type = objectFactory.property(Type.class);
         this.type.convention(Type.ARCHIVE);
         this.platform = objectFactory.property(Platform.class);
-        this.flavor = objectFactory.property(Flavor.class);
         this.bundledJdk = objectFactory.property(Boolean.class);
         this.failIfUnavailable = objectFactory.property(Boolean.class).convention(true);
         this.extracted = extractedConfiguration;
@@ -145,14 +134,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
     public void setType(Type type) {
         this.type.set(type);
-    }
-
-    public Flavor getFlavor() {
-        return flavor.getOrNull();
-    }
-
-    public void setFlavor(Flavor flavor) {
-        this.flavor.set(flavor);
     }
 
     public boolean getBundledJdk() {
@@ -251,11 +232,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
                     "platform cannot be set on elasticsearch distribution [" + name + "] of type [integ_test_zip]"
                 );
             }
-            if (flavor.getOrNull() != null) {
-                throw new IllegalArgumentException(
-                    "flavor [" + flavor.get() + "] not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]"
-                );
-            }
             if (bundledJdk.getOrNull() != null) {
                 throw new IllegalArgumentException(
                     "bundledJdk cannot be set on elasticsearch distribution [" + name + "] of type [integ_test_zip]"
@@ -290,9 +266,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             }
         }
 
-        if (flavor.isPresent() == false) {
-            flavor.set(Flavor.DEFAULT);
-        }
         if (bundledJdk.isPresent() == false) {
             bundledJdk.set(true);
         }
@@ -300,7 +273,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         version.finalizeValue();
         platform.finalizeValue();
         type.finalizeValue();
-        flavor.finalizeValue();
         bundledJdk.finalizeValue();
     }
 

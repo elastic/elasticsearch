@@ -64,7 +64,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.oneOf;
 
 public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
-
+    
+    private static final String TRANSFORM_ENDPOINT = "/_transform/";
+    private static final String TRANSFORM_ENDPOINT_DEPRECATED = "/_data_frame/transforms/";
     private static final String CONTINUOUS_TRANSFORM_ID = "continuous-transform-upgrade-job";
     private static final String CONTINUOUS_TRANSFORM_SOURCE = "transform-upgrade-continuous-source";
     private static final List<String> ENTITIES = Stream.iterate(1, n -> n + 1)
@@ -117,8 +119,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
     public void testTransformRollingUpgrade() throws Exception {
-        assumeTrue("Continuous transform not supported until 7.3, and moved to _transform in 7.5",
-            UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_5_0));
+        assumeTrue("Continuous transform not supported until 7.3", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_3_0));
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity(
             "{\"transient\": {" +
@@ -289,33 +290,37 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         });
     }
 
+    private String getTransformEndpoint() {
+        return CLUSTER_TYPE == ClusterType.UPGRADED ? TRANSFORM_ENDPOINT : TRANSFORM_ENDPOINT_DEPRECATED;
+    }
+
     private void putTransform(String id, TransformConfig config) throws IOException {
-        final Request createDataframeTransformRequest = new Request("PUT", "/_transform/" + id);
+        final Request createDataframeTransformRequest = new Request("PUT", getTransformEndpoint() + id);
         createDataframeTransformRequest.setJsonEntity(Strings.toString(config));
         Response response = client().performRequest(createDataframeTransformRequest);
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
     private void deleteTransform(String id) throws IOException {
-        Response response = client().performRequest(new Request("DELETE", "/_transform/" + id));
+        Response response = client().performRequest(new Request("DELETE", getTransformEndpoint() + id));
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
     private void startTransform(String id) throws IOException {
-        final Request startDataframeTransformRequest = new Request("POST", "/_transform/" + id + "/_start");
+        final Request startDataframeTransformRequest = new Request("POST", getTransformEndpoint() + id + "/_start");
         Response response = client().performRequest(startDataframeTransformRequest);
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
     private void stopTransform(String id) throws IOException {
         final Request stopDataframeTransformRequest = new Request("POST",
-            "/_transform/" + id + "/_stop?wait_for_completion=true");
+            getTransformEndpoint() + id + "/_stop?wait_for_completion=true");
         Response response = client().performRequest(stopDataframeTransformRequest);
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
     private TransformStats getTransformStats(String id) throws IOException {
-        final Request getStats = new Request("GET", "/_transform/" + id + "/_stats");
+        final Request getStats = new Request("GET", getTransformEndpoint() + id + "/_stats");
         Response response = client().performRequest(getStats);
         assertEquals(200, response.getStatusLine().getStatusCode());
         XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());

@@ -23,6 +23,7 @@ public class DeprecationRestHandler implements RestHandler {
     private final RestHandler handler;
     private final String deprecationMessage;
     private final DeprecationLogger deprecationLogger;
+    private final boolean compatibleVersionWarning;
 
     /**
      * Create a {@link DeprecationRestHandler} that encapsulates the {@code handler} using the {@code deprecationLogger} to log
@@ -34,10 +35,16 @@ public class DeprecationRestHandler implements RestHandler {
      * @throws NullPointerException if any parameter except {@code deprecationMessage} is {@code null}
      * @throws IllegalArgumentException if {@code deprecationMessage} is not a valid header
      */
-    public DeprecationRestHandler(RestHandler handler, String deprecationMessage, DeprecationLogger deprecationLogger) {
+    public DeprecationRestHandler(RestHandler handler, String deprecationMessage, DeprecationLogger deprecationLogger,
+                                  boolean compatibleVersionWarning) {
         this.handler = Objects.requireNonNull(handler);
         this.deprecationMessage = requireValidHeader(deprecationMessage);
         this.deprecationLogger = Objects.requireNonNull(deprecationLogger);
+        this.compatibleVersionWarning = compatibleVersionWarning;
+    }
+
+    public DeprecationRestHandler(RestHandler handler, String deprecationMessage, DeprecationLogger deprecationLogger) {
+        this(handler, deprecationMessage, deprecationLogger, false);
     }
 
     /**
@@ -47,7 +54,11 @@ public class DeprecationRestHandler implements RestHandler {
      */
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_route", deprecationMessage);
+        if (compatibleVersionWarning == false) {
+            deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_route", deprecationMessage);
+        } else {
+            deprecationLogger.compatibleApiWarning("deprecated_route", deprecationMessage);
+        }
 
         handler.handleRequest(request, channel, client);
     }

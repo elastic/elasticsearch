@@ -110,7 +110,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
                                                RestHandler handler, String deprecationMessage) {
         assert (handler instanceof DeprecationRestHandler) == false;
 
-        registerHandler(method, path, version, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger));
+        if (version.major >= RestApiCompatibleVersion.currentVersion().major) {
+            // e.g. it was marked as deprecated in 8.x, and we're currently running 8.x
+            registerHandler(method, path, version, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger));
+        } else {
+            // e.g. it was marked as deprecated in 8.x, and we're currently running 7.x
+            registerHandler(method, path, version, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger, true));
+        }
     }
 
     /**

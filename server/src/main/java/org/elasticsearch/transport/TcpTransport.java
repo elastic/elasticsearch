@@ -618,6 +618,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         } else if (e instanceof StreamCorruptedException) {
             logger.warn(() -> new ParameterizedMessage("{}, [{}], closing connection", e.getMessage(), channel));
             CloseableChannel.closeChannel(channel);
+        } else if (e instanceof TransportNotReadyException) {
+            logger.debug(() -> new ParameterizedMessage("{} on [{}], closing connection", e.getMessage(), channel));
+            CloseableChannel.closeChannel(channel);
         } else {
             logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
             // close the channel, which will cause a node to be disconnected if relevant

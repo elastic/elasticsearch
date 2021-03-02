@@ -29,7 +29,7 @@ public class RestPreviewTransformActionDeprecated extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(POST, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED + "_preview")
-                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiCompatibleVersion.V_7).build()
+                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiCompatibleVersion.V_8).build()
         );
     }
 

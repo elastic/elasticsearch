@@ -33,7 +33,7 @@ public class RestFindStructureAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(POST, BASE_PATH + "find_structure")
-                .replaces(POST, "/_ml/find_file_structure", RestApiCompatibleVersion.V_7)
+                .replaces(POST, "/_ml/find_file_structure", RestApiCompatibleVersion.V_8)
                 .build()
         );
     }

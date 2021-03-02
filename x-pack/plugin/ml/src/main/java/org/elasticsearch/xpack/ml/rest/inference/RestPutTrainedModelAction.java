@@ -27,7 +27,7 @@ public class RestPutTrainedModelAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(PUT, BASE_PATH + "trained_models/{" + MODEL_ID.getPreferredName() + "}")
-                .replaces(PUT, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}", RestApiCompatibleVersion.V_7).build()
+                .replaces(PUT, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}", RestApiCompatibleVersion.V_8).build()
         );
     }
 

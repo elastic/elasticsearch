@@ -26,7 +26,7 @@ public class RestDeleteTrainedModelAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(DELETE, BASE_PATH + "trained_models/{" + MODEL_ID.getPreferredName() + "}")
-                .replaces(DELETE, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}", RestApiCompatibleVersion.V_7).build()
+                .replaces(DELETE, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}", RestApiCompatibleVersion.V_8).build()
         );
     }
 

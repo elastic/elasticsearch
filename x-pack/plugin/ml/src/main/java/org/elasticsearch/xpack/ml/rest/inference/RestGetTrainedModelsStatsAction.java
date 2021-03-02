@@ -30,9 +30,9 @@ public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(GET, BASE_PATH + "trained_models/{" + MODEL_ID.getPreferredName() + "}/_stats")
-                .replaces(GET, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}/_stats", RestApiCompatibleVersion.V_7).build(),
+                .replaces(GET, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}/_stats", RestApiCompatibleVersion.V_8).build(),
             Route.builder(GET, BASE_PATH + "trained_models/_stats")
-                .replaces(GET, BASE_PATH + "inference/_stats", RestApiCompatibleVersion.V_7).build()
+                .replaces(GET, BASE_PATH + "inference/_stats", RestApiCompatibleVersion.V_8).build()
         );
     }
 

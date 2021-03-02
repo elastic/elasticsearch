@@ -48,9 +48,9 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(GET, BASE_PATH + "trained_models/{" + MODEL_ID.getPreferredName() + "}")
-                .replaces(GET, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}", RestApiCompatibleVersion.V_7).build(),
+                .replaces(GET, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}", RestApiCompatibleVersion.V_8).build(),
             Route.builder(GET, BASE_PATH + "trained_models")
-                .replaces(GET, BASE_PATH + "inference", RestApiCompatibleVersion.V_7).build()
+                .replaces(GET, BASE_PATH + "inference", RestApiCompatibleVersion.V_8).build()
         );
     }
 

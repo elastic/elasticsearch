@@ -241,8 +241,22 @@ somevalue with whatever is the response in the same position."
 
 === `warnings`
 
-The runner can assert the warnings headers returned by Elasticsearch through the `warning:` assertations
-under `do:`  operations.
+The runner can assert specific warnings headers are returned by Elasticsearch through the `warning:` assertations
+under `do:`  operations. The test will fail if the warning is not found.
+
+=== `warnings_regex`
+
+The same as `warnings`, but matches warning headers with the given regular expression.
+
+
+=== `allowed_warnings`
+
+The runner will allow specific warnings headers to be returned by Elasticsearch through the `allowed_warning:` assertations
+under `do:`  operations. The test will not fail if the warning is not found.
+
+=== `allowed_warnings_regex`
+
+The same as `allowed_warnings`, but matches warning headers with the given regular expression.
 
 === `yaml`
 

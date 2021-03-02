@@ -163,10 +163,10 @@ setting can be updated only by operator users.
 
 `xpack.ml.persist_results_max_retries`::
 (<<cluster-update-settings,Dynamic>>) The maximum number of times to retry bulk
-indexing requests that fail while processing {ml} results.
-//TBD: If the limit is reached, processing halts and an error occurs? 
-When the {operator-feature} is enabled, this setting can be updated only by
-operator users. Defaults to `20`. The maximum value for this setting is `50`. 
+indexing requests that fail while processing {ml} results. If the limit is
+reached, the {ml} job stops processing data and its status is `failed`. When the
+{operator-feature} is enabled, this setting can be updated only by operator
+users. Defaults to `20`. The maximum value for this setting is `50`. 
 
 `xpack.ml.process_connect_timeout`::
 (<<cluster-update-settings,Dynamic>>) The connection timeout for {ml} processes

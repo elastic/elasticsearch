@@ -43,7 +43,6 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -81,10 +80,7 @@ final class DatabaseRegistry implements Closeable {
 
     private final ConcurrentMap<String, DatabaseReference> databases = new ConcurrentHashMap<>();
 
-    DatabaseRegistry(Environment environment,
-                     Client client,
-                     GeoIpCache cache,
-                     Consumer<Runnable> genericExecutor) {
+    DatabaseRegistry(Environment environment, Client client, GeoIpCache cache, Consumer<Runnable> genericExecutor) {
         this(
             environment.tmpFile(),
             new OriginSettingClient(client, "geoip"),
@@ -170,21 +166,18 @@ final class DatabaseRegistry implements Closeable {
             return;
         }
 
-        GeoIpTaskState taskState = persistentTasks.findTasks(GeoIpDownloader.GEOIP_DOWNLOADER, task -> true).stream()
-            .filter(persistentTask -> persistentTask.getState() != null)
-            .map(persistentTask -> (GeoIpTaskState) persistentTask.getState())
-            .findAny()
-            .orElse(new GeoIpTaskState(Map.of())); // Empty state will purge stale entries in databases map.
+        PersistentTasksCustomMetadata.PersistentTask<?> task =
+            PersistentTasksCustomMetadata.getTaskWithId(state, GeoIpDownloader.GEOIP_DOWNLOADER);
+        // Empty state will purge stale entries in databases map.
+        GeoIpTaskState taskState = task == null || task.getState() == null ? GeoIpTaskState.EMPTY : (GeoIpTaskState) task.getState();
 
-        for (var entry : taskState.getDatabases().entrySet()) {
-            String name = entry.getKey();
-            GeoIpTaskState.Metadata metadata = entry.getValue();
-            DatabaseReference reference = databases.get(entry.getKey());
-            String remoteMd5 = entry.getValue().getMd5();
+        taskState.getDatabases().forEach((name, metadata) -> {
+            DatabaseReference reference = databases.get(name);
+            String remoteMd5 = metadata.getMd5();
             String localMd5 = reference != null ? reference.md5 : null;
             if (Objects.equals(localMd5, remoteMd5)) {
                 LOGGER.debug("Current reference of [{}] is up to date [{}] with was recorded in CS [{}]", name, localMd5, remoteMd5);
-                continue;
+                return;
             }
 
             try {
@@ -192,14 +185,10 @@ final class DatabaseRegistry implements Closeable {
             } catch (Exception e) {
                 LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("attempt to download database [{}]", name), e);
             }
-        }
+        });
 
-        List<String> staleEntries = new ArrayList<>();
-        for (var entry : databases.entrySet()) {
-            if (taskState.getDatabases().get(entry.getKey()) == null) {
-                staleEntries.add(entry.getKey());
-            }
-        }
+        List<String> staleEntries = new ArrayList<>(databases.keySet());
+        staleEntries.removeAll(taskState.getDatabases().keySet());
         removeStaleEntries(staleEntries);
     }
 
@@ -261,17 +250,12 @@ final class DatabaseRegistry implements Closeable {
 
     void removeStaleEntries(Collection<String> staleEntries) {
         try {
-            List<DatabaseReference> references = new ArrayList<>();
             for (String staleEntry : staleEntries) {
                 LOGGER.info("database [{}] no longer exists, cleaning up...", staleEntry);
                 DatabaseReference existing = databases.remove(staleEntry);
                 assert existing != null;
-                references.add(existing);
-            }
-
-            for (DatabaseReference reference : references) {
-                reference.close();
-                Files.delete(reference.databaseFile);
+                existing.close();
+                Files.delete(existing.databaseFile);
             }
         } catch (Exception e) {
             LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to clean database [{}]", staleEntries), e);
@@ -293,9 +277,7 @@ final class DatabaseRegistry implements Closeable {
                 do {
                     SearchRequest searchRequest =
                         createSearchRequest(databaseName, metadata.getFirstChunk(), metadata.getLastChunk(), lastSortValue);
-                    if (lastSortValue != null) {
-                        lastSortValue = null;
-                    }
+                    lastSortValue = null;
 
                     // At most once a day a few searches may be executed to fetch the new files,
                     // so it is ok if this happens in a blocking manner on a thead from generic thread pool.

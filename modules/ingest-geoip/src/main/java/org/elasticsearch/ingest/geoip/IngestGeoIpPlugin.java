@@ -81,12 +81,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
         long cacheSize = CACHE_SIZE.get(parameters.env.settings());
         GeoIpCache geoIpCache = new GeoIpCache(cacheSize);
-        DatabaseRegistry registry = new DatabaseRegistry(
-            parameters.env,
-            parameters.client,
-            geoIpCache,
-            parameters.genericExecutor
-        );
+        DatabaseRegistry registry = new DatabaseRegistry(parameters.env, parameters.client, geoIpCache, parameters.genericExecutor);
         databaseRegistry.set(registry);
         return Map.of(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry));
     }

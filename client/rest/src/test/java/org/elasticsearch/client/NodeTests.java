@@ -92,23 +92,23 @@ public class NodeTests extends RestClientTestCase {
     public void testDataRole(){
         Roles roles = new Roles(new TreeSet<>(Arrays.asList("data_hot")));
         assertTrue(roles.hasDataHotRole());
-        assertTrue(roles.containsData());
+        assertTrue(roles.canContainData());
         roles = new Roles(new TreeSet<>(Arrays.asList("data_warm")));
         assertTrue(roles.hasDataWarmRole());
-        assertTrue(roles.containsData());
+        assertTrue(roles.canContainData());
         roles = new Roles(new TreeSet<>(Arrays.asList("data_cold")));
         assertTrue(roles.hasDataColdRole());
-        assertTrue(roles.containsData());
+        assertTrue(roles.canContainData());
         roles = new Roles(new TreeSet<>(Arrays.asList("data_frozen")));
         assertTrue(roles.hasDataFrozenRole());
-        assertTrue(roles.containsData());
+        assertTrue(roles.canContainData());
         roles = new Roles(new TreeSet<>(Arrays.asList("data_content")));
         assertTrue(roles.hasDataContentRole());
-        assertTrue(roles.containsData());
+        assertTrue(roles.canContainData());
         roles = new Roles(new TreeSet<>(Arrays.asList("data")));
         assertTrue(roles.hasDataRole());
-        assertTrue(roles.containsData());
+        assertTrue(roles.canContainData());
         roles = new Roles(new TreeSet<>(Arrays.asList("data_foo")));
-        assertTrue(roles.containsData());
+        assertTrue(roles.canContainData());
     }
 }

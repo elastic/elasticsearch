@@ -191,7 +191,7 @@ public class Node {
         }
         /**
          * Returns whether or not the node stores data.
-         * @deprecated use {@link #hasDataRole()} or {@link #containsData()}
+         * @deprecated use {@link #hasDataRole()} or {@link #canContainData()}
          */
         @Deprecated
         public boolean isData() {
@@ -243,7 +243,7 @@ public class Node {
         /**
          * @return true if node stores any type of data
          */
-        public boolean containsData() {
+        public boolean canContainData() {
             return hasDataRole() || roles.stream().anyMatch(role -> role.startsWith("data_"));
         }
         /**

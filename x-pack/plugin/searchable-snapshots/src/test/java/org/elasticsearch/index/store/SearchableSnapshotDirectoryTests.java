@@ -632,7 +632,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
     private void testIndexInputs(final CheckedBiConsumer<IndexInput, IndexInput, Exception> consumer) throws Exception {
         testDirectories((directory, snapshotDirectory) -> {
             for (String fileName : randomSubsetOf(Arrays.asList(snapshotDirectory.listAll()))) {
-                final IOContext context = newIOContext(random());
+                final IOContext context = randomIOContext();
                 try (IndexInput indexInput = directory.openInput(fileName, context)) {
                     final List<Closeable> closeables = new ArrayList<>();
                     try {
@@ -659,8 +659,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
 
             final Path shardSnapshotDir = createTempDir();
             for (int i = 0; i < nbRandomFiles; i++) {
-                final String fileName = "file_" + randomAlphaOfLength(10);
-
+                final String fileName = randomAlphaOfLength(5) + randomFileExtension();
                 final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 100_000));
                 final byte[] input = bytes.v2();
                 final String checksum = bytes.v1();
@@ -726,7 +725,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     final BlobStoreIndexShardSnapshot.FileInfo fileInfo = randomFrom(randomFiles);
                     final int fileLength = toIntBytes(fileInfo.length());
 
-                    try (IndexInput input = directory.openInput(fileInfo.physicalName(), newIOContext(random()))) {
+                    try (IndexInput input = directory.openInput(fileInfo.physicalName(), randomIOContext())) {
                         assertThat(input.length(), equalTo((long) fileLength));
                         final int start = between(0, fileLength - 1);
                         final int end = between(start + 1, fileLength);

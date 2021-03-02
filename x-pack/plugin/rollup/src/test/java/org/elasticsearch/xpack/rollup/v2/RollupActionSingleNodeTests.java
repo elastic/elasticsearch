@@ -93,6 +93,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "categorical_1", "type=keyword").get();
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/69506")
     public void testRollupShardIndexerCleansTempFiles() throws IOException {
         // create rollup config and index documents into source index
         RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
@@ -135,6 +136,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString("Unable to rollup index [" + index + "]"));
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/69506")
     public void testTemporaryIndexDeletedOnRollupFailure() throws Exception {
         RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()

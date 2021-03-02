@@ -2380,7 +2380,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdModel.getModelId(), equalTo(modelIdCompressed));
 
         GetTrainedModelsResponse getTrainedModelsResponse = execute(
-            new GetTrainedModelsRequest(modelIdCompressed).setDecompressDefinition(true).setIncludeDefinition(true),
+            new GetTrainedModelsRequest(modelIdCompressed).setDecompressDefinition(true).includeDefinition(),
             machineLearningClient::getTrainedModels,
             machineLearningClient::getTrainedModelsAsync);
 
@@ -2535,7 +2535,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         putTrainedModel(modelId);
 
         GetTrainedModelsResponse getTrainedModelsResponse = execute(
-            new GetTrainedModelsRequest(modelId + "*").setIncludeDefinition(false).setAllowNoMatch(true),
+            new GetTrainedModelsRequest(modelId + "*").setAllowNoMatch(true),
             machineLearningClient::getTrainedModels,
             machineLearningClient::getTrainedModelsAsync);
 
@@ -2548,7 +2548,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertTrue(deleteTrainedModelResponse.isAcknowledged());
 
         getTrainedModelsResponse = execute(
-            new GetTrainedModelsRequest(modelId + "*").setIncludeDefinition(false).setAllowNoMatch(true),
+            new GetTrainedModelsRequest(modelId + "*").setAllowNoMatch(true),
             machineLearningClient::getTrainedModels,
             machineLearningClient::getTrainedModelsAsync);
 
@@ -2560,7 +2560,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
         GetTrainedModelsResponse getTrainedModelsResponse = execute(
-            new GetTrainedModelsRequest("lang_ident_model_1").setIncludeDefinition(true),
+            new GetTrainedModelsRequest("lang_ident_model_1").includeDefinition(),
             machineLearningClient::getTrainedModels,
             machineLearningClient::getTrainedModelsAsync);
 

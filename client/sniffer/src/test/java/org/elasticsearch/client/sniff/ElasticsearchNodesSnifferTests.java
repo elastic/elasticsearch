@@ -232,6 +232,9 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
                 nodeRoles.add("data_cold");
             }
             if (randomBoolean()) {
+                nodeRoles.add("data_frozen");
+            }
+            if (randomBoolean()) {
                 nodeRoles.add("ingest");
             }
 
@@ -272,7 +275,7 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
             }
 
             List<String> roles = Arrays.asList(new String[]{"master", "data", "ingest",
-                "data_content", "data_hot", "data_warm", "data_cold"});
+                "data_content", "data_hot", "data_warm", "data_cold", "data_frozen"});
             Collections.shuffle(roles, getRandom());
             generator.writeArrayFieldStart("roles");
             for (String role : roles) {
@@ -293,6 +296,9 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
                 }
                 if ("data_cold".equals(role) && node.getRoles().hasDataColdRole()) {
                     generator.writeString("data_cold");
+                }
+                if ("data_frozen".equals(role) && node.getRoles().hasDataFrozenRole()) {
+                    generator.writeString("data_frozen");
                 }
                 if ("ingest".equals(role) && node.getRoles().isIngest()) {
                     generator.writeString("ingest");

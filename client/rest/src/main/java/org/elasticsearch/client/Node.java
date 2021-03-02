@@ -234,10 +234,17 @@ public class Node {
         }
 
         /**
+         * @return true if node has the "data_frozen" role
+         */
+        public boolean hasDataFrozenRole() {
+            return roles.contains("data_frozen");
+        }
+
+        /**
          * @return true if node stores any type of data
          */
         public boolean containsData() {
-            return hasDataRole() || hasDataContentRole() || hasDataHotRole() || hasDataWarmRole() || hasDataColdRole();
+            return hasDataRole() || roles.stream().anyMatch(role -> role.startsWith("data_"));
         }
         /**
          * Returns whether or not the node runs ingest pipelines.

@@ -219,7 +219,8 @@ one or more maths expressions:
 
 * `+1h`: Add one hour
 * `-1d`: Subtract one day
-* `/d`: Round down to the nearest day
+* `/d`: Round down to the nearest day Note: Rounding behaviour is different depending on the parameter (`lt`,`lte`,`gt`,`gte`): <<range-query-date-math-rounding,`range rounding`>>
+
 
 The supported time units differ from those supported by <<time-units, time units>> for durations.
 The supported units are:

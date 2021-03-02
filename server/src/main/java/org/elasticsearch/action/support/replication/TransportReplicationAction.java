@@ -288,12 +288,12 @@ public abstract class TransportReplicationAction<
     protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
         Releasable releasable = checkPrimaryLimits(request.getRequest(), request.sentFromLocalReroute(),
             request.localRerouteInitiatedByNodeClient());
-        request.incRef();
         Releasable releaseBytes = Releasables.releaseOnce(request::decRef);
         ActionListener<Response> listener = ActionListener.runAfter(ActionListener.runBefore(
                 new ChannelActionListener<>(channel, transportPrimaryAction, request), releasable::close),
                 releaseBytes::close);
         boolean success = false;
+        request.incRef();
         try {
             new AsyncPrimaryAction(request, listener, (ReplicationTask) task).run();
             success = true;

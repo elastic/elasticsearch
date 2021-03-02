@@ -11,15 +11,9 @@ sibling aggregation must be a multi-bucket aggregation.
 [[avg-bucket-agg-syntax]]
 ==== Syntax
 
-[source,js]
+[source,js,indent=0]
 ----
-{
-  "avg_bucket": {
-    "buckets_path": "the_sum",
-    "gap_policy": "skip",
-    "format": "#0.00;(#0.00)"
-  }
-}
+include::avg-bucket-aggregation.asciidoc[tag=avg-bucket-agg-syntax]
 ----
 // NOTCONSOLE
 
@@ -59,7 +53,7 @@ a `format` is specified in the request.
 The following `avg_monthly_sales` aggregation uses `avg_bucket` to calculate
 average sales per month:
 
-[source,console]
+[source,console,subs="+specialchars"]
 ----
 POST _search
 {
@@ -79,18 +73,18 @@ POST _search
       }
     },
     "avg_monthly_sales": {
+// tag::avg-bucket-agg-syntax[]
       "avg_bucket": {
-        "buckets_path": "sales_per_month>sales", <1>
-        "format": "#,##0.00"
+        "buckets_path": "sales_per_month>sales",
+        "gap_policy": "skip",
+        "format": "#,##0.00;(#,##0.00)"
       }
+// end::avg-bucket-agg-syntax[]
     }
   }
 }
 ----
 // TEST[setup:sales]
-
-<1> Calculates the mean value of the `sales` aggregation in the
-`sales_per_month` date histogram.
 
 The request returns the following response:
 

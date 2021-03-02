@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.runtimefields.mapper;
+package org.elasticsearch.runtimefields;
 
 import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
@@ -21,15 +22,17 @@ import org.elasticsearch.runtimefields.mapper.IpFieldScript;
 import org.elasticsearch.runtimefields.mapper.LongFieldScript;
 import org.elasticsearch.runtimefields.mapper.StringFieldScript;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 
 import java.util.List;
 import java.util.Map;
 
+/**
+ * The painless extension that adds the necessary whitelist for grok and dissect to all the existing runtime fields contexts.
+ */
 public class RuntimeFieldsPainlessExtension implements PainlessExtension {
     private final List<Whitelist> whitelists;
 
-    public RuntimeFieldsPainlessExtension(RuntimeFields plugin) {
+    public RuntimeFieldsPainlessExtension(RuntimeFieldsCommonPlugin plugin) {
         Whitelist commonWhitelist = WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "common_whitelist.txt");
         Whitelist grokWhitelist = new Whitelist(
             commonWhitelist.classLoader,

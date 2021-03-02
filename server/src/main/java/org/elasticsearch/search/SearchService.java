@@ -1256,10 +1256,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         IndexMetadata requestIndexMetadata = clusterService.state().getMetadata()
                                 .index(request.shardId().getIndexName());
 
-                        if (RollupShardDecider.canMatch(request, requestIndexMetadata,
-                            clusterService.state().getMetadata().getIndicesLookup()) == false) {
-                            return new CanMatchResponse(false, minMax);
-                        }
+                        CanMatchResponse rollupCanMatchResponse = RollupShardDecider.canMatch(request, context, requestIndexMetadata,
+                            clusterService.state().getMetadata().getIndicesLookup());
+
+                        return new CanMatchResponse(rollupCanMatchResponse.canMatch(), minMax,
+                            rollupCanMatchResponse.sourceIndex(),
+                            rollupCanMatchResponse.priority());
                     }
                 } else {
                     minMax = null;
@@ -1360,6 +1362,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final class CanMatchResponse extends SearchPhaseResult {
         private final boolean canMatch;
         private final MinAndMax<?> estimatedMinAndMax;
+        private final String sourceIndex;
+        private final Long priority;
 
         public CanMatchResponse(StreamInput in) throws IOException {
             super(in);
@@ -1369,11 +1373,24 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } else {
                 estimatedMinAndMax = null;
             }
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                sourceIndex = in.readOptionalString();
+                priority = in.readOptionalLong();
+            } else {
+                sourceIndex = null;
+                priority = null;
+            }
+        }
+
+        public CanMatchResponse(boolean canMatch, MinAndMax<?> estimatedMinAndMax, String sourceIndex, Long priority) {
+            this.canMatch = canMatch;
+            this.estimatedMinAndMax = estimatedMinAndMax;
+            this.sourceIndex = sourceIndex;
+            this.priority = priority;
         }
 
         public CanMatchResponse(boolean canMatch, MinAndMax<?> estimatedMinAndMax) {
-            this.canMatch = canMatch;
-            this.estimatedMinAndMax = estimatedMinAndMax;
+            this(canMatch, estimatedMinAndMax, null, null);
         }
 
         @Override
@@ -1381,6 +1398,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             out.writeBoolean(canMatch);
             if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
                 out.writeOptionalWriteable(estimatedMinAndMax);
+            }
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeOptionalString(sourceIndex);
+                out.writeOptionalLong(priority);
             }
         }
 
@@ -1390,6 +1411,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         public MinAndMax<?> estimatedMinAndMax() {
             return estimatedMinAndMax;
+        }
+
+        public String sourceIndex() {
+            return sourceIndex;
+        }
+
+        public Long priority() {
+            return priority;
         }
     }
 

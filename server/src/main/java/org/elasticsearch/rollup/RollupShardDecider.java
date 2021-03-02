@@ -12,6 +12,8 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -44,28 +46,34 @@ public class RollupShardDecider {
     );
 
     /**
-     * Decide if index can be matched considering rollup indices
+     * Decide if an index can match a query. When indices are rollup indices, all
+     * requirements for matching the query/aggregation will be considered.
+     *
+     * @return The response of the can_match phase. The response is enriched with information
+     * about the source index that a rollup index came from, as well as the priority assigned
+     * to rollup indices.
      */
-    public static boolean canMatch(ShardSearchRequest request,
-                                   IndexMetadata requestIndexMetadata,
-                                   SortedMap<String, IndexAbstraction> indexLookup) throws IOException {
+    public static SearchService.CanMatchResponse canMatch(ShardSearchRequest request,
+                                                          SearchExecutionContext context,
+                                                          IndexMetadata requestIndexMetadata,
+                                                          SortedMap<String, IndexAbstraction> indexLookup) throws IOException {
         IndexAbstraction originalIndex = indexLookup.get(requestIndexMetadata.getIndex().getName());
-        // Index must be member of a data stream
-        if (originalIndex.getParentDataStream() == null) {
-            return true;
-        }
-        // Rollup metadata must exist
+        String sourceIndex = requestIndexMetadata.getIndex().getName(); // TODO: change to requestIndexMetadata.getIndex().getUUID()
         Map<String, String> indexRollupMetadata = requestIndexMetadata.getCustomData(RollupIndexMetadata.TYPE);
-        if (indexRollupMetadata == null) {
-            return true;
+
+        // Index must be member of a data stream and rollup metadata must exist in the index metadata
+        if (originalIndex.getParentDataStream() == null || indexRollupMetadata == null) {
+            return new SearchService.CanMatchResponse(true, null, sourceIndex, null);
         }
+
         // A rollup index is being searched
-        if (checkRollupConditions(request) == false) {
-            return false;
+        if (validateRollupConditions(request, context, requestIndexMetadata) == false) {
+            return new SearchService.CanMatchResponse(false, null, sourceIndex, null);
         }
 
         final AggregatorFactories.Builder aggregations = request.source() != null ? request.source().aggregations() : null;
         final String rollupConfigSource = indexRollupMetadata.get(RollupIndexMetadata.ROLLUP_META_FIELD);
+        sourceIndex = indexRollupMetadata.get(RollupIndexMetadata.SOURCE_INDEX_NAME_META_FIELD);
         RollupIndexMetadata rollupIndexMetadata = RollupIndexMetadata.parseMetadataXContent(rollupConfigSource);
 
         DateHistogramAggregationBuilder source = getDateHistogramAggregationBuilder(aggregations);
@@ -74,13 +82,16 @@ public class RollupShardDecider {
             sourceTimeZone = ZoneId.of(source.timeZone().toString(), ZoneId.SHORT_IDS);
         }
         DateHistogramInterval sourceInterval = source != null ? source.getCalendarInterval() : null;
-        // Incompatible timezone => skip this rollup group
+        // Incompatible timezone => skip this rollup index
         if (canMatchTimezone(sourceTimeZone, rollupIndexMetadata.getDateTimezone().zoneId()) == false
             || canMatchCalendarInterval(sourceInterval, rollupIndexMetadata.getDateInterval()) == false) {
-            return false;
+            return new SearchService.CanMatchResponse(false, null);
         }
+        // Assign index priority to match the rollup interval. Higher intervals have higher priority
+        // Index priority be evaluated at the coordinator node to select the optimal shard
+        long priority = rollupIndexMetadata.getDateInterval().estimateMillis();
 
-        return true;
+        return new SearchService.CanMatchResponse(true, null, sourceIndex, priority);
     }
 
     /**
@@ -95,7 +106,8 @@ public class RollupShardDecider {
      * @param request the search request to parse
      * @return true if a rollup index can
      */
-    private static boolean checkRollupConditions(ShardSearchRequest request) {
+    private static boolean validateRollupConditions(ShardSearchRequest request, SearchExecutionContext context,
+                                                    IndexMetadata requestIndexMetadata) {
         if (request.source() == null) {
             return false;
         }
@@ -139,19 +151,6 @@ public class RollupShardDecider {
     }
 
     /**
-     * From a collection of rollup group indices, find the optimal rollup index to match a list of aggregations.
-     *
-     * @param rollupGroup  a map containing the names and {@link RollupIndexMetadata} for indices to be compared
-     * @param aggregations the aggregations that the rollup indices will be queried for
-     * @return the name of the optimal rollup index
-     */
-    public static String findOptimalIndex(Map<String, RollupIndexMetadata> rollupGroup, AggregatorFactories.Builder aggregations) {
-        DateHistogramAggregationBuilder dateHistogramBuilder = getDateHistogramAggregationBuilder(aggregations);
-        DateHistogramInterval sourceInterval = dateHistogramBuilder != null ? dateHistogramBuilder.getCalendarInterval() : null;
-        return findOptimalIntervalIndex(rollupGroup, sourceInterval);
-    }
-
-    /**
      * Parse the aggregator factories and return a date_histogram {@link AggregationBuilder} for the aggregation on rollups
      */
     private static DateHistogramAggregationBuilder getDateHistogramAggregationBuilder(AggregatorFactories.Builder aggFactoryBuilders) {
@@ -162,34 +161,6 @@ public class RollupShardDecider {
             }
         }
         return dateHistogramBuilder;
-    }
-
-    /**
-     * Find the rollup index that best matches the date histogram interval requested in the date_histogram
-     * aggregation source. If there are more than one indices, we always try to find the largest
-     * interval that matches the aggregation. If no rollup index matches the interval, we return the
-     * original index.
-     *
-     * @param rollupGroup The group of candidate rollup indices to find the best matching index.
-     * @param sourceInterval The source of the aggregation in the request. If sourceInterval is null,
-     * @return the name of the optimal (maximum interval) index that matches the query
-     */
-    static String findOptimalIntervalIndex(Map<String, RollupIndexMetadata> rollupGroup, DateHistogramInterval sourceInterval) {
-        String optimalIndex = null;
-        DateHistogramInterval maxInterval = null;
-        for (Map.Entry<String, RollupIndexMetadata> entry : rollupGroup.entrySet()) {
-            String rollupIndex = entry.getKey();
-            RollupIndexMetadata metadata = entry.getValue();
-
-            DateHistogramInterval thisInterval = metadata.getDateInterval();
-            if (canMatchCalendarInterval(sourceInterval, thisInterval)) {
-                if (maxInterval == null || canMatchCalendarInterval(thisInterval, maxInterval)) {
-                    optimalIndex = rollupIndex;
-                    maxInterval = thisInterval;
-                }
-            }
-        }
-        return optimalIndex;
     }
 
     /**

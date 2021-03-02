@@ -21,7 +21,7 @@ import java.util.List;
 public class RestSnapshottableFeaturesAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(RestRequest.Method.GET, "/_snapshottable_features"));
+        return org.elasticsearch.common.collect.List.of(new Route(RestRequest.Method.GET, "/_features"));
     }
 
     @Override

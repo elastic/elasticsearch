@@ -4,5 +4,5 @@
       features: contains
       version: " - 7.99.99" # Adjust this after backport
       reason: "This API was added in 7.12.0"
-  - do: { snapshot.get_features: {}}
+  - do: { features.get_features: {}}
   - contains: {'features': {'name': 'tasks'}}

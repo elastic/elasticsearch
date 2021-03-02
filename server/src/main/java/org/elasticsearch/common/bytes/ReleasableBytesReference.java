@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -191,7 +192,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
         @Override
         protected void closeInternal() {
-            releasable.close();
+            Releasables.closeExpectNoException(releasable);
         }
     }
 }

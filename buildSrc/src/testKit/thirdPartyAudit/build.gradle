@@ -25,7 +25,7 @@ repositories {
       artifact()
     }
   }
-  jcenter()
+  mavenCentral()
 }
 
 dependencies {

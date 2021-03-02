@@ -928,7 +928,7 @@ public class TransportService extends AbstractLifecycleComponent
     @Override
     public void onRequestReceived(long requestId, String action) {
         if (handleIncomingRequests.get() == false) {
-            throw new IllegalStateException("transport not ready yet to handle incoming requests");
+            throw new TransportNotReadyException();
         }
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] received request", requestId, action);

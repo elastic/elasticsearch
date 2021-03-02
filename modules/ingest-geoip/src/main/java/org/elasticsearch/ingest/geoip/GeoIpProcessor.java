@@ -36,7 +36,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -398,13 +397,19 @@ public final class GeoIpProcessor extends AbstractProcessor {
                         + databaseType + "]");
                 }
             }
-
             CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier = () -> {
                 DatabaseReaderLazyLoader loader = localDatabases.getDatabase(databaseFile);
                 if (loader == null) {
                     throw new ResourceNotFoundException("database_file", "database file [" + databaseFile + "] doesn't exist");
                 }
-                assert Objects.equals(databaseType, loader.getDatabaseType());
+
+                // Only check whether the suffix has changed and not the entire database type.
+                // To sanity check whether a city db isn't overwriting with a country or asn db.
+                // For example overwriting a geoip lite city db with geoip city db is a valid change, but the db type is slightly different,
+                // by checking just the suffix this assertion doesn't fail.
+                String expectedSuffix = databaseType.substring(databaseType.lastIndexOf('-'));
+                assert loader.getDatabaseType().endsWith(expectedSuffix) : "database type [" + loader.getDatabaseType() +
+                    "] doesn't match with expected suffix [" + expectedSuffix + "]";
                 return loader;
             };
             return new GeoIpProcessor(processorTag, description, ipField, supplier, targetField, properties, ignoreMissing, firstOnly);

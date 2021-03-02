@@ -411,7 +411,7 @@ public class PersistedClusterStateService {
             if (indexUUIDs.add(indexMetadata.getIndexUUID()) == false) {
                 throw new IllegalStateException("duplicate metadata found for " + indexMetadata.getIndex() + " in [" + dataPath + "]");
             }
-            if (indexMetadata.mapping() != null) {
+            if (indexMetadata.mapping() != null && mappings.containsKey(indexMetadata.mapping().id())) {
                 indexMetadata = IndexMetadata.builder(indexMetadata).putMapping(mappings.get(indexMetadata.mapping().id())).build();
             }
             builder.put(indexMetadata, false);

@@ -26,7 +26,7 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.POST, "/_reset_feature_state"));
+        return List.of(new Route(RestRequest.Method.POST, "/_feature/reset"));
     }
 
     @Override

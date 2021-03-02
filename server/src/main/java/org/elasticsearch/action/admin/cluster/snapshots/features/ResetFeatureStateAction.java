@@ -14,9 +14,7 @@ import org.elasticsearch.action.ActionType;
 public class ResetFeatureStateAction extends ActionType<ResetFeatureStateResponse> {
 
     public static final ResetFeatureStateAction INSTANCE = new ResetFeatureStateAction();
-    // TODO[wrb]: seems like a bad action name...
-    //  are features getting bigger than snapshots as an abstraction?
-    public static final String NAME = "cluster:admin/snapshot/features/reset";
+    public static final String NAME = "cluster:admin/features/reset";
 
     private ResetFeatureStateAction() {
         super(NAME, ResetFeatureStateResponse::new);

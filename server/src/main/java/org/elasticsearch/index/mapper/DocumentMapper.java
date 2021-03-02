@@ -21,7 +21,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Map;
 import java.util.stream.Stream;
 
 public class DocumentMapper {
@@ -45,7 +44,7 @@ public class DocumentMapper {
                    IndexAnalyzers indexAnalyzers,
                    DocumentParser documentParser,
                    Mapping mapping) {
-        this.type = mapping.root().name();
+        this.type = mapping.getRoot().name();
         this.documentParser = documentParser;
         this.mappingLookup = MappingLookup.fromMapping(mapping, documentParser, indexSettings, indexAnalyzers);
 
@@ -57,11 +56,11 @@ public class DocumentMapper {
 
         final Collection<String> deleteTombstoneMetadataFields = Arrays.asList(VersionFieldMapper.NAME, IdFieldMapper.NAME,
             TypeFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
-        this.deleteTombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
+        this.deleteTombstoneMetadataFieldMappers = Stream.of(mapping.getSortedMetadataMappers())
             .filter(field -> deleteTombstoneMetadataFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
         final Collection<String> noopTombstoneMetadataFields = Arrays.asList(
             VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
-        this.noopTombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
+        this.noopTombstoneMetadataFieldMappers = Stream.of(mapping.getSortedMetadataMappers())
             .filter(field -> noopTombstoneMetadataFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
     }
 
@@ -73,20 +72,12 @@ public class DocumentMapper {
         return this.type;
     }
 
-    public Map<String, Object> meta() {
-        return mapping().meta;
-    }
-
     public CompressedXContent mappingSource() {
         return this.mappingSource;
     }
 
-    public RootObjectMapper root() {
-        return mapping().root;
-    }
-
     public <T extends MetadataFieldMapper> T metadataMapper(Class<T> type) {
-        return mapping().metadataMapper(type);
+        return mapping().getMetadataMapperByClass(type);
     }
 
     public IndexFieldMapper indexMapper() {

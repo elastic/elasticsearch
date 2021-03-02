@@ -11,7 +11,6 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -34,7 +33,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.extrac
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69705")
 public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testMountFullCopyAndRecoversCorrectly() throws Exception {
@@ -56,18 +54,16 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
      */
     private void executeMountAndRecoversCorrectlyTestCase(Storage storage, long numberOfDocs) throws Exception {
         final String suffix = storage.storageName().toLowerCase(Locale.ROOT);
+        final String repository = "repository_" + suffix;
+        final String snapshot = "snapshot_" + suffix;
         final String index = "mounted_index_" + suffix;
 
         if (CLUSTER_TYPE.equals(ClusterType.OLD)) {
-            final String repository = "repository_" + suffix;
-            final String snapshot = "snapshot_" + suffix;
-
-            registerRepository(repository, FsRepository.TYPE, true,
-                Settings.builder().put("location", System.getProperty("tests.path.repo") + '/' + repository).build());
+            registerRepository(repository, FsRepository.TYPE, true, repositorySettings(repository));
 
             final String originalIndex = "logs_" + suffix;
             createIndex(originalIndex, Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(3, 5))
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build());
             indexDocs(originalIndex, numberOfDocs);
@@ -81,6 +77,12 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
 
         ensureGreen(index);
         assertHitCount(index, equalTo(numberOfDocs));
+
+        if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
+            deleteIndex(index);
+            deleteSnapshot(repository, snapshot);
+            deleteRepository(repository);
+        }
     }
 
     public void testBlobStoreCacheWithFullCopyInMixedVersions() throws Exception {
@@ -107,8 +109,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         final String repository = "repository_" + suffix;
 
         if (CLUSTER_TYPE.equals(ClusterType.OLD)) {
-            registerRepository(repository, FsRepository.TYPE, true,
-                Settings.builder().put("location", System.getProperty("tests.path.repo") + '/' + repository).build());
+            registerRepository(repository, FsRepository.TYPE, true, repositorySettings(repository));
 
         } else if (CLUSTER_TYPE.equals(ClusterType.MIXED)) {
             final int numberOfNodes = 3;
@@ -135,7 +136,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
 
             final String firstIndex = "first_index_" + suffix;
             createIndex(firstIndex, Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(3, 5))
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build());
             indexDocs(firstIndex, numberOfDocs);
@@ -287,8 +288,11 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         Settings indexSettings
     ) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repositoryName + '/' + snapshotName + "/_mount");
-        request.addParameter("storage", storage.storageName());
-        request.addParameter("wait_for_completion", "true");
+        if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_12_0)) {
+            request.addParameter("storage", storage.storageName());
+        } else {
+            assertThat("Parameter 'storage' was introduced in 7.12.0 with " + Storage.SHARED_CACHE, storage, equalTo(Storage.FULL_COPY));
+        }
         request.setJsonEntity("{" +
             "  \"index\": \"" + indexName + "\"," +
             "  \"renamed_index\": \"" + renamedIndex + "\"," +
@@ -310,5 +314,13 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         assertThat(responseAsMap + "", responseCount, notNullValue());
         assertThat(((Number) extractValue("count", responseAsMap)).longValue(), countMatcher);
         assertThat(((Number) extractValue("_shards.failed", responseAsMap)).intValue(), equalTo(0));
+    }
+
+    private static Settings repositorySettings(String repository) {
+        final String pathRepo = System.getProperty("tests.path.searchable.snapshots.repo");
+        assertThat("Searchable snapshots repository path is null", pathRepo, notNullValue());
+        return Settings.builder()
+            .put("location", pathRepo + '/' + repository)
+            .build();
     }
 }

@@ -37,4 +37,4 @@ include::get-snapshot-api.asciidoc[]
 include::get-snapshot-status-api.asciidoc[]
 include::restore-snapshot-api.asciidoc[]
 include::delete-snapshot-api.asciidoc[]
-include::get-snapshottable-features-api.asciidoc[]
+

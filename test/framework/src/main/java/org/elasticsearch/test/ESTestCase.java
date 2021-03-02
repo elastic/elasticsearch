@@ -492,7 +492,9 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         try {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
-            if (actualWarnings != null && enableJodaDeprecationWarningsCheck() == false) {
+            if ((expectedWarnings == null || expectedWarnings.length == 0)) {
+                assertNull("expected 0 warnings, actual: " + actualWarnings, actualWarnings);
+            } else if (actualWarnings != null && enableJodaDeprecationWarningsCheck() == false) {
                 List<String> filteredWarnings = filterJodaDeprecationWarnings(actualWarnings);
                 assertWarnings(stripXContentPosition, filteredWarnings, expectedWarnings);
             } else {

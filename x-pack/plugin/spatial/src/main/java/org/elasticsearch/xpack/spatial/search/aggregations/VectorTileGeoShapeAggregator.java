@@ -90,12 +90,16 @@ public class VectorTileGeoShapeAggregator extends AbstractVectorTileAggregator {
                                 }
                                 break;
                             case LINE:
-                                if (skipLine(shapeValue) == false) {
+                                if (skipLine(shapeValue)) {
+                                    addPoint(shapeValue.lat(), shapeValue.lon());
+                                } else {
                                     addLineFeatures(featureFactory.getFeatures(getGeometry(ctx, doc, fieldVisitorCollector, visitor)));
                                 }
                                 break;
                             case POLYGON:
-                                if (skipPolygon(shapeValue) == false) {
+                                if (skipPolygon(shapeValue)) {
+                                    addPoint(shapeValue.lat(), shapeValue.lon());
+                                } else {
                                     addPolygonFeatures(featureFactory.getFeatures(getGeometry(ctx, doc, fieldVisitorCollector, visitor)));
                                 }
                                 break;

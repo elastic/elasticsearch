@@ -15,7 +15,6 @@ import org.locationtech.jts.geom.Envelope;
  */
 public class VectorTileUtils {
 
-
     /**
      * Gets the JTS envelope for z/x/y/ tile in  spherical mercator projection.
      */

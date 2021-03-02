@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
@@ -48,6 +49,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 
 public class VectorTileAggregatorTests extends AggregatorTestCase {
@@ -61,7 +63,7 @@ public class VectorTileAggregatorTests extends AggregatorTestCase {
         int numDocs = scaledRandomIntBetween(64, 256);
         List<Point> points = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
-            points.add(GeometryTestUtils.randomPoint());
+            points.add(randomValueOtherThanMany((p) -> p.getLat() > 80 || p.getLat() < -80, GeometryTestUtils::randomPoint));
         }
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
@@ -113,7 +115,9 @@ public class VectorTileAggregatorTests extends AggregatorTestCase {
                 GeoShapeValues.GeoShapeValue value = GeoTestUtils.geoShapeValue(geometry);
                 switch (value.dimensionalShapeType()) {
                     case POINT:
-                        expectedPoints++;
+                        if (value.lat() < GeoTileUtils.LATITUDE_MASK && value.lat() > -GeoTileUtils.LATITUDE_MASK) {
+                            expectedPoints++;
+                        }
                         break;
                     case LINE:
                         expectedLines++;
@@ -187,7 +191,20 @@ public class VectorTileAggregatorTests extends AggregatorTestCase {
                 assertThat(points, Matchers.notNullValue());
                 assertThat(AbstractVectorTileAggregator.POINT_EXTENT, Matchers.equalTo(points.getExtent()));
                 assertThat(2, Matchers.equalTo(points.getVersion()));
-                assertThat(expectedPoints, Matchers.greaterThanOrEqualTo(points.getFeaturesCount()));
+                int tagIndex = -1;
+                for (int i = 0; i < points.getKeysCount(); i++) {
+                    if ("count".equals(points.getKeys(i))) {
+                        tagIndex = i;
+                        break;
+                    }
+                }
+                assertThat(tagIndex, greaterThanOrEqualTo(0));
+                int numberPoints = 0;
+                for (int i = 0; i < points.getFeaturesCount(); i++) {
+                    VectorTile.Tile.Feature feature = points.getFeatures(i);
+                    numberPoints += points.getValues(feature.getTags(tagIndex + 1)).getIntValue();
+                }
+                assertThat(expectedPoints, Matchers.equalTo(numberPoints));
             }
         }
     }

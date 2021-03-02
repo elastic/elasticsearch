@@ -18,11 +18,13 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public class InternalVectorTile extends InternalAggregation {
+    private static String COUNT_KEY = "count";
     protected final VectorTile.Tile.Layer polygons;
     protected final VectorTile.Tile.Layer lines;
     protected final long[] points;
@@ -102,21 +104,37 @@ public class InternalVectorTile extends InternalAggregation {
         pointLayerBuilder.setVersion(2);
         pointLayerBuilder.setName(AbstractVectorTileAggregator.POINT_LAYER);
         pointLayerBuilder.setExtent(AbstractVectorTileAggregator.POINT_EXTENT);
+        pointLayerBuilder.addKeys(COUNT_KEY);
         final List<Integer> commands = new ArrayList<>();
         final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
+        final VectorTile.Tile.Value.Builder valueBuilder = VectorTile.Tile.Value.newBuilder();
+        final HashMap<Long, Integer> values = new HashMap<>();
         for (int i = 0; i < AbstractVectorTileAggregator.POINT_EXTENT; i++) {
-            int xVal = i * AbstractVectorTileAggregator.POINT_EXTENT;
+            final int xVal = i * AbstractVectorTileAggregator.POINT_EXTENT;
             for (int j = 0; j < AbstractVectorTileAggregator.POINT_EXTENT; j++) {
                 final long count  = points[xVal + j];
                 if (count > 0) {
+                    featureBuilder.clear();
+                    featureBuilder.setType(VectorTile.Tile.GeomType.POINT);
+                    // create geometry commands
                     commands.clear();
                     commands.add(GeomCmdHdr.cmdHdr(GeomCmd.MoveTo, 1));
                     commands.add(BitUtil.zigZagEncode(i));
                     commands.add(BitUtil.zigZagEncode(j));
-                    //TODO: add count as a tag?
-                    featureBuilder.clear();
-                    featureBuilder.setType(VectorTile.Tile.GeomType.POINT);
                     featureBuilder.addAllGeometry(commands);
+                    // Add count as key value pair
+                    featureBuilder.addTags(0);
+                    final int tagValue;
+                    if (values.containsKey(count)) {
+                        tagValue = values.get(count);
+                    } else {
+                        valueBuilder.clear();
+                        valueBuilder.setIntValue(count);
+                        tagValue = values.size();
+                        pointLayerBuilder.addValues(valueBuilder);
+                        values.put(count, tagValue);
+                    }
+                    featureBuilder.addTags(tagValue);
                     pointLayerBuilder.addFeatures(featureBuilder);
                 }
             }

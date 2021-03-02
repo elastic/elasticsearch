@@ -111,6 +111,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -355,6 +356,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                             SearchShardTask task,
                                             boolean keepStatesInContext) throws IOException {
         ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
+        if (task.isCancelled()) {
+            logger.trace("task cancelled before executing dfs phase");
+            final TaskCancelledException taskCancelledException = new TaskCancelledException("cancelled");
+            processFailure(readerContext, taskCancelledException);
+            throw taskCancelledException;
+        }
+
         try (Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
                 SearchContext context = createContext(readerContext, request, task, true)) {
             dfsPhase.execute(context);
@@ -435,6 +443,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                                 SearchShardTask task,
                                                 boolean keepStatesInContext) throws Exception {
         final ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
+        if (task.isCancelled()) {
+            logger.trace("task cancelled before executing query phase");
+            final TaskCancelledException taskCancelledException = new TaskCancelledException("cancelled");
+            processFailure(readerContext, taskCancelledException);
+            throw taskCancelledException;
+        }
+
         try (Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
                 SearchContext context = createContext(readerContext, request, task, true)) {
             final long afterQueryTime;

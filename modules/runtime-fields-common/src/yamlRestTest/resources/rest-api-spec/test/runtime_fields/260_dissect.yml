@@ -1,4 +1,3 @@
----
 setup:
   - do:
       indices.create:
@@ -13,7 +12,7 @@ setup:
                 type: ip
                 script:
                   source: |
-                    String clientip = grok('%{COMMONAPACHELOG}').extract(doc["message"].value)?.clientip;
+                    String clientip = dissect('%{clientip} %{ident} %{auth} [%{@timestamp}] "%{verb} %{request} HTTP/%{httpversion}" %{status} %{size}').extract(doc["message"].value)?.clientip;
                     if (clientip != null) {
                       emit(clientip);
                     }
@@ -21,7 +20,7 @@ setup:
                 type: keyword
                 script:
                   source: |
-                    String verb = grok('%{COMMONAPACHELOG}').extract(doc["message"].value)?.verb;
+                    String verb = dissect('%{clientip} %{ident} %{auth} [%{@timestamp}] "%{verb} %{request} HTTP/%{httpversion}" %{status} %{size}').extract(doc["message"].value)?.verb;
                     if (verb != null) {
                       emit(verb);
                     }
@@ -29,7 +28,7 @@ setup:
                 type: long
                 script:
                   source: |
-                    String response = grok('%{COMMONAPACHELOG}').extract(doc["message"].value)?.response;
+                    String response = dissect('%{clientip} %{ident} %{auth} [%{@timestamp}] "%{verb} %{request} HTTP/%{httpversion}" %{response} %{size}').extract(doc["message"].value)?.response;
                     if (response != null) {
                       emit(Integer.parseInt(response));
                     }
@@ -37,7 +36,7 @@ setup:
               timestamp:
                 type: date
               message:
-                type: wildcard
+                type: keyword
   - do:
       bulk:
         index: http_logs
@@ -57,7 +56,6 @@ setup:
           {"timestamp": "1998-04-30T14:31:27-05:00", "message" : "252.0.0.0 - - [30/Apr/1998:14:31:27 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
           {"index":{}}
           {"timestamp": "1998-04-30T14:31:28-05:00", "message" : "not a valid apache log"}
-
 ---
 fetch:
   - do:
@@ -76,51 +74,3 @@ fetch:
   - is_false: hits.hits.6.fields.http\.clientip
   - is_false: hits.hits.6.fields.http\.verb
   - is_false: hits.hits.6.fields.http\.response
-
----
-mutable pattern:
-  - do:
-      catch: /all arguments to \[grok\] must be constant but the \[1\] argument isn't/
-      search:
-        index: http_logs
-        body:
-          runtime_mappings:
-            broken:
-              type: keyword
-              script: |
-                def clientip = grok(doc["type"].value).extract(doc["message"].value)?.clientip;
-                if (clientip != null) {
-                  emit(clientip);
-                }
-
----
-syntax error in pattern:
-  - do:
-      catch: '/error compiling grok pattern \[.+\]: invalid group name <2134>/'
-      search:
-        index: http_logs
-        body:
-          runtime_mappings:
-            broken:
-              type: keyword
-              script: |
-                def clientip = grok('(?<2134>').extract(doc["message"].value)?.clientip;
-                if (clientip != null) {
-                  emit(clientip);
-                }
-
----
-warning in pattern:
-  - do:
-      catch: '/error compiling grok pattern \[.+\]: emitted warnings: \[.+]/'
-      search:
-        index: http_logs
-        body:
-          runtime_mappings:
-            broken:
-              type: keyword
-              script: |
-                def clientip = grok('\\o').extract(doc["message"].value)?.clientip;
-                if (clientip != null) {
-                  emit(clientip);
-                }

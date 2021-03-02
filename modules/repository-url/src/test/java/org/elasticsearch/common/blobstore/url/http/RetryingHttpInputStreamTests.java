@@ -98,9 +98,7 @@ public class RetryingHttpInputStreamTests extends ESTestCase {
 
                     @Override
                     public int getStatusCode() {
-                        return randomFrom(RestStatus.CREATED.getStatus(),
-                            RestStatus.ACCEPTED.getStatus(),
-                            RestStatus.NO_CONTENT.getStatus());
+                        return statusCode;
                     }
 
                     @Override

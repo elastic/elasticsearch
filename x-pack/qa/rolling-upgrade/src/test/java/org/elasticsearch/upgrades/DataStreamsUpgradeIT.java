@@ -22,7 +22,6 @@ import static org.elasticsearch.upgrades.IndexingIT.assertCount;
 
 public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69689")
     public void testDataStreams() throws IOException {
         assumeTrue("no data streams in versions before " + Version.V_7_9_0, UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_9_0));
         assumeTrue("data streams supported from 7.9.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_9_0));
@@ -51,19 +50,12 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 b.append("{\"create\":{\"_index\":\"").append("logs-foobar").append("\"}}\n");
                 b.append("{\"@timestamp\":\"2020-12-12\",\"test\":\"value").append(i).append("\"}\n");
             }
-
-            b.append("{\"create\":{\"_index\":\"").append("logs-foobar-2021.01.13").append("\"}}\n");
-            b.append("{\"@timestamp\":\"2020-12-12\",\"test\":\"value").append(0).append("\"}\n");
-
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
             bulk.addParameter("filter_path", "errors");
             bulk.setJsonEntity(b.toString());
             Response response = client().performRequest(bulk);
             assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
-
-            Request rolloverRequest = new Request("POST", "/logs-foobar-2021.01.13/_rollover");
-            client().performRequest(rolloverRequest);
         } else if (CLUSTER_TYPE == ClusterType.MIXED) {
             long nowMillis = System.currentTimeMillis();
             Request rolloverRequest = new Request("POST", "/logs-foobar/_rollover");
@@ -112,6 +104,49 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             throw new AssertionError("unexpected cluster type");
         }
         assertCount("logs-foobar", expectedCount);
+    }
+
+    public void testDataStreamValidationDoesNotBreakUpgrade() throws Exception {
+        assumeTrue("Bug started to occur from version: " + Version.V_7_10_2, UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_10_2));
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            String requestBody = "{\n" +
+                "      \"index_patterns\":[\"logs-*\"],\n" +
+                "      \"template\": {\n" +
+                "        \"mappings\": {\n" +
+                "          \"properties\": {\n" +
+                "            \"@timestamp\": {\n" +
+                "              \"type\": \"date\"\n" +
+                "             }\n" +
+                "          }\n" +
+                "        }\n" +
+                "      },\n" +
+                "      \"data_stream\":{\n" +
+                "      }\n" +
+                "    }";
+            Request request = new Request("PUT", "/_index_template/1");
+            request.setJsonEntity(requestBody);
+            useIgnoreMultipleMatchingTemplatesWarningsHandler(request);
+            client().performRequest(request);
+
+            StringBuilder b = new StringBuilder();
+            b.append("{\"create\":{\"_index\":\"").append("logs-barbaz").append("\"}}\n");
+            b.append("{\"@timestamp\":\"2020-12-12\",\"test\":\"value").append(0).append("\"}\n");
+            b.append("{\"create\":{\"_index\":\"").append("logs-barbaz-2021.01.13").append("\"}}\n");
+            b.append("{\"@timestamp\":\"2020-12-12\",\"test\":\"value").append(0).append("\"}\n");
+
+            Request bulk = new Request("POST", "/_bulk");
+            bulk.addParameter("refresh", "true");
+            bulk.addParameter("filter_path", "errors");
+            bulk.setJsonEntity(b.toString());
+            Response response = client().performRequest(bulk);
+            assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+
+            Request rolloverRequest = new Request("POST", "/logs-barbaz-2021.01.13/_rollover");
+            client().performRequest(rolloverRequest);
+        } else {
+            assertCount("logs-barbaz", 1);
+            assertCount("logs-barbaz-2021.01.13", 1);
+        }
     }
 
 }

@@ -680,14 +680,6 @@ public class PersistedClusterStateService {
                     }
                 }
 
-                previouslyWrittenMappings.removeAll(currentMappings.keySet());
-
-                for (String id : previouslyWrittenMappings) {
-                    for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                        metadataIndexWriter.deleteMappingMetadata(id);
-                    }
-                }
-
                 final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(previouslyWrittenMetadata.indices().size());
                 for (ObjectCursor<IndexMetadata> cursor : previouslyWrittenMetadata.indices().values()) {
                     final IndexMetadata indexMetadata = cursor.value;

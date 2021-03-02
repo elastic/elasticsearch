@@ -64,8 +64,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.oneOf;
 
 public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
-
-    private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
+    
     private static final String TRANSFORM_ENDPOINT = "/_transform/";
     private static final String TRANSFORM_ENDPOINT_DEPRECATED = "/_data_frame/transforms/";
     private static final String CONTINUOUS_TRANSFORM_ID = "continuous-transform-upgrade-job";

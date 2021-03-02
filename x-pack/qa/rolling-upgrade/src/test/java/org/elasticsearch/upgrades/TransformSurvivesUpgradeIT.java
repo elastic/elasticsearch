@@ -119,7 +119,6 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
     public void testTransformRollingUpgrade() throws Exception {
-        assumeTrue("Continuous transform not supported until 7.3", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_3_0));
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity(
             "{\"transient\": {" +

@@ -359,6 +359,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
                         @Override
                         public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+                            // randomize over sync and async execution
                             randomFrom(parameters.genericExecutor, Runnable::run).accept(() -> {
                                 ingestDocument.setFieldValue("default", true);
                                 handler.accept(ingestDocument, null);
@@ -367,7 +368,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
                         @Override
                         public IngestDocument execute(IngestDocument ingestDocument) {
-                            throw new UnsupportedOperationException();
+                            throw new AssertionError("should not be called");
                         }
 
                         @Override

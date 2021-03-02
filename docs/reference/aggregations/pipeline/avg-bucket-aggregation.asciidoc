@@ -86,8 +86,8 @@ POST _search
 ----
 // TEST[setup:sales]
 
-<1> Start of the `avg_bucket` configuration. This comment is not part of the example.
-<2> End of the `avg_bucket` configuration. This comment is not part of the example.
+<1> Start of the `avg_bucket` configuration. Comment is not part of the example.
+<2> End of the `avg_bucket` configuration. Comment is not part of the example.
 
 The request returns the following response:
 

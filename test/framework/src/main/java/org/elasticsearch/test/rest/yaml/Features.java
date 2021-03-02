@@ -41,7 +41,7 @@ public final class Features {
             "transform_and_set",
             "arbitrary_key",
             "allowed_warnings",
-            "allowed_warnings_regex");
+            "allowed_warnings_regex"));
     private static final String SPI_ON_CLASSPATH_SINCE_JDK_9 = "spi_on_classpath_jdk9";
 
     private Features() {

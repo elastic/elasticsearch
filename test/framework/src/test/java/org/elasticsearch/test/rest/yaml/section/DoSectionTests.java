@@ -161,7 +161,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
 
         //require multiple header, but none returned (plural error message)
         section = new DoSection(new XContentLocation(1, 1));
-        section.setExpectedWarningHeadersRegex(List.of(Pattern.compile("junk"), Pattern.compile("junk2")));
+        section.setExpectedWarningHeadersRegex(Arrays.asList(Pattern.compile("junk"), Pattern.compile("junk2")));
         DoSection finalSection2 = section;
         error =
             expectThrows(AssertionError.class, () -> finalSection2.checkWarningHeaders(emptyList(), Version.CURRENT));
@@ -185,7 +185,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         section.setExpectedWarningHeadersRegex(singletonList(Pattern.compile("test")));
         DoSection finalSection4 = section;
         error = expectThrows(AssertionError.class, () ->
-            finalSection4.checkWarningHeaders(List.of(testHeader, realisticTestHeader), Version.CURRENT));
+            finalSection4.checkWarningHeaders(Arrays.asList(testHeader, realisticTestHeader), Version.CURRENT));
         assertTrue(error.getMessage().contains("got unexpected warning header") && error.getMessage().contains("precedence during"));
 
         //the non-regex version does not need to worry about escaping since it is an exact match, and the code ensures that both

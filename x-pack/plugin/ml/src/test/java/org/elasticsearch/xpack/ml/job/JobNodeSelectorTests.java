@@ -447,7 +447,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
-        assertTrue(result.getExplanation().contains("node exceeds [2] the maximum number of jobs [2] in opening state"));
+        assertTrue(result.getExplanation().contains("Node exceeds [2] the maximum number of jobs [2] in opening state"));
 
         tasksBuilder = PersistentTasksCustomMetadata.builder(tasks);
         tasksBuilder.reassignTask(MlTasks.jobTaskId(job6.getId()),
@@ -461,7 +461,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             node -> nodeFilter(node, job7));
         result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, isMemoryTrackerRecentlyRefreshed, false);
         assertNull("no node selected, because stale task", result.getExecutorNode());
-        assertTrue(result.getExplanation().contains("node exceeds [2] the maximum number of jobs [2] in opening state"));
+        assertTrue(result.getExplanation().contains("Node exceeds [2] the maximum number of jobs [2] in opening state"));
 
         tasksBuilder = PersistentTasksCustomMetadata.builder(tasks);
         tasksBuilder.updateTaskState(MlTasks.jobTaskId(job6.getId()), null);
@@ -475,7 +475,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             node -> nodeFilter(node, job7));
         result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, isMemoryTrackerRecentlyRefreshed, false);
         assertNull("no node selected, because null state", result.getExecutorNode());
-        assertTrue(result.getExplanation().contains("node exceeds [2] the maximum number of jobs [2] in opening state"));
+        assertTrue(result.getExplanation().contains("Node exceeds [2] the maximum number of jobs [2] in opening state"));
     }
 
     public void testSelectLeastLoadedMlNode_concurrentOpeningJobsAndStaleFailedJob() {
@@ -537,7 +537,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             node -> nodeFilter(node, job8));
         result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, isMemoryTrackerRecentlyRefreshed, false);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
-        assertTrue(result.getExplanation().contains("node exceeds [2] the maximum number of jobs [2] in opening state"));
+        assertTrue(result.getExplanation().contains("Node exceeds [2] the maximum number of jobs [2] in opening state"));
     }
 
     public void testSelectLeastLoadedMlNode_noCompatibleJobTypeNodes() {

@@ -161,6 +161,13 @@ assigned to a lazy node it can check (and fail quickly) when scaling cannot
 support the size of the job. When the {operator-feature} is enabled, this
 setting can be updated only by operator users.
 
+`xpack.ml.persist_results_max_retries`::
+(<<cluster-update-settings,Dynamic>>) The maximum number of times to retry bulk
+indexing requests that fail while processing {ml} results.
+//TBD: If the limit is reached, processing halts and an error occurs? 
+When the {operator-feature} is enabled, this setting can be updated only by
+operator users. Defaults to `20`. The maximum value for this setting is `50`. 
+
 `xpack.ml.process_connect_timeout`::
 (<<cluster-update-settings,Dynamic>>) The connection timeout for {ml} processes
 that run separately from the {es} JVM. Defaults to `10s`. Some {ml} processing

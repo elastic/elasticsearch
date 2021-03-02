@@ -128,9 +128,9 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             client().performRequest(request);
 
             StringBuilder b = new StringBuilder();
-            b.append("{\"create\":{\"_index\":\"").append("logs-foobar").append("\"}}\n");
+            b.append("{\"create\":{\"_index\":\"").append("logs-barbaz").append("\"}}\n");
             b.append("{\"@timestamp\":\"2020-12-12\",\"test\":\"value").append(0).append("\"}\n");
-            b.append("{\"create\":{\"_index\":\"").append("logs-foobar-2021.01.13").append("\"}}\n");
+            b.append("{\"create\":{\"_index\":\"").append("logs-barbaz-2021.01.13").append("\"}}\n");
             b.append("{\"@timestamp\":\"2020-12-12\",\"test\":\"value").append(0).append("\"}\n");
 
             Request bulk = new Request("POST", "/_bulk");
@@ -140,11 +140,11 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             Response response = client().performRequest(bulk);
             assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
 
-            Request rolloverRequest = new Request("POST", "/logs-foobar-2021.01.13/_rollover");
+            Request rolloverRequest = new Request("POST", "/logs-barbaz-2021.01.13/_rollover");
             client().performRequest(rolloverRequest);
         } else {
-            assertCount("logs-foobar", 1);
-            assertCount("logs-foobar-2021.01.13", 1);
+            assertCount("logs-barbaz", 1);
+            assertCount("logs-barbaz-2021.01.13", 1);
         }
     }
 

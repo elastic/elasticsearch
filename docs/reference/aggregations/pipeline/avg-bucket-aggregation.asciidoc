@@ -53,7 +53,7 @@ a `format` is specified in the request.
 The following `avg_monthly_sales` aggregation uses `avg_bucket` to calculate
 average sales per month:
 
-[source,console]
+[source,console,subs="specialchars+"]
 ----
 POST _search
 {
@@ -73,18 +73,21 @@ POST _search
       }
     },
     "avg_monthly_sales": {
-// tag::avg-bucket-agg-syntax[]
+// tag::avg-bucket-agg-syntax[]               <1>
       "avg_bucket": {
         "buckets_path": "sales_per_month>sales",
         "gap_policy": "skip",
         "format": "#,##0.00;(#,##0.00)"
       }
-// end::avg-bucket-agg-syntax[]
+// end::avg-bucket-agg-syntax[]               <2>
     }
   }
 }
 ----
 // TEST[setup:sales]
+
+<1> Start of the `avg_bucket` configuration.
+<2> End of the `avg_bucket` configuration.
 
 The request returns the following response:
 

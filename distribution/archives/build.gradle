@@ -76,24 +76,10 @@ distribution_archives {
     }
   }
 
-  ossWindowsZip {
-    archiveClassifier = 'windows-x86_64'
-    content {
-      archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, true)
-    }
-  }
-
   noJdkWindowsZip {
     archiveClassifier = 'no-jdk-windows-x86_64'
     content {
       archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, false)
-    }
-  }
-
-  ossNoJdkWindowsZip {
-    archiveClassifier = 'no-jdk-windows-x86_64'
-    content {
-      archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, false)
     }
   }
 
@@ -111,20 +97,6 @@ distribution_archives {
     }
   }
 
-  ossDarwinTar {
-    archiveClassifier = 'darwin-x86_64'
-    content {
-      archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, true)
-    }
-  }
-
-  ossDarwinAarch64Tar {
-    archiveClassifier = 'darwin-aarch64'
-    content {
-      archiveFiles(modulesFiles(true, 'darwin-aarch64'), 'tar', 'darwin', 'aarch64', true, true)
-    }
-  }
-
   noJdkDarwinTar {
     archiveClassifier = 'no-jdk-darwin-x86_64'
     content {
@@ -132,24 +104,10 @@ distribution_archives {
     }
   }
 
-  ossNoJdkDarwinTar {
-    archiveClassifier = 'no-jdk-darwin-x86_64'
-    content {
-      archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, false)
-    }
-  }
-
   noJdkDarwinAarch64Tar {
     archiveClassifier = 'no-jdk-darwin-aarch64'
     content {
       archiveFiles(modulesFiles(false, 'darwin-aarch64'), 'tar', 'darwin', 'aarch64', false, false)
-    }
-  }
-
-  ossNoJdkDarwinAarch64Tar {
-    archiveClassifier = 'no-jdk-darwin-aarch64'
-    content {
-      archiveFiles(modulesFiles(true, 'darwin-aarch64'), 'tar', 'darwin', 'aarch64', true, false)
     }
   }
 
@@ -167,31 +125,10 @@ distribution_archives {
     }
   }
 
-  ossLinuxAarch64Tar {
-    archiveClassifier = 'linux-aarch64'
-    content {
-      archiveFiles(modulesFiles(true, 'linux-aarch64'), 'tar', 'linux', 'aarch64', true, true)
-    }
-  }
-
-  ossLinuxTar {
-    archiveClassifier = 'linux-x86_64'
-    content {
-      archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, true)
-    }
-  }
-
   noJdkLinuxTar {
     archiveClassifier = 'no-jdk-linux-x86_64'
     content {
       archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, false)
-    }
-  }
-
-  ossNoJdkLinuxTar {
-    archiveClassifier = 'no-jdk-linux-x86_64'
-    content {
-      archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, false)
     }
   }
 }

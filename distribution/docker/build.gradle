@@ -28,8 +28,6 @@ configurations {
 dependencies {
   aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar", configuration:"default")
   dockerSource project(path: ":distribution:archives:linux-tar", configuration:"default")
-  aarch64OssDockerSource project(path: ":distribution:archives:oss-linux-aarch64-tar", configuration:"default")
-  ossDockerSource project(path: ":distribution:archives:oss-linux-tar", configuration:"default")
   transformLog4jJar project(path: ":distribution:docker:transform-log4j-config", configuration: "default")
 }
 
@@ -181,17 +179,9 @@ void addCopyDockerContextTask(Architecture architecture, boolean oss, DockerBase
     }
 
     if (architecture == Architecture.AARCH64) {
-      if (oss) {
-        from configurations.aarch64OssDockerSource
-      } else {
         from configurations.aarch64DockerSource
-      }
     } else {
-      if (oss) {
-        from configurations.ossDockerSource
-      } else {
         from configurations.dockerSource
-      }
     }
   }
 }

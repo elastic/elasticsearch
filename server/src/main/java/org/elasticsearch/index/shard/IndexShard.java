@@ -1054,16 +1054,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public StoreStats storeStats() {
+        if (DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(indexSettings.getSettings())) {
+            // if this shard has no disk footprint then its size is reported as 0
+            return new StoreStats(0, 0);
+        }
         try {
-            final long reservedBytes;
-            if (DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(indexSettings.getSettings())) {
-                // if this shard has no disk footprint then it also needs no reserved space
-                reservedBytes = 0L;
-            } else {
-                final RecoveryState recoveryState = this.recoveryState;
-                final long bytesStillToRecover = recoveryState == null ? -1L : recoveryState.getIndex().bytesStillToRecover();
-                reservedBytes = bytesStillToRecover == -1 ? StoreStats.UNKNOWN_RESERVED_BYTES : bytesStillToRecover;
-            }
+            final RecoveryState recoveryState = this.recoveryState;
+            final long bytesStillToRecover = recoveryState == null ? -1L : recoveryState.getIndex().bytesStillToRecover();
+            final long reservedBytes = bytesStillToRecover == -1 ? StoreStats.UNKNOWN_RESERVED_BYTES : bytesStillToRecover;
             return store.stats(reservedBytes);
         } catch (IOException e) {
             failShard("Failing shard because of exception during storeStats", e);

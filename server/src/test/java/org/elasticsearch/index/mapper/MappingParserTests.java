@@ -17,7 +17,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.hamcrest.CoreMatchers;
 

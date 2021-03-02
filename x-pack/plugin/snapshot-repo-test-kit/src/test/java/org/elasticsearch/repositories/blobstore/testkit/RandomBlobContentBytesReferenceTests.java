@@ -48,7 +48,7 @@ public class RandomBlobContentBytesReferenceTests extends ESTestCase {
     }
 
     private static int randomSize() {
-        return between(0, 30000);
+        return between(1, 30000);
     }
 
 }

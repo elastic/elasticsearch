@@ -113,7 +113,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
         Mapping mergeWith = mapperService.parseMapping("_doc",
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict")))));
+            new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict")))), false);
         Mapping merged = mapper.mapping().merge(mergeWith, reason);
         assertEquals(Dynamic.STRICT, merged.getRoot().dynamic());
     }

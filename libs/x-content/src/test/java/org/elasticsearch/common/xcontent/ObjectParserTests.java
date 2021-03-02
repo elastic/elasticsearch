@@ -1085,18 +1085,14 @@ public class ObjectParserTests extends ESTestCase {
 //
 //        {
 //            RestApiCompatibleVersion futureVersion = RestApiCompatibleVersion.V_9;
-////            Mockito.spy(RestApiCompatibleVersion.currentVersion());
-////            Mockito.when(futureVersion.major).thenReturn((byte) (RestApiCompatibleVersion.currentVersion().major+1));
+//            Mockito.spy(RestApiCompatibleVersion.currentVersion());
+//            Mockito.when(futureVersion.major).thenReturn((byte) (RestApiCompatibleVersion.currentVersion().major+1));
 //
 //            // new name is accessed in future versions
 //            XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"new_name\": 1}",
 //                futureVersion);
 //            StructWithCompatibleFields o = StructWithCompatibleFields.PARSER.parse(parser, null);
 //            assertEquals(1, o.intField);
-////            assertWarnings(false, "[struct_with_compatible_fields][1:14] " +
-////                "Deprecated field [old_name] used, expected [new_name] instead");
-//
-//
 //        }
 //    }
 }

@@ -519,6 +519,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                         shardStats.getStats().getStore().getReservedSize().getBytes(),
                         equalTo(0L)
                     );
+                    assertThat(shardStats.getShardRouting().toString(), shardStats.getStats().getStore().getSize().getBytes(), equalTo(0L));
                 }
             }
         }, "test-stats-watcher");

@@ -197,10 +197,11 @@ Therefore calling `ST_Z` function in the filtering, grouping or sorting will ret
 
 [discrete]
 [[using-fields-api]]
-=== Retrieving using "fields" search parameter
+=== Retrieving using the `fields` search parameter
 
-{es-sql} retrieves columns' values using <<search-fields-param,`_search` "fields" parameter>> and, as such, any
-limitations this parameter has, will be visible in {es-sql} queries, as well. For example, if `_source` is disabled
+{es-sql} retrieves column values using the <<search-fields-param,search API's
+`fields` parameter>>. Any limitations on the `fields` parameter also apply to
+{es-sql} queries. For example, if `_source` is disabled
 for any of the returned fields or at index level, the values cannot be retrieved.
 
 [discrete]

@@ -62,7 +62,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                 geoIpConfigDir.resolve("GeoLite2-City-Test.mmdb"));
 
             LocalDatabases localDatabases = new LocalDatabases(geoIpDir, geoIpConfigDir, new GeoIpCache(0));
-            localDatabases.initialize(resourceWatcherService);
+            localDatabases.configDatabases.putAll(localDatabases.initConfigDatabases(localDatabases.geoipConfigDir));
             GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(localDatabases);
             lazyLoadReaders(localDatabases);
 
@@ -105,21 +105,23 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                     try {
                         DatabaseReaderLazyLoader previous1 = localDatabases.configDatabases.get("GeoLite2-City.mmdb");
                         if (Files.exists(geoIpConfigDir.resolve("GeoLite2-City.mmdb"))) {
+                            localDatabases.updateDatabase(geoIpConfigDir.resolve("GeoLite2-City.mmdb"), false);
                             Files.delete(geoIpConfigDir.resolve("GeoLite2-City.mmdb"));
                         } else {
                             Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
                                 geoIpConfigDir.resolve("GeoLite2-City.mmdb"), StandardCopyOption.REPLACE_EXISTING);
+                            localDatabases.updateDatabase(geoIpConfigDir.resolve("GeoLite2-City.mmdb"), true);
                         }
                         DatabaseReaderLazyLoader previous2 = localDatabases.configDatabases.get("GeoLite2-City-Test.mmdb");
                         InputStream source = LocalDatabases.class.getResourceAsStream(i % 2 == 0 ? "/GeoIP2-City-Test.mmdb" :
                             "/GeoLite2-City-Test.mmdb");
                         Files.copy(source, geoIpConfigDir.resolve("GeoLite2-City-Test.mmdb"), StandardCopyOption.REPLACE_EXISTING);
-                        assertBusy(() -> {
-                            DatabaseReaderLazyLoader current1 = localDatabases.configDatabases.get("GeoLite2-City.mmdb");
-                            DatabaseReaderLazyLoader current2 = localDatabases.configDatabases.get("GeoLite2-City-Test.mmdb");
-                            assertThat(current1, not(sameInstance(previous1)));
-                            assertThat(current2, not(sameInstance(previous2)));
-                        });
+                        localDatabases.updateDatabase(geoIpConfigDir.resolve("GeoLite2-City-Test.mmdb"), true);
+
+                        DatabaseReaderLazyLoader current1 = localDatabases.configDatabases.get("GeoLite2-City.mmdb");
+                        DatabaseReaderLazyLoader current2 = localDatabases.configDatabases.get("GeoLite2-City-Test.mmdb");
+                        assertThat(current1, not(sameInstance(previous1)));
+                        assertThat(current2, not(sameInstance(previous2)));
 
                         // lazy load type and reader:
                         lazyLoadReaders(localDatabases);

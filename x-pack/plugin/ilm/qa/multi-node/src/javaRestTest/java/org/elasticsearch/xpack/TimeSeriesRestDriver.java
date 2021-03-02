@@ -48,7 +48,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.rest.ESRestTestCase.assertOK;
-import static org.elasticsearch.test.rest.ESRestTestCase.ensureGreen;
+import static org.elasticsearch.test.rest.ESRestTestCase.ensureHealth;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -289,6 +289,13 @@ public final class TimeSeriesRestDriver {
         client.performRequest(request);
         // wait for the shards to initialize
         ensureGreen(index);
+    }
+
+    private static void ensureGreen(String index) throws IOException {
+        ensureHealth(index, (request) -> {
+            request.addParameter("wait_for_status", "green");
+            request.addParameter("wait_for_no_relocating_shards", "true");
+        });
     }
 
     @SuppressWarnings("unchecked")

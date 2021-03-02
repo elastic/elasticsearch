@@ -16,22 +16,22 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.util.List;
 import java.util.Objects;
 
-public class GetSnapshottableFeaturesResponse {
+public class GetFeaturesResponse {
 
     private final List<SnapshottableFeature> features;
 
     private static final ParseField FEATURES = new ParseField("features");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<GetSnapshottableFeaturesResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "snapshottable_features_response", true, (a, ctx) -> new GetSnapshottableFeaturesResponse((List<SnapshottableFeature>) a[0])
+    private static final ConstructingObjectParser<GetFeaturesResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "snapshottable_features_response", true, (a, ctx) -> new GetFeaturesResponse((List<SnapshottableFeature>) a[0])
     );
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), SnapshottableFeature::parse, FEATURES);
     }
 
-    public GetSnapshottableFeaturesResponse(List<SnapshottableFeature> features) {
+    public GetFeaturesResponse(List<SnapshottableFeature> features) {
         this.features = features;
     }
 
@@ -39,15 +39,15 @@ public class GetSnapshottableFeaturesResponse {
         return features;
     }
 
-    public static GetSnapshottableFeaturesResponse parse(XContentParser parser) {
+    public static GetFeaturesResponse parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if ((o instanceof GetSnapshottableFeaturesResponse) == false) return false;
-        GetSnapshottableFeaturesResponse that = (GetSnapshottableFeaturesResponse) o;
+        if ((o instanceof GetFeaturesResponse) == false) return false;
+        GetFeaturesResponse that = (GetFeaturesResponse) o;
         return getFeatures().equals(that.getFeatures());
     }
 

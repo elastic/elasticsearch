@@ -21,9 +21,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 
-public class GetSnapshottableFeaturesResponseTests extends AbstractResponseTestCase<
-    org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse,
-    GetSnapshottableFeaturesResponse> {
+public class GetFeaturesResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse, GetFeaturesResponse> {
 
     @Override
     protected org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse createServerTestInstance(
@@ -41,14 +40,14 @@ public class GetSnapshottableFeaturesResponseTests extends AbstractResponseTestC
     }
 
     @Override
-    protected GetSnapshottableFeaturesResponse doParseToClientInstance(XContentParser parser) throws IOException {
-        return GetSnapshottableFeaturesResponse.parse(parser);
+    protected GetFeaturesResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return GetFeaturesResponse.parse(parser);
     }
 
     @Override
     protected void assertInstances(
         org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse serverTestInstance,
-        GetSnapshottableFeaturesResponse clientInstance
+        GetFeaturesResponse clientInstance
     ) {
         assertNotNull(serverTestInstance.getSnapshottableFeatures());
         assertNotNull(serverTestInstance.getSnapshottableFeatures());

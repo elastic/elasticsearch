@@ -8,7 +8,6 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -84,14 +83,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
                 null, null, circuitBreakerService, usageService);
 
         // A basic RestHandler handles requests to the endpoint
-        RestHandler restHandler = new RestHandler() {
-
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                channel.sendResponse(new TestResponse());
-            }
-
-        };
+        RestHandler restHandler = (request, channel, client) -> channel.sendResponse(new TestResponse());
 
         // Register valid test handlers with test RestController
         for (Method method : validHttpMethodArray) {

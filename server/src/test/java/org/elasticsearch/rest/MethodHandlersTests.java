@@ -8,7 +8,6 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.test.ESTestCase;
 
@@ -22,21 +21,21 @@ public class MethodHandlersTests extends ESTestCase {
     private final RestApiCompatibleVersion previous = current.previousMajor();
 
     public void testLookupForDifferentMethodsSameVersion() {
-        RestHandler putHandler = new CurrentVersionHandler();
-        RestHandler postHandler = new CurrentVersionHandler();
+        RestHandler putHandler = (request, channel, client) -> {};
+        RestHandler postHandler = (request, channel, client) -> {};
         MethodHandlers methodHandlers = new MethodHandlers("path")
-            .addMethod(PUT, putHandler)
-            .addMethod(POST, postHandler);
+            .addMethod(PUT, current, putHandler)
+            .addMethod(POST, current, postHandler);
 
         RestHandler found = methodHandlers.getHandler(PUT, current);
         assertThat(found, sameInstance(putHandler));
     }
 
     public void testLookupForHandlerUnderMultipleMethods() {
-        RestHandler handler = new CurrentVersionHandler();
+        RestHandler handler = (request, channel, client) -> {};
         MethodHandlers methodHandlers = new MethodHandlers("path")
-            .addMethod(PUT, handler)
-            .addMethod(POST, handler);
+            .addMethod(PUT, current, handler)
+            .addMethod(POST, current, handler);
 
         RestHandler found = methodHandlers.getHandler(PUT, current);
         assertThat(found, sameInstance(handler));
@@ -46,63 +45,43 @@ public class MethodHandlersTests extends ESTestCase {
     }
 
     public void testLookupForHandlersUnderDifferentVersions() {
-        RestHandler currentVersionHandler = new CurrentVersionHandler();
-        RestHandler previousVersionHandler = new PreviousVersionHandler();
+        RestHandler handler = (request, channel, client) -> {};
         MethodHandlers methodHandlers = new MethodHandlers("path")
-            .addMethod(PUT, currentVersionHandler)
-            .addMethod(PUT, previousVersionHandler);
+            .addMethod(PUT, current, handler)
+            .addMethod(PUT, previous, handler);
 
         RestHandler found = methodHandlers.getHandler(PUT, current);
-        assertThat(found, sameInstance(currentVersionHandler));
+        assertThat(found, sameInstance(handler));
 
         found = methodHandlers.getHandler(PUT, previous);
-        assertThat(found, sameInstance(previousVersionHandler));
+        assertThat(found, sameInstance(handler));
     }
 
     public void testExceptionOnOverride() {
         RestHandler handler = (request, channel, client) -> {};
         MethodHandlers methodHandlers = new MethodHandlers("path")
-            .addMethod(PUT, handler);
+            .addMethod(PUT, current, handler);
 
-        expectThrows(IllegalArgumentException.class, () -> methodHandlers.addMethod(PUT, handler));
+        expectThrows(IllegalArgumentException.class, () -> methodHandlers.addMethod(PUT, current, handler));
     }
 
     public void testMissingCurrentHandler() {
-        RestHandler previousVersionHandler = new PreviousVersionHandler();
+        RestHandler handler = (request, channel, client) -> {};
         MethodHandlers methodHandlers = new MethodHandlers("path")
-            .addMethod(PUT, previousVersionHandler)
-            .addMethod(POST, previousVersionHandler);
+            .addMethod(PUT, previous, handler)
+            .addMethod(POST, previous, handler);
 
         RestHandler found = methodHandlers.getHandler(PUT, current);
         assertNull(found);
     }
 
     public void testMissingPriorHandlerReturnsCurrentHandler() {
-        RestHandler currentVersionHandler = new CurrentVersionHandler();
+        RestHandler handler = (request, channel, client) -> {};
         MethodHandlers methodHandlers = new MethodHandlers("path")
-            .addMethod(PUT, currentVersionHandler)
-            .addMethod(POST, currentVersionHandler);
+            .addMethod(PUT, current, handler)
+            .addMethod(POST, current, handler);
 
         RestHandler found = methodHandlers.getHandler(PUT, previous);
-        assertThat(found, sameInstance(currentVersionHandler));
-    }
-
-    static class CurrentVersionHandler implements RestHandler {
-
-        @Override
-        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-
-        }
-    }
-
-    static class PreviousVersionHandler implements RestHandler {
-        @Override
-        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        }
-
-        @Override
-        public RestApiCompatibleVersion compatibleWithVersion() {
-            return RestApiCompatibleVersion.currentVersion().previousMajor();
-        }
+        assertThat(found, sameInstance(handler));
     }
 }

@@ -40,7 +40,6 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.usage.UsageService;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -96,12 +95,12 @@ public class RestControllerTests extends ESTestCase {
         client = new NoOpNodeClient(this.getTestName());
         restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
         restController.registerHandler(new Route(GET, "/"),
-            (request, channel, client) -> channel.sendResponse(
-                new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
-        restController.registerHandler(new Route(GET, "/error"), (request, channel, client) -> {
-            throw new IllegalArgumentException("test error");
-        });
-
+            (request, channel, client) ->
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
+        restController.registerHandler(new Route(GET, "/error"),
+            (request, channel, client) -> {
+                throw new IllegalArgumentException("test error");
+            });
         httpServerTransport.start();
     }
 
@@ -131,7 +130,7 @@ public class RestControllerTests extends ESTestCase {
                 @Override
                 public MethodHandlers next() {
                     return new MethodHandlers("/")
-                        .addMethod(GET, (request, channel, client) -> {
+                        .addMethod(GET, RestApiCompatibleVersion.currentVersion(), (request, channel, client) -> {
                             assertEquals("true", threadContext.getHeader("header.1"));
                             assertEquals("true", threadContext.getHeader("header.2"));
                             assertNull(threadContext.getHeader("header.3"));
@@ -170,8 +169,9 @@ public class RestControllerTests extends ESTestCase {
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "foo"));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).withPath("/bar").build();
-        restController.registerHandler(new Route(GET, "/bar"), (request, channel, client) ->
-            channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
+        restController.registerHandler(new Route(GET, "/bar"),
+            (request, channel, client) ->
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.OK);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         assertTrue(channel.getSendResponseCalled());
@@ -182,15 +182,20 @@ public class RestControllerTests extends ESTestCase {
 
         Method method = randomFrom(Method.values());
         String path = "/_" + randomAlphaOfLengthBetween(1, 6);
-        RestHandler handler = v8mockHandler();
+        RestHandler handler = (request, channel, client) -> {};
         String deprecationMessage = randomAlphaOfLengthBetween(1, 10);
+        RestApiCompatibleVersion previous = RestApiCompatibleVersion.currentVersion().previousMajor();
+
+        Route route = Route.builder(method, path)
+            .deprecated(deprecationMessage, previous).build();
 
         // don't want to test everything -- just that it actually wraps the handler
-        doCallRealMethod().when(controller).registerAsDeprecatedHandler(method, path, handler, deprecationMessage);
+        doCallRealMethod().when(controller).registerHandler(route, handler);
+        doCallRealMethod().when(controller).registerAsDeprecatedHandler(method, path, previous, handler, deprecationMessage);
 
-        controller.registerAsDeprecatedHandler(method, path, handler, deprecationMessage);
+        controller.registerHandler(route, handler);
 
-        verify(controller).registerHandler(eq(method), eq(path), any(DeprecationRestHandler.class));
+        verify(controller).registerHandler(eq(method), eq(path), eq(previous), any(DeprecationRestHandler.class));
     }
 
     public void testRegisterAsReplacedHandler() {
@@ -198,20 +203,26 @@ public class RestControllerTests extends ESTestCase {
 
         final Method method = randomFrom(Method.values());
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
-        final RestHandler handler = v8mockHandler();
+        final RestHandler handler = (request, channel, client) -> {};
         final Method replacedMethod = randomFrom(Method.values());
         final String replacedPath = "/_" + randomAlphaOfLengthBetween(1, 6);
-
+        final RestApiCompatibleVersion current = RestApiCompatibleVersion.currentVersion();
+        final RestApiCompatibleVersion previous = current.previousMajor();
         final String deprecationMessage = "[" + replacedMethod.name() + " " + replacedPath + "] is deprecated! Use [" +
             method.name() + " " + path + "] instead.";
 
+        final Route route = Route.builder(method, path)
+            .replaces(replacedMethod, replacedPath, previous).build();
+
         // don't want to test everything -- just that it actually wraps the handlers
-        doCallRealMethod().when(controller).registerAsReplacedHandler(method, path, handler, replacedMethod, replacedPath);
+        doCallRealMethod().when(controller).registerHandler(route, handler);
+        doCallRealMethod().when(controller).registerAsReplacedHandler(method, path, current, handler,
+            replacedMethod, replacedPath, previous);
 
-        controller.registerAsReplacedHandler(method, path, handler, replacedMethod, replacedPath);
+        controller.registerHandler(route, handler);
 
-        verify(controller).registerHandler(method, path, handler);
-        verify(controller).registerAsDeprecatedHandler(replacedMethod, replacedPath, handler, deprecationMessage);
+        verify(controller).registerHandler(method, path, current, handler);
+        verify(controller).registerAsDeprecatedHandler(replacedMethod, replacedPath, previous, handler, deprecationMessage);
     }
 
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
@@ -223,7 +234,7 @@ public class RestControllerTests extends ESTestCase {
 
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
 
-        RestHandler handler = v8mockHandler();
+        RestHandler handler = (request, channel, client) -> {};
 
         restController.registerHandler(new Route(firstMethod, path + "/{wildcard1}"), handler);
 
@@ -231,12 +242,6 @@ public class RestControllerTests extends ESTestCase {
             () -> restController.registerHandler(new Route(secondMethod, path + "/{wildcard2}"), handler));
 
         assertThat(exception.getMessage(), equalTo("Trying to use conflicting wildcard names for same path: wildcard1 and wildcard2"));
-    }
-
-    private RestHandler v8mockHandler() {
-        RestHandler mock = mock(RestHandler.class);
-        Mockito.when(mock.compatibleWithVersion()).thenReturn(RestApiCompatibleVersion.currentVersion());
-        return mock;
     }
 
     public void testRestHandlerWrapper() throws Exception {
@@ -337,12 +342,9 @@ public class RestControllerTests extends ESTestCase {
             .withContent(new BytesArray(content), null).withPath("/foo")
             .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("text/plain"))).build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
-        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-            }
-        });
+        restController.registerHandler(new Route(GET, "/foo"),
+            (request, channel1, client) ->
+                channel1.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
 
         assertFalse(channel.getSendResponseCalled());
         restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
@@ -635,20 +637,12 @@ public class RestControllerTests extends ESTestCase {
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
         // dispatch to a compatible handler
-        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                // in real use case we will use exact version RestApiCompatibleVersion.V_7
-                XContentBuilder xContentBuilder = channel.newBuilder();
-                assertThat(xContentBuilder.getRestApiCompatibilityVersion(), equalTo(RestApiCompatibleVersion.minimumSupported()));
-                assertThat(request.contentParser().getRestApiCompatibleVersion(), equalTo(RestApiCompatibleVersion.minimumSupported()));
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-            }
-
-            @Override
-            public RestApiCompatibleVersion compatibleWithVersion() {
-                return RestApiCompatibleVersion.minimumSupported();
-            }
+        restController.registerHandler(new Route(GET, "/foo"), (request, channel1, client) -> {
+            // in real use case we will use exact version RestApiCompatibleVersion.V_7
+            XContentBuilder xContentBuilder = channel1.newBuilder();
+            assertThat(xContentBuilder.getRestApiCompatibilityVersion(), equalTo(RestApiCompatibleVersion.minimumSupported()));
+            assertThat(request.contentParser().getRestApiCompatibleVersion(), equalTo(RestApiCompatibleVersion.minimumSupported()));
+            channel1.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         });
 
         assertFalse(channel.getSendResponseCalled());
@@ -667,24 +661,15 @@ public class RestControllerTests extends ESTestCase {
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
 
         // dispatch to a CURRENT newly added handler
-        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+        restController.registerHandler(new Route(GET, "/foo"), (request, channel1, client) -> {
+            XContentBuilder xContentBuilder = channel1.newBuilder();
+            // even though the handler is CURRENT, the xContentBuilder has the version requested by a client.
+            // This allows to implement the compatible logic within the serialisation without introducing V7 (compatible) handler
+            // when only response shape has changed
+            assertThat(xContentBuilder.getRestApiCompatibilityVersion(), equalTo(RestApiCompatibleVersion.minimumSupported()));
+            assertThat(request.contentParser().getRestApiCompatibleVersion(), equalTo(RestApiCompatibleVersion.minimumSupported()));
 
-                XContentBuilder xContentBuilder = channel.newBuilder();
-                // even though the handler is CURRENT, the xContentBuilder has the version requested by a client.
-                // This allows to implement the compatible logic within the serialisation without introducing V7 (compatible) handler
-                // when only response shape has changed
-                assertThat(xContentBuilder.getRestApiCompatibilityVersion(), equalTo(RestApiCompatibleVersion.minimumSupported()));
-                assertThat(request.contentParser().getRestApiCompatibleVersion(), equalTo(RestApiCompatibleVersion.minimumSupported()));
-
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-            }
-
-            @Override
-            public RestApiCompatibleVersion compatibleWithVersion() {
-                return RestApiCompatibleVersion.currentVersion();
-            }
+            channel1.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         });
 
         assertFalse(channel.getSendResponseCalled());
@@ -712,22 +697,14 @@ public class RestControllerTests extends ESTestCase {
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
 
         // dispatch to a CURRENT newly added handler
-        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                // the media type is in application/vnd.elasticsearch form but with compatible-with=CURRENT.
-                // Hence compatibility is not used.
+        restController.registerHandler(new Route(GET, "/foo"), (request, channel1, client) -> {
+            // the media type is in application/vnd.elasticsearch form but with compatible-with=CURRENT.
+            // Hence compatibility is not used.
 
-                XContentBuilder xContentBuilder = channel.newBuilder();
-                assertThat(request.contentParser().getRestApiCompatibleVersion(), equalTo(RestApiCompatibleVersion.currentVersion()));
-                assertThat(xContentBuilder.getRestApiCompatibilityVersion(), equalTo(RestApiCompatibleVersion.currentVersion()));
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-            }
-
-            @Override
-            public RestApiCompatibleVersion compatibleWithVersion() {
-                return RestApiCompatibleVersion.currentVersion();
-            }
+            XContentBuilder xContentBuilder = channel1.newBuilder();
+            assertThat(request.contentParser().getRestApiCompatibleVersion(), equalTo(RestApiCompatibleVersion.currentVersion()));
+            assertThat(xContentBuilder.getRestApiCompatibilityVersion(), equalTo(RestApiCompatibleVersion.currentVersion()));
+            channel1.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         });
 
         assertFalse(channel.getSendResponseCalled());

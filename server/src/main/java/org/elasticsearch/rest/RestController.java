@@ -93,8 +93,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
-        registerHandlerNoWrap(Method.GET, "/favicon.ico", (request, channel, clnt) ->
-            channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE)));
+        registerHandlerNoWrap(Method.GET, "/favicon.ico", RestApiCompatibleVersion.currentVersion(),
+            (request, channel, clnt) ->
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE)));
     }
 
     /**
@@ -105,10 +106,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param handler The handler to actually execute
      * @param deprecationMessage The message to log and send as a header in the response
      */
-    protected void registerAsDeprecatedHandler(Method method, String path, RestHandler handler, String deprecationMessage) {
+    protected void registerAsDeprecatedHandler(Method method, String path, RestApiCompatibleVersion version,
+                                               RestHandler handler, String deprecationMessage) {
         assert (handler instanceof DeprecationRestHandler) == false;
 
-        registerHandler(method, path, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger));
+        registerHandler(method, path, version, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger));
     }
 
     /**
@@ -135,14 +137,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param replacedMethod GET, POST, etc.
      * @param replacedPath <em>Deprecated</em> path to handle (e.g., "/_optimize")
      */
-    protected void registerAsReplacedHandler(Method method, String path, RestHandler handler,
-                                             Method replacedMethod, String replacedPath) {
+    protected void registerAsReplacedHandler(Method method, String path, RestApiCompatibleVersion version, RestHandler handler,
+                                             Method replacedMethod, String replacedPath, RestApiCompatibleVersion replacedVersion) {
         // e.g., [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
-        final String deprecationMessage =
+        final String replacedMessage =
             "[" + replacedMethod.name() + " " + replacedPath + "] is deprecated! Use [" + method.name() + " " + path + "] instead.";
 
-        registerHandler(method, path, handler);
-        registerAsDeprecatedHandler(replacedMethod, replacedPath, handler, deprecationMessage);
+        registerHandler(method, path, version, handler);
+        registerAsDeprecatedHandler(replacedMethod, replacedPath, replacedVersion, handler, replacedMessage);
     }
 
     /**
@@ -152,34 +154,33 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param handler The handler to actually execute
      * @param method GET, POST, etc.
      */
-    protected void registerHandler(Method method, String path, RestHandler handler) {
+    protected void registerHandler(Method method, String path, RestApiCompatibleVersion version, RestHandler handler) {
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
-        registerHandlerNoWrap(method, path, handlerWrapper.apply(handler));
+        registerHandlerNoWrap(method, path, version, handlerWrapper.apply(handler));
     }
 
-    private void registerHandlerNoWrap(Method method, String path, RestHandler handler) {
-        final RestApiCompatibleVersion version = handler.compatibleWithVersion();
+    private void registerHandlerNoWrap(Method method, String path, RestApiCompatibleVersion version, RestHandler handler) {
         assert RestApiCompatibleVersion.minimumSupported() == version || RestApiCompatibleVersion.currentVersion() == version
             : "REST API compatibility is only supported for version " + RestApiCompatibleVersion.minimumSupported().major;
 
         handlers.insertOrUpdate(path,
-            new MethodHandlers(path).addMethod(method, handler),
-            (handlers, ignoredHandler) -> handlers.addMethod(method, handler));
+            new MethodHandlers(path).addMethod(method, version, handler),
+            (handlers, ignoredHandler) -> handlers.addMethod(method, version, handler));
     }
 
     public void registerHandler(final Route route, final RestHandler handler) {
         if (route.isReplacement()) {
             Route replaced = route.getReplacedRoute();
-            registerAsReplacedHandler(route.getMethod(), route.getPath(), handler,
-                replaced.getMethod(), replaced.getPath());
+            registerAsReplacedHandler(route.getMethod(), route.getPath(), RestApiCompatibleVersion.currentVersion(), handler,
+                replaced.getMethod(), replaced.getPath(), route.getRestApiCompatibleVersion());
         } else if (route.isDeprecated()) {
-            registerAsDeprecatedHandler(route.getMethod(), route.getPath(), handler,
+            registerAsDeprecatedHandler(route.getMethod(), route.getPath(), route.getRestApiCompatibleVersion(), handler,
                 route.getDeprecationMessage());
         } else {
             // it's just a normal route
-            registerHandler(route.getMethod(), route.getPath(), handler);
+            registerHandler(route.getMethod(), route.getPath(), RestApiCompatibleVersion.currentVersion(), handler);
         }
     }
 

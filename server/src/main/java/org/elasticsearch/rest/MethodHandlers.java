@@ -32,10 +32,10 @@ final class MethodHandlers {
      * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
      * does not allow replacing the handler for an already existing method.
      */
-    MethodHandlers addMethod(Method method, RestHandler handler) {
+    MethodHandlers addMethod(Method method, RestApiCompatibleVersion version, RestHandler handler) {
         RestHandler existing = methodHandlers
             .computeIfAbsent(method, k -> new HashMap<>())
-            .putIfAbsent(handler.compatibleWithVersion(), handler);
+            .putIfAbsent(version, handler);
         if (existing != null) {
             throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);
         }

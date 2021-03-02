@@ -1,5 +1,3 @@
-// Shared infrastructure
-
 apply plugin: 'elasticsearch.build'
 
 dependencies {
@@ -14,7 +12,7 @@ subprojects {
     apply plugin: 'elasticsearch.yaml-rest-test'
 
     dependencies {
-      yamlRestTestImplementation xpackProject("plugin:runtime-fields:qa")
+      yamlRestTestImplementation xpackProject(":x-pack:qa:runtime-fields")
     }
 
     restResources {
@@ -64,7 +62,7 @@ subprojects {
           'suggest/30_context/Multi contexts should work',
 
           //there is something wrong when using dotted document syntax here, passes in main yaml tests
-	  'search/330_fetch_fields/Test nested field inside object structure',
+	        'search/330_fetch_fields/Test nested field inside object structure',
           /////// TO FIX ///////
 
           /////// NOT SUPPORTED ///////

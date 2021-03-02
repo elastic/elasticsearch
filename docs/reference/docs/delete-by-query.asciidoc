@@ -114,6 +114,7 @@ shards to become available. Both work exactly the way they work in the
 specify the `scroll` parameter to control how long it keeps the search context
 alive, for example `?scroll=10m`. The default is 5 minutes.
 
+[[docs-delete-by-query-throttle]]
 ===== Throttling delete requests
 
 To control the rate at which delete by query issues batches of delete operations,

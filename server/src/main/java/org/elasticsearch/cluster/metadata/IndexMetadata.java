@@ -334,6 +334,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_SETTINGS = "settings";
     static final String KEY_STATE = "state";
     static final String KEY_MAPPINGS = "mappings";
+    static final String KEY_MAPPING_ID = "mapping_id";
     static final String KEY_ALIASES = "aliases";
     static final String KEY_ROLLOVER_INFOS = "rollover_info";
     static final String KEY_SYSTEM = "system";
@@ -1326,14 +1327,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             builder.endObject();
 
-            if (context != Metadata.XContentContext.API) {
+            if (context == Metadata.XContentContext.GATEWAY && indexMetadata.mapping() != null) {
+                builder.field(KEY_MAPPING_ID, indexMetadata.mapping().id());
+            } else if (context != Metadata.XContentContext.API) {
                 builder.startArray(KEY_MAPPINGS);
                 MappingMetadata mmd = indexMetadata.mapping();
                 if (mmd != null) {
-                    if (context == Metadata.XContentContext.GATEWAY){
-                        builder.value(mmd.id().msb());
-                        builder.value(mmd.id().lsb());
-                    } else if (binary) {
+                    if (binary) {
                         builder.value(mmd.source().compressed());
                     } else {
                         builder.map(XContentHelper.convertToMap(mmd.source().uncompressed(), true).v2());
@@ -1497,12 +1497,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if (KEY_MAPPINGS.equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token == XContentParser.Token.VALUE_NUMBER) {
-                                long msb = parser.longValue();
-                                parser.nextToken();
-                                long lsb = parser.longValue();
-                                builder.putMapping( new MappingMetadata(new MappingMetadata.Id(msb, lsb)));
-                            } if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                            if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
                                 builder.putMapping(new MappingMetadata(new CompressedXContent(parser.binaryValue())));
                             } else {
                                 Map<String, Object> mapping = parser.mapOrdered();
@@ -1526,7 +1521,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         throw new IllegalArgumentException("Unexpected field for an array " + currentFieldName);
                     }
                 } else if (token.isValue()) {
-                    if (KEY_STATE.equals(currentFieldName)) {
+                    if (KEY_MAPPING_ID.equals(currentFieldName)){
+                        builder.putMapping(new MappingMetadata(parser.text()));
+                    } else if (KEY_STATE.equals(currentFieldName)) {
                         builder.state(State.fromString(parser.text()));
                     } else if (KEY_VERSION.equals(currentFieldName)) {
                         builder.version(parser.longValue());

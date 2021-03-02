@@ -393,7 +393,7 @@ public class PersistedClusterStateService {
 
         logger.trace("got global metadata, now reading mappings metadata");
 
-        Map<MappingMetadata.Id, MappingMetadata> mappings = new HashMap<>();
+        Map<String, MappingMetadata> mappings = new HashMap<>();
         consumeFromType(searcher, MAPPING_TYPE_NAME, bytes -> {
             MappingMetadata mappingMetadata = MappingMetadata.fromXContent(XContentFactory.xContent(XContentType.SMILE)
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
@@ -481,9 +481,9 @@ public class PersistedClusterStateService {
             this.indexWriter.deleteAll();
         }
 
-        void updateMappingDocument(Document mappingMetadataDocument, MappingMetadata.Id id) throws IOException {
+        void updateMappingDocument(Document mappingMetadataDocument, String id) throws IOException {
             this.logger.trace("updating metadata for mapping [{}]", id);
-            indexWriter.updateDocument(new Term(MAPPING_ID_FIELD_NAME, id.toString()), mappingMetadataDocument);
+            indexWriter.updateDocument(new Term(MAPPING_ID_FIELD_NAME, id), mappingMetadataDocument);
         }
 
         void updateIndexMetadataDocument(Document indexMetadataDocument, Index index) throws IOException {
@@ -496,9 +496,9 @@ public class PersistedClusterStateService {
             indexWriter.updateDocument(new Term(TYPE_FIELD_NAME, GLOBAL_TYPE_NAME), globalMetadataDocument);
         }
 
-        void deleteMappingMetadata(MappingMetadata.Id id) throws IOException {
+        void deleteMappingMetadata(String id) throws IOException {
             this.logger.trace("removing mapping metadata for [{}]", id);
-            indexWriter.deleteDocuments(new Term(INDEX_UUID_FIELD_NAME, id.toString()));
+            indexWriter.deleteDocuments(new Term(INDEX_UUID_FIELD_NAME, id));
         }
 
         void deleteIndexMetadata(String indexUUID) throws IOException {
@@ -659,7 +659,7 @@ public class PersistedClusterStateService {
                     }
                 }
 
-                HashSet<MappingMetadata.Id> previouslyWrittenMappings = new HashSet<>();
+                HashSet<String> previouslyWrittenMappings = new HashSet<>();
                 for (ObjectCursor<IndexMetadata> index : previouslyWrittenMetadata.indices().values()) {
                     MappingMetadata mapping = index.value.mapping();
                     if(mapping !=null) {
@@ -667,7 +667,7 @@ public class PersistedClusterStateService {
                     }
                 }
 
-                Map<MappingMetadata.Id, MappingMetadata> currentMappings = new HashMap<>();
+                Map<String, MappingMetadata> currentMappings = new HashMap<>();
                 for (ObjectObjectCursor<String, IndexMetadata> index : metadata.indices()) {
                     MappingMetadata mapping = index.value.mapping();
                     if(mapping!=null) {
@@ -683,10 +683,10 @@ public class PersistedClusterStateService {
                     }
                 }
 
-                HashSet<MappingMetadata.Id> toRemove = new HashSet<>(previouslyWrittenMappings);
+                HashSet<String> toRemove = new HashSet<>(previouslyWrittenMappings);
                 toRemove.removeAll(currentMappings.keySet());
 
-                for (MappingMetadata.Id id : toRemove) {
+                for (String id : toRemove) {
                     for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
                         metadataIndexWriter.deleteMappingMetadata(id);
                     }
@@ -759,7 +759,7 @@ public class PersistedClusterStateService {
                     metadataIndexWriter.updateGlobalMetadata(globalMetadataDocument);
                 }
 
-                Map<MappingMetadata.Id, MappingMetadata> currentMappings = new HashMap<>();
+                Map<String, MappingMetadata> currentMappings = new HashMap<>();
                 for (ObjectObjectCursor<String, IndexMetadata> index : metadata.indices()) {
                     MappingMetadata mapping = index.value.mapping();
                     if (mapping != null) {
@@ -874,9 +874,7 @@ public class PersistedClusterStateService {
 
         private Document makeMappingMetadataDocument(MappingMetadata mappingMetadata, DocumentBuffer documentBuffer) throws IOException {
             final Document mappingsDoc = makeDocument(MAPPING_TYPE_NAME, mappingMetadata, documentBuffer);
-            MappingMetadata.Id id = mappingMetadata.id();
-            final String indexUUID = Long.toString(id.msb(), Character.MAX_RADIX) + "_" + Long.toString(id.lsb(), Character.MAX_RADIX);
-            mappingsDoc.add(new StringField(MAPPING_ID_FIELD_NAME, indexUUID, Field.Store.NO));
+            mappingsDoc.add(new StringField(MAPPING_ID_FIELD_NAME, mappingMetadata.id(), Field.Store.NO));
             return mappingsDoc;
         }
 

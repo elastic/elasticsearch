@@ -65,26 +65,36 @@ public final class Mapping implements ToXContentFragment {
         this.meta = meta;
     }
 
-    RootObjectMapper root() {
+    /**
+     * Returns the root object for the current mapping
+     */
+    RootObjectMapper getRoot() {
         return root;
     }
 
-    public Map<String, Object> meta() {
+    /**
+     * Returns the meta section for the current mapping
+     */
+    public Map<String, Object> getMeta() {
         return meta;
     }
 
-    MetadataFieldMapper[] metadataMappers() {
+    MetadataFieldMapper[] getSortedMetadataMappers() {
         return metadataMappers;
     }
 
-    Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap() {
+    Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappersMap() {
         return metadataMappersMap;
     }
 
-    /** Get the root mapper with the given class. */
+    /** Get the metadata mapper with the given class. */
     @SuppressWarnings("unchecked")
-    <T extends MetadataFieldMapper> T metadataMapper(Class<T> clazz) {
+    <T extends MetadataFieldMapper> T getMetadataMapperByClass(Class<T> clazz) {
         return (T) metadataMappersMap.get(clazz);
+    }
+
+    MetadataFieldMapper getMetadataMapperByName(String mapperName) {
+        return metadataMappersByName.get(mapperName);
     }
 
     void validate(MappingLookup mappers) {
@@ -140,10 +150,6 @@ public final class Mapping implements ToXContentFragment {
         }
 
         return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
-    }
-
-    MetadataFieldMapper getMetadataMapper(String mapperName) {
-        return metadataMappersByName.get(mapperName);
     }
 
     @Override

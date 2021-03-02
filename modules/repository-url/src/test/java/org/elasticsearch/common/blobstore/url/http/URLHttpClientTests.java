@@ -31,7 +31,7 @@ import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.emptyString;
+import static org.elasticsearch.common.blobstore.url.http.URLHttpClient.createErrorMessage;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -114,7 +114,7 @@ public class URLHttpClientTests extends ESTestCase {
         final URLHttpClientException urlHttpClientException =
             expectThrows(URLHttpClientException.class, () -> executeRequest("/empty_error"));
 
-        assertThat(urlHttpClientException.getMessage(), is(emptyString()));
+        assertThat(urlHttpClientException.getMessage(), is(createErrorMessage(errorCode, "")));
         assertThat(urlHttpClientException.getStatusCode(), equalTo(errorCode));
     }
 
@@ -151,7 +151,7 @@ public class URLHttpClientTests extends ESTestCase {
         final URLHttpClientException urlHttpClientException =
             expectThrows(URLHttpClientException.class, () -> executeRequest("/error"));
 
-        assertThat(urlHttpClientException.getMessage(), equalTo(errorMessage));
+        assertThat(urlHttpClientException.getMessage(), equalTo(createErrorMessage(errorCode, errorMessage)));
         assertThat(urlHttpClientException.getStatusCode(), equalTo(errorCode));
     }
 
@@ -194,7 +194,7 @@ public class URLHttpClientTests extends ESTestCase {
         final byte[] bytes = errorMessage.getBytes(charset);
         final String strippedErrorMessage = new String(Arrays.copyOf(bytes, URLHttpClient.MAX_ERROR_MESSAGE_BODY_SIZE), charset);
 
-        assertThat(urlHttpClientException.getMessage(), equalTo(strippedErrorMessage));
+        assertThat(urlHttpClientException.getMessage(), equalTo(createErrorMessage(errorCode, strippedErrorMessage)));
         assertThat(urlHttpClientException.getStatusCode(), equalTo(errorCode));
     }
 
@@ -223,7 +223,7 @@ public class URLHttpClientTests extends ESTestCase {
         final URLHttpClientException urlHttpClientException =
             expectThrows(URLHttpClientException.class, () -> executeRequest("/unknown_charset"));
 
-        assertThat(urlHttpClientException.getMessage(), is(emptyString()));
+        assertThat(urlHttpClientException.getMessage(), is(createErrorMessage(errorCode, "")));
         assertThat(urlHttpClientException.getStatusCode(), equalTo(errorCode));
     }
 

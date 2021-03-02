@@ -9,6 +9,7 @@
 package org.elasticsearch.common.blobstore.url.http;
 
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
@@ -21,6 +22,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.hamcrest.core.StringContains.containsString;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.mock;
@@ -82,6 +84,8 @@ public class RetryingHttpInputStreamTests extends ESTestCase {
         final AtomicInteger closed = new AtomicInteger(0);
         final HttpResponseInputStream httpResponseInputStream = mock(HttpResponseInputStream.class);
         when(httpResponseInputStream.read(any(), anyInt(), anyInt())).thenThrow(new IOException());
+        String errorMessage = randomAlphaOfLength(100);
+        int statusCode = randomFrom(RestStatus.CREATED.getStatus(), RestStatus.ACCEPTED.getStatus(), RestStatus.NO_CONTENT.getStatus());
 
         final URLHttpClient urlHttpClient = new URLHttpClient(null, null) {
             @Override
@@ -105,6 +109,12 @@ public class RetryingHttpInputStreamTests extends ESTestCase {
                     }
 
                     @Override
+                    public String getBodyAsString(int maxSize) {
+                        IOUtils.closeWhileHandlingException(httpResponseInputStream);
+                        return errorMessage;
+                    }
+
+                    @Override
                     public void close() throws IOException {
                         closed.incrementAndGet();
                     }
@@ -112,11 +122,13 @@ public class RetryingHttpInputStreamTests extends ESTestCase {
             }
         };
 
-        expectThrows(IOException.class,
+        final IOException exception = expectThrows(IOException.class,
             () -> Streams.readFully(new RetryingHttpInputStream("blob", blobURI, urlHttpClient, 0)));
 
         assertThat(closed.get(), equalTo(1));
         verify(httpResponseInputStream, times(1)).close();
+        assertThat(exception.getMessage(), containsString(errorMessage));
+        assertThat(exception.getMessage(), containsString(Integer.toString(statusCode)));
     }
 
     public void testRetriesTheRequestAfterAFailureUpToMaxRetries() throws Exception {
@@ -191,6 +203,11 @@ public class RetryingHttpInputStreamTests extends ESTestCase {
 
         @Override
         public void close() {
+        }
+
+        @Override
+        public String getBodyAsString(int maxSize) {
+            return null;
         }
 
         protected void assertExpectedRequestHeaders(Map<String, String> requestHeaders) {

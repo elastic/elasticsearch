@@ -113,6 +113,11 @@ public class URLHttpClient implements Closeable {
             }
 
             @Override
+            public String getBodyAsString(int maxSize) {
+                return parseBodyAsString(response, maxSize);
+            }
+
+            @Override
             public int getStatusCode() {
                 return statusCode;
             }
@@ -132,13 +137,26 @@ public class URLHttpClient implements Closeable {
 
     private void handleInvalidResponse(CloseableHttpResponse response) {
         int statusCode = response.getStatusLine().getStatusCode();
+        String errorBody = parseBodyAsString(response, MAX_ERROR_MESSAGE_BODY_SIZE);
+        throw new URLHttpClientException(statusCode, createErrorMessage(statusCode, errorBody));
+    }
+
+    static String createErrorMessage(int statusCode, String errorMessage) {
+        if (errorMessage.isEmpty() == false) {
+            return statusCode + ": " + errorMessage;
+        } else {
+            return Integer.toString(statusCode);
+        }
+    }
+
+    private String parseBodyAsString(CloseableHttpResponse response, int maxSize) {
         String errorMessage = "";
         InputStream bodyContent = null;
         try {
             final HttpEntity httpEntity = response.getEntity();
             if (httpEntity != null && isValidContentTypeToParseError(httpEntity)) {
                 // Safeguard to avoid storing large error messages in memory
-                byte[] errorBodyBytes = new byte[(int) Math.min(httpEntity.getContentLength(), MAX_ERROR_MESSAGE_BODY_SIZE)];
+                byte[] errorBodyBytes = new byte[(int) Math.min(httpEntity.getContentLength(), maxSize)];
                 bodyContent = httpEntity.getContent();
                 int bytesRead = Streams.readFully(bodyContent, errorBodyBytes);
                 if (bytesRead > 0) {
@@ -152,8 +170,7 @@ public class URLHttpClient implements Closeable {
             IOUtils.closeWhileHandlingException(bodyContent);
             IOUtils.closeWhileHandlingException(response);
         }
-
-        throw new URLHttpClientException(statusCode, errorMessage);
+        return errorMessage;
     }
 
     private Charset getCharset(HttpEntity httpEntity) {
@@ -190,6 +207,8 @@ public class URLHttpClient implements Closeable {
         HttpResponseInputStream getInputStream() throws IOException;
 
         int getStatusCode();
+
+        String getBodyAsString(int maxSize);
 
         @Nullable
         String getHeader(String headerName);

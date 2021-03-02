@@ -27,6 +27,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.blobstore.url.http.URLHttpClient.MAX_ERROR_MESSAGE_BODY_SIZE;
+
 class RetryingHttpInputStream extends InputStream {
     public static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
     public static final long MAX_RANGE_VAL = Long.MAX_VALUE - 1;
@@ -212,10 +214,10 @@ class RetryingHttpInputStream extends InputStream {
                     final int statusCode = response.getStatusCode();
 
                     if (statusCode != RestStatus.OK.getStatus() && statusCode != RestStatus.PARTIAL_CONTENT.getStatus()) {
-                        final HttpResponseInputStream inputStream = response.getInputStream();
-                        IOUtils.closeWhileHandlingException(inputStream);
+                        String body = response.getBodyAsString(MAX_ERROR_MESSAGE_BODY_SIZE);
                         IOUtils.closeWhileHandlingException(response);
-                        throw new IOException(getErrorMessage("The server returned an invalid status code :" + statusCode));
+                        throw new IOException(getErrorMessage("The server returned an invalid response:" +
+                            " Status code: [" + statusCode + "] - Body: " + body));
                     }
 
                     currentStreamLastOffset = getStreamLength(response);

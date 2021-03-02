@@ -72,8 +72,20 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     }
 
     public static boolean validate(ClusterState state) {
-        return (state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME) ||
-            state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM));
+        return state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME) ||
+            state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM) ||
+            // Template versions 12 or 13 are also ok to have (no breaking changes). At some point these will be upgraded to version 14.
+            state.getMetadata().templatesV2().containsKey(".watch-history-12") ||
+            state.getMetadata().templatesV2().containsKey(".watch-history-no-ilm-12") ||
+            state.getMetadata().templatesV2().containsKey(".watch-history-13") ||
+            state.getMetadata().templatesV2().containsKey(".watch-history-no-ilm-13");
     }
 
+    @Override
+    protected boolean requiresMasterNode() {
+        // These installs a composable index template which is only supported in early versions of 7.x
+        // In mixed cluster without this set to true can result in errors in the logs during rolling upgrades.
+        // If these template(s) are only installed via elected master node then composable templates are available.
+        return true;
+    }
 }

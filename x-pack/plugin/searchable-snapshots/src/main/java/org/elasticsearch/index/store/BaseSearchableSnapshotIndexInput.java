@@ -15,6 +15,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,12 +30,16 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUti
 public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInput {
 
     protected final Logger logger;
+    protected final SearchableSnapshotDirectory directory;
     protected final BlobContainer blobContainer;
     protected final FileInfo fileInfo;
     protected final IOContext context;
     protected final IndexInputStats stats;
     protected final long offset;
     protected final long length;
+
+    /** Range of bytes that should be cached in the blob cache for the current index input **/
+    protected final ByteRange blobCacheByteRange;
 
     // the following are only mutable so they can be adjusted after cloning/slicing
     protected volatile boolean isClone;
@@ -43,20 +48,23 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     public BaseSearchableSnapshotIndexInput(
         Logger logger,
         String resourceDesc,
-        BlobContainer blobContainer,
+        SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
         long offset,
-        long length
+        long length,
+        ByteRange blobCacheByteRange
     ) {
         super(resourceDesc, context);
         this.logger = Objects.requireNonNull(logger);
-        this.blobContainer = Objects.requireNonNull(blobContainer);
+        this.directory = Objects.requireNonNull(directory);
+        this.blobContainer = Objects.requireNonNull(directory.blobContainer());
         this.fileInfo = Objects.requireNonNull(fileInfo);
         this.context = Objects.requireNonNull(context);
         assert fileInfo.metadata().hashEqualsContents() == false
             : "this method should only be used with blobs that are NOT stored in metadata's hash field " + "(fileInfo: " + fileInfo + ')';
+        this.blobCacheByteRange = Objects.requireNonNull(blobCacheByteRange);
         this.stats = Objects.requireNonNull(stats);
         this.offset = offset;
         this.length = length;

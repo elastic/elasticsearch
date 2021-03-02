@@ -102,8 +102,8 @@ public class DeflateCompressedXContentTests extends ESTestCase {
     }
 
     public void testToXContentFragment() throws IOException {
-        ToXContentFragment toXContentFragment = (builder, params) -> builder;
+        ToXContentFragment toXContentFragment = (builder, params) -> builder.field("field", "value");
         CompressedXContent compressedXContent = new CompressedXContent(toXContentFragment, XContentType.JSON, ToXContent.EMPTY_PARAMS);
-        assertEquals("{}", compressedXContent.string());
+        assertEquals("{\"field\":\"value\"}", compressedXContent.string());
     }
 }

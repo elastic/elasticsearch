@@ -96,6 +96,12 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeMap(runtimeFields);
+        } else {
+            if (false == runtimeFields.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "Versions before 7.12.0 don't support [runtime_mappings], but trying to send _field_caps request to a node "
+                    + "with version [" + out.getVersion() + "]");
+            }
         }
     }
 

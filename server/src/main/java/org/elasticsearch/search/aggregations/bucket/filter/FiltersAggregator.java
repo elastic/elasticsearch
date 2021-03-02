@@ -136,7 +136,21 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         if (canUseFilterByFilter(parent, otherBucketKey)) {
-            return buildFilterByFilter(name, factories, filters, keyed, otherBucketKey, context, parent, cardinality, metadata);
+            FilterByFilter filterByFilter = buildFilterByFilter(
+                name,
+                factories,
+                filters,
+                keyed,
+                otherBucketKey,
+                context,
+                parent,
+                cardinality,
+                metadata
+            );
+            if (false == filterByFilter.scoreMode().needsScores()) {
+                // Filter by filter won't produce the correct results if the sub-aggregators need scores
+                return filterByFilter;
+            }
         }
         return new FiltersAggregator.Compatible(
             name,
@@ -165,6 +179,10 @@ public abstract class FiltersAggregator extends BucketsAggregator {
      * collect filter by filter if there isn't a parent, there aren't children,
      * and we don't collect "other" buckets. Collecting {@link FilterByFilter}
      * is generally going to be much faster than the {@link Compatible} aggregator.
+     * <p>
+     * <strong>Important:</strong> This doesn't properly handle sub-aggregators
+     * that need scores so callers must check {@code #scoreMode()} and not use
+     * this collector if it need scores.
      */
     public static FilterByFilter buildFilterByFilter(
         String name,
@@ -298,6 +316,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
          */
         @SuppressWarnings("resource") // We're not in change of anything Closeable
         public long estimateCost(long maxCost) throws IOException {
+            assert scoreMode().needsScores() == false;
             // TODO if we have children we should use a different cost estimate
             this.maxCost = maxCost;
             if (estimatedCost != -1) {
@@ -351,6 +370,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
          */
         @Override
         protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+            assert scoreMode().needsScores() == false;
             Bits live = ctx.reader().getLiveDocs();
             if (false == docCountProvider.alwaysOne()) {
                 segmentsWithDocCountField++;

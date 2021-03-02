@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -46,6 +48,7 @@ import java.io.IOException;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 
+@Seed("42F8F67AE2596E1E:B2B21B652A528C87")
 public class TopHitsAggregatorTests extends AggregatorTestCase {
     public void testTopLevel() throws Exception {
         Aggregation result;

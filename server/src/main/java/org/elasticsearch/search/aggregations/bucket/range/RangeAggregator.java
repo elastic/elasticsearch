@@ -404,6 +404,10 @@ public abstract class RangeAggregator extends BucketsAggregator {
             rangeFactory,
             averageDocsPerRange
         );
+        if (fromFilters.scoreMode().needsScores()) {
+            // Filter by filter won't produce the correct results if the sub-aggregators need scores
+            return null;
+        }
         return fromFilters;
     }
 

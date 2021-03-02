@@ -112,7 +112,10 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
             bucketCountThresholds,
             terms
         );
-        return adapted.delegate() == null ? null : adapted;
+        if (adapted.scoreMode().needsScores()) {
+            return null;
+        }
+        return adapted;
     }
 
     private final boolean showTermDocCountError;

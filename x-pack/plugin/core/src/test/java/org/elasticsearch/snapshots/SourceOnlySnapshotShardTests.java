@@ -285,7 +285,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             }
             expectThrows(UnsupportedOperationException.class, () -> searcher.search(new TermQuery(new Term("boom", "boom")), 1));
             targetShard = reindex(searcher.getDirectoryReader(), new MappingMetadata("_doc",
-                restoredShard.mapperService().documentMapper("_doc").meta()));
+                restoredShard.mapperService().documentMapper("_doc").mapping().getMeta()));
         }
 
         for (int i = 0; i < numInitialDocs; i++) {

@@ -185,7 +185,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
 
         } else {
-            metadataMappers.putAll(existingMapper.mapping().metadataMappersMap);
+            metadataMappers.putAll(existingMapper.mapping().getMetadataMappersMap());
         }
         return metadataMappers;
     }
@@ -265,7 +265,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             assertRefreshIsNotNeeded(mergedMappings.defaultMapping, DEFAULT_MAPPING, mappings.defaultMapping);
         }
         if (mergedMappings.incomingMapping != null) {
-            String type = mergedMappings.incomingMapping.root().name();
+            String type = mergedMappings.incomingMapping.type();
             assertRefreshIsNotNeeded(mergedMappings.incomingMapping, type, mappings.incomingMapping);
         }
         return true;
@@ -425,7 +425,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason) {
         DocumentMapper newMapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
-        newMapper.root().fixRedundantIncludes();
+        newMapper.mapping().getRoot().fixRedundantIncludes();
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }
@@ -504,12 +504,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             } else if (reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates
                 deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "default_mapping_not_allowed", DEFAULT_MAPPING_ERROR_MESSAGE);
             }
-            assert defaultMapping.root().name().equals(DEFAULT_MAPPING);
+            assert defaultMapping.type().equals(DEFAULT_MAPPING);
         }
         Mapping incomingMapping = mappings.incomingMapping;
         Mapping newMapping = null;
         if (incomingMapping != null) {
-            validateTypeName(incomingMapping.root().name());
+            validateTypeName(incomingMapping.type());
             newMapping = mergeMappings(currentMapper, incomingMapping, reason);
         }
         return new Mappings(defaultMapping, newMapping);

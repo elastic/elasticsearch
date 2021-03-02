@@ -387,7 +387,7 @@ public abstract class ParseContext {
 
         @Override
         public RootObjectMapper root() {
-            return this.mappingLookup.getMapping().root();
+            return this.mappingLookup.getMapping().getRoot();
         }
 
         @Override
@@ -397,7 +397,7 @@ public abstract class ParseContext {
 
         @Override
         public MetadataFieldMapper getMetadataMapper(String mapperName) {
-            return mappingLookup.getMapping().getMetadataMapper(mapperName);
+            return mappingLookup.getMapping().getMetadataMapperByName(mapperName);
         }
 
         @Override

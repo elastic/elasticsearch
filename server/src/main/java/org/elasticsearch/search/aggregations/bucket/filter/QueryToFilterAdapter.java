@@ -241,7 +241,7 @@ public class QueryToFilterAdapter<Q extends Query> {
             // There aren't any matches for this filter in this leaf
             return 0;
         }
-        return scorer.cost();
+        return scorer.cost(); // TODO change this to ScorerSupplier.cost
     }
 
     /**

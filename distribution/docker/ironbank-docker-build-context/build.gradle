@@ -8,7 +8,7 @@ configurations {
 }
 
 dependencies {
-  transformLog4jJar project(path: ":distribution:docker:transform-log4j-config")
+  transformLog4jJar project(path: ":distribution:docker:transform-log4j-config", configuration: 'default')
 }
 
 tasks.register("buildIronBankDockerBuildContext", Tar) {
@@ -16,8 +16,8 @@ tasks.register("buildIronBankDockerBuildContext", Tar) {
   compression = Compression.GZIP
   archiveClassifier = "docker-build-context"
   archiveBaseName = "elasticsearch-ironbank"
-  // We always treat Iron Bank builds as local, because that is how they
-  // are built
+  // We supply an architecture here because we always treat Iron Bank
+  // builds as local -  because that is how they are built.
   with dockerBuildContext(Architecture.X64, DockerBase.IRON_BANK, true)
 
   into('scripts') {

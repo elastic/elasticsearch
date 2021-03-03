@@ -7,7 +7,7 @@ configurations {
 }
 
 dependencies {
-  transformLog4jJar project(path: ":distribution:docker:transform-log4j-config")
+  transformLog4jJar project(path: ":distribution:docker:transform-log4j-config", configuration: 'default')
 }
 
 

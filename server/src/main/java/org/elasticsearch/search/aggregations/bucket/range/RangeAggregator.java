@@ -350,7 +350,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             // We don't generate sensible Queries for nanoseconds.
             return null;
         }
-        if (false == FiltersAggregator.canUseFilterByFilter(parent, factories, null)) {
+        if (false == FiltersAggregator.canUseFilterByFilter(parent, null)) {
             return null;
         }
         boolean wholeNumbersOnly = false == ((ValuesSource.Numeric) valuesSourceConfig.getValuesSource()).isFloatingPoint();
@@ -404,6 +404,16 @@ public abstract class RangeAggregator extends BucketsAggregator {
             rangeFactory,
             averageDocsPerRange
         );
+        if (fromFilters.scoreMode().needsScores()) {
+            /*
+             * Filter by filter won't produce the correct results if the
+             * sub-aggregators need scores because we're not careful with how
+             * we merge filters. Right now we have to build the whole
+             * aggregation in order to know if it'll need scores or not.
+             */
+            // TODO make filter by filter produce the correct result or skip this in canUseFilterbyFilter
+            return null;
+        }
         return fromFilters;
     }
 

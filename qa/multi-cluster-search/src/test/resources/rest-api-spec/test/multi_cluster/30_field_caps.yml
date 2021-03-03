@@ -82,8 +82,6 @@
           runtime_mappings:
             number:
               type: keyword
-              script:
-                source: "emit(doc['number'].value)"
   - match: {fields.number.keyword.searchable:           true}
   - match: {fields.number.keyword.aggregatable:         true}
   - match: {fields.number.keyword.type:                 keyword}

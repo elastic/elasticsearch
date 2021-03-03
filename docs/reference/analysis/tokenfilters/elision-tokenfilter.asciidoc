@@ -6,7 +6,7 @@ plane) will tokenized as "avion" (plane).
 
 Accepts `articles` parameter which is a set of stop words articles. Also accepts
 `articles_case`, which indicates whether the filter treats those articles as
-case sensitive.
+case insensitive.
 
 For example:
 

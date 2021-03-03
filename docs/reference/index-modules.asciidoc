@@ -255,14 +255,14 @@ are ignored for this index.
 --
 (string or array of strings)
 Wildcard (`*`) patterns matching one or more fields. The following query types
-search these fields by default:
+search these matching fields by default:
 
 * <<query-dsl-mlt-query>>
 * <<query-dsl-multi-match-query>>
 * <<query-dsl-query-string-query>>
 * <<query-dsl-simple-query-string-query>>
 
-Defaults to `*`, which extracts all fields eligible for
+Defaults to `*`, which matches all fields eligible for
 <<term-level-queries,term-level queries>>, excluding metadata fields.
 --
 

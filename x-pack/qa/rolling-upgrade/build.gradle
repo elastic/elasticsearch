@@ -33,7 +33,9 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
 
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   String baseName = "v${bwcVersion}"
-  String repositoryPath = "${buildDir}/cluster/shared/repo/${baseName}"
+
+  // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
+  String searchableSnapshotRepository = "${buildDir}/cluster/shared/searchable-snapshots-repo/${baseName}"
 
   testClusters {
     "${baseName}" {
@@ -42,7 +44,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       numberOfNodes = 3
 
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-      setting 'path.repo', repositoryPath
+      setting 'path.repo', "[ \"${buildDir}/cluster/shared/repo/${baseName}\", \"${searchableSnapshotRepository}\" ]"
       setting 'xpack.license.self_generated.type', 'trial'
       setting 'xpack.security.enabled', 'true'
       setting 'xpack.security.transport.ssl.enabled', 'true'
@@ -94,7 +96,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     dependsOn "copyTestNodeKeyMaterial"
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
-    systemProperty 'tests.path.repo', repositoryPath
+    systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
@@ -111,7 +113,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'true'
     systemProperty 'tests.upgrade_from_version', oldVersion
-    systemProperty 'tests.path.repo', repositoryPath
+    systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
     // We only need to run these tests once so we may as well do it when we're two thirds upgraded
     systemProperty 'tests.rest.blacklist', [
       'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
@@ -137,7 +139,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'false'
     systemProperty 'tests.upgrade_from_version', oldVersion
-    systemProperty 'tests.path.repo', repositoryPath
+    systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
   }
 
   tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
@@ -150,7 +152,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
-    systemProperty 'tests.path.repo', repositoryPath
+    systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {

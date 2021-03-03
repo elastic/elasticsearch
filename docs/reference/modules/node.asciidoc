@@ -83,7 +83,7 @@ the {stack}].
 <<transform-node,{transform-cap} node>>::
 
 A node that has the `transform` role. If you want to use {transforms}, there
-be at least one {transform} node in your cluster. For more information, see
+must be at least one {transform} node in your cluster. For more information, see
 <<transform-settings>> and <<transforms>>.
 
 [NOTE]

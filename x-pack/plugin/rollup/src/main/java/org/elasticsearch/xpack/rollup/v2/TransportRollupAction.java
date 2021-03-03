@@ -27,14 +27,12 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RollupGroup;
 import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.WriteableZoneId;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
@@ -43,14 +41,15 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
+import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -181,26 +180,39 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         builder.startObject("properties");
 
         RollupActionGroupConfig groupConfig = config.getGroupConfig();
-        String dateField = groupConfig.getDateHistogram().getField();
+        RollupActionDateHistogramGroupConfig dateHistogramConfig = groupConfig.getDateHistogram();
+        String dateField = dateHistogramConfig.getField();
+        String dateIntervalType = dateHistogramConfig.getIntervalTypeName();
+        String dateInterval = dateHistogramConfig.getInterval().toString();
+        String tz = dateHistogramConfig.getTimeZone() != null ? dateHistogramConfig.getTimeZone() :
+            RollupActionDateHistogramGroupConfig.DEFAULT_TIMEZONE;
+
+        builder.startObject(dateField).field("type", DateFieldMapper.CONTENT_TYPE)
+                .startObject("meta")
+                    .field(dateIntervalType, dateInterval)
+                    .field(RollupActionDateHistogramGroupConfig.CalendarInterval.TIME_ZONE, tz)
+                .endObject()
+            .endObject();
+
         HistogramGroupConfig histogramGroupConfig = groupConfig.getHistogram();
-        List<MetricConfig> metricConfigs = config.getMetricsConfig();
-
-        // TODO: Add the format of the original field
-        builder.startObject(dateField).field("type", DateFieldMapper.CONTENT_TYPE).endObject();
-
         if (histogramGroupConfig != null) {
             for (String field : histogramGroupConfig.getFields()) {
-                builder.startObject(field).field("type", NumberFieldMapper.NumberType.DOUBLE.typeName()).endObject();
+                builder.startObject(field).field("type", NumberFieldMapper.NumberType.DOUBLE.typeName())
+                    .startObject("meta")
+                        .field(HistogramGroupConfig.INTERVAL, String.valueOf(histogramGroupConfig.getInterval()))
+                    .endObject()
+                .endObject();
             }
         }
 
+        List<MetricConfig> metricConfigs = config.getMetricsConfig();
         for (MetricConfig metricConfig : metricConfigs) {
             List<String> metrics = FieldMetricsProducer.normalizeMetrics(metricConfig.getMetrics());
             String defaultMetric = metrics.contains("value_count") ? "value_count" : metrics.get(0);
             builder.startObject(metricConfig.getField())
-                .field("type", "aggregate_metric_double")
-                .array("metrics", metrics.toArray())
-                .field("default_metric", defaultMetric)
+                .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
+                .array(AggregateDoubleMetricFieldMapper.Names.METRICS, metrics.toArray())
+                .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
                 .endObject();
         }
 
@@ -221,43 +233,33 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             public ClusterState execute(ClusterState currentState) {
                 IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
                 Index rollupIndex = rollupIndexMetadata.getIndex();
-                Map<String, String> idxMetadata = currentState.getMetadata().index(originalIndexName)
-                    .getCustomData(RollupMetadata.TYPE);
-                String rollupGroupKeyName = (idxMetadata == null) ?
-                    originalIndexName : idxMetadata.get(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD);
-                Map<String, String> rollupIndexRollupMetadata = new HashMap<>();
-                rollupIndexRollupMetadata.put(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD, rollupGroupKeyName);
-                final RollupMetadata rollupMetadata = currentState.metadata().custom(RollupMetadata.TYPE);
-                final Map<String, RollupGroup> rollupGroups;
-                if (rollupMetadata == null) {
-                    rollupGroups = new HashMap<>();
-                } else {
-                    rollupGroups = new HashMap<>(rollupMetadata.rollupGroups());
-                }
-                RollupActionDateHistogramGroupConfig dateConfig = config.getGroupConfig().getDateHistogram();
-                WriteableZoneId rollupDateZoneId = WriteableZoneId.of(dateConfig.getTimeZone());
-                if (rollupGroups.containsKey(rollupGroupKeyName)) {
-                    RollupGroup group = rollupGroups.get(rollupGroupKeyName);
-                    group.add(rollupIndexName, dateConfig.getInterval(), rollupDateZoneId);
-                } else {
-                    RollupGroup group = new RollupGroup();
-                    group.add(rollupIndexName, dateConfig.getInterval(), rollupDateZoneId);
-                    rollupGroups.put(rollupGroupKeyName, group);
-                }
-                // add rolled up index to backing datastream if rolling up a backing index of a datastream
+                IndexMetadata sourceIndexMetadata = currentState.getMetadata().index(originalIndexName);
                 IndexAbstraction originalIndex = currentState.getMetadata().getIndicesLookup().get(originalIndexName);
-                DataStream dataStream = null;
-                if (originalIndex.getParentDataStream() != null) {
-                    DataStream originalDataStream = originalIndex.getParentDataStream().getDataStream();
-                    List<Index> backingIndices = new ArrayList<>(originalDataStream.getIndices());
-                    backingIndices.add(rollupIndex);
-                    dataStream = new DataStream(originalDataStream.getName(), originalDataStream.getTimeStampField(),
-                        backingIndices, originalDataStream.getGeneration(), null);
-                }
+
+                // Add the source index name and id to the rollup index metadata. If the original index is a rollup index itself
+                // we will add the name and id of the raw index that we initially rolled up.
+                Map<String, String> rollupMetadata = sourceIndexMetadata.getCustomData(RollupMetadata.TYPE);
+                String sourceIndexName = rollupMetadata != null ?
+                    rollupMetadata.get(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD) : originalIndexName;
+                String sourceIndexId = rollupMetadata != null ?
+                    rollupMetadata.get(RollupMetadata.SOURCE_INDEX_ID_META_FIELD) : sourceIndexMetadata.getIndexUUID();
+                Map<String, String> rollupIndexRollupMetadata = new HashMap<>();
+                rollupIndexRollupMetadata.put(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD, sourceIndexName);
+                rollupIndexRollupMetadata.put(RollupMetadata.SOURCE_INDEX_ID_META_FIELD, sourceIndexId);
+
                 Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata())
-                    .put(IndexMetadata.builder(rollupIndexMetadata).putCustom(RollupMetadata.TYPE, rollupIndexRollupMetadata))
-                    .putCustom(RollupMetadata.TYPE, new RollupMetadata(rollupGroups));
-                if (dataStream != null) {
+                    .put(IndexMetadata.builder(rollupIndexMetadata).putCustom(RollupMetadata.TYPE, rollupIndexRollupMetadata));
+
+                if (originalIndex.getParentDataStream() != null) {
+                    // If rolling up a backing index of a data stream, add rolled up index to backing data stream
+                    DataStream originalDataStream = originalIndex.getParentDataStream().getDataStream();
+                    List<Index> backingIndices = new ArrayList<>(originalDataStream.getIndices().size() + 1);
+                    // Adding rollup indices to the beginning of the list will prevent rollup indices from ever being
+                    // considered a write index
+                    backingIndices.add(rollupIndex);
+                    backingIndices.addAll(originalDataStream.getIndices());
+                    DataStream dataStream = new DataStream(originalDataStream.getName(), originalDataStream.getTimeStampField(),
+                        backingIndices, originalDataStream.getGeneration(), originalDataStream.getMetadata());
                     metadataBuilder.put(dataStream);
                 }
                 return ClusterState.builder(currentState).metadata(metadataBuilder.build()).build();
@@ -284,7 +286,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
             @Override
             public void onFailure(Exception deleteException) {
-                listener.onFailure(new ElasticsearchException("Unable to delete temp rollup index [" + tmpIndex  + "]", e));
+                listener.onFailure(new ElasticsearchException("Unable to delete temp rollup index [" + tmpIndex + "]", e));
             }
         });
     }

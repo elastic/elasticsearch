@@ -87,6 +87,10 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
         jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
       }
       setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+
+      if (bwcVersion.onOrAfter('7.12.0')) {
+        setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
+      }
     }
   }
 

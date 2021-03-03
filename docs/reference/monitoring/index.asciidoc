@@ -16,6 +16,7 @@ performance of your {es} cluster.
 * <<config-monitoring-indices>>
 * <<collecting-monitoring-data>>
 * <<monitoring-troubleshooting>>
+* <<investigating-cpu-spikes>>
 
 --
 

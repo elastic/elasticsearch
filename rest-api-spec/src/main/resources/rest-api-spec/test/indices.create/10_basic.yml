@@ -132,3 +132,20 @@
         body:
           settings:
             soft_deletes.enabled: false
+
+---
+"Create with alias containing date math":
+  - skip:
+      version: " - 7.99.99"
+      reason: "set skip version to 7.12.99 when backported"
+  - do:
+      indices.create:
+        index: <logs_http_{2022-12-31||/d{yyyy-MM-dd}}>
+        body:
+          aliases:
+            '<logs_{2022-12-31||/d{yyyy-MM-dd}}>': {}
+
+  - do:
+      indices.exists_alias:
+        name: logs_2022-12-31
+  - is_true: ''

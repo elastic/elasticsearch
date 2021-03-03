@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -53,6 +54,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
@@ -77,21 +80,44 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         }
     };
 
-    private final ConcurrentMap<ShardId, AsyncCacheStatusFetch> asyncFetchStore = ConcurrentCollections.newConcurrentMap();
-
     public static final String ALLOCATOR_NAME = "searchable_snapshot_allocator";
+
+    private final ConcurrentMap<ShardId, AsyncCacheStatusFetch> asyncFetchStore = ConcurrentCollections.newConcurrentMap();
 
     private final Client client;
 
     private final RerouteService rerouteService;
 
-    public SearchableSnapshotAllocator(Client client, RerouteService rerouteService) {
+    private final FrozenCacheInfoService frozenCacheInfoService;
+
+    public SearchableSnapshotAllocator(Client client, RerouteService rerouteService, FrozenCacheInfoService frozenCacheInfoService) {
         this.client = client;
         this.rerouteService = rerouteService;
+        this.frozenCacheInfoService = frozenCacheInfoService;
     }
 
     @Override
-    public void beforeAllocation(RoutingAllocation allocation) {}
+    public void beforeAllocation(RoutingAllocation allocation) {
+        boolean hasPartialIndices = false;
+        for (IndexMetadata indexMetadata : allocation.metadata()) {
+            final Settings indexSettings = indexMetadata.getSettings();
+            if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings) && SNAPSHOT_PARTIAL_SETTING.get(indexSettings)) {
+                hasPartialIndices = true;
+                break;
+            }
+        }
+
+        if (hasPartialIndices) {
+            frozenCacheInfoService.updateNodes(
+                client,
+                StreamSupport.stream(allocation.routingNodes().spliterator(), false).map(RoutingNode::node).collect(Collectors.toSet()),
+                rerouteService
+            );
+        } else {
+            // clear out any existing entries, which prevents any future retries too
+            frozenCacheInfoService.updateNodes(client, Collections.emptySet(), rerouteService);
+        }
+    }
 
     @Override
     public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
@@ -235,6 +261,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     @Override
     public void cleanCaches() {
         asyncFetchStore.clear();
+        frozenCacheInfoService.clear();
     }
 
     @Override

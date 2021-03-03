@@ -83,6 +83,8 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
+            // note: RestApiVersion.current() is acceptable here because this is test code -- ordinary callers of `.deprecated(...)`
+            // should use an actual version
             Route.builder(GET, "/_test_cluster/deprecated_settings").deprecated(DEPRECATED_ENDPOINT, RestApiVersion.current()).build()
         );
     }

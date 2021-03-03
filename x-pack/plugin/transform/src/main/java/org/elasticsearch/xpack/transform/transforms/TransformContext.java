@@ -96,6 +96,10 @@ class TransformContext {
         return numFailureRetries;
     }
 
+    int getFailureCount() {
+        return failureCount.get();
+    }
+
     int getAndIncrementFailureCount() {
         return failureCount.getAndIncrement();
     }

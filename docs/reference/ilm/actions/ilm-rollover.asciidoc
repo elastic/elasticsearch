@@ -20,11 +20,11 @@ To roll over an <<indices-aliases, index alias>>, the alias and its write index
 must meet the following conditions:
 
 * The index name must match the pattern '^.*-\\d+$', for example (`my-index-000001`).
-* The `index.lifecycle.rollover_alias` must be configured as the alias to roll over. 
+* The `index.lifecycle.rollover_alias` must be configured as the alias to roll over.
 * The index must be the <<indices-rollover-is-write-index, write index>> for the alias.
 
-For example, if `my-index-000001` has the alias `my_data`, 
-the following settings must be configured. 
+For example, if `my-index-000001` has the alias `my_data`,
+the following settings must be configured.
 
 [source,console]
 --------------------------------------------------
@@ -45,7 +45,7 @@ PUT my-index-000001
 [[ilm-rollover-options]]
 ==== Options
 
-You must specify at least one rollover condition. 
+You must specify at least one rollover condition.
 An empty rollover action is invalid.
 
 `max_age`::
@@ -65,13 +65,13 @@ The document count does *not* include documents in replica shards.
 `max_size`::
 (Optional, <<byte-units, byte units>>)
 Triggers roll over when the index reaches a certain size.
-This is the total size of all primary shards in the index. 
+This is the total size of all primary shards in the index.
 Replicas are not counted toward the maximum index size.
 +
-TIP: To see the current index size, use the <<cat-indices, _cat indices>> API. 
+TIP: To see the current index size, use the <<cat-indices, _cat indices>> API.
 The `pri.store.size` value shows the combined size of all primary shards.
 
-`max_single_primary_size`::
+`max_primary_shard_size`::
 (Optional, <<byte-units, byte units>>)
 Triggers roll over when the largest primary shard in the index reaches a certain size.
 This is the maximum size of the primary shards in the index. As with `max_size`,
@@ -129,7 +129,7 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
- 
+
 [ilm-rollover-age-ex]]
 ===== Roll over based on index age
 
@@ -156,9 +156,9 @@ PUT _ilm/policy/my_policy
 [ilm-rollover-conditions-ex]]
 ===== Roll over using multiple conditions
 
-When you specify multiple rollover conditions, 
+When you specify multiple rollover conditions,
 the index is rolled over when _any_ of the conditions are met.
-This example rolls the index over if it is at least 7 days old or at least 100 gigabytes. 
+This example rolls the index over if it is at least 7 days old or at least 100 gigabytes.
 
 [source,console]
 --------------------------------------------------
@@ -182,10 +182,10 @@ PUT _ilm/policy/my_policy
 [ilm-rollover-block-ex]]
 ===== Rollover condition blocks phase transition
 
-The rollover action only completes if one of its conditions is met. 
+The rollover action only completes if one of its conditions is met.
 This means that any subsequent phases are blocked until rollover succeeds.
 
-For example, the following policy deletes the index one day after it rolls over. 
+For example, the following policy deletes the index one day after it rolls over.
 It does not delete the index one day after it was created.
 
 [source,console]

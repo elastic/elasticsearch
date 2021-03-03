@@ -40,6 +40,7 @@ public class LifecycleExecutionState {
     private static final String SNAPSHOT_NAME = "snapshot_name";
     private static final String SNAPSHOT_REPOSITORY = "snapshot_repository";
     private static final String SNAPSHOT_INDEX_NAME = "snapshot_index_name";
+    private static final String ROLLUP_INDEX_NAME = "rollup_index_name";
 
     private final String phase;
     private final String action;
@@ -56,11 +57,12 @@ public class LifecycleExecutionState {
     private final String snapshotName;
     private final String snapshotRepository;
     private final String snapshotIndexName;
+    private final String rollupIndexName;
 
     private LifecycleExecutionState(String phase, String action, String step, String failedStep, Boolean isAutoRetryableError,
                                     Integer failedStepRetryCount, String stepInfo, String phaseDefinition, Long lifecycleDate,
                                     Long phaseTime, Long actionTime, Long stepTime, String snapshotRepository, String snapshotName,
-                                    String snapshotIndexName) {
+                                    String snapshotIndexName, String rollupIndexName) {
         this.phase = phase;
         this.action = action;
         this.step = step;
@@ -76,6 +78,7 @@ public class LifecycleExecutionState {
         this.snapshotRepository = snapshotRepository;
         this.snapshotName = snapshotName;
         this.snapshotIndexName = snapshotIndexName;
+        this.rollupIndexName = rollupIndexName;
     }
 
     /**
@@ -136,6 +139,7 @@ public class LifecycleExecutionState {
             .setSnapshotRepository(state.snapshotRepository)
             .setSnapshotName(state.snapshotName)
             .setSnapshotIndexName(state.snapshotIndexName)
+            .setRollupIndexName(state.rollupIndexName)
             .setStepTime(state.stepTime);
     }
 
@@ -206,6 +210,9 @@ public class LifecycleExecutionState {
         if (customData.containsKey(SNAPSHOT_INDEX_NAME)) {
             builder.setSnapshotIndexName(customData.get(SNAPSHOT_INDEX_NAME));
         }
+        if (customData.containsKey(ROLLUP_INDEX_NAME)) {
+            builder.setRollupIndexName(customData.get(ROLLUP_INDEX_NAME));
+        }
         return builder.build();
     }
 
@@ -260,6 +267,9 @@ public class LifecycleExecutionState {
         }
         if (snapshotIndexName != null) {
             result.put(SNAPSHOT_INDEX_NAME, snapshotIndexName);
+        }
+        if (rollupIndexName != null) {
+            result.put(ROLLUP_INDEX_NAME, rollupIndexName);
         }
         return Collections.unmodifiableMap(result);
     }
@@ -324,6 +334,10 @@ public class LifecycleExecutionState {
         return snapshotIndexName;
     }
 
+    public String getRollupIndexName() {
+        return rollupIndexName;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -374,6 +388,7 @@ public class LifecycleExecutionState {
         private String snapshotName;
         private String snapshotRepository;
         private String snapshotIndexName;
+        private String rollupIndexName;
 
         public Builder setPhase(String phase) {
             this.phase = phase;
@@ -450,9 +465,15 @@ public class LifecycleExecutionState {
             return this;
         }
 
+        public Builder setRollupIndexName(String rollupIndexName) {
+            this.rollupIndexName = rollupIndexName;
+            return this;
+        }
+
         public LifecycleExecutionState build() {
             return new LifecycleExecutionState(phase, action, step, failedStep, isAutoRetryableError, failedStepRetryCount, stepInfo,
-                phaseDefinition, indexCreationDate, phaseTime, actionTime, stepTime, snapshotRepository, snapshotName, snapshotIndexName);
+                phaseDefinition, indexCreationDate, phaseTime, actionTime, stepTime, snapshotRepository, snapshotName,
+                snapshotIndexName, rollupIndexName);
         }
     }
 

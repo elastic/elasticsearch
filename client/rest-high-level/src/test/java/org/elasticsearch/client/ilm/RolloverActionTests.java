@@ -34,14 +34,14 @@ public class RolloverActionTests extends AbstractXContentTestCase<RolloverAction
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue maxSize = randomBoolean()
             ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
-        ByteSizeUnit maxSinglePrimarySizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue maxSinglePrimarySize = randomBoolean()
-            ? null : new ByteSizeValue(randomNonNegativeLong() / maxSinglePrimarySizeUnit.toBytes(1), maxSinglePrimarySizeUnit);
+        ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
+        ByteSizeValue maxPrimaryShardSize = randomBoolean()
+            ? null : new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
         TimeValue maxAge = randomBoolean()
             ? null : TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
-        Long maxDocs = (maxSize == null && maxSinglePrimarySize == null && maxAge == null || randomBoolean())
+        Long maxDocs = (maxSize == null && maxPrimaryShardSize == null && maxAge == null || randomBoolean())
             ? randomNonNegativeLong() : null;
-        return new RolloverAction(maxSize, maxSinglePrimarySize, maxAge, maxDocs);
+        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
     }
 
     public void testNoConditions() {

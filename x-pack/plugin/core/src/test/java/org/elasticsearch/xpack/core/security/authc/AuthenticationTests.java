@@ -46,12 +46,16 @@ public class AuthenticationTests extends ESTestCase {
         final User user1 = randomUserOtherThan(new User[0]);
         final User user2 = randomUserOtherThan(user1);
 
-        final RealmRef fileRealm1 = new RealmRef(randomAlphaOfLengthBetween(3, 8), FileRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8));
-        final RealmRef fileRealm2 = new RealmRef(randomValueOtherThan(fileRealm1.getName(), () -> randomAlphaOfLengthBetween(3, 8)),
+        final RealmRef fileRealm1 = new RealmRef(
+            randomAlphaOfLengthBetween(3, 8), FileRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8));
+        final RealmRef fileRealm2 = new RealmRef(
+            randomValueOtherThan(fileRealm1.getName(), () -> randomAlphaOfLengthBetween(3, 8)),
             FileRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8));
 
-        final RealmRef nativeRealm1 = new RealmRef(randomAlphaOfLengthBetween(3, 8), NativeRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8));
-        final RealmRef nativeRealm2 = new RealmRef(randomValueOtherThan(nativeRealm1.getName(), () -> randomAlphaOfLengthBetween(3, 8)),
+        final RealmRef nativeRealm1 = new RealmRef(
+            randomAlphaOfLengthBetween(3, 8), NativeRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8));
+        final RealmRef nativeRealm2 = new RealmRef(
+            randomValueOtherThan(nativeRealm1.getName(), () -> randomAlphaOfLengthBetween(3, 8)),
             NativeRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8));
 
         final RealmRef realm1 = randomNonFileNativeRealmOtherThan(new RealmRef[0]);

@@ -38,7 +38,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -370,14 +369,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns s {@link DocumentMapper} instance for the given type.
-     * Delegates to {@link MapperService#documentMapper(String)}
-     */
-    public DocumentMapper documentMapper(String type) {
-        return mapperService.documentMapper(type);
-    }
-
-    /**
      * Given a type (eg. long, string, ...), returns an anonymous field type that can be used for search operations.
      * Generally used to handle unmapped fields in the context of sorting.
      */
@@ -446,8 +437,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public Collection<String> queryTypes() {
         String[] types = getTypes();
         if (types == null || types.length == 0 || (types.length == 1 && types[0].equals("_all"))) {
-            DocumentMapper mapper = mapperService.documentMapper();
-            return mapper == null ? Collections.emptyList() : Collections.singleton(mapper.type());
+            return mappingLookup == MappingLookup.EMPTY ? Collections.emptyList() : Collections.singleton(mappingLookup.getType());
         }
         return Arrays.asList(types);
     }

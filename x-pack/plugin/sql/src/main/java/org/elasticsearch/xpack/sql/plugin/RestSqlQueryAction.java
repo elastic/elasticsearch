@@ -30,6 +30,7 @@ import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -37,8 +38,6 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
 import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_FORMAT;
 
 public class RestSqlQueryAction extends BaseRestHandler {
-
-    TextFormat textFormat;
 
     @Override
     public List<Route> routes() {
@@ -105,11 +104,21 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * which we turn into a 400 error.
          */
         XContentType xContentType = accept == null ? XContentType.JSON : XContentType.fromMediaTypeOrFormat(accept);
-        textFormat = xContentType == null ? TextFormat.fromMediaTypeOrFormat(accept) : null;
+        TextFormat textFormat = xContentType == null ? TextFormat.fromMediaTypeOrFormat(accept) : null;
 
         if (xContentType == null && sqlRequest.columnar()) {
             throw new IllegalArgumentException("Invalid use of [columnar] argument: cannot be used in combination with "
                     + "txt, csv or tsv formats");
+        }
+
+        /*
+         * Special handling for the "delimiter" parameter which should only be
+         * checked for being present or not in the case of CSV format. We cannot
+         * override {@link BaseRestHandler#responseParams()} because this
+         * parameter should only be checked for CSV, not always.
+         */
+        if ((textFormat == null || textFormat != TextFormat.CSV) && request.hasParam(URL_PARAM_DELIMITER)) {
+            throw new IllegalArgumentException(unrecognized(request, Collections.singleton(URL_PARAM_DELIMITER), emptySet(), "parameter"));
         }
 
         long startNanos = System.nanoTime();
@@ -144,7 +153,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return textFormat == TextFormat.CSV ? Collections.singleton(URL_PARAM_DELIMITER) : Collections.emptySet();
+        return Collections.singleton(URL_PARAM_DELIMITER);
     }
 
     @Override

@@ -458,7 +458,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             // origin is an authenticated user but current is not
             return false;
         }
-        return current.sameUserAs(AuthenticationContextSerializer.decode(originHeaders.get(AUTHENTICATION_KEY)));
+        Authentication origin = AuthenticationContextSerializer.decode(originHeaders.get(AUTHENTICATION_KEY));
+        return origin.sameUserAs(current);
     }
 
     /**

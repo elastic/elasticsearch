@@ -93,18 +93,20 @@ group membership.
 
 
 [discrete]
+[[same-user-check]]
 === Same user check
 
 The result of <<async-search,async search>> and <<scroll-api,scroll>> can be retrieved later
 by the same user who submits the initial request. The same user check is done by comparing
-the username, authentication realm name and realm type. This logic has a few limitations:
+the username, authentication realm type and, for realms other than file or native, realm name.
+Two API keys are never considered as the same user regardless of their privileges.
+This logic also has a few limitations:
 
-* While realms must be unique on each node, it is not the case across different nodes.
-Two different realms can in theory have the same name on different nodes. We do not
+* Two different realms can have the same name on different nodes. We do not
 recommend configuring realms in this inconsistent way. As such the same user check
 does not attempt to detect this inconsistency.
-* The username is computed on the fly based on configurations for some external authentication
-providers. It is in theory possible that two distinct users could end up having the
-same username. Our recommendation is to avoid this situation in the first place.
+* The username is computed on the fly for realms backed by certain external authentication
+providers. It is in theory possible that two distinct users from the external system get
+mapped to the same username. Our recommendation is to avoid this situation in the first place.
 Hence the same user check does not account for this potential discrepancy.
 

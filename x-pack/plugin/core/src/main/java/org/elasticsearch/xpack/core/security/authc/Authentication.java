@@ -14,6 +14,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.privilege.ManageOwnApiKeyClusterPrivilege;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
@@ -25,6 +27,8 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.security.authz.privilege.ManageOwnApiKeyClusterPrivilege.API_KEY_ID_KEY;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
@@ -133,14 +137,18 @@ public class Authentication implements ToXContentObject {
 
     public boolean sameUserAs(Authentication other) {
         if (AuthenticationType.API_KEY == getAuthenticationType() && AuthenticationType.API_KEY == other.getAuthenticationType()) {
-            return getMetadata().get(ManageOwnApiKeyClusterPrivilege.API_KEY_ID_KEY)
-                .equals(other.getMetadata().get(ManageOwnApiKeyClusterPrivilege.API_KEY_ID_KEY));
+            assert getUser().principal().equals(other.getUser().principal()) :
+                "The same API key ID cannot be attributed to two different usernames";
+            return getMetadata().get(API_KEY_ID_KEY).equals(other.getMetadata().get(API_KEY_ID_KEY));
         }
         if (false == getUser().principal().equals(other.getUser().principal())) {
             return false;
         }
         final RealmRef thisRealm = getSourceRealm();
         final RealmRef otherRealm = other.getSourceRealm();
+        if (FileRealmSettings.TYPE.equals(thisRealm.getType()) || NativeRealmSettings.TYPE.equals(thisRealm.getType())) {
+            return thisRealm.getType().equals(otherRealm.getType());
+        }
         return thisRealm.getName().equals(otherRealm.getName()) && thisRealm.getType().equals(otherRealm.getType());
     }
 

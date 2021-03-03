@@ -42,6 +42,11 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     }
 
     @Override
+    protected boolean preserveSnapshotsUponCompletion() {
+        return true;
+    }
+
+    @Override
     protected boolean preserveTemplatesUponCompletion() {
         return true;
     }

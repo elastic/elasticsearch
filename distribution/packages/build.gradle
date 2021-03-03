@@ -43,7 +43,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "nebula.ospackage-base" version "8.3.0"
+  id "nebula.ospackage-base" version "8.5.6"
 }
 
 void addProcessFilesTask(String type, boolean oss, boolean jdk) {

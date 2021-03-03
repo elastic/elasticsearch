@@ -25,7 +25,7 @@ final class MethodHandlers {
 
     MethodHandlers(String path) {
         this.path = path;
-        this.methodHandlers = new HashMap<>(1);
+        this.methodHandlers = new HashMap<>(4);
     }
 
     /**

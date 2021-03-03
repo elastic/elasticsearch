@@ -1,0 +1,24 @@
+{
+  "scripts_painless_suggestions": {
+    "stability": "experimental",
+    "visibility": "public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_scripts/painless/_suggestions",
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"the script, and optionally context to collect suggestions for"
+    }
+  }
+}

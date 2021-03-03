@@ -6,39 +6,40 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.compatibility;
+package org.elasticsearch.common;
 
 /**
- * A enum representing versions which are used by a REST Compatible API.
- * A CURRENT instance, represents a major Version.CURRENT from server module.
+ * A enum representing versions of the REST API (particularly with regard to backwards compatibility).
  *
  * Only major versions are supported.
  */
-public enum RestApiCompatibleVersion {
+public enum RestApiVersion {
 
     V_8(8),
     V_7(7);
 
     public final byte major;
-    private static final RestApiCompatibleVersion CURRENT = V_8;
 
-    RestApiCompatibleVersion(int major) {
+    private static final RestApiVersion CURRENT = V_8;
+
+    RestApiVersion(int major) {
         this.major = (byte) major;
     }
 
-    public RestApiCompatibleVersion previousMajor() {
+    public RestApiVersion previousMajor() {
         return fromMajorVersion(major - 1);
     }
 
-    public static RestApiCompatibleVersion fromMajorVersion(int majorVersion) {
+    public static RestApiVersion fromMajorVersion(int majorVersion) {
         return valueOf("V_" + majorVersion);
     }
 
-    public static RestApiCompatibleVersion minimumSupported() {
+    public static RestApiVersion minimumSupported() {
         return currentVersion().previousMajor();
     }
 
-    public static RestApiCompatibleVersion currentVersion() {
+    public static RestApiVersion currentVersion() {
         return CURRENT;
-    };
+    }
+
 }

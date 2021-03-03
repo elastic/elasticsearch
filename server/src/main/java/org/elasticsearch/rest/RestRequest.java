@@ -17,7 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -62,7 +62,7 @@ public class RestRequest implements ToXContent.Params {
     private final HttpChannel httpChannel;
     private final ParsedMediaType parsedAccept;
     private final ParsedMediaType parsedContentType;
-    private final RestApiCompatibleVersion restApiCompatibleVersion;
+    private final RestApiVersion restApiVersion;
     private HttpRequest httpRequest;
 
     private boolean contentConsumed = false;
@@ -100,7 +100,7 @@ public class RestRequest implements ToXContent.Params {
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
-        this.restApiCompatibleVersion = RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, hasContent());
+        this.restApiVersion = RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, hasContent());
     }
 
     private static @Nullable ParsedMediaType parseHeaderWithMediaType(Map<String, List<String>> headers, String headerName) {
@@ -452,7 +452,7 @@ public class RestRequest implements ToXContent.Params {
         BytesReference content = requiredContent(); // will throw exception if body or content type missing
         XContent xContent = xContentType.get().xContent();
         return xContent.createParserForCompatibility(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput(),
-            restApiCompatibleVersion);
+            restApiVersion);
 
     }
 
@@ -561,8 +561,8 @@ public class RestRequest implements ToXContent.Params {
         throw new IllegalArgumentException("empty Content-Type header");
     }
 
-    public RestApiCompatibleVersion getRestApiCompatibleVersion() {
-        return restApiCompatibleVersion;
+    public RestApiVersion getRestApiCompatibleVersion() {
+        return restApiVersion;
     }
 
     public static class MediaTypeHeaderException extends RuntimeException {

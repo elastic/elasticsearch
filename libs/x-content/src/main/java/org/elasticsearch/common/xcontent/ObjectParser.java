@@ -9,7 +9,7 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -152,7 +152,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         };
     }
 
-    private final Map<RestApiCompatibleVersion, Map<String, FieldParser>> fieldParserMap = new HashMap<>();
+    private final Map<RestApiVersion, Map<String, FieldParser>> fieldParserMap = new HashMap<>();
     private final String name;
     private final Function<Context, Value> valueBuilder;
     private final UnknownFieldParser<Value, Context> unknownFieldParser;
@@ -366,13 +366,13 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }
         FieldParser fieldParser = new FieldParser(p, type.supportedTokens(), parseField, type);
         for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
-            if (parseField.getRestApiCompatibleVersions().contains(RestApiCompatibleVersion.minimumSupported())) {
-                fieldParserMap.putIfAbsent(RestApiCompatibleVersion.minimumSupported(), new HashMap<>());
-                fieldParserMap.get(RestApiCompatibleVersion.minimumSupported()).putIfAbsent(fieldValue, fieldParser);
+            if (parseField.getRestApiVersions().contains(RestApiVersion.minimumSupported())) {
+                fieldParserMap.putIfAbsent(RestApiVersion.minimumSupported(), new HashMap<>());
+                fieldParserMap.get(RestApiVersion.minimumSupported()).putIfAbsent(fieldValue, fieldParser);
             }
-            if (parseField.getRestApiCompatibleVersions().contains(RestApiCompatibleVersion.currentVersion())) {
-                fieldParserMap.putIfAbsent(RestApiCompatibleVersion.currentVersion(), new HashMap<>());
-                fieldParserMap.get(RestApiCompatibleVersion.currentVersion()).putIfAbsent(fieldValue, fieldParser);
+            if (parseField.getRestApiVersions().contains(RestApiVersion.current())) {
+                fieldParserMap.putIfAbsent(RestApiVersion.current(), new HashMap<>());
+                fieldParserMap.get(RestApiVersion.current()).putIfAbsent(fieldValue, fieldParser);
             }
         }
 

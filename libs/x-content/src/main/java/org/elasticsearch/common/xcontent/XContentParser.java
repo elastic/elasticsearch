@@ -9,7 +9,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -252,7 +252,7 @@ public interface XContentParser extends Closeable {
 
     boolean isClosed();
 
-    RestApiCompatibleVersion getRestApiCompatibleVersion();
+    RestApiVersion getRestApiCompatibleVersion();
 
     /**
      * The callback to notify when parsing encounters a deprecated field.

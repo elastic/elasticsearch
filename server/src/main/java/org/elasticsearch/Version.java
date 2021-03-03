@@ -12,7 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -120,9 +120,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         }
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
                 + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
-        assert RestApiCompatibleVersion.currentVersion().major == CURRENT.major : "RestApiCompatibleVersion must be upgraded " +
+        assert RestApiVersion.current().major == CURRENT.major : "RestApiCompatibleVersion must be upgraded " +
             "to reflect major from Version.CURRENT [" + CURRENT.major + "]" +
-            " but is still set to [" + RestApiCompatibleVersion.currentVersion().major + "]";
+            " but is still set to [" + RestApiVersion.current().major + "]";
         builder.put(V_EMPTY_ID, V_EMPTY);
         builderByString.put(V_EMPTY.toString(), V_EMPTY);
         idToVersion = builder.build();

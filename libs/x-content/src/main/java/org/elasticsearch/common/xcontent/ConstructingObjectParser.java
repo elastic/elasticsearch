@@ -9,7 +9,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 
@@ -87,8 +87,8 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     /**
      * List of constructor names used for generating the error message if not all arrive.
      */
-    private final Map<RestApiCompatibleVersion, List<ConstructorArgInfo>> constructorArgInfos =
-        new EnumMap<>(RestApiCompatibleVersion.class);
+    private final Map<RestApiVersion, List<ConstructorArgInfo>> constructorArgInfos =
+        new EnumMap<>(RestApiVersion.class);
     private final ObjectParser<Target, Context> objectParser;
     private final BiFunction<Object[], Context, Value> builder;
     /**
@@ -211,7 +211,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
              * constructor in the argument list so we don't need to do any fancy
              * or expensive lookups whenever the constructor args come in.
              */
-            Map<RestApiCompatibleVersion, Integer> positions = addConstructorArg(consumer, parseField);
+            Map<RestApiVersion, Integer> positions = addConstructorArg(consumer, parseField);
             objectParser.declareField((target, v) -> target.constructorArg(positions, v), parser, parseField, type);
         } else {
             numberOfFields += 1;
@@ -240,7 +240,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
              * constructor in the argument list so we don't need to do any fancy
              * or expensive lookups whenever the constructor args come in.
              */
-            Map<RestApiCompatibleVersion, Integer> positions = addConstructorArg(consumer, parseField);
+            Map<RestApiVersion, Integer> positions = addConstructorArg(consumer, parseField);
             objectParser.declareNamedObject((target, v) -> target.constructorArg(positions, v), namedObjectParser, parseField);
         } else {
             numberOfFields += 1;
@@ -270,7 +270,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
              * constructor in the argument list so we don't need to do any fancy
              * or expensive lookups whenever the constructor args come in.
              */
-            Map<RestApiCompatibleVersion, Integer> positions = addConstructorArg(consumer, parseField);
+            Map<RestApiVersion, Integer> positions = addConstructorArg(consumer, parseField);
             objectParser.declareNamedObjects((target, v) -> target.constructorArg(positions, v), namedObjectParser, parseField);
         } else {
             numberOfFields += 1;
@@ -302,7 +302,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
              * constructor in the argument list so we don't need to do any fancy
              * or expensive lookups whenever the constructor args come in.
              */
-            Map<RestApiCompatibleVersion, Integer> positions = addConstructorArg(consumer, parseField);
+            Map<RestApiVersion, Integer> positions = addConstructorArg(consumer, parseField);
             objectParser.declareNamedObjects((target, v) -> target.constructorArg(positions, v), namedObjectParser,
                 wrapOrderedModeCallBack(orderedModeCallback), parseField);
         } else {
@@ -313,10 +313,10 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     }
 
     int getNumberOfFields() {
-        assert this.constructorArgInfos.get(RestApiCompatibleVersion.currentVersion()).size()
-            == this.constructorArgInfos.get(RestApiCompatibleVersion.minimumSupported()).size() :
+        assert this.constructorArgInfos.get(RestApiVersion.current()).size()
+            == this.constructorArgInfos.get(RestApiVersion.minimumSupported()).size() :
             "Constructors must have same number of arguments per all compatible versions";
-        return this.constructorArgInfos.get(RestApiCompatibleVersion.currentVersion()).size();
+        return this.constructorArgInfos.get(RestApiVersion.current()).size();
     }
 
     /**
@@ -333,12 +333,12 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
      * @param parseField Parse field
      * @return The argument position
      */
-    private Map<RestApiCompatibleVersion, Integer> addConstructorArg(BiConsumer<?, ?> consumer, ParseField parseField) {
+    private Map<RestApiVersion, Integer> addConstructorArg(BiConsumer<?, ?> consumer, ParseField parseField) {
 
         boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
-        for (RestApiCompatibleVersion restApiCompatibleVersion : parseField.getRestApiCompatibleVersions()) {
+        for (RestApiVersion restApiVersion : parseField.getRestApiVersions()) {
 
-            constructorArgInfos.computeIfAbsent(restApiCompatibleVersion, (v)-> new ArrayList<>())
+            constructorArgInfos.computeIfAbsent(restApiVersion, (v)-> new ArrayList<>())
                     .add(new ConstructorArgInfo(parseField, required));
         }
 
@@ -459,7 +459,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         /**
          * Set a constructor argument and build the target object if all constructor arguments have arrived.
          */
-        private void constructorArg(Map<RestApiCompatibleVersion, Integer> positions, Object value) {
+        private void constructorArg(Map<RestApiVersion, Integer> positions, Object value) {
             int position = positions.get(parser.getRestApiCompatibleVersion()) - 1;
             constructorArgs[position] = value;
             constructorArgsCollected++;

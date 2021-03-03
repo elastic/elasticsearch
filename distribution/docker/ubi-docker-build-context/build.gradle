@@ -7,7 +7,7 @@ tasks.register("buildUbiDockerBuildContext", Tar) {
   compression = Compression.GZIP
   archiveClassifier = "docker-build-context"
   archiveBaseName = "elasticsearch-ubi8"
-  with dockerBuildContext(null, false, DockerBase.UBI, false)
+  with dockerBuildContext(null, DockerBase.UBI, false)
 }
 
 tasks.named("assemble").configure { dependsOn("buildUbiDockerBuildContext") }

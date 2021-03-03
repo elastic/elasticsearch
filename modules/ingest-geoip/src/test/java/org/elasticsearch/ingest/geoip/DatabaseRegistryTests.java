@@ -121,7 +121,8 @@ public class DatabaseRegistryTests extends ESTestCase {
     }
 
     public void testCheckDatabases() throws Exception {
-        PersistentTask<?> task = new PersistentTask<>("_id", GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
+        PersistentTask<?> task =
+            new PersistentTask<>(GeoIpDownloader.GEOIP_DOWNLOADER, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
         task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb",
             new GeoIpTaskState.Metadata(0L, 0, 9, "8a76ac17c58d8f3f2e15e3f1ec37d473"))));
         PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of("_id", task));

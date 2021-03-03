@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.rest.action.privilege;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -42,7 +42,7 @@ public class RestDeletePrivilegesAction extends SecurityBaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
             Route.builder(DELETE, "/_security/privilege/{application}/{privilege}")
-                .replaces(DELETE, "/_xpack/security/privilege/{application}/{privilege}", RestApiCompatibleVersion.V_7).build()
+                .replaces(DELETE, "/_xpack/security/privilege/{application}/{privilege}", RestApiVersion.V_7).build()
         );
     }
 

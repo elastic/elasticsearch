@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.rest.action.rolemapping;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -40,9 +40,9 @@ public class RestGetRoleMappingsAction extends SecurityBaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
             Route.builder(GET, "/_security/role_mapping/")
-                .replaces(GET, "/_xpack/security/role_mapping/", RestApiCompatibleVersion.V_7).build(),
+                .replaces(GET, "/_xpack/security/role_mapping/", RestApiVersion.V_7).build(),
             Route.builder(GET, "/_security/role_mapping/{name}")
-                .replaces(GET, "/_xpack/security/role_mapping/{name}", RestApiCompatibleVersion.V_7).build()
+                .replaces(GET, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7).build()
         );
     }
 

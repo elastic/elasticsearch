@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.rest.inference;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -30,9 +30,9 @@ public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(GET, BASE_PATH + "trained_models/{" + MODEL_ID.getPreferredName() + "}/_stats")
-                .replaces(GET, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}/_stats", RestApiCompatibleVersion.V_8).build(),
+                .replaces(GET, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}/_stats", RestApiVersion.V_8).build(),
             Route.builder(GET, BASE_PATH + "trained_models/_stats")
-                .replaces(GET, BASE_PATH + "inference/_stats", RestApiCompatibleVersion.V_8).build()
+                .replaces(GET, BASE_PATH + "inference/_stats", RestApiVersion.V_8).build()
         );
     }
 

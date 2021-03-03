@@ -9,7 +9,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.MediaTypeRegistry;
 import org.elasticsearch.common.xcontent.XContent;
@@ -83,7 +83,7 @@ public interface RestHandler {
         private final Method method;
         private final String path;
 
-        private final RestApiCompatibleVersion restApiCompatibleVersion;
+        private final RestApiVersion restApiVersion;
 
         private final String deprecationMessage;
 
@@ -91,13 +91,13 @@ public interface RestHandler {
         private final String replacedPath;
 
         private Route(Method method, String path,
-                      RestApiCompatibleVersion restApiCompatibleVersion,
+                      RestApiVersion RestApiVersion,
                       String deprecationMessage,
                       Method replacedMethod, String replacedPath) {
             this.method = Objects.requireNonNull(method);
             this.path = Objects.requireNonNull(path);
 
-            this.restApiCompatibleVersion = restApiCompatibleVersion;
+            this.restApiVersion = RestApiVersion;
             this.deprecationMessage = deprecationMessage;
             this.replacedMethod = replacedMethod;
             this.replacedPath = replacedPath;
@@ -113,7 +113,7 @@ public interface RestHandler {
             private final Method method;
             private final String path;
 
-            private RestApiCompatibleVersion restApiCompatibleVersion;
+            private RestApiVersion restApiVersion;
             private String deprecationMessage;
             private Method replacedMethod;
             private String replacedPath;
@@ -123,16 +123,16 @@ public interface RestHandler {
                 this.path = Objects.requireNonNull(path);
             }
 
-            public RouteBuilder deprecated(String deprecationMessage, RestApiCompatibleVersion restApiCompatibleVersion) {
-                assert this.restApiCompatibleVersion == null;
-                this.restApiCompatibleVersion = Objects.requireNonNull(restApiCompatibleVersion);
+            public RouteBuilder deprecated(String deprecationMessage, RestApiVersion restApiVersion) {
+                assert this.restApiVersion == null;
+                this.restApiVersion = Objects.requireNonNull(restApiVersion);
                 this.deprecationMessage = Objects.requireNonNull(deprecationMessage);
                 return this;
             }
 
-            public RouteBuilder replaces(Method method, String path, RestApiCompatibleVersion restApiCompatibleVersion) {
-                assert this.restApiCompatibleVersion == null;
-                this.restApiCompatibleVersion = Objects.requireNonNull(restApiCompatibleVersion);
+            public RouteBuilder replaces(Method method, String path, RestApiVersion restApiVersion) {
+                assert this.restApiVersion == null;
+                this.restApiVersion = Objects.requireNonNull(restApiVersion);
                 this.replacedMethod = Objects.requireNonNull(method);
                 this.replacedPath = Objects.requireNonNull(path);
                 return this;
@@ -141,11 +141,11 @@ public interface RestHandler {
             public Route build() {
                 if (replacedMethod != null || replacedPath != null) {
                     return new Route(method, path,
-                        restApiCompatibleVersion, null,
+                        restApiVersion, null,
                         replacedMethod, replacedPath);
                 } else if (deprecationMessage != null) {
                     return new Route(method, path,
-                        restApiCompatibleVersion, deprecationMessage,
+                        restApiVersion, deprecationMessage,
                         null, null);
                 } else {
                     // this is silly, but legal
@@ -166,8 +166,8 @@ public interface RestHandler {
             return method;
         }
 
-        public RestApiCompatibleVersion getRestApiCompatibleVersion() {
-            return restApiCompatibleVersion;
+        public RestApiVersion getRestApiVersion() {
+            return restApiVersion;
         }
 
         public String getDeprecationMessage() {

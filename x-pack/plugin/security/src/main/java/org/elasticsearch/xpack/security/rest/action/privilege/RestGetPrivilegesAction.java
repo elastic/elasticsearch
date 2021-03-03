@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.privilege;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,11 +47,11 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
             Route.builder(GET, "/_security/privilege/")
-                .replaces(GET, "/_xpack/security/privilege/", RestApiCompatibleVersion.V_7).build(),
+                .replaces(GET, "/_xpack/security/privilege/", RestApiVersion.V_7).build(),
             Route.builder(GET, "/_security/privilege/{application}")
-                .replaces(GET, "/_xpack/security/privilege/{application}", RestApiCompatibleVersion.V_7).build(),
+                .replaces(GET, "/_xpack/security/privilege/{application}", RestApiVersion.V_7).build(),
             Route.builder(GET, "/_security/privilege/{application}/{privilege}")
-                .replaces(GET, "/_xpack/security/privilege/{application}/{privilege}", RestApiCompatibleVersion.V_7).build()
+                .replaces(GET, "/_xpack/security/privilege/{application}/{privilege}", RestApiVersion.V_7).build()
         );
     }
 

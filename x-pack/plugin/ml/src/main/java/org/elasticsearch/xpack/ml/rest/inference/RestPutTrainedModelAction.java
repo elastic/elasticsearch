@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -27,7 +27,7 @@ public class RestPutTrainedModelAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(PUT, BASE_PATH + "trained_models/{" + MODEL_ID.getPreferredName() + "}")
-                .replaces(PUT, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}", RestApiCompatibleVersion.V_8).build()
+                .replaces(PUT, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}", RestApiVersion.V_8).build()
         );
     }
 

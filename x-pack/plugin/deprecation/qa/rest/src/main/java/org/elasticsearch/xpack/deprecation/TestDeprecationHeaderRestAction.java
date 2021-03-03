@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
@@ -83,9 +83,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, "/_test_cluster/deprecated_settings")
-                .deprecated(DEPRECATED_ENDPOINT, RestApiCompatibleVersion.currentVersion())
-                .build()
+            Route.builder(GET, "/_test_cluster/deprecated_settings").deprecated(DEPRECATED_ENDPOINT, RestApiVersion.current()).build()
         );
     }
 
@@ -95,7 +93,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
         final List<String> settings;
 
         try (XContentParser parser = request.contentParser()) {
-            if (parser.getRestApiCompatibleVersion() == RestApiCompatibleVersion.minimumSupported()) {
+            if (parser.getRestApiVersion() == RestApiVersion.minimumSupported()) {
                 deprecationLogger.compatibleApiWarning("compatible_key", COMPATIBLE_API_USAGE);
             }
 

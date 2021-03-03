@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.rest.action.role;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -40,9 +40,9 @@ public class RestPutRoleAction extends SecurityBaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
             Route.builder(POST, "/_security/role/{name}")
-                .replaces(POST, "/_xpack/security/role/{name}", RestApiCompatibleVersion.V_7).build(),
+                .replaces(POST, "/_xpack/security/role/{name}", RestApiVersion.V_7).build(),
             Route.builder(PUT, "/_security/role/{name}")
-                .replaces(PUT, "/_xpack/security/role/{name}", RestApiCompatibleVersion.V_7).build()
+                .replaces(PUT, "/_xpack/security/role/{name}", RestApiVersion.V_7).build()
         );
     }
 

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.RestRequest.Method;
 
 import java.util.HashMap;
@@ -21,7 +21,7 @@ import java.util.Set;
 final class MethodHandlers {
 
     private final String path;
-    private final Map<Method, Map<RestApiCompatibleVersion, RestHandler>> methodHandlers;
+    private final Map<Method, Map<RestApiVersion, RestHandler>> methodHandlers;
 
     MethodHandlers(String path) {
         this.path = path;
@@ -32,7 +32,7 @@ final class MethodHandlers {
      * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
      * does not allow replacing the handler for an already existing method.
      */
-    MethodHandlers addMethod(Method method, RestApiCompatibleVersion version, RestHandler handler) {
+    MethodHandlers addMethod(Method method, RestApiVersion version, RestHandler handler) {
         RestHandler existing = methodHandlers
             .computeIfAbsent(method, k -> new HashMap<>())
             .putIfAbsent(version, handler);
@@ -50,13 +50,13 @@ final class MethodHandlers {
      * (as opposed to non-compatible/breaking)
      * or {@code null} if none exists.
      */
-    RestHandler getHandler(Method method, RestApiCompatibleVersion version) {
-        Map<RestApiCompatibleVersion, RestHandler> versionToHandlers = methodHandlers.get(method);
+    RestHandler getHandler(Method method, RestApiVersion version) {
+        Map<RestApiVersion, RestHandler> versionToHandlers = methodHandlers.get(method);
         if (versionToHandlers == null) {
             return null; //method not found
         }
         final RestHandler handler = versionToHandlers.get(version);
-        return handler == null ? versionToHandlers.get(RestApiCompatibleVersion.currentVersion()) : handler;
+        return handler == null ? versionToHandlers.get(RestApiVersion.current()) : handler;
     }
 
     /**

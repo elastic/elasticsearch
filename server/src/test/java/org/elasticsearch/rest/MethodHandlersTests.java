@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -17,8 +17,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class MethodHandlersTests extends ESTestCase {
 
-    private final RestApiCompatibleVersion current = RestApiCompatibleVersion.currentVersion();
-    private final RestApiCompatibleVersion previous = current.previousMajor();
+    private final RestApiVersion current = RestApiVersion.current();
+    private final RestApiVersion previous = current.previous();
 
     public void testLookupForDifferentMethodsSameVersion() {
         RestHandler putHandler = (request, channel, client) -> {};

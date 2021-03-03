@@ -18,7 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
@@ -94,7 +94,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
-        registerHandlerNoWrap(Method.GET, "/favicon.ico", RestApiCompatibleVersion.currentVersion(),
+        registerHandlerNoWrap(Method.GET, "/favicon.ico", RestApiVersion.current(),
             (request, channel, clnt) ->
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE)));
     }
@@ -107,11 +107,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param handler The handler to actually execute
      * @param deprecationMessage The message to log and send as a header in the response
      */
-    protected void registerAsDeprecatedHandler(Method method, String path, RestApiCompatibleVersion version,
+    protected void registerAsDeprecatedHandler(Method method, String path, RestApiVersion version,
                                                RestHandler handler, String deprecationMessage) {
         assert (handler instanceof DeprecationRestHandler) == false;
 
-        if (version.major >= RestApiCompatibleVersion.currentVersion().major) {
+        if (version.major >= RestApiVersion.current().major) {
             // e.g. it was marked as deprecated in 8.x, and we're currently running 8.x
             registerHandler(method, path, version, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger));
         } else {
@@ -144,8 +144,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param replacedMethod GET, POST, etc.
      * @param replacedPath <em>Deprecated</em> path to handle (e.g., "/_optimize")
      */
-    protected void registerAsReplacedHandler(Method method, String path, RestApiCompatibleVersion version, RestHandler handler,
-                                             Method replacedMethod, String replacedPath, RestApiCompatibleVersion replacedVersion) {
+    protected void registerAsReplacedHandler(Method method, String path, RestApiVersion version, RestHandler handler,
+                                             Method replacedMethod, String replacedPath, RestApiVersion replacedVersion) {
         // e.g., [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
         final String replacedMessage =
             "[" + replacedMethod.name() + " " + replacedPath + "] is deprecated! Use [" + method.name() + " " + path + "] instead.";
@@ -161,16 +161,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param handler The handler to actually execute
      * @param method GET, POST, etc.
      */
-    protected void registerHandler(Method method, String path, RestApiCompatibleVersion version, RestHandler handler) {
+    protected void registerHandler(Method method, String path, RestApiVersion version, RestHandler handler) {
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
         registerHandlerNoWrap(method, path, version, handlerWrapper.apply(handler));
     }
 
-    private void registerHandlerNoWrap(Method method, String path, RestApiCompatibleVersion version, RestHandler handler) {
-        assert RestApiCompatibleVersion.minimumSupported() == version || RestApiCompatibleVersion.currentVersion() == version
-            : "REST API compatibility is only supported for version " + RestApiCompatibleVersion.minimumSupported().major;
+    private void registerHandlerNoWrap(Method method, String path, RestApiVersion version, RestHandler handler) {
+        assert RestApiVersion.minimumSupported() == version || RestApiVersion.current() == version
+            : "REST API compatibility is only supported for version " + RestApiVersion.minimumSupported().major;
 
         handlers.insertOrUpdate(path,
             new MethodHandlers(path).addMethod(method, version, handler),
@@ -180,14 +180,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
     public void registerHandler(final Route route, final RestHandler handler) {
         if (route.isReplacement()) {
             Route replaced = route.getReplacedRoute();
-            registerAsReplacedHandler(route.getMethod(), route.getPath(), RestApiCompatibleVersion.currentVersion(), handler,
-                replaced.getMethod(), replaced.getPath(), route.getRestApiCompatibleVersion());
+            registerAsReplacedHandler(route.getMethod(), route.getPath(), RestApiVersion.current(), handler,
+                replaced.getMethod(), replaced.getPath(), route.getRestApiVersion());
         } else if (route.isDeprecated()) {
-            registerAsDeprecatedHandler(route.getMethod(), route.getPath(), route.getRestApiCompatibleVersion(), handler,
+            registerAsDeprecatedHandler(route.getMethod(), route.getPath(), route.getRestApiVersion(), handler,
                 route.getDeprecationMessage());
         } else {
             // it's just a normal route
-            registerHandler(route.getMethod(), route.getPath(), RestApiCompatibleVersion.currentVersion(), handler);
+            registerHandler(route.getMethod(), route.getPath(), RestApiVersion.current(), handler);
         }
     }
 
@@ -236,7 +236,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler,
-                                 RestApiCompatibleVersion restApiCompatibleVersion)
+                                 RestApiVersion restApiVersion)
         throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
@@ -261,7 +261,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, restApiCompatibleVersion);
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, restApiVersion);
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
@@ -348,7 +348,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String uri = request.uri();
         final Method requestMethod;
 
-        RestApiCompatibleVersion restApiCompatibleVersion = request.getRestApiCompatibleVersion();
+        RestApiVersion restApiVersion = request.getRestApiVersion();
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();
@@ -360,14 +360,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 if (handlers == null) {
                     handler = null;
                 } else {
-                    handler = handlers.getHandler(requestMethod, restApiCompatibleVersion);
+                    handler = handlers.getHandler(requestMethod, restApiVersion);
                 }
                 if (handler == null) {
                     if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
                         return;
                     }
                 } else {
-                    dispatchRequest(request, channel, handler, restApiCompatibleVersion);
+                    dispatchRequest(request, channel, handler, restApiVersion);
                     return;
                 }
             }
@@ -485,40 +485,40 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
-        private final RestApiCompatibleVersion restApiCompatibleVersion;
+        private final RestApiVersion restApiVersion;
         private final AtomicBoolean closed = new AtomicBoolean();
 
         ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength,
-                                    RestApiCompatibleVersion restApiCompatibleVersion) {
+                                    RestApiVersion restApiVersion) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
-            this.restApiCompatibleVersion = restApiCompatibleVersion;
+            this.restApiVersion = restApiVersion;
         }
 
         @Override
         public XContentBuilder newBuilder() throws IOException {
             return delegate.newBuilder()
-                .withCompatibleVersion(restApiCompatibleVersion);
+                .withCompatibleVersion(restApiVersion);
         }
 
         @Override
         public XContentBuilder newErrorBuilder() throws IOException {
             return delegate.newErrorBuilder()
-                .withCompatibleVersion(restApiCompatibleVersion);
+                .withCompatibleVersion(restApiVersion);
         }
 
         @Override
         public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
             return delegate.newBuilder(xContentType, useFiltering)
-                .withCompatibleVersion(restApiCompatibleVersion);
+                .withCompatibleVersion(restApiVersion);
         }
 
         @Override
         public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
             throws IOException {
             return delegate.newBuilder(xContentType, responseContentType, useFiltering)
-                .withCompatibleVersion(restApiCompatibleVersion);
+                .withCompatibleVersion(restApiVersion);
         }
 
         @Override

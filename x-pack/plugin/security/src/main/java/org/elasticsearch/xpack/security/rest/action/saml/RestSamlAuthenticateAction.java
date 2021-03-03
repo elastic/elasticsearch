@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -72,7 +72,7 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
         // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
             Route.builder(POST, "/_security/saml/authenticate")
-                .replaces(POST, "/_xpack/security/saml/authenticate", RestApiCompatibleVersion.V_7).build()
+                .replaces(POST, "/_xpack/security/saml/authenticate", RestApiVersion.V_7).build()
         );
     }
 

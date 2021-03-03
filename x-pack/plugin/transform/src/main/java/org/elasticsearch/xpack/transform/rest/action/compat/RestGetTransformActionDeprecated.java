@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.transform.rest.action.compat;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -31,9 +31,9 @@ public class RestGetTransformActionDeprecated extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(GET, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED)
-                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiCompatibleVersion.V_8).build(),
+                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_8).build(),
             Route.builder(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED)
-                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiCompatibleVersion.V_8).build()
+                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_8).build()
         );
     }
 

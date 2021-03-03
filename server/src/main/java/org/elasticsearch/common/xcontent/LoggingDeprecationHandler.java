@@ -41,16 +41,16 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
 
 
     public static final LoggingDeprecationHandler COMPATIBLE_REST_API_INSTANCE = new LoggingDeprecationHandler((message, params) ->
-        deprecationLogger.compatibleApiWarning("deprecated_field",COMPATIBLE_API_WARNING_PREFIX+ message, params));
+        deprecationLogger.compatibleApiWarning("deprecated_field", message, params));
 
 
     private BiConsumer<String, Object[]> loggingFunction;
 
     private LoggingDeprecationHandler() {
-        // Singleton
+        // two instances only
     }
     private LoggingDeprecationHandler(BiConsumer<String,Object[]> loggingFunction) {
-        // Singleton
+        // two instances only
         this.loggingFunction = loggingFunction;
     }
     @Override

@@ -199,7 +199,7 @@ following categories: primitive, reference, or dynamic.
 [[script-type-primitive]]
 ==== Primitive types
 A primitive type holds a singular piece of data. Examples of
-{painless}painless-types.html#primitive-types[available primitive types] are
+{painless}/painless-types.html#primitive-types[available primitive types] are
 `byte`, `int`, and `long`. Primitive types can also specify the size and type
 of a variable value. For example, an `int` is 32-bit and stores whole numbers,
 whereas a `double` is 64-bit and stores fractional numbers.

@@ -1,0 +1,46 @@
+---
+"Match mapping type":
+  - skip:
+      version: " - 7.99.99"
+      reason: "introduced in 8.0"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            dynamic_templates:
+              - locations:
+                  custom_mapping_type: location_type
+                  mapping:
+                    type: geo_point
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_index
+              _id: id_1
+              match_mapping_types:
+                location: location_type
+          - location: [ -71.34, 41.12 ]
+          - index:
+              _index: test_index
+              _id: id_2
+              match_mapping_types:
+                location: location_type
+          - location: "41.12,-71.34"
+  - do:
+      search:
+        index: test_index
+        body:
+          query:
+            geo_bounding_box:
+              location:
+                top_left:
+                  lat: 42
+                  lon: -72
+                bottom_right:
+                  lat: 40
+                  lon: -74
+  - match: { hits.total.value: 2 }

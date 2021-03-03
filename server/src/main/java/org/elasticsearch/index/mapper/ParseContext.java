@@ -668,4 +668,16 @@ public abstract class ParseContext {
      * Get dynamic runtime fields created while parsing.
      */
     public abstract List<RuntimeFieldType> getDynamicRuntimeFields();
+
+    /**
+     * Returns a dynamic matching type hint for the given full path of a file if exists.
+     */
+    public final DynamicTemplate.XContentFieldType getDynamicMatchingTypeHint(String fullPath) {
+        final String typeHint = sourceToParse().dynamicMappingHints().get(fullPath);
+        if (typeHint != null) {
+            return DynamicTemplate.XContentFieldType.createCustomType(typeHint);
+        } else {
+            return null;
+        }
+    }
 }

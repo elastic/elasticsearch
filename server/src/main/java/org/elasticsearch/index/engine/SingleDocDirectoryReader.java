@@ -37,6 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -140,7 +141,8 @@ final class SingleDocDirectoryReader extends DirectoryReader {
         private LeafReader createInMemoryLeafReader() {
             assert Thread.holdsLock(this);
             final ParsedDocument parsedDocs = mapper.parse(new SourceToParse(shardId.getIndexName(), operation.id(),
-                operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()));
+                operation.source(), XContentHelper.xContentType(operation.source()), operation.routing(), Map.of()));
+
             parsedDocs.updateSeqID(operation.seqNo(), operation.primaryTerm());
             parsedDocs.version().setLongValue(operation.version());
             final IndexWriterConfig writeConfig = new IndexWriterConfig(analyzer).setOpenMode(IndexWriterConfig.OpenMode.CREATE);

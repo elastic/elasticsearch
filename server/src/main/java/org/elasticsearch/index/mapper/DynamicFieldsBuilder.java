@@ -47,10 +47,13 @@ final class DynamicFieldsBuilder {
      * delegates to the appropriate strategy which depends on the current dynamic mode.
      * The strategy defines if fields are going to be mapped as ordinary or runtime fields.
      */
-    void createDynamicFieldFromValue(final ParseContext context,
-                                           XContentParser.Token token,
-                                           String name) throws IOException {
-        if (token == XContentParser.Token.VALUE_STRING) {
+    void createDynamicFieldFromValue(ParseContext context, XContentParser.Token token, String name) throws IOException {
+        final DynamicTemplate.XContentFieldType dynamicTypeHint = context.getDynamicMatchingTypeHint(context.path().pathAsText(name));
+        if (dynamicTypeHint != null) {
+            if (applyMatchingTemplate(context, name, dynamicTypeHint, null) == false) {
+                throw new MapperParsingException("Can't find template for matching type [" + dynamicTypeHint + "] of field [" + name + "]");
+            }
+        } else if (token == XContentParser.Token.VALUE_STRING) {
             String text = context.parser().text();
 
             boolean parseableAsLong = false;
@@ -124,22 +127,32 @@ final class DynamicFieldsBuilder {
     }
 
     /**
-     * Returns a dynamically created object mapper, eventually based on a matching dynamic template.
+     * Returns a dynamically created object mapper.
      * Note that objects are always mapped under properties.
      */
     Mapper createDynamicObjectMapper(ParseContext context, String name) {
         //dynamic:runtime maps objects under properties, exactly like dynamic:true
-        Mapper mapper = createObjectMapperFromTemplate(context, name);
-        return mapper != null ? mapper :
-            new ObjectMapper.Builder(name, context.indexSettings().getIndexVersionCreated()).enabled(true).build(context.path());
+        final Mapper mapper = createFieldOrObjectMapperFromTemplate(context, name);
+        if (mapper != null) {
+            return mapper;
+        }
+        return new ObjectMapper.Builder(name, context.indexSettings().getIndexVersionCreated()).enabled(true).build(context.path());
     }
 
     /**
-     * Returns a dynamically created object mapper, based exclusively on a matching dynamic template, null otherwise.
-     * Note that objects are always mapped under properties.
+     * Returns a dynamically created field or object mapper, based exclusively on a matching dynamic template, null otherwise.
      */
-    Mapper createObjectMapperFromTemplate(ParseContext context, String name) {
-        Mapper.Builder templateBuilder = findTemplateBuilderForObject(context, name);
+    Mapper createFieldOrObjectMapperFromTemplate(ParseContext context, String name) {
+        final DynamicTemplate.XContentFieldType dynamicTypeHint = context.getDynamicMatchingTypeHint(context.path().pathAsText(name));
+        final Mapper.Builder templateBuilder;
+        if (dynamicTypeHint != null) {
+            templateBuilder = findTemplateBuilderForMatchType(context, name, dynamicTypeHint);
+            if (templateBuilder == null) {
+                throw new MapperParsingException("Can't find template for matching type [" + dynamicTypeHint + "] of field [" + name + "]");
+            }
+        } else {
+            templateBuilder = findTemplateBuilderForMatchType(context, name, DynamicTemplate.XContentFieldType.OBJECT);
+        }
         return templateBuilder == null ? null : templateBuilder.build(context.path());
     }
 
@@ -212,8 +225,8 @@ final class DynamicFieldsBuilder {
         return true;
     }
 
-    private static Mapper.Builder findTemplateBuilderForObject(ParseContext context, String name) {
-        DynamicTemplate.XContentFieldType matchType = DynamicTemplate.XContentFieldType.OBJECT;
+    private static Mapper.Builder findTemplateBuilderForMatchType(ParseContext context, String name,
+                                                                  DynamicTemplate.XContentFieldType matchType) {
         DynamicTemplate dynamicTemplate = context.root().findTemplate(context.path(), name, matchType);
         if (dynamicTemplate == null) {
             return null;

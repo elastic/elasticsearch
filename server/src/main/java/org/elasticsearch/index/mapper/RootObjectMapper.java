@@ -404,10 +404,11 @@ public class RootObjectMapper extends ObjectMapper {
         if (template.getXContentFieldType() != null) {
             types = new XContentFieldType[]{template.getXContentFieldType()};
         } else if (template.isRuntimeMapping()) {
-            types = Arrays.stream(XContentFieldType.values()).filter(XContentFieldType::supportsRuntimeField)
+            types = XContentFieldType.getBuiltinTypes().stream()
+                .filter(XContentFieldType::supportsRuntimeField)
                 .toArray(XContentFieldType[]::new);
         } else {
-            types = XContentFieldType.values();
+            types = XContentFieldType.getBuiltinTypes().toArray(XContentFieldType[]::new);
         }
 
         Exception lastError = null;

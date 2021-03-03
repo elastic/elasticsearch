@@ -22,6 +22,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class DynamicTemplateTests extends ESTestCase {
 
     public void testMappingTypeTypeNotSet() {
@@ -116,8 +118,7 @@ public class DynamicTemplateTests extends ESTestCase {
         // if a wrong match type is specified, we ignore the template
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> DynamicTemplate.parse("my_template", templateDef2));
-        assertEquals("No field type matched on [text], possible values are [object, string, long, double, boolean, date, binary]",
-                e.getMessage());
+        assertThat(e.getMessage(), containsString("No field type matched on [text], possible values are ["));
     }
 
     public void testParseInvalidRegex() {
@@ -162,7 +163,7 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("match_mapping_type", "*");
         templateDef.put("mapping", Collections.singletonMap("store", true));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
-        assertTrue(template.match("a.b", "b", randomFrom(XContentFieldType.values())));
+        assertTrue(template.match("a.b", "b", randomFrom(XContentFieldType.getBuiltinTypes())));
         assertFalse(template.isRuntimeMapping());
     }
 
@@ -227,7 +228,7 @@ public class DynamicTemplateTests extends ESTestCase {
             assertEquals("Dynamic template [my_template] defines a runtime field but type [" + type + "] is not supported as runtime field",
                 e.getMessage());
         }
-        XContentFieldType[] supported = Arrays.stream(XContentFieldType.values())
+        XContentFieldType[] supported = XContentFieldType.getBuiltinTypes().stream()
             .filter(XContentFieldType::supportsRuntimeField).toArray(XContentFieldType[]::new);
         for (XContentFieldType type : supported) {
             Map<String, Object> templateDef = new HashMap<>();

@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 
+import java.util.Map;
 import java.util.Objects;
 
 public class SourceToParse {
@@ -27,7 +28,10 @@ public class SourceToParse {
 
     private final XContentType xContentType;
 
-    public SourceToParse(String index, String id, BytesReference source, XContentType xContentType, @Nullable String routing) {
+    private final Map<String, String> dynamicMappingHints;
+
+    public SourceToParse(String index, String id, BytesReference source, XContentType xContentType, @Nullable String routing,
+                         Map<String, String> dynamicMappingHints) {
         this.index = Objects.requireNonNull(index);
         this.id = Objects.requireNonNull(id);
         // we always convert back to byte array, since we store it and Field only supports bytes..
@@ -35,10 +39,11 @@ public class SourceToParse {
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
+        this.dynamicMappingHints = dynamicMappingHints;
     }
 
     public SourceToParse(String index, String id, BytesReference source, XContentType xContentType) {
-        this(index, id, source, xContentType, null);
+        this(index, id, source, xContentType, null, Map.of());
     }
 
     public BytesReference source() {
@@ -55,6 +60,10 @@ public class SourceToParse {
 
     public @Nullable String routing() {
         return this.routing;
+    }
+
+    public Map<String, String> dynamicMappingHints() {
+        return dynamicMappingHints;
     }
 
     public XContentType getXContentType() {

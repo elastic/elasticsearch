@@ -109,6 +109,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
+    private Map<String, String> dynamicMappingTypeHints = Map.of();
+
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
     }
@@ -145,6 +147,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             requireAlias = in.readBoolean();
         } else {
             requireAlias = false;
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            dynamicMappingTypeHints = in.readMap(StreamInput::readString, StreamInput::readString);
+        } else {
+            dynamicMappingTypeHints = Map.of();
         }
     }
 
@@ -655,6 +662,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(requireAlias);
         }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeMap(dynamicMappingTypeHints, StreamOutput::writeString, StreamOutput::writeString);
+        } else {
+            if (dynamicMappingTypeHints.isEmpty() == false) {
+                throw new IllegalStateException("Dynamic mapping type hints requires all nodes in the cluster on 8.0 or later");
+            }
+        }
     }
 
     @Override
@@ -711,5 +725,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public IndexRequest setRequireAlias(boolean requireAlias) {
         this.requireAlias = requireAlias;
         return this;
+    }
+
+    public IndexRequest setDynamicMappingTypeHints(Map<String, String> dynamicMappingTypeHints) {
+        this.dynamicMappingTypeHints = Objects.requireNonNull(dynamicMappingTypeHints);
+        return this;
+    }
+
+    public Map<String, String> getDynamicMappingTypeHints() {
+        return dynamicMappingTypeHints;
     }
 }

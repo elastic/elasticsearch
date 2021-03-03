@@ -291,6 +291,37 @@ tasks.named("composePull").configure {
   enabled = false
 }
 
+void addDockerBuildContextTask(DockerBase base, Architecture architecture = null, boolean local = false) {
+  String taskNameInfix = ''
+  String archiveSuffix = ''
+  String binDirectory = 'bin'
+
+  if (base == DockerBase.IRON_BANK) {
+    taskNameInfix = "Ironbank"
+    archiveSuffix = "-ironbank"
+    binDirectory = 'scripts'
+  } else if (base == DockerBase.UBI) {
+    taskNameInfix = "Ubi"
+    archiveSuffix = "-ubi8"
+  }
+
+  tasks.register("build${taskNameInfix}DockerContext", Tar) {
+    archiveExtension = 'tar.gz'
+    compression = Compression.GZIP
+    archiveClassifier = "docker-build-context"
+    archiveBaseName = "elasticsearch${archiveSuffix}"
+    with dockerBuildContext(architecture, base, local)
+
+    into(binDirectory) {
+      from configurations.transformLog4jJar
+    }
+  }
+}
+
+addDockerBuildContextTask(DockerBase.CENTOS)
+addDockerBuildContextTask(DockerBase.IRON_BANK, Architecture.X64, true) // Iron Bank builds are always local
+addDockerBuildContextTask(DockerBase.UBI)
+
 /*
  * The export subprojects write out the generated Docker images to disk, so
  * that they can be easily reloaded, for example into a VM for distribution testing

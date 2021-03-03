@@ -92,9 +92,9 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
         assertThat(
             assignment.getExplanation(),
             allOf(
-                containsString("Not opening job [data_frame_id] on node [_node_name0], because this node isn't a ml node."),
-                containsString("Not opening job [data_frame_id] on node [_node_name1], because this node isn't a ml node."),
-                containsString("Not opening job [data_frame_id] on node [_node_name2], because this node isn't a ml node.")));
+                containsString("Not opening job [data_frame_id] on node [_node_name0]. Reason: This node isn't a machine learning node."),
+                containsString("Not opening job [data_frame_id] on node [_node_name1]. Reason: This node isn't a machine learning node."),
+                containsString("Not opening job [data_frame_id] on node [_node_name2]. Reason: This node isn't a machine learning node.")));
     }
 
     // Cannot assign the node because none of the existing nodes is appropriate:

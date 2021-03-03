@@ -18,7 +18,7 @@ tasks.register("buildIronBankDockerBuildContext", Tar) {
   archiveBaseName = "elasticsearch-ironbank"
   // We always treat Iron Bank builds as local, because that is how they
   // are built
-  with dockerBuildContext(Architecture.X64, false, DockerBase.IRON_BANK, true)
+  with dockerBuildContext(Architecture.X64, DockerBase.IRON_BANK, true)
 
   into('scripts') {
     from configurations.transformLog4jJar

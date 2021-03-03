@@ -826,6 +826,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    public Function<String, String> dateMathExpressionResolverAt() {
+        return expression-> expressionResolver.resolveDateMathExpression(expression, System.currentTimeMillis());
+    }
+    public Function<String, String> dateMathExpressionResolverAt(long instant) {
+        return expression-> expressionResolver.resolveDateMathExpression(expression, instant);
+    }
+
     public interface ShardStoreDeleter {
         void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException;
 

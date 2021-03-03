@@ -262,8 +262,8 @@ search these fields by default:
 * <<query-dsl-query-string-query>>
 * <<query-dsl-simple-query-string-query>>
 
-Defaults to `*`, which extracts all fields eligible for term queries, excluding
-metadata fields.
+Defaults to `*`, which extracts all fields eligible for
+<<term-level-queries,term-level queries>>, excluding metadata fields.
 --
 
  `index.routing.allocation.enable`::

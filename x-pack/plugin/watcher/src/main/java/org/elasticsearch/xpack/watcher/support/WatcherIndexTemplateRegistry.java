@@ -118,7 +118,7 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
         }
         return watcherHistoryTemplateIds.filter(s -> s.startsWith(".watch-history-"))
             .map(s -> Integer.valueOf(s.substring(s.lastIndexOf('-') + 1)))
-            .anyMatch(version -> version >= 6);
+            .anyMatch(version -> version >= 9);
     }
 
 

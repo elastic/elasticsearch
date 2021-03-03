@@ -51,6 +51,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import java.util.zip.GZIPInputStream;
 
 import static java.nio.file.StandardOpenOption.CREATE;
@@ -227,6 +228,23 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         Settings.Builder settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
+        final List<Path> geoipTmpDirs = StreamSupport.stream(internalCluster().getInstances(Environment.class).spliterator(), false)
+            .map(env -> {
+                Path geoipTmpDir = env.tmpFile().resolve("geoip-databases");
+                assertThat(Files.exists(geoipTmpDir), is(true));
+                return geoipTmpDir;
+            }).collect(Collectors.toList());
+        assertBusy(() -> {
+            for (Path geoipTmpDir : geoipTmpDirs) {
+                try (Stream<Path> list = Files.list(geoipTmpDir)) {
+                    List<String> files = list.map(Path::toString)
+                        .collect(Collectors.toList());
+                    assertThat(files, containsInAnyOrder(endsWith("GeoLite2-City.mmdb"), endsWith("GeoLite2-Country.mmdb"),
+                        endsWith("GeoLite2-ASN.mmdb")));
+                }
+            }
+        });
+
         // Verify after updating dbs:
         assertBusy(() -> {
             SimulatePipelineResponse simulateResponse = client().admin().cluster().simulatePipeline(simulateRequest).actionGet();
@@ -238,25 +256,17 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
         });
 
-        Environment environment = internalCluster().getDataNodeInstance(Environment.class);
-        Path geoipTmpDir = environment.tmpFile().resolve("geoip-databases");
-        assertThat(Files.exists(geoipTmpDir), is(true));
-        try (Stream<Path> list = Files.list(geoipTmpDir)) {
-            List<String> files = list.map(Path::toString)
-                .collect(Collectors.toList());
-            assertThat(files, containsInAnyOrder(endsWith("GeoLite2-City.mmdb"), endsWith("GeoLite2-Country.mmdb"),
-                endsWith("GeoLite2-ASN.mmdb")));
-        }
-
         // Disable downloader:
         settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false);
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         assertBusy(() -> {
-            try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                List<String> files = list.map(Path::toString)
-                    .collect(Collectors.toList());
-                assertThat(files, empty());
+            for (Path geoipTmpDir : geoipTmpDirs) {
+                try (Stream<Path> list = Files.list(geoipTmpDir)) {
+                    List<String> files = list.map(Path::toString)
+                        .collect(Collectors.toList());
+                    assertThat(files, empty());
+                }
             }
         });
     }

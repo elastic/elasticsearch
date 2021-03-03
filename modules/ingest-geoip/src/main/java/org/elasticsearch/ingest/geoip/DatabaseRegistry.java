@@ -185,7 +185,7 @@ final class DatabaseRegistry implements Closeable {
             try {
                 retrieveAndUpdateDatabase(name, metadata);
             } catch (Exception e) {
-                LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("attempt to download database [{}]", name), e);
+                LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("attempt to download database [{}] failed", name), e);
             }
         });
 

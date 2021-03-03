@@ -147,6 +147,46 @@ Now that you've learned the basic syntax of a Painless script, we'll dig more
 into the language itself. Understanding the building blocks of the language
 will help you to construct more complex and powerful scripts.
 
+<<script-spec-variables,Learn about variables>>
+
+[[script-spec-variables]]
+=== Variables
+A variable loads and stores a value for evaluation during operations. A
+variable not immediately assigned a value will have a default value assigned
+implicitly based on the type. We'll cover types in the next section.
+
+When using variables, you declare a variable, specify a type, and assign
+values to the variable. The following example declares a variable `my_int` of
+type `int`, and assigns it a value of `1`:
+
+[source,console]
+----
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": """
+        int my_int;
+        my_int = 1;
+    """
+  }
+}
+----
+
+When declaring a variable, specify the type followed by an identifier. After
+declaring variables, you can use them in scripts by referring to their
+identifier.
+
+Use the assignment operator `=` to store a value in a variable for use in
+subsequent operations. Any operation that produces a value can be assigned to
+any variable as long as the types are the same, or the resultant type can be
+implicitly cast to the variable type.
+
+[discrete]
+[[variables-whats-next]]
+=== What's next
+Now that you understand variables, you can learn about the data types that
+Painless supports. When you declare a variable, you assign it a supported type.
+
 <<script-spec-types,Learn about types>>
 
 [[script-spec-types]]
@@ -156,55 +196,16 @@ These properties specify what data a value represents and the rules for how a
 value is evaluated during an operation. Each type belongs to one of the
 following categories: primitive, reference, or dynamic.
 
-[discrete]
 [[script-type-primitive]]
 ==== Primitive types
-A primitive type specifies the size and type of a variable value. Examples of
-<<available-primitive-types,available primitive types>> are `byte`, `int`, and
-`long`.
+A primitive type holds a singular piece of data. Examples of
+{painless}painless-types.html#primitive-types[available primitive types] are
+`byte`, `int`, and `long`. Primitive types can also specify the size and type
+of a variable value. For example, an `int` is 32-bit and stores whole numbers,
+whereas a `double` is 64-bit and stores fractional numbers.
 
-A primitive type value is copied during an assignment or as an argument for a
-method or function call. Each primitive type has a corresponding reference type
-(or boxed type) as shown in the following list. For example, the reference type
-for `byte` is `Byte`.
-
-[[available-primitive-types]]
-.**Available primitive types**
-[%collapsible]
-====
-`byte` (`Byte`)::
-    8-bit, signed, two's complement integer. Range: [`-128`, `127`]. Default: `0`.
-
-`short` (`Short`)::
-    16-bit, signed, two's complement integer. Range: [`-32768`, `32767`]. Default: `0`.
-
-`char` (`Character`)::
-    16-bit, unsigned, Unicode character. Range: [`0`, `65535`]. Default: `0` or `\u0000`.
-
-`int` (`Integer`)::
-    32-bit, signed, two's complement integer. Range: [`-2^31`, `2^31-1`]. Default: `0`.
-
-`long` (`Long`)::
-    64-bit, signed, two's complement integer. Range: [`-2^63`, `2^63-1`]. Default: `0`.
-
-`float (`Float`)`::
-    32-bit, signed, single-precision, IEEE 754 floating point number. Default `0.0`.
-
-`double` (`Double`)::
-    64-bit, signed, double-precision, IEEE 754 floating point number. Default: `0.0`.
-
-`boolean` (`Boolean`)::
-    logical quantity with two possible values of `true` and `false`. Default: `false`.
-====
-
-You can declare a primitive type <<script-spec-variables,variable>> or access a
-primitive type member field from a reference type instance, and assign it a
-primitive type value for evaluation during later operations.
-
-Use the field access operator or method call operator on a primitive type value
-to force evaluation as its corresponding reference type value.
-
-Let's take our shortened script and incorporate some primitive types:
+The following example builds on the previous one, but adds a declaration for a
+`double` primitive type:
 
 [source,console]
 ----
@@ -223,67 +224,81 @@ POST /_scripts/painless/_execute
 <2> Primitive `int` type assignment with an `int` constant
 <3> Primitive `double` type declaration with assignment of a `double` constant
 
-[discrete]
+You can declare a primitive type <<script-spec-variables,variable>> or access a
+primitive type member field from a reference type instance, and assign it a
+primitive type value for evaluation during later operations.
+
+Use the field access operator or method call operator on a primitive type value
+to force evaluation as its corresponding reference type value.
+
 [[script-type-reference]]
 ==== Reference types
-A reference type is an object that potentially represents multiple pieces of
-data and logic to manipulate that data, defined as part of the API for scripts.
-A reference type is comprised of an instance, value, and variable.
-
-A reference type _instance_ is a single set of data for one reference type
-object allocated to the heap. Use a reference type instance to load from, store
-to, and mainpulate complex data.
-
-A reference type _value_ refers to an instance, and multiple values can refer to
-the same instance. A change to an instance affects all values referring to that
-specific instance.
-
-To access a reference type _variable_, declare the variable or access a
-reference type member field from an instance. You can then assign the variable
-a value and reference the variable in various operations. The default value for
-a newly-declared reference type variable is `null`.
-
-Let's expand our example to include some reference types. The following example
-adds a `Map` type declaration called `my_map`. Then, the `my_map` variable is
-assigned a value with a new instance of `HashMap`.
+A reference type is a complex structure that can represent multiple pieces of
+data and logic to manipulate that data. Reference types hold references to
+objects and provide a way to access those objects. You define reference types as
+part of the API for scripts.
 
 Reference types are complex types that have method and fields available to
-modify internal state. In the example, the `my_map.put` statement modifies the
-`my_map` variable to include two instances of `my_int`.
+modify internal state. You cannot define new types, but can call any of the
+available types in the API's allowlist. For example, let's assume that the
+allowlist contains an `Example` reference type with the following definition:
 
-[source,console]
+[source,java]
 ----
-POST /_scripts/painless/_execute
-{
-  "script": {
-    "source": """
-        int my_int;
-        my_int = 1;
-        double my_double = 2.0;
-        Map my_map; <1>
-        my_map = new HashMap(); <2>
-        my_map.put("my_int", my_int); <3>
-        my_map.put("my_double", my_double);
-        return my_map;
-    """
-  }
+class Example {
+   int my_int;
+   double my_double;
+   def add(); <1>
 }
 ----
-<1> Reference `Map` type declaration
-<2> Reference `Map` type assignment with a new instance of a `HashMap`
-<3> Modification of the `my_map` variable
+<1> This operation adds together the `my_int` and `my_double` variables.
 
-The response includes the result of the `Map` named `my_map`:
+To use the `Example` reference type, you create a new instance of `Example`
+named `my_example`. You can then define this new instance. The following
+example declares two primitive types named `my_int` and `my_double`, assigns
+them each a valie, and includes them in the `my_example` reference type.
 
-[source,console-result]
+[source,painless]
 ----
-{
-  "result" : "{my_int=1, my_double=2.0}"
-}
+Example my_example = new Example() <1>
+my_example.my_int = 1; <2>
+my_example.my_double = 2; <3>
+double my_add = my_example.add();
 ----
-// TEST[continued]
+<1> Create a new instance of `Example`
+<2> Declare `my_int` as part of the `my_example` reference type
+<3> Declare `my_double` as part of the `my_example` reference type
 
 [discrete]
+===== How to use reference types
+What if you want to modify the types and values that are part of a reference
+type? That's where you can leverage the magic of reference types! You can have
+multiple reference type values that point to the _same_ instance, which means
+you don't have to modify the instance itself.
+
+The following example creates two new reference types: `my_example1` and
+`my_example2`:
+
+[source,painless]
+----
+Example my_example1 = new Example(); <1>
+Example my_example2 = my_example1; <2>
+my_example2.my_int = 4;
+----
+<1> `my_example1` creates a new instance of `Example`.
+<2> `my_example2` creates a new instance of `my_example1`.
+
+By creating a new instance of `Example`, `my_example1` references `Example`
+and inherits all of the data and logic that it contains.
+
+Similarly, `my_example2` references `my_example1` and inherits everything it
+contains. However, even though `my_example2` references `my_example1`, you can
+modify `my_example2` without impacting `my_example1`.
+
+Looking back, `Example` indicates that `my_example.my_int = 1`. The last line
+in the previous statement modifies the value of that variable by setting the
+value of `my_int` to `4`.
+
 [[script-type-dynamic]]
 ==== Dynamic types
 A dynamic type can represent the value of any primitive type or reference type
@@ -343,40 +358,21 @@ about types, you can start declaring variables and assigning types to them.
 
 <<script-spec-variables,Learn about variables>>
 
-[[script-spec-variables]]
-=== Variables
-A variable loads and stores a value for evaluation during operations. A
-variable not immediately assigned a value will have a default value assigned
-implicitly based on the type.
-
-When using variables, you declare the variable, specify a type, and assign
-values to the variable. The following example declares a variable `i` of type
-`int`, and assigns it a value of `10`:
-
-[source,Painless]
-----
-int i;  <1>
-i = 10; <2>
-----
-<1> Declare `int i` and store default `int 0` to `i`
-<2> Store `int 10` to `i`
-
-When declaring a variable, specify the type followed by an identifier. After
-declaring variables, you can use them in scripts by referring to their
-identifier.
-
-Use the assignment operator `'='` to store a value in a variable for use in
-subsequent operations. Any operation that produces a value can be assigned to
-any variable as long as the types are the same, or the resultant type can be
-implicitly cast to the variable type.
-
 [[script-spec-operators]]
 === Operators
-An operator is the most basic action that can be taken to evaluate values in a
-script. An expression is one-to-many consecutive operations. Precedence is the
+An operator is the most basic action that can be taken to evaluate variables
+and values in a script. Painless offers basic operators for numeric computations
+such as addition, division, and subtraction, but also provides operators for
+comparisons, conditionals, and {painless}/painless-operators.html[much more].
+
+An expression is one-to-many consecutive operations. Precedence is the
 order in which an operator will be evaluated relative to another operator.
 Associativity is the direction within an expression in which a specific
 operator is evaluated.
+
+The following example introduces a basic expression with arithmetic operators.
+The parentheses `()` indicate precendence, meaning the expression in
+parentheses will be evaluated first.
 
 [[script-spec-statements]]
 === Statements

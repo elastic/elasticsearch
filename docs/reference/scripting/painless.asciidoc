@@ -18,13 +18,15 @@ context.
 * **Performance**: Painless compiles directly into JVM bytecode to take
 advantage of all possible optimizations the JVM provides. Also, Painless
 typically avoids features that require additional slower checks at runtime.
-* **Syntax**: Painless implements a syntax with a natural familiarity to
+* **Simplicity**: Painless implements a syntax with a natural familiarity to
 anyone with some basic coding experience. Painless uses a subset of Java syntax
 with some additional improvements to enhance readability and remove
 boilerplate. Using a Java-like syntax provides a natural compilation path into
 JVM bytecode that the syntax and semantics of other languages tend to heavily
 complicate.
 
+[discrete]
+=== Start scripting
 Ready to start scripting with Painless? Learn how to
 <<modules-scripting-using,write your first script>>.
 

@@ -8,7 +8,7 @@ tasks.register("buildDockerBuildContext", Tar) {
   archiveClassifier = "docker-build-context"
   archiveBaseName = "elasticsearch"
   // Non-local builds don't need to specify an architecture.
-  with dockerBuildContext(null, false, DockerBase.CENTOS, false)
+  with dockerBuildContext(null, DockerBase.CENTOS, false)
 }
 
 tasks.named("assemble").configure {dependsOn "buildDockerBuildContext"}

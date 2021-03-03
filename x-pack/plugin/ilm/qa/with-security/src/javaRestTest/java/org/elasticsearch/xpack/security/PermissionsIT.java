@@ -58,6 +58,7 @@ import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -150,7 +151,7 @@ public class PermissionsIT extends ESRestTestCase {
                     " on indices [not-ilm]," +
                     " this action is granted by the index privileges [monitor,manage,all]"));
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testSLMWithPermissions() throws Exception {
@@ -300,7 +301,7 @@ public class PermissionsIT extends ESRestTestCase {
             Request request = new Request("HEAD", "/" + "foo-logs-000002");
             int status = adminClient().performRequest(request).getStatusLine().getStatusCode();
             assertThat(status, equalTo(200));
-        });
+        }, 30, TimeUnit.SECONDS);
 
         // test_user: index docs using alias, now should be able write to new index
         indexDocs("test_user", "x-pack-test-password", "foo_alias", 1);

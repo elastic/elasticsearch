@@ -137,12 +137,12 @@
 "Create with alias containing date math":
   - do:
       indices.create:
-        index: <logs-http-{2022-12-31||/d{yyyy-MM-dd}}>
+        index: <logs_http_{2022-12-31||/d{yyyy-MM-dd}}>
         body:
           aliases:
-            '<logs-{2022-12-31||/d{yyyy-MM-dd}}>': {}
+            '<logs_{2022-12-31||/d{yyyy-MM-dd}}>': {}
 
   - do:
       indices.exists_alias:
-        name: logs-2022-12-31
+        name: logs_2022-12-31
   - is_true: ''

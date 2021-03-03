@@ -462,7 +462,7 @@ public class IndexNameExpressionResolver {
      * @return If the specified string is data math expression then this method returns the resolved expression.
      */
     public String resolveDateMathExpression(String dateExpression, long time) {
-        return dateMathExpressionResolver.resolveExpression(dateExpression, new Context(null, null, time, isSystemIndexAccessAllowed()));
+        return dateMathExpressionResolver.resolveExpression(dateExpression, new Context(null, null, time, getSystemIndexAccessLevel()));
     }
 
     /**

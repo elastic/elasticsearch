@@ -171,11 +171,11 @@
 "Aliases with date math":
   - do:
       indices.create:
-        index: <logs-http-{2022-12-31||/d{yyyy-MM-dd}}>
+        index: <logs_http_{2022-12-31||/d{yyyy-MM-dd}}>
 
   - do:
       indices.exists_alias:
-        name: logs-2022-12-31
+        name: logs_2022-12-31
   - is_false: ''
 
   - do:
@@ -183,10 +183,10 @@
         body:
           actions:
             - add:
-                index: <logs-http-{2022-12-31||/d{yyyy-MM-dd}}>
-                alias: <logs-{2022-12-31||/d{yyyy-MM-dd}}>
+                index: <logs_http_{2022-12-31||/d{yyyy-MM-dd}}>
+                alias: <logs_{2022-12-31||/d{yyyy-MM-dd}}>
 
   - do:
       indices.exists_alias:
-        name: logs-2022-12-31
+        name: logs_2022-12-31
   - is_true: ''

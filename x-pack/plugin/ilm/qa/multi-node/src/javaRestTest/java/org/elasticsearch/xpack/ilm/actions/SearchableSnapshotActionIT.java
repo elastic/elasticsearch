@@ -304,9 +304,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         );
 
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
-        for (int i = 0; i < randomIntBetween(5, 10); i++) {
-            indexDocument(client(), dataStream, true);
-        }
+        // indexing only one document as we want only one rollover to be triggered
+        indexDocument(client(), dataStream, true);
 
         String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX +
             DataStream.getDefaultBackingIndexName(dataStream, 1L);
@@ -352,6 +351,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         assertOK(client().performRequest(restoreSnapshot));
 
         assertThat(indexExists(searchableSnapMountedIndexName), is(true));
+        ensureGreen(searchableSnapMountedIndexName);
 
         // the restored index is now managed by the now updated ILM policy and needs to go through the warm and cold phase
         assertBusy(() -> {

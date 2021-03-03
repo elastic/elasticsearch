@@ -325,7 +325,6 @@ tasks.named("yamlRestCompatTest").configure {
     'search.aggregation/280_geohash_grid/Basic test',
     'search.aggregation/290_geotile_grid/Basic test',
     'search.aggregation/51_filter_with_types/Filter aggs with terms lookup and ensure it\'s cached',
-    'search.aggregation/370_doc_count_field/Test filters agg with doc_count',
     'search.inner_hits/10_basic/Nested doc version and seqIDs',
     'search.inner_hits/10_basic/Nested inner hits',
     'search/100_stored_fields/Stored fields',
@@ -372,6 +371,7 @@ tasks.named("yamlRestCompatTest").configure {
     'update/61_refresh_with_types/refresh=wait_for waits until changes are visible in search',
     'update/81_source_filtering_with_types/Source filtering',
     'update/90_mix_typeless_typeful/Update call that introduces new field mappings',
-    'update/90_mix_typeless_typeful/Update with typeless API on an index that has types'
+    'update/90_mix_typeless_typeful/Update with typeless API on an index that has types',
+    'napshot.features/10_basic/Get Features' // Temporary until https://github.com/elastic/elasticsearch/pull/69755 is backported
   ].join(',')
 }

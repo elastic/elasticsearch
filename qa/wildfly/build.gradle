@@ -49,7 +49,6 @@ elasticsearch_distributions {
   docker {
     type = 'docker'
     architecture = Architecture.current()
-    flavor = 'default'
     version = VersionProperties.getElasticsearch()
     failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
   }

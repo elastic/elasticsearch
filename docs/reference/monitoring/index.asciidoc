@@ -43,4 +43,4 @@ include::pause-export.asciidoc[]
 
 include::troubleshooting.asciidoc[]
 
-include::investigating-cpu-spikes.asciidoc.asciidoc[]
+include::investigating-cpu-spikes.asciidoc[]

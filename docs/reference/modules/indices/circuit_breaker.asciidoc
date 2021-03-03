@@ -8,6 +8,8 @@ Except where noted otherwise, these settings can be dynamically updated on a
 live cluster with the <<cluster-update-settings,cluster-update-settings>> API.
 // end::circuit-breaker-description-tag[]
 
+If a circuit breaker is hit, Elasticsearch will respond with a `TOO_MANY_REQUESTS (429)` response code.
+
 [[parent-circuit-breaker]]
 [discrete]
 ==== Parent circuit breaker

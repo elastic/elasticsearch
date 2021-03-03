@@ -45,7 +45,7 @@ final class DocumentParser {
 
     ParsedDocument parseDocument(SourceToParse source,
                                  MappingLookup mappingLookup) throws MapperParsingException {
-        return parseDocument(source, mappingLookup.getMapping().metadataMappers, mappingLookup);
+        return parseDocument(source, mappingLookup.getMapping().getSortedMetadataMappers(), mappingLookup);
     }
 
     ParsedDocument parseDocument(SourceToParse source,
@@ -61,7 +61,7 @@ final class DocumentParser {
                 source,
                 parser);
             validateStart(parser);
-            internalParseDocument(mappingLookup.getMapping().root(), metadataFieldsMappers, context, parser);
+            internalParseDocument(mappingLookup.getMapping().getRoot(), metadataFieldsMappers, context, parser);
             validateEnd(parser);
         } catch (Exception e) {
             throw wrapInMapperParsingException(source, e);
@@ -204,7 +204,7 @@ final class DocumentParser {
         if (dynamicMappers.isEmpty() == false) {
             root = createDynamicUpdate(mappingLookup, dynamicMappers);
         } else {
-            root = mappingLookup.getMapping().root().copyAndReset();
+            root = mappingLookup.getMapping().getRoot().copyAndReset();
         }
         root.addRuntimeFields(dynamicRuntimeFields);
         return mappingLookup.getMapping().mappingUpdate(root);
@@ -220,7 +220,7 @@ final class DocumentParser {
         Iterator<Mapper> dynamicMapperItr = dynamicMappers.iterator();
         List<ObjectMapper> parentMappers = new ArrayList<>();
         Mapper firstUpdate = dynamicMapperItr.next();
-        parentMappers.add(createUpdate(mappingLookup.getMapping().root(), splitAndValidatePath(firstUpdate.name()), 0, firstUpdate));
+        parentMappers.add(createUpdate(mappingLookup.getMapping().getRoot(), splitAndValidatePath(firstUpdate.name()), 0, firstUpdate));
         Mapper previousMapper = null;
         while (dynamicMapperItr.hasNext()) {
             Mapper newMapper = dynamicMapperItr.next();

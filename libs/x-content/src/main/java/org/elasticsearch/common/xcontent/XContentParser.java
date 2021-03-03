@@ -252,7 +252,7 @@ public interface XContentParser extends Closeable {
 
     boolean isClosed();
 
-    RestApiVersion getRestApiCompatibleVersion();
+    RestApiVersion getRestApiVersion();
 
     /**
      * The callback to notify when parsing encounters a deprecated field.

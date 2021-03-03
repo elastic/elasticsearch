@@ -52,7 +52,7 @@ public class ParseField {
     }
 
     /**
-     * Creates a field available for lookup for both current and previous REST API compatible versions
+     * Creates a field available for lookup for both current and previous REST API versions
      * @param name            the primary name for this field. This will be returned by
      *                        {@link #getPreferredName()}
      * @param deprecatedNames names for this field which are deprecated and will not be
@@ -98,7 +98,7 @@ public class ParseField {
     }
 
     /**
-     * @return rest api compatibility versions under which a lookup will be allowed
+     * @return rest api versions under which a lookup will be allowed
      */
     public Set<RestApiVersion> getRestApiVersions() {
         return restApiVersions;

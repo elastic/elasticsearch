@@ -260,8 +260,8 @@ public class XContentSubParser implements XContentParser {
     }
 
     @Override
-    public RestApiVersion getRestApiCompatibleVersion() {
-        return parser.getRestApiCompatibleVersion();
+    public RestApiVersion getRestApiVersion() {
+        return parser.getRestApiVersion();
     }
 
     @Override

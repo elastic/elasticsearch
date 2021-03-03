@@ -415,7 +415,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     public abstract boolean isClosed();
 
     @Override
-    public RestApiVersion getRestApiCompatibleVersion() {
+    public RestApiVersion getRestApiVersion() {
         return restApiVersion;
     }
 

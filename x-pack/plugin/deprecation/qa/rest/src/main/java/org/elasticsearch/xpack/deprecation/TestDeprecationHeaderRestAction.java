@@ -98,7 +98,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
         final List<String> settings;
 
         try (XContentParser parser = request.contentParser()) {
-            if (parser.getRestApiCompatibleVersion() == RestApiVersion.minimumSupported()) {
+            if (parser.getRestApiVersion() == RestApiVersion.minimumSupported()) {
                 deprecationLogger.compatibleApiWarning("compatible_key", COMPATIBLE_API_USAGE);
             }
 

@@ -1009,7 +1009,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public static class StructWithCompatibleFields {
-        // real usage would have RestApiCompatibleVersion.V_7 instead of currentVersion or minimumSupported
+        // real usage would have RestApiVersion.V_7 instead of currentVersion or minimumSupported
 
         static final ObjectParser<StructWithCompatibleFields, Void> PARSER =
             new ObjectParser<>("struct_with_compatible_fields", StructWithCompatibleFields::new);

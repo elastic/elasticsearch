@@ -453,17 +453,17 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             this.parser = parser;
             this.context = context;
             this.constructorArgs = new Object[constructorArgInfos
-                .getOrDefault(parser.getRestApiCompatibleVersion(), Collections.emptyList()).size()];
+                .getOrDefault(parser.getRestApiVersion(), Collections.emptyList()).size()];
         }
 
         /**
          * Set a constructor argument and build the target object if all constructor arguments have arrived.
          */
         private void constructorArg(Map<RestApiVersion, Integer> positions, Object value) {
-            int position = positions.get(parser.getRestApiCompatibleVersion()) - 1;
+            int position = positions.get(parser.getRestApiVersion()) - 1;
             constructorArgs[position] = value;
             constructorArgsCollected++;
-            if (constructorArgsCollected == constructorArgInfos.get(parser.getRestApiCompatibleVersion()).size()) {
+            if (constructorArgsCollected == constructorArgInfos.get(parser.getRestApiVersion()).size()) {
                 buildTarget();
             }
         }
@@ -498,7 +498,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             StringBuilder message = null;
             for (int i = 0; i < constructorArgs.length; i++) {
                 if (constructorArgs[i] != null) continue;
-                ConstructorArgInfo arg = constructorArgInfos.get(parser.getRestApiCompatibleVersion()).get(i);
+                ConstructorArgInfo arg = constructorArgInfos.get(parser.getRestApiVersion()).get(i);
                 if (false == arg.required) continue;
                 if (message == null) {
                     message = new StringBuilder("Required [").append(arg.field);

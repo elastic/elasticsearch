@@ -42,7 +42,7 @@ def fixtureAddress = {
   assert useFixture: 'closure should not be used without a fixture'
   int ephemeralPort = tasks.getByPath(":test:fixtures:geoip-fixture:postProcessFixture").ext."test.fixtures.geoip-fixture.tcp.80"
   assert ephemeralPort > 0
-  return "http://127.0.0.1:${ephemeralPort}"
+  return "http://127.0.0.1:${ephemeralPort}/"
 }
 
 if (useFixture) {

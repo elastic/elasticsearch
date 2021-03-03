@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -48,13 +49,19 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, maxNumDataNodes = 1)
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
@@ -233,6 +240,28 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             // TODO: change geoip fixture to not return city db content for country and asn databases:
 //            assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
 //            assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
+        });
+
+        Environment environment = internalCluster().getDataNodeInstance(Environment.class);
+        Path geoipTmpDir = environment.tmpFile().resolve("geoip-databases");
+        assertThat(Files.exists(geoipTmpDir), is(true));
+        try (Stream<Path> list = Files.list(geoipTmpDir)) {
+            List<String> files = list.map(Path::toString)
+                .collect(Collectors.toList());
+            assertThat(files, containsInAnyOrder(endsWith("GeoLite2-City.mmdb"), endsWith("GeoLite2-Country.mmdb"),
+                endsWith("GeoLite2-ASN.mmdb")));
+        }
+
+        // Disable downloader:
+        settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false);
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+
+        assertBusy(() -> {
+            try (Stream<Path> list = Files.list(geoipTmpDir)) {
+                List<String> files = list.map(Path::toString)
+                    .collect(Collectors.toList());
+                assertThat(files, empty());
+            }
         });
     }
 

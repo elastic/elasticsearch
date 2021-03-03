@@ -78,7 +78,7 @@ final class DatabaseRegistry implements Closeable {
     private final LocalDatabases localDatabases;
     private final Consumer<Runnable> genericExecutor;
 
-    private final ConcurrentMap<String, DatabaseReference> databases = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, DatabaseReaderLazyLoader> databases = new ConcurrentHashMap<>();
 
     DatabaseRegistry(Environment environment, Client client, GeoIpCache cache, Consumer<Runnable> genericExecutor) {
         this(
@@ -126,11 +126,8 @@ final class DatabaseRegistry implements Closeable {
         // There is a need for reference counting in order to avoid using an instance
         // that gets closed while using it. (this can happen during a database update)
         while (true) {
-            DatabaseReference reference = databases.get(name);
-            DatabaseReaderLazyLoader instance = reference != null ? reference.reader: null;
-            if (instance == null) {
-                instance = localDatabases.getDatabase(name, fallbackUsingDefaultDatabases);
-            }
+            DatabaseReaderLazyLoader instance =
+                databases.getOrDefault(name, localDatabases.getDatabase(name, fallbackUsingDefaultDatabases));
             if (instance == null || instance.preLookup()) {
                 return instance;
             }
@@ -141,18 +138,13 @@ final class DatabaseRegistry implements Closeable {
 
     List<DatabaseReaderLazyLoader> getAllDatabases() {
         List<DatabaseReaderLazyLoader> all = new ArrayList<>(localDatabases.getAllDatabases());
-        this.databases.forEach((key, value) -> all.add(value.reader));
+        this.databases.forEach((key, value) -> all.add(value));
         return all;
     }
 
     // for testing only:
     DatabaseReaderLazyLoader get(String key) {
-        DatabaseReference reference = databases.get(key);
-        if (reference != null) {
-            return reference.reader;
-        } else {
-            return null;
-        }
+        return databases.get(key);
     }
 
     @Override
@@ -182,9 +174,9 @@ final class DatabaseRegistry implements Closeable {
         GeoIpTaskState taskState = task == null || task.getState() == null ? GeoIpTaskState.EMPTY : (GeoIpTaskState) task.getState();
 
         taskState.getDatabases().forEach((name, metadata) -> {
-            DatabaseReference reference = databases.get(name);
+            DatabaseReaderLazyLoader reference = databases.get(name);
             String remoteMd5 = metadata.getMd5();
-            String localMd5 = reference != null ? reference.md5 : null;
+            String localMd5 = reference != null ? reference.getMd5() : null;
             if (Objects.equals(localMd5, remoteMd5)) {
                 LOGGER.debug("Current reference of [{}] is up to date [{}] with was recorded in CS [{}]", name, localMd5, remoteMd5);
                 return;
@@ -248,8 +240,8 @@ final class DatabaseRegistry implements Closeable {
     void updateDatabase(String databaseFileName, String recordedMd5, Path file) {
         try {
             LOGGER.info("database file changed [{}], reload database...", file);
-            DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file);
-            DatabaseReference existing = databases.put(databaseFileName, new DatabaseReference(recordedMd5, file, loader));
+            DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, recordedMd5);
+            DatabaseReaderLazyLoader existing = databases.put(databaseFileName, loader);
             if (existing != null) {
                 existing.close();
             }
@@ -259,16 +251,15 @@ final class DatabaseRegistry implements Closeable {
     }
 
     void removeStaleEntries(Collection<String> staleEntries) {
-        try {
-            for (String staleEntry : staleEntries) {
+        for (String staleEntry : staleEntries) {
+            try {
                 LOGGER.info("database [{}] no longer exists, cleaning up...", staleEntry);
-                DatabaseReference existing = databases.remove(staleEntry);
+                DatabaseReaderLazyLoader existing = databases.remove(staleEntry);
                 assert existing != null;
-                existing.close();
-                Files.delete(existing.databaseFile);
+                existing.close(true);
+            } catch (Exception e) {
+                LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to clean database [{}]", staleEntry), e);
             }
-        } catch (Exception e) {
-            LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to clean database [{}]", staleEntries), e);
         }
     }
 
@@ -333,24 +324,6 @@ final class DatabaseRegistry implements Closeable {
     static void decompress(Path source, Path target) throws IOException {
         try (GZIPInputStream in = new GZIPInputStream(Files.newInputStream(source), 8192)) {
             Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
-        }
-    }
-
-    static final class DatabaseReference implements Closeable {
-
-        private final String md5;
-        private final Path databaseFile;
-        private final DatabaseReaderLazyLoader reader;
-
-        DatabaseReference(String md5, Path databaseFile, DatabaseReaderLazyLoader reader) {
-            this.md5 = md5;
-            this.databaseFile = databaseFile;
-            this.reader = reader;
-        }
-
-        @Override
-        public void close() throws IOException {
-            reader.close();
         }
     }
 

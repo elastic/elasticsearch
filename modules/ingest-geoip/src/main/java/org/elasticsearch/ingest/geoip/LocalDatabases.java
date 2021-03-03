@@ -106,7 +106,7 @@ final class LocalDatabases implements Closeable {
         try {
             if (update) {
                 LOGGER.info("database file changed [{}], reload database...", file);
-                DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file);
+                DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, null);
                 DatabaseReaderLazyLoader existing = configDatabases.put(databaseFileName, loader);
                 if (existing != null) {
                     existing.close();
@@ -129,7 +129,7 @@ final class LocalDatabases implements Closeable {
             Path source = geoipModuleDir.resolve(filename);
             assert Files.exists(source);
             String databaseFileName = source.getFileName().toString();
-            DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, source);
+            DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, source, null);
             databases.put(databaseFileName, loader);
         }
 
@@ -149,7 +149,7 @@ final class LocalDatabases implements Closeable {
                     if (Files.isRegularFile(databasePath) && pathMatcher.matches(databasePath)) {
                         assert Files.exists(databasePath);
                         String databaseFileName = databasePath.getFileName().toString();
-                        DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, databasePath);
+                        DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, databasePath, null);
                         databases.put(databaseFileName, loader);
                     }
                 }

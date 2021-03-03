@@ -323,7 +323,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
         builder.map(Map.of("a", 2));
         builder.endArray();
         builder.close();
-        when(httpClient.getBytes("a.b?key=11111111-1111-1111-1111-111111111111&elastic_geoip_service_tos=agree"))
+        when(httpClient.getBytes("a.b?elastic_geoip_service_tos=agree"))
             .thenReturn(baos.toByteArray());
         Iterator<Map<String, Object>> it = maps.iterator();
         geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool,

@@ -39,8 +39,6 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_FORMAT;
 
 public class RestSqlQueryAction extends BaseRestHandler {
 
-    TextFormat textFormat;
-
     @Override
     public List<Route> routes() {
         return emptyList();
@@ -106,7 +104,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * which we turn into a 400 error.
          */
         XContentType xContentType = accept == null ? XContentType.JSON : XContentType.fromMediaTypeOrFormat(accept);
-        textFormat = xContentType == null ? TextFormat.fromMediaTypeOrFormat(accept) : null;
+        TextFormat textFormat = xContentType == null ? TextFormat.fromMediaTypeOrFormat(accept) : null;
 
         if (xContentType == null && sqlRequest.columnar()) {
             throw new IllegalArgumentException("Invalid use of [columnar] argument: cannot be used in combination with "
@@ -145,7 +143,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return textFormat == TextFormat.CSV ? Collections.singleton(URL_PARAM_DELIMITER) : Collections.emptySet();
+        return Collections.singleton(URL_PARAM_DELIMITER);
     }
 
     @Override

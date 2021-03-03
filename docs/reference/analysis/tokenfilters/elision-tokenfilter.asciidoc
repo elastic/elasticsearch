@@ -7,7 +7,7 @@ plane) will tokenized as "avion" (plane).
 Requires either an `articles` parameter which is a set of stop word articles, or
 `articles_path` which points to a text file containing the stop set. Also optionally
 accepts `articles_case`, which indicates whether the filter treats those articles as
-case sensitive.
+case insensitive.
 
 For example:
 

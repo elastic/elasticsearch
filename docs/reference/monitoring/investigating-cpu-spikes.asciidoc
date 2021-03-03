@@ -9,7 +9,7 @@ https://www.elastic.co/guide/en/elasticsearch/reference/7.11/monitoring-producti
 
 [discrete]
 === Alerting
-When you set up monitoring several stack monitoring alerts were added to Stack Management > Alerts and actions.  You should consider adding connectors to send the alerts to you, the default is to write the alerts to the Kibana log file.
+When you set up monitoring, several stack monitoring alerts are available from Stack Management > Alerts and actions.  You should consider adding connectors to send the alerts to you, the default is to write the alerts to the Kibana log file.
 https://www.elastic.co/guide/en/kibana/current/alerting-getting-started.html
 
 [discrete]
@@ -24,7 +24,7 @@ These are indicators of high CPU utilization:
 [discrete]
 === Look for high CPU consuming threads
 
-Occasional high CPU jobs are expected, but constant high CPU usage on 
+Occasional CPU intensive jobs are expected, but constant high CPU usage on 
 long running jobs should be investigated.  If CPU utilization on a system
 with an Elasticsearch node is high then find out which Elasticsearch
 threads are contributing to this by using the <<cluster-nodes-hot-threads,nodes hot threads API>>:
@@ -40,7 +40,7 @@ GET _nodes/hot_threads
 Common high CPU causes are heavy read/write. Certain elasticsearch operations
 can also be CPU intensive, like lookup, analyzer, nested aggregation, force
 merge, percolate query, machine learning jobs. Some watcher jobs can also be
-expansive (depending on the script).  Find long running tasks using the <<tasks,task management API>>: 
+expensive (depending on the script).  Find long running tasks using the <<tasks,task management API>>: 
 
 [source,console]
 --------------------------------------------------

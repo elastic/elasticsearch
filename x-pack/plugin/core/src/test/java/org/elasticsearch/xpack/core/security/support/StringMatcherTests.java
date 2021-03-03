@@ -26,10 +26,11 @@ public class StringMatcherTests extends ESTestCase {
     public void testSingleWildcard() throws Exception {
         final String prefix = randomAlphaOfLengthBetween(3, 5);
         final StringMatcher matcher = StringMatcher.of(prefix + "*");
+        final String normalisedPrefix = prefix.replace("\\", "");
         for (int i = 0; i < 10; i++) {
-            assertMatch(matcher, prefix + randomAlphaOfLengthBetween(i, 20));
-            assertNoMatch(matcher, randomAlphaOfLengthBetween(1, prefix.length() - 1));
-            assertNoMatch(matcher, randomValueOtherThanMany(s -> s.startsWith(prefix), () -> randomAlphaOfLengthBetween(1, 8)));
+            assertMatch(matcher, normalisedPrefix + randomAlphaOfLengthBetween(i, 20));
+            assertNoMatch(matcher, randomAlphaOfLengthBetween(1, normalisedPrefix.length() - 1));
+            assertNoMatch(matcher, randomValueOtherThanMany(s -> s.startsWith(normalisedPrefix), () -> randomAlphaOfLengthBetween(1, 8)));
         }
     }
 
@@ -48,10 +49,11 @@ public class StringMatcherTests extends ESTestCase {
         final String prefix = randomValueOtherThanMany(StringMatcherTests::hasHighSurrogate,
             () -> randomRealisticUnicodeOfLengthBetween(3, 5));
         final StringMatcher matcher = StringMatcher.of(prefix + "*");
+        final String normalisedPrefix = prefix.replace("\\", "");
         for (int i = 0; i < 10; i++) {
-            assertMatch(matcher, prefix + randomRealisticUnicodeOfLengthBetween(i, 20));
-            assertNoMatch(matcher, randomRealisticUnicodeOfLengthBetween(1, prefix.length() - 1));
-            assertNoMatch(matcher, randomValueOtherThanMany(s -> s.startsWith(prefix), () -> randomUnicodeOfLengthBetween(1, 8)));
+            assertMatch(matcher, normalisedPrefix + randomRealisticUnicodeOfLengthBetween(i, 20));
+            assertNoMatch(matcher, randomRealisticUnicodeOfLengthBetween(1, normalisedPrefix.length() - 1));
+            assertNoMatch(matcher, randomValueOtherThanMany(s -> s.startsWith(normalisedPrefix), () -> randomUnicodeOfLengthBetween(1, 8)));
         }
     }
 

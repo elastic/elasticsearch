@@ -10,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -18,8 +17,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -165,7 +164,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             mock(DataFrameAnalyticsManager.class),
             mock(DataFrameAnalyticsAuditor.class),
             mock(MlMemoryTracker.class),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+            TestIndexNameExpressionResolver.newInstance());
     }
 
     private static DiscoveryNode createNode(int i, boolean isMlNode, Version nodeVersion) {

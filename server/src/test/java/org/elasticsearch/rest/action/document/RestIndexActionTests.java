@@ -12,12 +12,14 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.document.RestIndexAction.AutoIdHandler;
 import org.elasticsearch.rest.action.document.RestIndexAction.CreateHandler;
@@ -68,6 +70,7 @@ public class RestIndexActionTests extends RestActionTestCase {
             assertThat(request, instanceOf(IndexRequest.class));
             assertThat(((IndexRequest) request).opType(), equalTo(expectedOpType));
             executeCalled.set(true);
+            return new IndexResponse(new ShardId("test", "test", 0), "id", 0, 0, 0, true);
         });
         RestRequest autoIdRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.POST)

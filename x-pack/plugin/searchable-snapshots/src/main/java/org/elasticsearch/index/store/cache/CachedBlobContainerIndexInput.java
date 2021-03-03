@@ -84,7 +84,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()),
             rangeSize,
             recoveryRangeSize,
-            directory.getBlobCacheByteRange(fileInfo.physicalName(), fileInfo.length())
+            directory.getBlobCacheByteRange(fileInfo.physicalName(), fileInfo.length()),
+            ByteRange.EMPTY
         );
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
         stats.incrementOpenCount();
@@ -101,9 +102,21 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         CacheFileReference cacheFileReference,
         int rangeSize,
         int recoveryRangeSize,
-        ByteRange blobCacheByteRange
+        ByteRange headerBlobCacheByteRange,
+        ByteRange footerBlobCacheByteRange
     ) {
-        super(logger, resourceDesc, directory, fileInfo, context, stats, offset, length, blobCacheByteRange);
+        super(
+            logger,
+            resourceDesc,
+            directory,
+            fileInfo,
+            context,
+            stats,
+            offset,
+            length,
+            headerBlobCacheByteRange,
+            footerBlobCacheByteRange
+        );
         this.cacheFileReference = cacheFileReference;
         this.lastReadPosition = this.offset;
         this.lastSeekPosition = this.offset;
@@ -134,7 +147,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     @Override
     protected void doReadInternal(ByteBuffer b) throws IOException {
         ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
-        final long position = getFilePointer() + this.offset;
+        final long position = getAbsolutePosition();
         final int length = b.remaining();
 
         logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + length, length, this);
@@ -142,24 +155,29 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             final CacheFile cacheFile = cacheFileReference.get();
 
             // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
+            if (isReadFromCompoundFileDuringRecovery(position, length) == false) {
+                final Future<Integer> waitingForRead = cacheFile.readIfAvailableOrPending(
+                    ByteRange.of(position, position + length),
+                    chan -> {
+                        final int read = readCacheFile(chan, position, b);
+                        assert read == length : read + " vs " + length;
+                        return read;
+                    }
+                );
 
-            final Future<Integer> waitingForRead = cacheFile.readIfAvailableOrPending(ByteRange.of(position, position + length), chan -> {
-                final int read = readCacheFile(chan, position, b);
-                assert read == length : read + " vs " + length;
-                return read;
-            });
-
-            if (waitingForRead != null) {
-                final Integer read = waitingForRead.get();
-                assert read == length;
-                readComplete(position, length);
-                return;
+                if (waitingForRead != null) {
+                    final Integer read = waitingForRead.get();
+                    assert read == length;
+                    readComplete(position, length);
+                    return;
+                }
             }
 
             // Requested data is not on disk, so try the cache index next.
             final ByteRange indexCacheMiss; // null if not a miss
 
-            if (blobCacheByteRange.contains(position, position + length)) {
+            final ByteRange blobCacheByteRange = maybeReadFromBlobCache(position, length);
+            if (blobCacheByteRange != ByteRange.EMPTY) {
                 final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), blobCacheByteRange);
                 assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || cachedBlob.from() <= position;
                 assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || length <= cachedBlob.length();
@@ -562,33 +580,36 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     @Override
-    public IndexInput slice(String sliceDescription, long offset, long length) {
-        if (offset < 0 || length < 0 || offset + length > length()) {
+    public IndexInput slice(String sliceDescription, long sliceOffset, long sliceLength) {
+        if (sliceOffset < 0 || sliceLength < 0 || sliceOffset + sliceLength > length()) {
             throw new IllegalArgumentException(
                 "slice() "
                     + sliceDescription
                     + " out of bounds: offset="
-                    + offset
+                    + sliceOffset
                     + ",length="
-                    + length
+                    + sliceLength
                     + ",fileLength="
                     + length()
                     + ": "
                     + this
             );
         }
+        final long offset = this.offset + sliceOffset;
+        final Tuple<ByteRange, ByteRange> blobCacheByteRanges = getBlobCacheByteRangesForSlice(sliceDescription, offset, sliceLength);
         final CachedBlobContainerIndexInput slice = new CachedBlobContainerIndexInput(
             getFullSliceDescription(sliceDescription),
             directory,
             fileInfo,
             context,
             stats,
-            this.offset + offset,
-            length,
+            offset,
+            sliceLength,
             cacheFileReference,
             defaultRangeSize,
             recoveryRangeSize,
-            ByteRange.EMPTY // TODO implement blob cache for slices when it makes sense (like CFs)
+            blobCacheByteRanges.v1(),
+            blobCacheByteRanges.v2()
         );
         slice.isClone = true;
         return slice;

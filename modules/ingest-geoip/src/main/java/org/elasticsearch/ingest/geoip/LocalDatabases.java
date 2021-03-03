@@ -46,10 +46,10 @@ final class LocalDatabases implements Closeable {
     private static final Logger LOGGER = LogManager.getLogger(LocalDatabases.class);
 
     private final GeoIpCache cache;
-    final Path geoipConfigDir;
+    private final Path geoipConfigDir;
 
     private final Map<String, DatabaseReaderLazyLoader> defaultDatabases;
-    final ConcurrentMap<String, DatabaseReaderLazyLoader> configDatabases;
+    private final ConcurrentMap<String, DatabaseReaderLazyLoader> configDatabases;
 
     LocalDatabases(Environment environment, GeoIpCache cache) {
         this(

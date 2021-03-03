@@ -145,6 +145,16 @@ final class DatabaseRegistry implements Closeable {
         return all;
     }
 
+    // for testing only:
+    DatabaseReaderLazyLoader get(String key) {
+        DatabaseReference reference = databases.get(key);
+        if (reference != null) {
+            return reference.reader;
+        } else {
+            return null;
+        }
+    }
+
     @Override
     public void close() throws IOException {
         IOUtils.close(databases.values());

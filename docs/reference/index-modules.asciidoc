@@ -252,6 +252,15 @@ are ignored for this index.
     The maximum length of regex that can be used in Regexp Query.
     Defaults to `1000`.
 
+`index.query.default_field`::
+(string or array of strings)
+Wildcard (`*`) patterns matching one or more fields. Defaults to `*` (all
+fields). The following query types search these fields by default:
+* <<query-dsl-mlt-query>>
+* <<query-dsl-multi-match-query>>
+* <<query-dsl-query-string-query>>
+* <<query-dsl-simple-query-string-query>>
+
  `index.routing.allocation.enable`::
 
     Controls shard allocation for this index. It can be set to:

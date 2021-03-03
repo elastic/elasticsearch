@@ -20,12 +20,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -43,14 +43,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -163,13 +162,21 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseSearchableSnap
 
         final MountSearchableSnapshotRequest req = prepareMountRequest();
 
-        final ListenableActionFuture<Void> nodeInfoBlock = new ListenableActionFuture<>();
+        final Map<String, ListenableActionFuture<Void>> nodeInfoBlocks = ConcurrentCollections.newConcurrentMap();
+        final Function<String, ListenableActionFuture<Void>> nodeInfoBlockGetter = nodeName -> nodeInfoBlocks.computeIfAbsent(
+            nodeName,
+            ignored -> new ListenableActionFuture<>()
+        );
+        // Unblock all the existing nodes
+        for (final String nodeName : internalCluster().getNodeNames()) {
+            nodeInfoBlockGetter.apply(nodeName).onResponse(null);
+        }
 
         for (final TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             final MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
                 if (action.startsWith(NodesInfoAction.NAME)) {
-                    nodeInfoBlock.addListener(new ActionListener<Void>() {
+                    nodeInfoBlockGetter.apply(connection.getNode().getName()).addListener(new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void aVoid) {
                             try {
@@ -208,34 +215,39 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseSearchableSnap
                     .setShard(0)
                     .get()
                     .getExplanation();
-                assertTrue(Strings.toString(explanation), explanation.getShardAllocationDecision().isDecisionTaken());
 
                 assertThat(
                     Strings.toString(explanation),
                     explanation.getShardAllocationDecision().getAllocateDecision().getAllocationStatus(),
-                    equalTo(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED)
+                    equalTo(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA)
                 );
 
-                assertThat(
-                    Strings.toString(explanation),
-                    explanation.getShardAllocationDecision()
-                        .getAllocateDecision()
-                        .getNodeDecisions()
-                        .stream()
-                        .flatMap(
-                            nodeAllocationResult -> nodeAllocationResult.getCanAllocateDecision()
-                                .getDecisions()
-                                .stream()
-                                .map(Decision::getExplanation)
-                        )
-                        .collect(Collectors.toList()),
-                    hasItem(allOf(containsString(SNAPSHOT_CACHE_SIZE_SETTING.getKey()), containsString("not known yet")))
-                );
             } catch (IndexNotFoundException e) {
                 throw new AssertionError("not restored yet", e);
             }
         });
 
+        // Unblock one of the new nodes
+        nodeInfoBlockGetter.apply(newNodes.get(1)).onResponse(null);
+
+        // Still won't be allocated
+        assertFalse(responseFuture.isDone());
+        final ClusterAllocationExplanation explanation = client().admin()
+            .cluster()
+            .prepareAllocationExplain()
+            .setPrimary(true)
+            .setIndex(req.mountedIndexName())
+            .setShard(0)
+            .get()
+            .getExplanation();
+
+        assertThat(
+            Strings.toString(explanation),
+            explanation.getShardAllocationDecision().getAllocateDecision().getAllocationStatus(),
+            equalTo(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA)
+        );
+
+        // Unblock the other new node, but maybe inject a few errors
         final MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
             newNodes.get(0)
@@ -248,8 +260,8 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseSearchableSnap
                 handler.messageReceived(request, channel, task);
             }
         });
+        nodeInfoBlockGetter.apply(newNodes.get(0)).onResponse(null);
 
-        nodeInfoBlock.onResponse(null);
         final RestoreSnapshotResponse restoreSnapshotResponse = responseFuture.actionGet(10, TimeUnit.SECONDS);
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(req.mountedIndexName());

@@ -107,6 +107,12 @@ public class FrozenCacheInfoService implements ClusterStateListener {
         }
     }
 
+    public boolean isFetching() {
+        synchronized (mutex) {
+            return nodeStates.values().stream().anyMatch(nodeStateHolder -> nodeStateHolder.nodeState == NodeState.FETCHING);
+        }
+    }
+
     private class AsyncNodeFetch extends AbstractRunnable {
 
         private final Client client;
@@ -157,16 +163,20 @@ public class FrozenCacheInfoService implements ClusterStateListener {
 
         @Override
         public void onFailure(Exception e) {
+            logger.debug(new ParameterizedMessage("--> failed fetching frozen cache info from [{}]", discoveryNode), e);
             // Failed even to execute the nodes info action, just give up
             updateEntry(NodeState.FAILED);
         }
 
         private void recordFailure(Exception e) {
-            logger.debug(new ParameterizedMessage("failed to retrieve node settings from node {}", discoveryNode), e);
             final boolean shouldRetry;
             synchronized (mutex) {
                 shouldRetry = isElectedMaster && nodeStates.get(discoveryNode) == nodeStateHolder;
             }
+            logger.debug(
+                new ParameterizedMessage("failed to retrieve node settings from node {}, shouldRetry={}", discoveryNode, shouldRetry),
+                e
+            );
             if (shouldRetry) {
                 // failure is likely something like a CircuitBreakingException, so there's no sense in an immediate retry
                 client.threadPool().scheduleUnlessShuttingDown(TimeValue.timeValueSeconds(1), ThreadPool.Names.SAME, AsyncNodeFetch.this);

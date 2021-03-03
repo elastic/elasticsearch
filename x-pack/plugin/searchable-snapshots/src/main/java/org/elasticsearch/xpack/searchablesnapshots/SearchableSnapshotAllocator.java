@@ -191,6 +191,11 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
         }
 
+        if (SNAPSHOT_PARTIAL_SETTING.get(allocation.metadata().index(shardRouting.index()).getSettings())
+            && frozenCacheInfoService.isFetching()) {
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
+        }
+
         final boolean explain = allocation.debugDecision();
         // pre-check if it can be allocated to any node that currently exists, so we won't list the cache sizes for it for nothing
         // TODO: in the following logic, we do not account for existing cache size when handling disk space checks, should and can we

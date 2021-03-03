@@ -70,6 +70,12 @@ public final class ByteRange implements Comparable<ByteRange> {
     }
 
     public ByteRange overlap(ByteRange other) {
+        if (contains(other.start, other.end)) {
+            return other;
+        }
+        if (other.contains(start, end)) {
+            return this;
+        }
         return of(Math.max(start, other.start()), Math.min(end, other.end()));
     }
 

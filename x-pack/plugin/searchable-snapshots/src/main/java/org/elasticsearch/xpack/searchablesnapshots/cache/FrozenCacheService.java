@@ -183,22 +183,6 @@ public class FrozenCacheService implements Releasable {
         return largeRegions + 1;
     }
 
-    private int smallRegions(long fileLength, boolean isMetaFile) {
-        final long tinyRegionSize = sharedBytes.sharedCacheConfiguration.tinyRegionSize();
-        final int largeRegionCount = largeRegions(fileLength, isMetaFile);
-        final long nonHeaderLength = isMetaFile ? fileLength : fileLength - tinyRegionSize;
-        final long remainingLength = nonHeaderLength - largeRegionCount * sharedBytes.sharedCacheConfiguration.standardRegionSize();
-        if (remainingLength <= 0) {
-            return 0;
-        }
-        final int smallRegions = Math.toIntExact(remainingLength / smallRegionSize);
-        final long remainder = remainingLength % smallRegionSize;
-        if (remainder == 0) {
-            return smallRegions;
-        }
-        return smallRegions + 1;
-    }
-
     // get the region of a file of the given size that the given position belongs to
     private int getRegion(long position, long fileSize, boolean isMetaFile) {
         final long tinyRegionSize = sharedBytes.sharedCacheConfiguration.tinyRegionSize();
@@ -224,14 +208,14 @@ public class FrozenCacheService implements Releasable {
             return position;
         }
         final long tinyRegionSize = sharedBytes.sharedCacheConfiguration.tinyRegionSize();
-        final long afterHeaderSize = isMetaFile ? fileSize : fileSize - tinyRegionSize;
+        final long afterHeaderSize = isMetaFile ? position : position - tinyRegionSize;
         switch (regionType(region, fileSize, isMetaFile)) {
-            case TINY:
-                return ((afterHeaderSize % regionSize) % smallRegionSize) % tinyRegionSize;
             case SMALL:
                 return (afterHeaderSize % regionSize) % smallRegionSize;
-            default:
+            case STANDARD:
                 return afterHeaderSize % regionSize;
+            default:
+                throw new AssertionError();
         }
     }
 
@@ -407,18 +391,7 @@ public class FrozenCacheService implements Releasable {
 
     private synchronized boolean invariant(final Entry<CacheFileRegion> e, boolean present) {
         boolean found = false;
-        final Entry<CacheFileRegion>[] freqs;
-        switch (e.chunk.regionSize()) {
-            case SMALL:
-                freqs = smallRegionFreqs;
-                break;
-            case TINY:
-                freqs = tinyRegionFreqs;
-                break;
-            default:
-                freqs = regionFreqs;
-                break;
-        }
+        final Entry<CacheFileRegion>[] freqs = getFrequencies(e);
         for (int i = 0; i < maxFreq; i++) {
             assert freqs[i] == null || freqs[i].prev != null;
             assert freqs[i] == null || freqs[i].prev != freqs[i] || freqs[i].next == null;
@@ -477,18 +450,7 @@ public class FrozenCacheService implements Releasable {
         assert invariant(entry, false);
         assert entry.prev == null;
         assert entry.next == null;
-        final Entry<CacheFileRegion>[] freqs;
-        switch (entry.chunk.regionSize()) {
-            case STANDARD:
-                freqs = regionFreqs;
-                break;
-            case SMALL:
-                freqs = smallRegionFreqs;
-                break;
-            default:
-                freqs = tinyRegionFreqs;
-                break;
-        }
+        final Entry<CacheFileRegion>[] freqs = getFrequencies(entry);
         final Entry<CacheFileRegion> currFront = freqs[entry.freq];
         if (currFront == null) {
             freqs[entry.freq] = entry;
@@ -513,18 +475,7 @@ public class FrozenCacheService implements Releasable {
         assert Thread.holdsLock(this);
         assert invariant(entry, true);
         assert entry.prev != null;
-        final Entry<CacheFileRegion>[] freqs;
-        switch (entry.chunk.regionSize()) {
-            case STANDARD:
-                freqs = regionFreqs;
-                break;
-            case SMALL:
-                freqs = smallRegionFreqs;
-                break;
-            default:
-                freqs = tinyRegionFreqs;
-                break;
-        }
+        final Entry<CacheFileRegion>[] freqs = getFrequencies(entry);
         final Entry<CacheFileRegion> currFront = freqs[entry.freq];
         assert currFront != null;
         if (currFront == entry) {
@@ -545,6 +496,22 @@ public class FrozenCacheService implements Releasable {
         entry.next = null;
         entry.prev = null;
         assert invariant(entry, false);
+    }
+
+    private Entry<CacheFileRegion>[] getFrequencies(Entry<CacheFileRegion> entry) {
+        final Entry<CacheFileRegion>[] freqs;
+        switch (entry.chunk.regionSize()) {
+            case STANDARD:
+                freqs = regionFreqs;
+                break;
+            case SMALL:
+                freqs = smallRegionFreqs;
+                break;
+            default:
+                freqs = tinyRegionFreqs;
+                break;
+        }
+        return freqs;
     }
 
     private void computeDecay() {

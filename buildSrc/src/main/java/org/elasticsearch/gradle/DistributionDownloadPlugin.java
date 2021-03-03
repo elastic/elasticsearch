@@ -112,7 +112,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         // for the distribution as a file, just depend on the artifact directly
         DistributionDependency distributionDependency = resolveDependencyNotation(project, distribution);
         dependencies.add(distribution.configuration.getName(), distributionDependency.getDefaultNotation());
-        // no extraction needed for rpm, deb or dockerElasticsearchDistribution.java
+        // no extraction needed for rpm, deb or docker
         if (distribution.getType().shouldExtract()) {
             // The extracted configuration depends on the artifact directly but has
             // an artifact transform registered to resolve it as an unpacked folder.

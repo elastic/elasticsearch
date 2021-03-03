@@ -125,6 +125,7 @@ public class PermissionsIT extends ESRestTestCase {
      * but then not have permissions to operate on an index that was later associated with that policy by another
      * user
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69925")
     @SuppressWarnings("unchecked")
     public void testCanManageIndexWithNoPermissions() throws Exception {
         createIndexAsAdmin("not-ilm", indexSettingsWithPolicy, "");

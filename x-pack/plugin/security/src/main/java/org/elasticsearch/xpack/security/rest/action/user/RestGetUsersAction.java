@@ -38,7 +38,6 @@ public class RestGetUsersAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
             Route.builder(GET, "/_security/user/")
                 .replaces(GET, "/_xpack/security/user/", RestApiVersion.V_7).build(),

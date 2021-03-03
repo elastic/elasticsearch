@@ -38,7 +38,6 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
             Route.builder(POST, "/_security/user/{username}/_enable")
                 .replaces(POST, "/_xpack/security/user/{username}/_enable", RestApiVersion.V_7).build(),

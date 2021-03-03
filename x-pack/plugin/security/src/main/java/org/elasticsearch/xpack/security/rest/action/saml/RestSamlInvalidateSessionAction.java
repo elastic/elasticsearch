@@ -49,7 +49,6 @@ public class RestSamlInvalidateSessionAction extends SamlBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
             Route.builder(POST, "/_security/saml/invalidate")
                 .replaces(POST, "/_xpack/security/saml/invalidate", RestApiVersion.V_7).build()

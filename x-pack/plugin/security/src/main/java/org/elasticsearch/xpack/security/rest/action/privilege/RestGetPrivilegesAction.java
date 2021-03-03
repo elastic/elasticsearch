@@ -44,7 +44,6 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
             Route.builder(GET, "/_security/privilege/")
                 .replaces(GET, "/_xpack/security/privilege/", RestApiVersion.V_7).build(),

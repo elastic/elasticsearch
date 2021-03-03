@@ -39,7 +39,6 @@ public class RestPutRoleMappingAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
             Route.builder(POST, "/_security/role_mapping/{name}")
                 .replaces(POST, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7).build(),

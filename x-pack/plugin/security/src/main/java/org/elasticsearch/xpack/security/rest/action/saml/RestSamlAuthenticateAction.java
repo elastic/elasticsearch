@@ -69,7 +69,6 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
 
     @Override
     public List<Route> routes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
             Route.builder(POST, "/_security/saml/authenticate")
                 .replaces(POST, "/_xpack/security/saml/authenticate", RestApiVersion.V_7).build()

@@ -47,7 +47,6 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
 
     @Override
     public List<Route> routes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
             Route.builder(PUT, "/_security/user/{username}/_password")
                 .replaces(PUT, "/_xpack/security/user/{username}/_password", RestApiVersion.V_7).build(),

@@ -38,7 +38,6 @@ public class RestGetRolesAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
             Route.builder(GET, "/_security/role/")
                 .replaces(GET, "/_xpack/security/role/", RestApiVersion.V_7).build(),

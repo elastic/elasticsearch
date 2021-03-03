@@ -36,7 +36,6 @@ public class RestDeleteUserAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
             Route.builder(DELETE, "/_security/user/{username}")
                 .replaces(DELETE, "/_xpack/security/user/{username}", RestApiVersion.V_7).build()

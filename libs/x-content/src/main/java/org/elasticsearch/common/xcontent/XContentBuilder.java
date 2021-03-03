@@ -157,7 +157,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     private boolean humanReadable = false;
 
-    private RestApiVersion restApiCompatibilityVersion;
+    private RestApiVersion restApiVersion;
 
     private ParsedMediaType responseContentType;
 
@@ -1011,9 +1011,9 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @param restApiVersion - indicates requested a version of API that the builder will be creating
      */
     public XContentBuilder withCompatibleVersion(RestApiVersion restApiVersion) {
-        assert this.restApiCompatibilityVersion == null : "restApiCompatibleVersion has already been set";
-        Objects.requireNonNull(restApiVersion, "restApiCompatibleVersion cannot be null");
-        this.restApiCompatibilityVersion = restApiVersion;
+        assert this.restApiVersion == null : "restApiVersion has already been set";
+        Objects.requireNonNull(restApiVersion, "restApiVersion cannot be null");
+        this.restApiVersion = restApiVersion;
         return this;
     }
 
@@ -1021,8 +1021,8 @@ public final class XContentBuilder implements Closeable, Flushable {
      * Returns a version used for serialising a response.
      * @return a compatible version
      */
-    public RestApiVersion getRestApiCompatibilityVersion() {
-        return restApiCompatibilityVersion;
+    public RestApiVersion getRestApiVersion() {
+        return restApiVersion;
     }
 
     @Override

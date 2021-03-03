@@ -90,17 +90,17 @@ public class ParseField {
 
 
     /**
-     * Creates a new field with current name and deprecatedNames, but overrides restApiCompatibleVersions
-     * @param restApiVersions rest api compatibility versions under which specifies when a lookup will be allowed
+     * Creates a new field with current name and deprecatedNames, but overrides restApiVersions
+     * @param restApiVersions rest api versions which specifies when a lookup will be allowed
      */
-    public ParseField withRestApiCompatibilityVersions(RestApiVersion... restApiVersions) {
+    public ParseField withRestApiVersions(RestApiVersion... restApiVersions) {
         return new ParseField(this.name, Arrays.asList(restApiVersions), this.deprecatedNames);
     }
 
     /**
      * @return rest api compatibility versions under which a lookup will be allowed
      */
-    public Set<RestApiVersion> getRestApiCompatibleVersions() {
+    public Set<RestApiVersion> getRestApiVersions() {
         return restApiVersions;
     }
 

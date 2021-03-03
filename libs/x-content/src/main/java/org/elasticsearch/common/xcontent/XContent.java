@@ -78,7 +78,7 @@ public interface XContent {
 
     /**
      * Creates a parser over the provided input stream and with the indication that a request is using REST compatible API.
-     * Depending on restApiCompatibleVersionParses
+     *
      * @param restApiVersion - indicates if the N-1 or N compatible XContent parsing logic will be used.
      */
     XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,

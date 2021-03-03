@@ -336,7 +336,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     private Map<RestApiVersion, Integer> addConstructorArg(BiConsumer<?, ?> consumer, ParseField parseField) {
 
         boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
-        for (RestApiVersion restApiVersion : parseField.getRestApiCompatibleVersions()) {
+        for (RestApiVersion restApiVersion : parseField.getRestApiVersions()) {
 
             constructorArgInfos.computeIfAbsent(restApiVersion, (v)-> new ArrayList<>())
                     .add(new ConstructorArgInfo(parseField, required));

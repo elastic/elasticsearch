@@ -639,7 +639,7 @@ public class RestControllerTests extends ESTestCase {
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 // in real use case we will use exact version RestApiCompatibleVersion.V_7
                 XContentBuilder xContentBuilder = channel.newBuilder();
-                assertThat(xContentBuilder.getRestApiCompatibilityVersion(), equalTo(RestApiVersion.minimumSupported()));
+                assertThat(xContentBuilder.getRestApiVersion(), equalTo(RestApiVersion.minimumSupported()));
                 assertThat(request.contentParser().getRestApiCompatibleVersion(), equalTo(RestApiVersion.minimumSupported()));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
@@ -674,7 +674,7 @@ public class RestControllerTests extends ESTestCase {
                 // even though the handler is CURRENT, the xContentBuilder has the version requested by a client.
                 // This allows to implement the compatible logic within the serialisation without introducing V7 (compatible) handler
                 // when only response shape has changed
-                assertThat(xContentBuilder.getRestApiCompatibilityVersion(), equalTo(RestApiVersion.minimumSupported()));
+                assertThat(xContentBuilder.getRestApiVersion(), equalTo(RestApiVersion.minimumSupported()));
                 assertThat(request.contentParser().getRestApiCompatibleVersion(), equalTo(RestApiVersion.minimumSupported()));
 
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
@@ -719,7 +719,7 @@ public class RestControllerTests extends ESTestCase {
 
                 XContentBuilder xContentBuilder = channel.newBuilder();
                 assertThat(request.contentParser().getRestApiCompatibleVersion(), equalTo(RestApiVersion.current()));
-                assertThat(xContentBuilder.getRestApiCompatibilityVersion(), equalTo(RestApiVersion.current()));
+                assertThat(xContentBuilder.getRestApiVersion(), equalTo(RestApiVersion.current()));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 

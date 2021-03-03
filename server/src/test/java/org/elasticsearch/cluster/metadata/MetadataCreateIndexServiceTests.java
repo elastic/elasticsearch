@@ -111,7 +111,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     @Before
     public void setupCreateIndexRequestAndAliasValidator() {
-        indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
         aliasValidator = new AliasValidator();
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT)

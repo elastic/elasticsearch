@@ -77,6 +77,12 @@ public class SystemIndexDescriptor {
     /** Whether there are dynamic fields in this descriptor's mappings */
     private final boolean hasDynamicMappings;
 
+    /** The {@link Type} of system index this descriptor represents */
+    private final Type type;
+
+    /** A list of allowed product origins that may access an external system index */
+    private final List<String> allowedElasticProductOrigins;
+
     /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
      * by Elasticsearch internally.
@@ -84,7 +90,20 @@ public class SystemIndexDescriptor {
      * @param description The name of the plugin responsible for this system index.
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
-        this(indexPattern, null, description, null, null, null, 0, null, null, null);
+        this(indexPattern, null, description, null, null, null, 0, null, null, null, Type.INTERNAL, List.of());
+    }
+
+    /**
+     * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
+     * by Elasticsearch internally.
+     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
+     * @param description The name of the plugin responsible for this system index.
+     * @param type The {@link Type} of system index
+     * @param allowedElasticProductOrigins A list of allowed origin values that should be allowed access in the case of external system
+     *                                     indices
+     */
+    public SystemIndexDescriptor(String indexPattern, String description, Type type, List<String> allowedElasticProductOrigins) {
+        this(indexPattern, null, description, null, null, null, 0, null, null, null, type, allowedElasticProductOrigins);
     }
 
     /**
@@ -101,6 +120,9 @@ public class SystemIndexDescriptor {
     *                       Elasticsearch version when the index was created.
      * @param origin the client origin to use when creating this index.
      * @param minimumNodeVersion the minimum cluster node version required for this descriptor, or null if there is no restriction
+     * @param type The {@link Type} of system index
+     * @param allowedElasticProductOrigins A list of allowed origin values that should be allowed access in the case of external system
+     *                                     indices
      */
     SystemIndexDescriptor(
         String indexPattern,
@@ -112,7 +134,9 @@ public class SystemIndexDescriptor {
         int indexFormat,
         String versionMetaKey,
         String origin,
-        Version minimumNodeVersion
+        Version minimumNodeVersion,
+        Type type,
+        List<String> allowedElasticProductOrigins
     ) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
@@ -157,6 +181,13 @@ public class SystemIndexDescriptor {
             Strings.requireNonEmpty(versionMetaKey, "Must supply versionMetaKey if mappings or settings are defined");
             Strings.requireNonEmpty(origin, "Must supply origin if mappings or settings are defined");
         }
+        Objects.requireNonNull(type, "type must not be null");
+        Objects.requireNonNull(allowedElasticProductOrigins, "allowedProductOrigins must not be null");
+        if (type.isInternal() && allowedElasticProductOrigins.isEmpty() == false) {
+            throw new IllegalArgumentException("Allowed origins are not valid for internal system indices");
+        } else if (type.isExternal() && allowedElasticProductOrigins.isEmpty()) {
+            throw new IllegalArgumentException("External system indices without allowed products is not a valid combination");
+        }
 
         this.indexPattern = indexPattern;
         this.primaryIndex = primaryIndex;
@@ -172,7 +203,8 @@ public class SystemIndexDescriptor {
         this.versionMetaKey = versionMetaKey;
         this.origin = origin;
         this.minimumNodeVersion = minimumNodeVersion;
-
+        this.type = type;
+        this.allowedElasticProductOrigins = allowedElasticProductOrigins;
         this.hasDynamicMappings = this.mappings != null
             && findDynamicMapping(XContentHelper.convertToMap(JsonXContent.jsonXContent, mappings, false));
     }
@@ -255,7 +287,8 @@ public class SystemIndexDescriptor {
     }
 
     public boolean isAutomaticallyManaged() {
-        return this.mappings != null || this.settings != null;
+        // TODO remove mappings/settings check after all internal indices have been migrated
+        return type.isManaged() && (this.mappings != null || this.settings != null);
     }
 
     public String getOrigin() {
@@ -264,6 +297,18 @@ public class SystemIndexDescriptor {
 
     public boolean hasDynamicMappings() {
         return this.hasDynamicMappings;
+    }
+
+    public boolean isExternal() {
+        return type.isExternal();
+    }
+
+    public boolean isInternal() {
+        return type.isInternal();
+    }
+
+    public List<String> getAllowedElasticProductOrigins() {
+        return allowedElasticProductOrigins;
     }
 
     /**
@@ -289,11 +334,46 @@ public class SystemIndexDescriptor {
         return null;
     }
 
-    // TODO: getThreadpool()
-    // TODO: Upgrade handling (reindex script?)
-
     public static Builder builder() {
         return new Builder();
+    }
+
+    /**
+     * The specific type of system index that this descriptor represents. System indices have three defined types, which is used to
+     * control behavior. Elasticsearch itself and plugins have system indices that are necessary for their features;
+     * these system indices are referred to as internal system indices. Internal system indices are always managed indices that
+     * Elasticsearch manages.
+     *
+     * System indices can also belong to features outside of Elasticsearch that may be part of other Elastic stack components. These are
+     * external system indices as the intent is for these to be accessed via normal APIs with a special value. Within external system
+     * indices, there are two sub-types. The first are those that are managed by Elasticsearch and will have mappings/settings changed as
+     * the cluster itself is upgraded. The second are those managed by the external application and for those Elasticsearch will not
+     * perform any updates.
+     */
+    public enum Type {
+        INTERNAL(false, true),
+        EXTERNAL_MANAGED(true, true),
+        EXTERNAL_UNMANAGED(true, false);
+
+        private final boolean external;
+        private final boolean managed;
+
+        Type(boolean external, boolean managed) {
+            this.external = external;
+            this.managed = managed;
+        }
+
+        public boolean isExternal() {
+            return external;
+        }
+
+        public boolean isManaged() {
+            return managed;
+        }
+
+        public boolean isInternal() {
+            return external == false;
+        }
     }
 
     /**
@@ -310,6 +390,8 @@ public class SystemIndexDescriptor {
         private String versionMetaKey = null;
         private String origin = null;
         private Version minimumNodeVersion = null;
+        private Type type = Type.INTERNAL;
+        private List<String> allowedElasticProductOrigins = List.of();
 
         private Builder() {}
 
@@ -368,6 +450,16 @@ public class SystemIndexDescriptor {
             return this;
         }
 
+        public Builder setType(Type type) {
+            this.type = type;
+            return this;
+        }
+
+        public Builder setAllowedElasticProductOrigins(List<String> allowedElasticProductOrigins) {
+            this.allowedElasticProductOrigins = allowedElasticProductOrigins;
+            return this;
+        }
+
         /**
          * Builds a {@link SystemIndexDescriptor} using the fields supplied to this builder.
          * @return a populated descriptor.
@@ -384,7 +476,9 @@ public class SystemIndexDescriptor {
                 indexFormat,
                 versionMetaKey,
                 origin,
-                minimumNodeVersion
+                minimumNodeVersion,
+                type,
+                allowedElasticProductOrigins
             );
         }
     }

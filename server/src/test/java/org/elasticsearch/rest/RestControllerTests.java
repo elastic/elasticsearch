@@ -636,8 +636,9 @@ public class RestControllerTests extends ESTestCase {
         final String mediaType = randomCompatibleMediaType(version);
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+
         // dispatch to a compatible handler
-        restController.registerHandler(new Route(GET, "/foo"), (request, channel1, client) -> {
+        restController.registerHandler(GET, "/foo", RestApiVersion.minimumSupported(), (request, channel1, client) -> {
             // in real use case we will use exact version RestApiVersion.V_7
             XContentBuilder xContentBuilder = channel1.newBuilder();
             assertThat(xContentBuilder.getRestApiVersion(), equalTo(RestApiVersion.minimumSupported()));

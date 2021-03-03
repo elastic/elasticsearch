@@ -33,18 +33,18 @@ class RestCompatibleVersionHelper {
         boolean hasContent
     ) {
         Byte aVersion = parseVersion(acceptHeader);
-        byte acceptVersion = aVersion == null ? RestApiVersion.currentVersion().major : Integer.valueOf(aVersion).byteValue();
+        byte acceptVersion = aVersion == null ? RestApiVersion.current().major : Integer.valueOf(aVersion).byteValue();
         Byte cVersion = parseVersion(contentTypeHeader);
         byte contentTypeVersion = cVersion == null ?
-            RestApiVersion.currentVersion().major : Integer.valueOf(cVersion).byteValue();
+            RestApiVersion.current().major : Integer.valueOf(cVersion).byteValue();
 
         // accept version must be current or prior
-        if (acceptVersion > RestApiVersion.currentVersion().major ||
+        if (acceptVersion > RestApiVersion.current().major ||
             acceptVersion < RestApiVersion.minimumSupported().major) {
             throw new ElasticsearchStatusException(
                 "Accept version must be either version {} or {}, but found {}. Accept={}",
                 RestStatus.BAD_REQUEST,
-                RestApiVersion.currentVersion().major,
+                RestApiVersion.current().major,
                 RestApiVersion.minimumSupported().major,
                 acceptVersion,
                 acceptHeader
@@ -53,12 +53,12 @@ class RestCompatibleVersionHelper {
         if (hasContent) {
 
             // content-type version must be current or prior
-            if (contentTypeVersion > RestApiVersion.currentVersion().major
+            if (contentTypeVersion > RestApiVersion.current().major
                 || contentTypeVersion < RestApiVersion.minimumSupported().major) {
                 throw new ElasticsearchStatusException(
                     "Content-Type version must be either version {} or {}, but found {}. Content-Type={}",
                     RestStatus.BAD_REQUEST,
-                    RestApiVersion.currentVersion().major,
+                    RestApiVersion.current().major,
                     RestApiVersion.minimumSupported().major,
                     contentTypeVersion,
                     contentTypeHeader
@@ -85,16 +85,16 @@ class RestCompatibleVersionHelper {
                     contentTypeHeader
                 );
             }
-            if (contentTypeVersion < RestApiVersion.currentVersion().major) {
+            if (contentTypeVersion < RestApiVersion.current().major) {
                 return RestApiVersion.minimumSupported();
             }
         }
 
-        if (acceptVersion < RestApiVersion.currentVersion().major) {
+        if (acceptVersion < RestApiVersion.current().major) {
             return RestApiVersion.minimumSupported();
         }
 
-        return RestApiVersion.currentVersion();
+        return RestApiVersion.current();
     }
 
     static Byte parseVersion(ParsedMediaType parsedMediaType) {

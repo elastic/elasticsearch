@@ -160,7 +160,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
         final RestApiVersion version = maybeWrappedHandler.compatibleWithVersion();
-        assert RestApiVersion.minimumSupported() == version || RestApiVersion.currentVersion() == version
+        assert RestApiVersion.minimumSupported() == version || RestApiVersion.current() == version
             : "REST API compatibility is only supported for version " + RestApiVersion.minimumSupported().major;
 
         handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),

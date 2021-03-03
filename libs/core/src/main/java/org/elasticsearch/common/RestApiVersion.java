@@ -26,19 +26,19 @@ public enum RestApiVersion {
         this.major = (byte) major;
     }
 
-    public RestApiVersion previousMajor() {
+    public RestApiVersion previous() {
         return fromMajorVersion(major - 1);
     }
 
-    public static RestApiVersion fromMajorVersion(int majorVersion) {
+    private static RestApiVersion fromMajorVersion(int majorVersion) {
         return valueOf("V_" + majorVersion);
     }
 
     public static RestApiVersion minimumSupported() {
-        return currentVersion().previousMajor();
+        return current().previous();
     }
 
-    public static RestApiVersion currentVersion() {
+    public static RestApiVersion current() {
         return CURRENT;
     }
 

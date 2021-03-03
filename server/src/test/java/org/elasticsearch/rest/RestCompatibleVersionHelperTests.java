@@ -20,9 +20,9 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RestCompatibleVersionHelperTests extends ESTestCase {
-    int CURRENT_VERSION = RestApiVersion.currentVersion().major;
-    int PREVIOUS_VERSION = RestApiVersion.currentVersion().major - 1;
-    int OBSOLETE_VERSION = RestApiVersion.currentVersion().major - 2;
+    int CURRENT_VERSION = RestApiVersion.current().major;
+    int PREVIOUS_VERSION = RestApiVersion.current().major - 1;
+    int OBSOLETE_VERSION = RestApiVersion.current().major - 2;
 
     public void testAcceptAndContentTypeCombinations() {
         assertThat(requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyPresent()), isCompatible());

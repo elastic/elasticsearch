@@ -313,10 +313,10 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     }
 
     int getNumberOfFields() {
-        assert this.constructorArgInfos.get(RestApiVersion.currentVersion()).size()
+        assert this.constructorArgInfos.get(RestApiVersion.current()).size()
             == this.constructorArgInfos.get(RestApiVersion.minimumSupported()).size() :
             "Constructors must have same number of arguments per all compatible versions";
-        return this.constructorArgInfos.get(RestApiVersion.currentVersion()).size();
+        return this.constructorArgInfos.get(RestApiVersion.current()).size();
     }
 
     /**

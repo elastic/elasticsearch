@@ -57,7 +57,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler) {
-        this(xContentRegistry, deprecationHandler, RestApiVersion.currentVersion());
+        this(xContentRegistry, deprecationHandler, RestApiVersion.current());
     }
 
     // The 3rd party parsers we rely on are known to silently truncate fractions: see

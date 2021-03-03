@@ -370,9 +370,9 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                 fieldParserMap.putIfAbsent(RestApiVersion.minimumSupported(), new HashMap<>());
                 fieldParserMap.get(RestApiVersion.minimumSupported()).putIfAbsent(fieldValue, fieldParser);
             }
-            if (parseField.getRestApiCompatibleVersions().contains(RestApiVersion.currentVersion())) {
-                fieldParserMap.putIfAbsent(RestApiVersion.currentVersion(), new HashMap<>());
-                fieldParserMap.get(RestApiVersion.currentVersion()).putIfAbsent(fieldValue, fieldParser);
+            if (parseField.getRestApiCompatibleVersions().contains(RestApiVersion.current())) {
+                fieldParserMap.putIfAbsent(RestApiVersion.current(), new HashMap<>());
+                fieldParserMap.get(RestApiVersion.current()).putIfAbsent(fieldValue, fieldParser);
             }
         }
 

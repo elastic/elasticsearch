@@ -290,7 +290,7 @@ public class WatcherXContentParser implements XContentParser {
 
     @Override
     public RestApiVersion getRestApiCompatibleVersion() {
-        return RestApiVersion.currentVersion();
+        return RestApiVersion.current();
     }
 
     @Override

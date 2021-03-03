@@ -234,7 +234,7 @@ public class RestControllerTests extends ESTestCase {
 
     private RestHandler v8mockHandler() {
         RestHandler mock = mock(RestHandler.class);
-        Mockito.when(mock.compatibleWithVersion()).thenReturn(RestApiVersion.currentVersion());
+        Mockito.when(mock.compatibleWithVersion()).thenReturn(RestApiVersion.current());
         return mock;
     }
 
@@ -369,7 +369,7 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                assertThat(request.contentParser().getRestApiCompatibleVersion(), is(RestApiVersion.currentVersion()));
+                assertThat(request.contentParser().getRestApiCompatibleVersion(), is(RestApiVersion.current()));
 
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
@@ -396,7 +396,7 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                assertThat(request.contentParser().getRestApiCompatibleVersion(), is(RestApiVersion.currentVersion()));
+                assertThat(request.contentParser().getRestApiCompatibleVersion(), is(RestApiVersion.current()));
 
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
@@ -682,7 +682,7 @@ public class RestControllerTests extends ESTestCase {
 
             @Override
             public RestApiVersion compatibleWithVersion() {
-                return RestApiVersion.currentVersion();
+                return RestApiVersion.current();
             }
         });
 
@@ -718,14 +718,14 @@ public class RestControllerTests extends ESTestCase {
                 // Hence compatibility is not used.
 
                 XContentBuilder xContentBuilder = channel.newBuilder();
-                assertThat(request.contentParser().getRestApiCompatibleVersion(), equalTo(RestApiVersion.currentVersion()));
-                assertThat(xContentBuilder.getRestApiCompatibilityVersion(), equalTo(RestApiVersion.currentVersion()));
+                assertThat(request.contentParser().getRestApiCompatibleVersion(), equalTo(RestApiVersion.current()));
+                assertThat(xContentBuilder.getRestApiCompatibilityVersion(), equalTo(RestApiVersion.current()));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
             @Override
             public RestApiVersion compatibleWithVersion() {
-                return RestApiVersion.currentVersion();
+                return RestApiVersion.current();
             }
         });
 

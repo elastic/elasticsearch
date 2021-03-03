@@ -60,7 +60,7 @@ final class MethodHandlers {
             return null; //method not found
         }
         final RestHandler handler = versionToHandlers.get(version);
-        return handler == null ? versionToHandlers.get(RestApiVersion.currentVersion()) : handler;
+        return handler == null ? versionToHandlers.get(RestApiVersion.current()) : handler;
 
     }
 

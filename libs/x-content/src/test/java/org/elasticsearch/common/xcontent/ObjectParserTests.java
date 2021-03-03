@@ -1022,11 +1022,11 @@ public class ObjectParserTests extends ESTestCase {
 
             // declare `new_name` to be parsed when compatibility is NOT used
             PARSER.declareInt(StructWithCompatibleFields::setIntField,
-                new ParseField("new_name").withRestApiCompatibilityVersions(RestApiVersion.currentVersion()));
+                new ParseField("new_name").withRestApiCompatibilityVersions(RestApiVersion.current()));
 
             // declare `old_name` to throw exception when compatibility is NOT used
             PARSER.declareInt((r,s) -> failWithException(),
-                new ParseField("old_name").withRestApiCompatibilityVersions(RestApiVersion.currentVersion()));
+                new ParseField("old_name").withRestApiCompatibilityVersions(RestApiVersion.current()));
         }
 
         private static void failWithException() {
@@ -1044,7 +1044,7 @@ public class ObjectParserTests extends ESTestCase {
         {
             // new_name is the only way to parse when compatibility is not set
             XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"new_name\": 1}",
-                RestApiVersion.currentVersion());
+                RestApiVersion.current());
             StructWithCompatibleFields o = StructWithCompatibleFields.PARSER.parse(parser, null);
             assertEquals(1, o.intField);
         }
@@ -1052,7 +1052,7 @@ public class ObjectParserTests extends ESTestCase {
         {
             // old_name results with an exception when compatibility is not set
             XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"old_name\": 1}",
-                RestApiVersion.currentVersion());
+                RestApiVersion.current());
             expectThrows(IllegalArgumentException.class, () -> StructWithCompatibleFields.PARSER.parse(parser, null));
         }
         {

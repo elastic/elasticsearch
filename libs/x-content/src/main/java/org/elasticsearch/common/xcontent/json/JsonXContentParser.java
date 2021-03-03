@@ -28,7 +28,7 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     public JsonXContentParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, JsonParser parser) {
-        super(xContentRegistry, deprecationHandler, RestApiVersion.currentVersion());
+        super(xContentRegistry, deprecationHandler, RestApiVersion.current());
         this.parser = parser;
     }
 

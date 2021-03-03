@@ -103,7 +103,7 @@ public interface RestHandler {
      * @return a version
      */
     default RestApiVersion compatibleWithVersion() {
-        return RestApiVersion.currentVersion();
+        return RestApiVersion.current();
     }
 
     class Route {

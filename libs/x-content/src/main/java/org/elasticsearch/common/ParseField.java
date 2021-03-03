@@ -59,7 +59,7 @@ public class ParseField {
      *                        accepted when strict matching is used.
      */
     public ParseField(String name, String... deprecatedNames) {
-        this(name, List.of(RestApiVersion.currentVersion(), RestApiVersion.minimumSupported()) ,deprecatedNames);
+        this(name, List.of(RestApiVersion.current(), RestApiVersion.minimumSupported()) ,deprecatedNames);
     }
 
     /**

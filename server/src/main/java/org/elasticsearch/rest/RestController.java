@@ -182,14 +182,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
     public void registerHandler(final Route route, final RestHandler handler) {
         if (route.isReplacement()) {
             Route replaced = route.getReplacedRoute();
-            registerAsReplacedHandler(route.getMethod(), route.getPath(), RestApiVersion.current(), handler,
-                replaced.getMethod(), replaced.getPath(), route.getRestApiVersion());
+            registerAsReplacedHandler(route.getMethod(), route.getPath(), route.getRestApiVersion(), handler,
+                replaced.getMethod(), replaced.getPath(), replaced.getRestApiVersion());
         } else if (route.isDeprecated()) {
             registerAsDeprecatedHandler(route.getMethod(), route.getPath(), route.getRestApiVersion(), handler,
                 route.getDeprecationMessage());
         } else {
             // it's just a normal route
-            registerHandler(route.getMethod(), route.getPath(), RestApiVersion.current(), handler);
+            registerHandler(route.getMethod(), route.getPath(), route.getRestApiVersion(), handler);
         }
     }
 

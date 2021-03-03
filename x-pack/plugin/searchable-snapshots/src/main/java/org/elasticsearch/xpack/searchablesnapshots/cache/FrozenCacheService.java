@@ -246,7 +246,9 @@ public class FrozenCacheService implements Releasable {
                 return (region - (isMetaFile ? 0 : 1)) * regionSize + (isMetaFile ? 0 : tinyRegionSize);
             case SMALL: {
                 final int largeRegions = largeRegions(fileSize, isMetaFile);
-                return largeRegions * regionSize + (region - largeRegions - (isMetaFile ? 0 : 1)) * smallRegionSize + (isMetaFile ? 0 : tinyRegionSize);
+                return largeRegions * regionSize + (region - largeRegions - (isMetaFile ? 0 : 1)) * smallRegionSize + (isMetaFile
+                    ? 0
+                    : tinyRegionSize);
             }
             default:
                 assert false : "impossible, should always by 0";

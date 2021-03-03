@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
 import org.elasticsearch.gradle.docker.DockerSupportPlugin;
@@ -27,7 +26,6 @@ import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.provider.Provider;
 
 import java.util.Comparator;
-import static org.elasticsearch.gradle.util.Util.capitalize;
 
 /**
  * A plugin to manage getting and extracting distributions of Elasticsearch.
@@ -184,43 +182,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         } else if (distribution.getType() == Type.RPM && distroVersion.before("7.0.0")) {
             classifier = "";
         }
-        String flavor = "";
-        if (distribution.getFlavor() == Flavor.OSS && distroVersion.onOrAfter("6.3.0")) {
-            flavor = "-oss";
-        }
-
         String group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP : FAKE_IVY_GROUP;
-        return group + ":elasticsearch" + flavor + ":" + distribution.getVersion() + classifier + "@" + extension;
-    }
-
-    private static String configName(String prefix, ElasticsearchDistribution distribution) {
-        return String.format(
-            "%s_%s_%s_%s%s%s",
-            prefix,
-            distribution.getVersion(),
-            distribution.getType(),
-            distribution.getPlatform() == null ? "" : distribution.getPlatform() + "_",
-            distribution.getFlavor(),
-            distribution.getBundledJdk() ? "" : "_nojdk"
-        );
-    }
-
-    private static String extractTaskName(ElasticsearchDistribution distribution) {
-        String taskName = "extractElasticsearch";
-        if (distribution.getType() != Type.INTEG_TEST_ZIP) {
-            if (distribution.getFlavor() == Flavor.OSS) {
-                taskName += "Oss";
-            }
-            if (distribution.getBundledJdk() == false) {
-                taskName += "NoJdk";
-            }
-        }
-        if (distribution.getType() == Type.ARCHIVE) {
-            taskName += capitalize(distribution.getPlatform().toString());
-        } else if (distribution.getType() != Type.INTEG_TEST_ZIP) {
-            taskName += capitalize(distribution.getType().toString());
-        }
-        taskName += distribution.getVersion();
-        return taskName;
+        return group + ":elasticsearch" + ":" + distribution.getVersion() + classifier + "@" + extension;
     }
 }

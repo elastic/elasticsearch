@@ -1,7 +1,7 @@
-[[get-snapshottable-features-api]]
-=== Get Snapshottable Features API
+[[get-features-api]]
+=== Get Features API
 ++++
-<titleabbrev>Get snapshottable features</titleabbrev>
+<titleabbrev>Get features</titleabbrev>
 ++++
 
 Gets a list of features which can be included in snapshots using the
@@ -10,19 +10,19 @@ snapshot.
 
 [source,console]
 -----------------------------------
-GET /_snapshottable_features
+GET /_features
 -----------------------------------
 
-[[get-snapshottable-features-api-request]]
+[[get-features-api-request]]
 ==== {api-request-title}
 
-`GET /_snapshottable_features`
+`GET /_features`
 
 
-[[get-snapshottable-features-api-desc]]
+[[get-features-api-desc]]
 ==== {api-description-title}
 
-You can use the get snapshottable features API to determine which feature states
+You can use the get features API to determine which feature states
 to include when <<snapshots-take-snapshot,taking a snapshot>>. By default, all
 feature states are included in a snapshot if that snapshot includes the global
 state, or none if it does not.

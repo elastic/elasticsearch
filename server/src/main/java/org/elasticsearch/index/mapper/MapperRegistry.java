@@ -6,13 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.indices.mapper;
+package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.NestedPathFieldMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.Collections;

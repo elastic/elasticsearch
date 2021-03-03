@@ -256,7 +256,7 @@ class Example {
 To use the `Example` reference type, you create a new instance of `Example`
 named `my_example`. You can then define this new instance. The following
 example declares two primitive types named `my_int` and `my_double`, assigns
-them each a valie, and includes them in the `my_example` reference type.
+them each a value, and includes them in the `my_example` reference type.
 
 [source,painless]
 ----
@@ -297,66 +297,128 @@ modify `my_example2` without impacting `my_example1`.
 
 Looking back, `Example` indicates that `my_example.my_int = 1`. The last line
 in the previous statement modifies the value of that variable by setting the
-value of `my_int` to `4`.
+value of `my_int` to `4`. The `Example` reference type includes the following
+definitions:
+
+[source,painless]
+----
+my_example.my_int = 1;
+my_example.my_double = 2;
+double my_add = my_example.add();
+----
+
+The `my_add` variable would return `3` because it adds the values of
+`my_example.my_int` (`1`) and `my_example.my_double` (`2`). However,
+`my_example2` would return `6`, because the value of `my_example2.my_int` is
+now `4` and the value of `my_example.my_double` is `2`.
 
 [[script-type-dynamic]]
 ==== Dynamic types
 A dynamic type can represent the value of any primitive type or reference type
 using a single type named `def`. A `def` type value mimics the behavior of
-whatever value it represents at runtime, and always represents the last child
-descendant type value of any type value when evaluated.
+whatever value it represents at runtime. Because a `def` type can mimic
+multiple types, it always represents the last child descendant type value of
+any type value when evaluated.
 
-To access a `def` type _variable_, declare the variable or access a
-reference type member field from an instance. You can then assign the variable
+To access a `def` type variable, declare the variable or access a reference
+type member field from an instance. You can then assign the variable
 a value and reference the variable in various operations. The default value for
 a newly-declared `def` type variable is `null`.
 
-Let's implement a `def` type to the previous example. You can declare the
-primitive type `int`, name it `my_int`, and then assign it avalue of `1`:
-
-[source,console]
-----
-POST /_scripts/painless/_execute
-{
-  "script": {
-    "source": """
-        int my_int;
-        my_int = 1;
-    """
-  }
-}
-----
-
-Instead, you can use a `def` type variable to simplify the declaration:
-
-[source,console]
-----
-POST /_scripts/painless/_execute
-{
-  "script": {
-    "source": """
-        def my_int = 1;
-    """
-  }
-}
-----
-
-This declaration declares a `def` type named `my_int` and assigns it a value of
-`1` in a single statement. Because a `def` type can mimic a primitive type,
-this statement implicitly casts `my_int` as type `int` without having to
-declare it.
-
 NOTE: Using the `def` type can have a slight impact on performance. Use only
 primitive types and reference types directly when performance is critical.
+
+[discrete]
+===== How to use dynamic types
+So how do dynamic types work in practice? Let's look at a basic example. The
+following request creates a `List` named `x` and adds `1` to the list.
+The example declares an `int` named `y` and says that it's equal to an `int`
+named `x`.
+
+[source,console]
+----
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": """
+        List x = []; <1>
+        x.add(1);
+        int y = (int)x[0];
+        y.toString();
+    """
+  }
+}
+----
+<1> The brackets `[]` indicate that this is an empty list.
+
+We can simplify that request by using `def`. Instead of explicitly declaring
+a variable named `y`, we can say that `def y = x[0]`. Now, the `y` variable
+will mimic `x` however it's defined.
+
+[source,console]
+----
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": """
+        List x = [];
+        x.add(1);
+        def y = x[0];
+        y.toString();
+    """
+  }
+}
+----
+
+[discrete]
+===== How to _really_ use dynamic types
+So a `def` type is just another way to shorten scripts, right? True, but the
+real magic is that a `def` type variable can change the type it represents
+during the compilation and evaluation of a script. This capability is incredibly
+powerful when your script is retrieving data, especially `_doc` values.
+
+We'll talk more about retrieving data later on, but the main takeaway relating
+to `def` values is this: you don't really need to know what primitive type your
+data is; you can just call a `def` type and then start operating on the data.
+
+The following request starts with a list that includes primitive types of
+`int`, `double`, and `String`. The request then declares an empty `String` and
+introduces a `for` loop. This loop iterates through the values in the list and
+changes the value three times:
+
+* `1` is an `int`
+* `2.0` is a `double`
+* `'3'` is a `string`
+
+[source,console]
+----
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": """
+      List list = [1, 2.0, '3'];
+      String string = "";
+      for (def value : list) {
+        string += value.toString();
+        }
+    """
+  }
+}
+----
+
+The type changes occur automatically without doing anything other than using
+`def` and iterating through the values. Painless changes the type for you so
+that you can focus on writing your script without worrying about what type your
+data is.
 
 [discrete]
 [[types-whats-next]]
 ==== What's next
 These types are the most basic structures in Painless, and there are other
 types that you can learn about when writing scripts. Now that you've learned
-about types, you can start declaring variables and assigning types to them.
+about types and variables, you can start combining them with operators.
 
-<<script-spec-variables,Learn about variables>>
+<<script-spec-operators,Learn about operators>>
 
 [[script-spec-operators]]
 === Operators

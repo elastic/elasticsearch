@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.watcher.Watcher;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
@@ -135,22 +136,23 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     }
 
     public static boolean validate(ClusterState state) {
-        if(state.nodes().getMinNodeVersion().onOrAfter(Version.V_7_9_0)){
-            return (state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME) ||
-                state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM)) &&
-                state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME) &&
-                state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME);
-        } else if (state.nodes().getMinNodeVersion().onOrAfter(Version.V_7_7_0)) {
-            return (state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_11) ||
-                state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM_11)) &&
-                state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME_11) &&
-                state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME_11);
+        final Stream<String> watcherHistoryTemplateIds;
+        if (state.nodes().getMinNodeVersion().onOrAfter(Version.V_7_9_0)){
+            watcherHistoryTemplateIds = state.getMetadata().templatesV2().keySet().stream();
         } else {
-            return (state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_10) ||
-                state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM_10)) &&
-                state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME_11) &&
-                state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME_11);
+            watcherHistoryTemplateIds = Arrays.stream(state.getMetadata().getTemplates().keys().toArray(String.class));
         }
+        return watcherHistoryTemplateIds.filter(s -> s.startsWith(".watch-history-"))
+            .map(s -> Integer.valueOf(s.substring(s.lastIndexOf('-') + 1)))
+            .anyMatch(version -> version >= 9);
     }
 
+
+    @Override
+    protected boolean requiresMasterNode() {
+        // These installs a composable index template which is only supported in early versions of 7.x
+        // In mixed cluster without this set to true can result in errors in the logs during rolling upgrades.
+        // If these template(s) are only installed via elected master node then composable templates are available.
+        return true;
+    }
 }

@@ -564,7 +564,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
 
     //migrating name and type from old_string_name:String to new_int_name:int
     public static class StructWithCompatibleFields {
-        // real usage would have RestApiCompatibleVersion.V_7 instead of currentVersion or minimumSupported
+        // real usage would have RestApiVersion.V_7 instead of currentVersion or minimumSupported
         static final ConstructingObjectParser<StructWithCompatibleFields, Void> PARSER =
             new ConstructingObjectParser<>("struct_with_compatible_fields",  a -> new StructWithCompatibleFields((Integer)a[0]));
 
@@ -633,7 +633,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     public static class StructRemovalField {
         private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(StructRemovalField.class);
 
-        // real usage would have RestApiCompatibleVersion.V_7 instead of currentVersion or minimumSupported
+        // real usage would have RestApiVersion.V_7 instead of currentVersion or minimumSupported
         static final ConstructingObjectParser<StructRemovalField, Void> PARSER =
             new ConstructingObjectParser<>("struct_removal", a -> new StructRemovalField((String)a[0]));
 

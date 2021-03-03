@@ -91,7 +91,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     private static <Value, Context> UnknownFieldParser<Value, Context> errorOnUnknown() {
         return (op, f, l, p, v, c) -> {
             throw new XContentParseException(l, ErrorOnUnknown.IMPLEMENTATION.errorMessage(op.name, f,
-                op.fieldParserMap.getOrDefault(p.getRestApiCompatibleVersion(), Collections.emptyMap())
+                op.fieldParserMap.getOrDefault(p.getRestApiVersion(), Collections.emptyMap())
                 .keySet()));
         };
     }
@@ -142,7 +142,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                 o = parser.namedObject(categoryClass, field, context);
             } catch (NamedObjectNotFoundException e) {
                 Set<String> candidates = new HashSet<>(objectParser.fieldParserMap
-                    .getOrDefault(parser.getRestApiCompatibleVersion(), Collections.emptyMap())
+                    .getOrDefault(parser.getRestApiVersion(), Collections.emptyMap())
                     .keySet());
                 e.getCandidates().forEach(candidates::add);
                 String message = ErrorOnUnknown.IMPLEMENTATION.errorMessage(objectParser.name, field, candidates);
@@ -283,7 +283,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 currentPosition = parser.getTokenLocation();
-                fieldParser = fieldParserMap.getOrDefault(parser.getRestApiCompatibleVersion(), Collections.emptyMap())
+                fieldParser = fieldParserMap.getOrDefault(parser.getRestApiVersion(), Collections.emptyMap())
                     .get(currentFieldName);
             } else {
                 if (currentFieldName == null) {

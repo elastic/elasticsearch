@@ -561,7 +561,7 @@ public class RestRequest implements ToXContent.Params {
         throw new IllegalArgumentException("empty Content-Type header");
     }
 
-    public RestApiVersion getRestApiCompatibleVersion() {
+    public RestApiVersion getRestApiVersion() {
         return restApiVersion;
     }
 

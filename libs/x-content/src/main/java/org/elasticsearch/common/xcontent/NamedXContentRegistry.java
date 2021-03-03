@@ -139,7 +139,7 @@ public class NamedXContentRegistry {
      */
     public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
 
-        Map<String, Entry> parsers = parser.getRestApiCompatibleVersion() == RestApiVersion.minimumSupported() ?
+        Map<String, Entry> parsers = parser.getRestApiVersion() == RestApiVersion.minimumSupported() ?
             compatibleRegistry.get(categoryClass) : registry.get(categoryClass);
         if (parsers == null) {
             if (registry.isEmpty()) {

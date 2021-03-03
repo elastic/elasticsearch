@@ -163,8 +163,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                         builder.endObject();
                     }
                     builder.endObject();
-                    // TODO: change geoip fixture to not return city db content for country and asn databases:
-                    /*builder.startObject();
+                    builder.startObject();
                     {
                         builder.startObject("geoip");
                         {
@@ -185,7 +184,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                         }
                         builder.endObject();
                     }
-                    builder.endObject();*/
+                    builder.endObject();
                 }
                 builder.endArray();
             }
@@ -220,9 +219,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertThat(simulateResponse.getResults().size(), equalTo(1));
             SimulateDocumentBaseResult result = (SimulateDocumentBaseResult) simulateResponse.getResults().get(0);
             assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Tumba"));
-            // TODO: change geoip fixture to not return city db content for country and asn databases:
-//            assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
-//            assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
+            assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
+            assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
         }
 
         // Enable downloader:
@@ -236,9 +234,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertThat(simulateResponse.getResults().size(), equalTo(1));
             SimulateDocumentBaseResult result = (SimulateDocumentBaseResult) simulateResponse.getResults().get(0);
             assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Linköping"));
-            // TODO: change geoip fixture to not return city db content for country and asn databases:
-//            assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
-//            assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
+            assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
+            assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
         });
 
         Environment environment = internalCluster().getDataNodeInstance(Environment.class);

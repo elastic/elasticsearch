@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
 import org.elasticsearch.gradle.docker.DockerSupportPlugin;
@@ -184,13 +183,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         } else if (distribution.getType() == Type.RPM && distroVersion.before("7.0.0")) {
             classifier = "";
         }
-        String flavor = "";
-        if (distribution.getFlavor() == Flavor.OSS && distroVersion.onOrAfter("6.3.0")) {
-            flavor = "-oss";
-        }
-
         String group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP : FAKE_IVY_GROUP;
-        return group + ":elasticsearch" + flavor + ":" + distribution.getVersion() + classifier + "@" + extension;
+        return group + ":elasticsearch" + ":" + distribution.getVersion() + classifier + "@" + extension;
     }
 
     private static String configName(String prefix, ElasticsearchDistribution distribution) {

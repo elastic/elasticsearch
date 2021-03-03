@@ -8,9 +8,8 @@ configurations {
 }
 
 dependencies {
-  transformLog4jJar project(path: ":distribution:docker:transform-log4j-config", configuration: "default")
+  transformLog4jJar project(path: ":distribution:docker:transform-log4j-config")
 }
-
 
 tasks.register("buildIronBankDockerBuildContext", Tar) {
   archiveExtension = 'tar.gz'

@@ -62,7 +62,8 @@ public class BwcSetupExtension {
             loggedExec.setWorkingDir(checkoutDir.get());
             loggedExec.doFirst(t -> {
                 // Execution time so that the checkouts are available
-                String minimumCompilerVersion = readFromFile(new File(checkoutDir.get(), MINIMUM_COMPILER_VERSION_PATH));
+                String[] versionArray = readFromFile(new File(checkoutDir.get(), MINIMUM_COMPILER_VERSION_PATH)).split("\\.");
+                String minimumCompilerVersion = versionArray[versionArray.length - 1];
                 loggedExec.environment("JAVA_HOME", getJavaHome(Integer.parseInt(minimumCompilerVersion)));
             });
 

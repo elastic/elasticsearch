@@ -82,6 +82,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -835,6 +836,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 when(mapperService.documentMapper()).thenReturn(documentMapper);
                 when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {});
                 when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
+                when(indexService.dateMathExpressionResolverAt(anyLong())).thenReturn(s -> s);
                 //noinspection unchecked
                 return ((CheckedFunction) invocationOnMock.getArguments()[1]).apply(indexService);
             });

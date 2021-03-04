@@ -88,6 +88,14 @@ public class Alias implements Writeable, ToXContentFragment {
     }
 
     /**
+      Modify the alias name only
+     */
+    public Alias name(String name){
+        this.name = name;
+        return this;
+    }
+
+    /**
      * Returns the filter associated with the alias
      */
     public String filter() {

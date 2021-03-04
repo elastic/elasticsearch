@@ -18,7 +18,6 @@ apply plugin:'elasticsearch.internal-distribution-download'
 
 elasticsearch_distributions {
   local {
-    flavor = 'default'
     type = 'archive'
     architecture = Architecture.current()
   }

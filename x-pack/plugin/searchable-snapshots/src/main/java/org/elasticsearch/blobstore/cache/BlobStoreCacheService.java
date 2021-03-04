@@ -53,9 +53,9 @@ public class BlobStoreCacheService {
     private static final Logger logger = LogManager.getLogger(BlobStoreCacheService.class);
 
     /**
-     * Before 8.0.0 blobs were cached using a 4KB or 8KB maximum length.
+     * Before 7.12.0 blobs were cached using a 4KB or 8KB maximum length.
      */
-    private static final Version OLD_CACHED_BLOB_SIZE_VERSION = Version.V_8_0_0; // TODO adjust after backport
+    private static final Version OLD_CACHED_BLOB_SIZE_VERSION = Version.V_7_12_0;
 
     private static final Cache<String, String> LOG_EXCEEDING_FILES_CACHE = CacheBuilder.<String, String>builder()
         .setExpireAfterAccess(TimeValue.timeValueMinutes(60L))

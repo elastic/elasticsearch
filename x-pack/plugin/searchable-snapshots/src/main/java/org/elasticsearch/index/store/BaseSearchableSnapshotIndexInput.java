@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUti
 public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInput {
 
     protected final Logger logger;
+    protected final String name;
     protected final SearchableSnapshotDirectory directory;
     protected final BlobContainer blobContainer;
     protected final FileInfo fileInfo;
@@ -59,7 +60,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
 
     public BaseSearchableSnapshotIndexInput(
         Logger logger,
-        String resourceDesc,
+        String name,
         SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
@@ -68,12 +69,12 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         long length,
         ByteRange blobCacheByteRange
     ) {
-        this(logger, resourceDesc, directory, fileInfo, context, stats, offset, length, blobCacheByteRange, ByteRange.EMPTY);
+        this(logger, name, directory, fileInfo, context, stats, offset, length, blobCacheByteRange, ByteRange.EMPTY, false);
     }
 
     protected BaseSearchableSnapshotIndexInput(
         Logger logger,
-        String resourceDesc,
+        String name,
         SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
@@ -81,9 +82,11 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         long offset,
         long length,
         ByteRange headerBlobCacheByteRange,
-        ByteRange footerBlobCacheByteRange
+        ByteRange footerBlobCacheByteRange,
+        boolean isCompoundFile
     ) {
-        super(resourceDesc, context);
+        super(name, context);
+        this.name = Objects.requireNonNull(name);
         this.logger = Objects.requireNonNull(logger);
         this.directory = Objects.requireNonNull(directory);
         this.blobContainer = Objects.requireNonNull(directory.blobContainer());
@@ -93,11 +96,11 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
             : "this method should only be used with blobs that are NOT stored in metadata's hash field " + "(fileInfo: " + fileInfo + ')';
         this.headerBlobCacheByteRange = Objects.requireNonNull(headerBlobCacheByteRange);
         this.footerBlobCacheByteRange = Objects.requireNonNull(footerBlobCacheByteRange);
-        this.isCompoundFile = IndexFileNames.matchesExtension(fileInfo.physicalName(), "cfs");
         this.stats = Objects.requireNonNull(stats);
         this.offset = offset;
         this.length = length;
         this.closed = new AtomicBoolean(false);
+        this.isCompoundFile = isCompoundFile;
         this.isClone = false;
     }
 
@@ -176,47 +179,6 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
             return footerBlobCacheByteRange;
         }
         return ByteRange.EMPTY;
-    }
-
-    /**
-     * Computes the appropriate {@link ByteRange}s to put in blob store cache for the header and footer of slices created from CFS files.
-     *
-     * @param sliceName the name of the slice. Luckily Lucene passes the exact file name when slicing a CFS file.
-     * @param sliceOffset the offset of the slice in the CFS file
-     * @param sliceLength the length of the slice in the CFS file
-     *
-     * @return a {@link Tuple} of {@link ByteRange} whose first element is the header byte range and second element the footer byte range.
-     */
-    protected Tuple<ByteRange, ByteRange> getBlobCacheByteRangesForSlice(String sliceName, long sliceOffset, long sliceLength) {
-        if (this.isCompoundFile && this.isClone == false) {
-            // slices created from .cfs index input can have header/footer in the blob store cache
-            final ByteRange headerByteRange = directory.getBlobCacheByteRange(sliceName, sliceLength).withOffset(sliceOffset);
-            if (headerByteRange.length() == sliceLength) {
-                return Tuple.tuple(headerByteRange, ByteRange.EMPTY);
-            } else {
-                final ByteRange footerByteRange = ByteRange.of(sliceLength - CodecUtil.footerLength(), sliceLength).withOffset(sliceOffset);
-                return Tuple.tuple(headerByteRange, footerByteRange);
-            }
-        } else {
-            return Tuple.tuple(this.headerBlobCacheByteRange, this.footerBlobCacheByteRange);
-        }
-    }
-
-    /**
-     * This method detects read operations during shard recovery that operate on the header or the footer of a slice IndexInput created
-     * from a Lucene CFS file. In such case we want to bypass the disk based cache to force the creation of the blob document in blob cache.
-     */
-    protected boolean isReadFromCompoundFileDuringRecovery(long position, int length) {
-        if (isCompoundFile == false || directory.isRecoveryFinalized() || isClone == false) {
-            return false;
-        }
-        final ByteRange blobCacheByteRange = maybeReadFromBlobCache(position, length);
-        if (blobCacheByteRange == ByteRange.EMPTY) {
-            // we are reading from a slice created from a CFS file, but the read does not fall into a range of bytes that should be cached
-            // in the blob store cache, so we don't need to force an update of the cached blob.
-            return false;
-        }
-        return true;
     }
 
     /**

@@ -36,6 +36,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
@@ -105,10 +106,16 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
     }
 
     @Override
+    protected int numberOfShards() {
+        return 1;
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(cacheSettings).build();
     }
 
+    @TestLogging(reason = "code", value = "org.elasticsearch.blobstore.cache:TRACE")
     public void testBlobStoreCache() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
@@ -149,7 +156,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             () -> systemClient().admin().indices().prepareGetIndex().addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
         );
 
-        Storage storage = randomFrom(Storage.values());
+        final Storage storage = Storage.SHARED_CACHE;
         logger.info(
             "--> mount snapshot [{}] as an index for the first time [storage={}, max length={}]",
             snapshot,
@@ -228,7 +235,14 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         assertHitCount(client().prepareSearch(restoredIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
         assertAcked(client().admin().indices().prepareDelete(restoredIndex));
 
-        storage = randomFrom(Storage.values());
+        assertBusy(() -> {
+            refreshSystemIndex();
+            assertThat(
+                systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0).get().getHits().getTotalHits().value,
+                greaterThan(0L)
+            );
+        });
+
         logger.info("--> mount snapshot [{}] as an index for the second time [storage={}]", snapshot, storage);
         final String restoredAgainIndex = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         mountSnapshot(

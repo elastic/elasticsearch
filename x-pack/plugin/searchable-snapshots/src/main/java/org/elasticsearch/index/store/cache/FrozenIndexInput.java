@@ -10,6 +10,8 @@ package org.elasticsearch.index.store.cache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -20,7 +22,6 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -35,6 +36,8 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -59,6 +62,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
     private long lastSeekPosition;
 
     public FrozenIndexInput(
+        String name,
         SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
@@ -67,25 +71,26 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         int recoveryRangeSize
     ) {
         this(
-            "FrozenIndexInput(" + fileInfo.physicalName() + ")",
+            name,
             directory,
             fileInfo,
             context,
             stats,
             0L,
             fileInfo.length(),
-            directory.getFrozenCacheFile(fileInfo.physicalName(), fileInfo.length()),
+            directory.getFrozenCacheFile(name, fileInfo.length()),
             rangeSize,
             recoveryRangeSize,
-            directory.getBlobCacheByteRange(fileInfo.physicalName(), fileInfo.length()),
-            ByteRange.EMPTY
+            directory.getBlobCacheByteRange(name, fileInfo.length()),
+            ByteRange.EMPTY,
+            false
         );
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
         stats.incrementOpenCount();
     }
 
     private FrozenIndexInput(
-        String resourceDesc,
+        String name,
         SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
@@ -96,11 +101,12 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         int rangeSize,
         int recoveryRangeSize,
         ByteRange headerBlobCacheByteRange,
-        ByteRange footerBlobCacheByteRange
+        ByteRange footerBlobCacheByteRange,
+        boolean isCompoundFile
     ) {
         super(
             logger,
-            resourceDesc,
+            name,
             directory,
             fileInfo,
             context,
@@ -108,7 +114,8 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             offset,
             length,
             headerBlobCacheByteRange,
-            footerBlobCacheByteRange
+            footerBlobCacheByteRange,
+            isCompoundFile
         );
         this.frozenCacheFile = frozenCacheFile;
         this.lastReadPosition = this.offset;
@@ -128,17 +135,23 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             : fileInfo.partSize().getBytes();
     }
 
-    private ByteRange computeRange(long position) {
+    private ByteRange computeRange(long position, long length) {
         final long rangeSize = getDefaultRangeSize();
         long start = (position / rangeSize) * rangeSize;
-        long end = Math.min(start + rangeSize, fileInfo.length());
+        long end = Math.min(start + rangeSize, length);
         return ByteRange.of(start, end);
     }
 
     @Override
     protected void doReadInternal(ByteBuffer b) throws IOException {
         ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
-        final long position = getAbsolutePosition();
+        final long position;
+        if (isCompoundFile) {
+            position = getFilePointer();
+            assert isClone;
+        } else {
+            position = getAbsolutePosition();
+        }
         final int length = b.remaining();
 
         final ReentrantReadWriteLock luceneByteBufLock = new ReentrantReadWriteLock();
@@ -155,39 +168,29 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             }
         };
 
+        final String fileName = frozenCacheFile.getCacheKey().getFileName();
         logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + length, length, this);
 
         try {
             // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
-            if (isReadFromCompoundFileDuringRecovery(position, length) == false) {
-                final StepListener<Integer> waitingForRead = frozenCacheFile.readIfAvailableOrPending(
-                    ByteRange.of(position, position + length),
-                    (channel, pos, relativePos, len) -> {
-                        final int read = readCacheFile(
-                            channel,
-                            pos,
-                            relativePos,
-                            len,
-                            b,
-                            position,
-                            true,
-                            luceneByteBufLock,
-                            stopAsyncReads
-                        );
-                        assert read <= length : read + " vs " + length;
-                        return read;
-                    }
-                );
 
-                if (waitingForRead != null) {
-                    final Integer read = waitingForRead.asFuture().get();
-                    assert read == length;
-                    assert luceneByteBufLock.getReadHoldCount() == 0;
-                    preventAsyncBufferChanges.run();
-                    b.position(read); // mark all bytes as accounted for
-                    readComplete(position, length);
-                    return;
+            final StepListener<Integer> waitingForRead = frozenCacheFile.readIfAvailableOrPending(
+                ByteRange.of(position, position + length),
+                (channel, pos, relativePos, len) -> {
+                    final int read = readCacheFile(channel, pos, relativePos, len, b, position, true, luceneByteBufLock, stopAsyncReads);
+                    assert read <= length : read + " vs " + length;
+                    return read;
                 }
+            );
+
+            if (waitingForRead != null) {
+                final Integer read = waitingForRead.asFuture().get();
+                assert read == length;
+                assert luceneByteBufLock.getReadHoldCount() == 0;
+                preventAsyncBufferChanges.run();
+                b.position(read); // mark all bytes as accounted for
+                readComplete(position, length);
+                return;
             }
 
             // Requested data is not on disk, so try the cache index next.
@@ -195,7 +198,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
 
             final ByteRange blobCacheByteRange = maybeReadFromBlobCache(position, length);
             if (blobCacheByteRange != ByteRange.EMPTY) {
-                final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), blobCacheByteRange);
+                final CachedBlob cachedBlob = directory.getCachedBlob(fileName, blobCacheByteRange);
                 assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || cachedBlob.from() <= position;
                 assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || length <= cachedBlob.length();
 
@@ -211,7 +214,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                     logger.trace(
                         "reading [{}] bytes of file [{}] at position [{}] using cache index",
                         length,
-                        fileInfo.physicalName(),
+                        fileName,
                         position
                     );
                     stats.addIndexCacheBytesRead(cachedBlob.length());
@@ -259,7 +262,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                                     "copied bytes [{}-{}] of file [{}] from cache index to disk",
                                     relativePos,
                                     relativePos + len,
-                                    fileInfo
+                                    fileName
                                 );
                             },
                             directory.cacheFetchAsyncExecutor()
@@ -270,7 +273,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                                 "failed to store bytes [{}-{}] of file [{}] obtained from index cache",
                                 cachedBlob.from(),
                                 cachedBlob.to(),
-                                fileInfo
+                                fileName
                             ),
                             e
                         );
@@ -289,8 +292,9 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             // Requested data is also not in the cache index, so we must visit the blob store to satisfy both the target range and any
             // miss in the cache index.
 
-            final ByteRange startRangeToWrite = computeRange(position);
-            final ByteRange endRangeToWrite = computeRange(position + length - 1);
+            final long fileLength = frozenCacheFile.getLength();
+            final ByteRange startRangeToWrite = computeRange(position, fileLength);
+            final ByteRange endRangeToWrite = computeRange(position + length - 1, fileLength);
             assert startRangeToWrite.end() <= endRangeToWrite.end() : startRangeToWrite + " vs " + endRangeToWrite;
             final ByteRange rangeToWrite = startRangeToWrite.minEnvelope(endRangeToWrite).minEnvelope(indexCacheMiss);
 
@@ -328,6 +332,10 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             );
 
             if (indexCacheMiss != null) {
+
+                // TODO also index footer for compound files if rangeToWrite encapsulates footerBlobCacheByteRange,
+                // otherwise the blob cache won't be populate for the footer and only the header.
+
                 final Releasable onCacheFillComplete = stats.addIndexCacheFill();
                 final int indexCacheMissLength = toIntBytes(indexCacheMiss.length());
 
@@ -375,7 +383,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                         byteBuffer.position(read); // mark all bytes as accounted for
                         byteBuffer.flip();
                         final BytesReference content = BytesReference.fromByteBuffer(byteBuffer);
-                        directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss.start(), content, new ActionListener<>() {
+                        directory.putCachedBlob(fileName, indexCacheMiss.start(), content, new ActionListener<>() {
                             @Override
                             public void onResponse(Void response) {
                                 onCacheFillComplete.close();
@@ -417,8 +425,10 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         lastSeekPosition = lastReadPosition;
     }
 
-    private int readDirectlyIfAlreadyClosed(long position, ByteBuffer b, Exception e) throws IOException {
+    private int readDirectlyIfAlreadyClosed(long pos, ByteBuffer b, Exception e) throws IOException {
         if (e instanceof AlreadyClosedException || (e.getCause() != null && e.getCause() instanceof AlreadyClosedException)) {
+            // we need to compute a the global position for compound files
+            final long position = pos + (isCompoundFile ? this.offset : 0L);
             try {
                 // cache file was evicted during the range fetching, read bytes directly from blob container
                 final long length = b.remaining();
@@ -598,7 +608,8 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         long bytesCopied = 0L;
         long remaining = length;
         final long startTimeNanos = stats.currentTimeNanos();
-        try (InputStream input = openInputStreamFromBlobStore(logicalPos + relativePos, length)) {
+        // we need to compute the global position for compound files
+        try (InputStream input = openInputStreamFromBlobStore(logicalPos + relativePos + (isCompoundFile ? this.offset : 0L), length)) {
             while (remaining > 0L) {
                 final int bytesRead = readSafe(input, copyBuffer, relativePos, end, remaining, frozenCacheFile);
                 positionalWrite(fc, fileChannelPos + bytesCopied, ByteBuffer.wrap(copyBuffer, 0, bytesRead));
@@ -619,7 +630,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         } else if (pos < 0L) {
             throw new IOException("Seeking to negative position [" + pos + "] for " + toString());
         }
-        final long position = pos + this.offset;
+        final long position = isCompoundFile ? pos : pos + this.offset;
         stats.incrementSeeks(lastSeekPosition, position);
         lastSeekPosition = position;
     }
@@ -630,11 +641,11 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
     }
 
     @Override
-    public IndexInput slice(String sliceDescription, long sliceOffset, long sliceLength) {
+    public IndexInput slice(String sliceName, long sliceOffset, long sliceLength) {
         if (sliceOffset < 0 || sliceLength < 0 || sliceOffset + sliceLength > length()) {
             throw new IllegalArgumentException(
                 "slice() "
-                    + sliceDescription
+                    + sliceName
                     + " out of bounds: offset="
                     + sliceOffset
                     + ",length="
@@ -645,21 +656,46 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                     + this
             );
         }
-        final long offset = this.offset + sliceOffset;
-        final Tuple<ByteRange, ByteRange> blobCacheByteRanges = getBlobCacheByteRangesForSlice(sliceDescription, offset, sliceLength);
+
+        // Are we creating a slice from a CFS file?
+        boolean sliceCompoundFile = IndexFileNames.matchesExtension(name, "cfs")
+            && IndexFileNames.getExtension(sliceName) != null
+            && isCompoundFile == false
+            && isClone == false;
+
+        final FrozenCacheFile sliceFrozenCacheFile;
+        final ByteRange sliceHeaderByteRange;
+        final ByteRange sliceFooterByteRange;
+
+        if (sliceCompoundFile) {
+            sliceFrozenCacheFile = directory.getFrozenCacheFile(sliceName, sliceLength);
+            sliceHeaderByteRange = directory.getBlobCacheByteRange(sliceName, sliceLength);
+            if (sliceHeaderByteRange.length() < sliceLength) {
+                sliceFooterByteRange = ByteRange.of(sliceLength - CodecUtil.footerLength(), sliceLength);
+            } else {
+                sliceFooterByteRange = ByteRange.EMPTY;
+            }
+        } else {
+            sliceFrozenCacheFile = this.frozenCacheFile;
+            sliceCompoundFile = this.isCompoundFile; // fix this
+            sliceHeaderByteRange = ByteRange.EMPTY;
+            sliceFooterByteRange = ByteRange.EMPTY;
+        }
+
         final FrozenIndexInput slice = new FrozenIndexInput(
-            getFullSliceDescription(sliceDescription),
+            sliceName,
             directory,
             fileInfo,
             context,
             stats,
-            offset,
+            this.offset + sliceOffset,
             sliceLength,
-            frozenCacheFile,
+            sliceFrozenCacheFile,
             defaultRangeSize,
             recoveryRangeSize,
-            blobCacheByteRanges.v1(),
-            blobCacheByteRanges.v2()
+            sliceHeaderByteRange,
+            sliceFooterByteRange,
+            sliceCompoundFile
         );
         slice.isClone = true;
         return slice;

@@ -66,6 +66,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private long lastSeekPosition;
 
     public CachedBlobContainerIndexInput(
+        String name,
         SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
@@ -74,7 +75,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         int recoveryRangeSize
     ) {
         this(
-            "CachedBlobContainerIndexInput(" + fileInfo.physicalName() + ")",
+            name,
             directory,
             fileInfo,
             context,
@@ -84,7 +85,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()),
             rangeSize,
             recoveryRangeSize,
-            directory.getBlobCacheByteRange(fileInfo.physicalName(), fileInfo.length()),
+            directory.getBlobCacheByteRange(name, fileInfo.length()),
             ByteRange.EMPTY
         );
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
@@ -92,7 +93,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     private CachedBlobContainerIndexInput(
-        String resourceDesc,
+        String name,
         SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
@@ -107,7 +108,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     ) {
         super(
             logger,
-            resourceDesc,
+            name,
             directory,
             fileInfo,
             context,
@@ -115,7 +116,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             offset,
             length,
             headerBlobCacheByteRange,
-            footerBlobCacheByteRange
+            footerBlobCacheByteRange,
+            false
         );
         this.cacheFileReference = cacheFileReference;
         this.lastReadPosition = this.offset;
@@ -155,22 +157,18 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             final CacheFile cacheFile = cacheFileReference.get();
 
             // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
-            if (isReadFromCompoundFileDuringRecovery(position, length) == false) {
-                final Future<Integer> waitingForRead = cacheFile.readIfAvailableOrPending(
-                    ByteRange.of(position, position + length),
-                    chan -> {
-                        final int read = readCacheFile(chan, position, b);
-                        assert read == length : read + " vs " + length;
-                        return read;
-                    }
-                );
 
-                if (waitingForRead != null) {
-                    final Integer read = waitingForRead.get();
-                    assert read == length;
-                    readComplete(position, length);
-                    return;
-                }
+            final Future<Integer> waitingForRead = cacheFile.readIfAvailableOrPending(ByteRange.of(position, position + length), chan -> {
+                final int read = readCacheFile(chan, position, b);
+                assert read == length : read + " vs " + length;
+                return read;
+            });
+
+            if (waitingForRead != null) {
+                final Integer read = waitingForRead.get();
+                assert read == length;
+                readComplete(position, length);
+                return;
             }
 
             // Requested data is not on disk, so try the cache index next.
@@ -580,11 +578,11 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     @Override
-    public IndexInput slice(String sliceDescription, long sliceOffset, long sliceLength) {
+    public IndexInput slice(String sliceName, long sliceOffset, long sliceLength) {
         if (sliceOffset < 0 || sliceLength < 0 || sliceOffset + sliceLength > length()) {
             throw new IllegalArgumentException(
                 "slice() "
-                    + sliceDescription
+                    + sliceName
                     + " out of bounds: offset="
                     + sliceOffset
                     + ",length="
@@ -595,21 +593,19 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     + this
             );
         }
-        final long offset = this.offset + sliceOffset;
-        final Tuple<ByteRange, ByteRange> blobCacheByteRanges = getBlobCacheByteRangesForSlice(sliceDescription, offset, sliceLength);
         final CachedBlobContainerIndexInput slice = new CachedBlobContainerIndexInput(
-            getFullSliceDescription(sliceDescription),
+            sliceName,
             directory,
             fileInfo,
             context,
             stats,
-            offset,
+            this.offset + sliceOffset,
             sliceLength,
             cacheFileReference,
             defaultRangeSize,
             recoveryRangeSize,
-            blobCacheByteRanges.v1(),
-            blobCacheByteRanges.v2()
+            headerBlobCacheByteRange,
+            footerBlobCacheByteRange
         );
         slice.isClone = true;
         return slice;

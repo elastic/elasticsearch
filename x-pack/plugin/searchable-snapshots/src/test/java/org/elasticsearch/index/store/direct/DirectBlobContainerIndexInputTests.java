@@ -128,6 +128,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
         when(directory.blobContainer()).thenReturn(blobContainer);
 
         final DirectBlobContainerIndexInput indexInput = new DirectBlobContainerIndexInput(
+            fileName,
             directory,
             fileInfo,
             randomIOContext(),

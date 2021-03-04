@@ -50,7 +50,7 @@ public class ESIndexInputTestCase extends ESTestCase {
         int readPos = (int) indexInput.getFilePointer();
         byte[] output = new byte[length];
         while (readPos < length) {
-            switch (randomIntBetween(0, 5)) {
+            switch (randomIntBetween(0, 3)) {
                 case 0:
                     // Read by one byte at a time
                     output[readPos++] = indexInput.readByte();
@@ -72,7 +72,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                 case 3:
                     // Read using slice
                     len = randomIntBetween(1, length - readPos);
-                    IndexInput slice = indexInput.slice("slice" + randomFileExtension(), readPos, len);
+                    IndexInput slice = indexInput.slice(randomAlphaOfLength(10) + randomFileExtension(), readPos, len);
                     temp = randomReadAndSlice(slice, len);
                     // assert that position in the original input didn't change
                     assertEquals(readPos, indexInput.getFilePointer());
@@ -121,7 +121,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                                     clone = indexInput.clone();
                                 } else {
                                     final int sliceEnd = between(readEnd, length);
-                                    clone = indexInput.slice("concurrent slice" + randomFileExtension(), 0L, sliceEnd);
+                                    clone = indexInput.slice("slice" + randomAlphaOfLength(10) + randomFileExtension(), 0L, sliceEnd);
                                 }
                                 startLatch.countDown();
                                 startLatch.await();

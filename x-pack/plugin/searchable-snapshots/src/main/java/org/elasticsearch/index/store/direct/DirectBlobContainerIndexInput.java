@@ -69,6 +69,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private static final int COPY_BUFFER_SIZE = 8192;
 
     public DirectBlobContainerIndexInput(
+        String name,
         SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
@@ -77,7 +78,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         int bufferSize
     ) {
         this(
-            "DirectBlobContainerIndexInput(" + fileInfo.physicalName() + ")",
+            name,
             directory,
             fileInfo,
             context,
@@ -92,7 +93,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     private DirectBlobContainerIndexInput(
-        String resourceDesc,
+        String name,
         SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
@@ -103,7 +104,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long sequentialReadSize,
         int bufferSize
     ) {
-        super(logger, resourceDesc, directory, fileInfo, context, stats, offset, length, ByteRange.EMPTY); // TODO should use blob cache
+        super(logger, name, directory, fileInfo, context, stats, offset, length, ByteRange.EMPTY); // TODO should use blob cache
         this.position = position;
         assert sequentialReadSize >= 0;
         this.sequentialReadSize = sequentialReadSize;
@@ -290,10 +291,10 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     @Override
-    public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+    public IndexInput slice(String sliceName, long offset, long length) throws IOException {
         if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
             final DirectBlobContainerIndexInput slice = new DirectBlobContainerIndexInput(
-                getFullSliceDescription(sliceDescription),
+                sliceName,
                 directory,
                 fileInfo,
                 context,
@@ -312,7 +313,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         } else {
             throw new IllegalArgumentException(
                 "slice() "
-                    + sliceDescription
+                    + sliceName
                     + " out of bounds: offset="
                     + offset
                     + ",length="

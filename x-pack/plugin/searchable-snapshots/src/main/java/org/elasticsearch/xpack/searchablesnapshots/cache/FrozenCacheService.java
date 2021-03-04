@@ -707,6 +707,10 @@ public class FrozenCacheService implements Releasable {
             return length;
         }
 
+        public CacheKey getCacheKey() {
+            return cacheKey;
+        }
+
         public StepListener<Integer> populateAndRead(
             final ByteRange rangeToWrite,
             final ByteRange rangeToRead,

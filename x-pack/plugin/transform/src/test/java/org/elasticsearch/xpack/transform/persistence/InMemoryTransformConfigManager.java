@@ -77,9 +77,8 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
     }
 
     @Override
-    public void deleteOldTransformStoredDocuments(String transformId, ActionListener<Boolean> listener) {
-        transformStoredDocs.remove(transformId);
-        listener.onResponse(true);
+    public void deleteOldTransformStoredDocuments(String transformId, ActionListener<Long> listener) {
+        listener.onResponse(transformStoredDocs.remove(transformId) == null ? 0L : 1L);
     }
 
     @Override

@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,14 +31,13 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     private final AbstractRefCounted refCounted;
 
     public ReleasableBytesReference(BytesReference delegate, Releasable releasable) {
-        this.delegate = delegate;
-        this.refCounted = new RefCountedReleasable(releasable);
+        this(delegate, new RefCountedReleasable(releasable));
     }
 
-    private ReleasableBytesReference(BytesReference delegate, AbstractRefCounted refCounted) {
+    public ReleasableBytesReference(BytesReference delegate, AbstractRefCounted refCounted) {
         this.delegate = delegate;
         this.refCounted = refCounted;
-        refCounted.incRef();
+        assert refCounted.refCount() > 0;
     }
 
     public static ReleasableBytesReference wrap(BytesReference reference) {
@@ -72,7 +72,9 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         if (from == 0 && length() == length) {
             return retain();
         }
-        return new ReleasableBytesReference(delegate.slice(from, length), refCounted);
+        final BytesReference slice = delegate.slice(from, length);
+        refCounted.incRef();
+        return new ReleasableBytesReference(slice, refCounted);
     }
 
     @Override
@@ -190,7 +192,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
         @Override
         protected void closeInternal() {
-            releasable.close();
+            Releasables.closeExpectNoException(releasable);
         }
     }
 }

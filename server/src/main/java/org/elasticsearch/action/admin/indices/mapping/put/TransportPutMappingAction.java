@@ -129,20 +129,11 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
             .indices(concreteIndices)
             .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
 
-        metadataMappingService.putMapping(updateRequest, new ActionListener<>() {
-
-            @Override
-            public void onResponse(AcknowledgedResponse response) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
-                    Arrays.asList(concreteIndices)), t);
-                listener.onFailure(t);
-            }
-        });
+        metadataMappingService.putMapping(updateRequest, listener.delegateResponse((l, e) -> {
+            logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
+                    Arrays.asList(concreteIndices)), e);
+            l.onFailure(e);
+        }));
     }
 
     static String checkForSystemIndexViolations(SystemIndices systemIndices, Index[] concreteIndices, PutMappingRequest request) {
@@ -158,7 +149,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
 
         for (Index index : concreteIndices) {
             final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(index.getName());
-            if (descriptor != null && descriptor.isAutomaticallyManaged()) {
+            if (descriptor != null && descriptor.isAutomaticallyManaged() && descriptor.hasDynamicMappings() == false) {
                 final String descriptorMappings = descriptor.getMappings();
                 // Technically we could trip over a difference in whitespace here, but then again nobody should be trying to manually
                 // update a descriptor's mappings.

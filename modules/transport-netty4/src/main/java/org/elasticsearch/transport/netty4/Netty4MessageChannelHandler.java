@@ -109,7 +109,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
         doFlush(ctx);
-        Releasables.closeWhileHandlingException(pipeline);
+        Releasables.closeExpectNoException(pipeline);
         super.channelInactive(ctx);
     }
 

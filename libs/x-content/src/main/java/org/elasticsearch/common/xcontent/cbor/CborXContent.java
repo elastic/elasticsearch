@@ -12,7 +12,7 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
@@ -100,9 +100,9 @@ public class CborXContent implements XContent {
     @Override
     public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
                                                        DeprecationHandler deprecationHandler, InputStream is,
-                                                       RestApiCompatibleVersion restApiCompatibleVersion)
+                                                       RestApiVersion restApiVersion)
         throws IOException {
-        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(is), restApiCompatibleVersion);
+        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(is), restApiVersion);
     }
 
 }

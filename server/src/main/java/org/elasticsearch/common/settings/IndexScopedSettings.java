@@ -92,7 +92,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING,
             MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
             MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
-            MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING,
             IndexSortConfig.INDEX_SORT_FIELD_SETTING,
             IndexSortConfig.INDEX_SORT_ORDER_SETTING,
             IndexSortConfig.INDEX_SORT_MISSING_SETTING,

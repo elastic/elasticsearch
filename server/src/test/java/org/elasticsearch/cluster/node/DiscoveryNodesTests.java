@@ -169,26 +169,26 @@ public class DiscoveryNodesTests extends ESTestCase {
         final DiscoveryNodes nodes01 = DiscoveryNodes.builder(nodes0).add(discoveryNodes.get(1)).build();
         final DiscoveryNodes nodes012 = DiscoveryNodes.builder(nodes01).add(discoveryNodes.get(2)).build();
 
-        assertThat(nodes01.delta(nodes0).shortSummary(), equalTo("added {" + discoveryNodes.get(1) + "}"));
+        assertThat(nodes01.delta(nodes0).shortSummary(), equalTo("added {" + noAttr(discoveryNodes.get(1)) + "}"));
         assertThat(nodes012.delta(nodes0).shortSummary(), oneOf(
-            "added {" + discoveryNodes.get(1) + "," + discoveryNodes.get(2) + "}",
-            "added {" + discoveryNodes.get(2) + "," + discoveryNodes.get(1) + "}"));
+            "added {" + noAttr(discoveryNodes.get(1)) + ", " + noAttr(discoveryNodes.get(2)) + "}",
+            "added {" + noAttr(discoveryNodes.get(2)) + ", " + noAttr(discoveryNodes.get(1)) + "}"));
 
-        assertThat(nodes0.delta(nodes01).shortSummary(), equalTo("removed {" + discoveryNodes.get(1) + "}"));
+        assertThat(nodes0.delta(nodes01).shortSummary(), equalTo("removed {" + noAttr(discoveryNodes.get(1)) + "}"));
         assertThat(nodes0.delta(nodes012).shortSummary(), oneOf(
-            "removed {" + discoveryNodes.get(1) + "," + discoveryNodes.get(2) + "}",
-            "removed {" + discoveryNodes.get(2) + "," + discoveryNodes.get(1) + "}"));
+            "removed {" + noAttr(discoveryNodes.get(1)) + ", " + noAttr(discoveryNodes.get(2)) + "}",
+            "removed {" + noAttr(discoveryNodes.get(2)) + ", " + noAttr(discoveryNodes.get(1)) + "}"));
 
         final DiscoveryNodes nodes01Local = DiscoveryNodes.builder(nodes01).localNodeId(discoveryNodes.get(1).getId()).build();
         final DiscoveryNodes nodes02Local = DiscoveryNodes.builder(nodes012).localNodeId(discoveryNodes.get(1).getId()).build();
 
         assertThat(nodes01Local.delta(nodes0).shortSummary(), equalTo(""));
-        assertThat(nodes02Local.delta(nodes0).shortSummary(), equalTo("added {" + discoveryNodes.get(2) + "}"));
+        assertThat(nodes02Local.delta(nodes0).shortSummary(), equalTo("added {" + noAttr(discoveryNodes.get(2)) + "}"));
 
-        assertThat(nodes0.delta(nodes01Local).shortSummary(), equalTo("removed {" + discoveryNodes.get(1) + "}"));
+        assertThat(nodes0.delta(nodes01Local).shortSummary(), equalTo("removed {" + noAttr(discoveryNodes.get(1)) + "}"));
         assertThat(nodes0.delta(nodes02Local).shortSummary(), oneOf(
-            "removed {" + discoveryNodes.get(1) + "," + discoveryNodes.get(2) + "}",
-            "removed {" + discoveryNodes.get(2) + "," + discoveryNodes.get(1) + "}"));
+            "removed {" + noAttr(discoveryNodes.get(1)) + ", " + noAttr(discoveryNodes.get(2)) + "}",
+            "removed {" + noAttr(discoveryNodes.get(2)) + ", " + noAttr(discoveryNodes.get(1)) + "}"));
     }
 
     public void testDeltas() {
@@ -392,4 +392,11 @@ public class DiscoveryNodesTests extends ESTestCase {
         assertEquals( Version.fromString("6.3.0"), build.getMaxNodeVersion());
         assertEquals( Version.fromString("1.1.0"), build.getMinNodeVersion());
     }
+
+    private static String noAttr(DiscoveryNode discoveryNode) {
+        final StringBuilder stringBuilder = new StringBuilder();
+        discoveryNode.appendDescriptionWithoutAttributes(stringBuilder);
+        return stringBuilder.toString();
+    }
+
 }

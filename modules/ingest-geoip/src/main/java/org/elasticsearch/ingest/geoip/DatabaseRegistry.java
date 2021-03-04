@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -23,8 +24,6 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -43,6 +42,7 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -272,54 +272,42 @@ final class DatabaseRegistry implements Closeable {
         // Need to run the search from a different thread, since this is executed from cluster state applier thread:
         genericExecutor.accept(() -> {
             MessageDigest md = MessageDigests.md5();
-            Long lastSortValue = null;
-
             int firstChunk = metadata.getFirstChunk();
             int lastChunk = metadata.getLastChunk();
             try {
-                do {
-                    SearchRequest searchRequest = createSearchRequest(databaseName, firstChunk, lastChunk, lastSortValue);
-                    lastSortValue = null;
+                // TODO: invoke open point in time api when this api is moved from xpack core to server module.
+                // (so that we have a consistent view of the chunk documents while doing the lookups)
+                // (the chance that the documents change is rare, given the low frequency of the updates for these databases)
+                for (int chunk = firstChunk; chunk <= lastChunk; chunk++) {
+                    SearchRequest searchRequest = new SearchRequest(GeoIpDownloader.DATABASES_INDEX);
+                    String id = String.format(Locale.ROOT, "%s_%d", databaseName, chunk);
+                    searchRequest.source().query(new TermQueryBuilder("_id", id));
 
                     // At most once a day a few searches may be executed to fetch the new files,
-                    // so it is ok if this happens in a blocking manner on a thead from generic thread pool.
+                    // so it is ok if this happens in a blocking manner on a thread from generic thread pool.
                     // This makes the code easier to understand and maintain.
                     SearchResponse searchResponse = client.search(searchRequest).actionGet();
+                    SearchHit[] hits = searchResponse.getHits().getHits();
+                    assert hits.length == 1 : "expected 1 hit, but instead got [" + hits.length + "]";
                     if (searchResponse.getHits().getHits().length == 0) {
-                        String actualMd5 = MessageDigests.toHexString(md.digest());
-                        if (Objects.equals(expectedMd5, actualMd5)) {
-                            completedHandler.run();
-                        } else {
-                            failureHandler.accept(new RuntimeException("expected md5 hash [" + expectedMd5 +
-                                "], but got md5 hash [" + actualMd5 + "]"));
-                        }
-                    } else {
-                        for (SearchHit searchHit : searchResponse.getHits()) {
-                            byte[] data = (byte[]) searchHit.getSourceAsMap().get("data");
-                            md.update(data);
-                            chunkConsumer.accept(data);
-                            lastSortValue = (Long) searchHit.getSortValues()[0];
-                        }
+                        failureHandler.accept(new ResourceNotFoundException("chunk document with id [" + id + "] not found"));
+                        return;
                     }
-                } while (lastSortValue != null);
+                    byte[] data = (byte[]) hits[0].getSourceAsMap().get("data");
+                    md.update(data);
+                    chunkConsumer.accept(data);
+                }
+                String actualMd5 = MessageDigests.toHexString(md.digest());
+                if (Objects.equals(expectedMd5, actualMd5)) {
+                    completedHandler.run();
+                } else {
+                    failureHandler.accept(new RuntimeException("expected md5 hash [" + expectedMd5 +
+                        "], but got md5 hash [" + actualMd5 + "]"));
+                }
             } catch (Exception e) {
                 failureHandler.accept(e);
             }
         });
-    }
-
-    static SearchRequest createSearchRequest(String databaseName, int firstChunk, int lastChunk, Long lastSortValue) {
-        SearchRequest searchRequest = new SearchRequest(GeoIpDownloader.DATABASES_INDEX);
-        BoolQueryBuilder boolQuery = new BoolQueryBuilder();
-        boolQuery.filter(new TermQueryBuilder("name", databaseName));
-        boolQuery.filter(new RangeQueryBuilder("chunk").from(firstChunk).to(lastChunk));
-        searchRequest.source().query(boolQuery);
-        searchRequest.source().sort("chunk");
-        searchRequest.source().size(10);
-        if (lastSortValue != null) {
-            searchRequest.source().searchAfter(new Object[]{lastSortValue});
-        }
-        return searchRequest;
     }
 
     static void decompress(Path source, Path target) throws IOException {

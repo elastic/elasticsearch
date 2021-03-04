@@ -37,10 +37,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
@@ -61,6 +61,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -124,7 +125,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;
         PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
         task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb",
-            new GeoIpTaskState.Metadata(0L, 0, 9, "8a76ac17c58d8f3f2e15e3f1ec37d473"))));
+            new GeoIpTaskState.Metadata(0L, 5, 14, "8a76ac17c58d8f3f2e15e3f1ec37d473"))));
         PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
@@ -132,16 +133,15 @@ public class DatabaseRegistryTests extends ESTestCase {
             .nodes(new DiscoveryNodes.Builder()
                 .add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT))
                 .localNodeId("_id1"))
-            .routingTable(createIndexRoutingTable(GeoIpDownloader.DATABASES_INDEX))
+            .routingTable(createIndexRoutingTable())
             .build();
 
-        mockSearch("GeoIP2-City.mmdb", 0, 9, null);
-        mockSearch("GeoIP2-City.mmdb", 0, 9, 9L);
+        mockSearches("GeoIP2-City.mmdb", 5, 14);
 
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), notNullValue());
-        verify(client, times(2)).search(any());
+        verify(client, times(10)).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
             assertThat(files.collect(Collectors.toList()), hasSize(1));
         }
@@ -160,11 +160,10 @@ public class DatabaseRegistryTests extends ESTestCase {
                 .add(new DiscoveryNode("_name1", "_id1", buildNewFakeTransportAddress(), Map.of(),
                     Set.of(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT))
                 .localNodeId("_id1"))
-            .routingTable(createIndexRoutingTable(GeoIpDownloader.DATABASES_INDEX))
+            .routingTable(createIndexRoutingTable())
             .build();
 
-        mockSearch("GeoIP2-City.mmdb", 0, 9, null);
-        mockSearch("GeoIP2-City.mmdb", 0, 9, 9L);
+        mockSearches("GeoIP2-City.mmdb", 0, 9);
 
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
@@ -188,8 +187,7 @@ public class DatabaseRegistryTests extends ESTestCase {
                 .localNodeId("_id1"))
             .build();
 
-        mockSearch("GeoIP2-City.mmdb", 0, 9, null);
-        mockSearch("GeoIP2-City.mmdb", 0, 9, 9L);
+        mockSearches("GeoIP2-City.mmdb", 0, 9);
 
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
@@ -207,11 +205,10 @@ public class DatabaseRegistryTests extends ESTestCase {
             .nodes(new DiscoveryNodes.Builder()
                 .add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT))
                 .localNodeId("_id1"))
-            .routingTable(createIndexRoutingTable(GeoIpDownloader.DATABASES_INDEX))
+            .routingTable(createIndexRoutingTable())
             .build();
 
-        mockSearch("GeoIP2-City.mmdb", 0, 9, null);
-        mockSearch("GeoIP2-City.mmdb", 0, 9, 9L);
+        mockSearches("GeoIP2-City.mmdb", 0, 9);
 
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
@@ -224,10 +221,7 @@ public class DatabaseRegistryTests extends ESTestCase {
     public void testRetrieveDatabase() throws Exception {
         String md5 = "7a39822e85d3eeb863657b7865597a7a";
         GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(-1, 0, 29, md5);
-        mockSearch("_name", 0, 29, null);
-        mockSearch("_name", 0, 29, 9L);
-        mockSearch("_name", 0, 29, 19L);
-        mockSearch("_name", 0, 29, 29L);
+        mockSearches("_name", 0, 29);
 
         @SuppressWarnings("unchecked")
         CheckedConsumer<byte[], IOException> chunkConsumer = mock(CheckedConsumer.class);
@@ -239,14 +233,13 @@ public class DatabaseRegistryTests extends ESTestCase {
         verify(failureHandler, never()).accept(any());
         verify(chunkConsumer, times(30)).accept(any());
         verify(completedHandler, times(1)).run();
-        verify(client, times(4)).search(any());
+        verify(client, times(30)).search(any());
     }
 
     public void testRetrieveDatabaseCorruption() throws Exception {
         String md5 = "different";
         GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(-1, 0, 9, md5);
-        mockSearch("_name", 0, 9, null);
-        mockSearch("_name", 0, 9, 9L);
+        mockSearches("_name", 0, 9);
 
         @SuppressWarnings("unchecked")
         CheckedConsumer<byte[], IOException> chunkConsumer = mock(CheckedConsumer.class);
@@ -262,46 +255,41 @@ public class DatabaseRegistryTests extends ESTestCase {
             "but got md5 hash [7a39822e85d3eeb863657b7865597a7a]"));
         verify(chunkConsumer, times(10)).accept(any());
         verify(completedHandler, times(0)).run();
-        verify(client, times(2)).search(any());
+        verify(client, times(10)).search(any());
     }
 
-    private void mockSearch(String databaseName, int firstChunk, int lastChunk, Long lastSortValue) throws IOException {
+    private void mockSearches(String databaseName, int firstChunk, int lastChunk) throws IOException {
         String dummyContent = "test: " + databaseName;
         List<byte[]> data = gzip(dummyContent, lastChunk - firstChunk + 1);
         assertThat(gunzip(data), equalTo(dummyContent));
-        final SearchHit[] hits;
-        if (lastSortValue != null && lastChunk == lastSortValue) {
-            hits = new SearchHit[0];
-        } else {
-            hits = new SearchHit[10];
-            long offset = lastSortValue != null ? lastSortValue + 1 : 0;
-            for (int i = 0; i < hits.length; i++) {
-                SearchHit searchHit = new SearchHit(i);
-                searchHit.sortValues(new Object[]{offset + i}, new DocValueFormat[]{DocValueFormat.RAW});
-                try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
-                    builder.map(Map.of("data", data.get((int) (offset + i))));
-                    builder.flush();
-                    ByteArrayOutputStream outputStream = (ByteArrayOutputStream) builder.getOutputStream();
-                    searchHit.sourceRef(new BytesArray(outputStream.toByteArray()));
-                } catch (IOException ex) {
-                    throw new UncheckedIOException(ex);
-                }
-                hits[i] = searchHit;
-            }
-        }
 
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(30, TotalHits.Relation.EQUAL_TO), 1f);
-        SearchResponse searchResponse =
-            new SearchResponse(new SearchResponseSections(searchHits, null, null, false, null, null, 0), null, 1, 1, 0, 1L, null, null);
-        @SuppressWarnings("unchecked")
-        ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);
-        when(actionFuture.actionGet()).thenReturn(searchResponse);
-        SearchRequest expectedSearchRequest = DatabaseRegistry.createSearchRequest(databaseName, firstChunk, lastChunk, lastSortValue);
-        when(client.search(eq(expectedSearchRequest))).thenReturn(actionFuture);
+        for (int i = firstChunk; i <= lastChunk; i++) {
+            byte[] chunk = data.get(i - firstChunk);
+            SearchHit hit = new SearchHit(i);
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
+                builder.map(Map.of("data", chunk));
+                builder.flush();
+                ByteArrayOutputStream outputStream = (ByteArrayOutputStream) builder.getOutputStream();
+                hit.sourceRef(new BytesArray(outputStream.toByteArray()));
+            } catch (IOException ex) {
+                throw new UncheckedIOException(ex);
+            }
+
+            SearchHits hits = new SearchHits(new SearchHit[] {hit}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+            SearchResponse searchResponse =
+                new SearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 0), null, 1, 1, 0, 1L, null, null);
+            @SuppressWarnings("unchecked")
+            ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);
+            when(actionFuture.actionGet()).thenReturn(searchResponse);
+            SearchRequest expectedSearchRequest = new SearchRequest(GeoIpDownloader.DATABASES_INDEX);
+            String id = String.format(Locale.ROOT, "%s_%d", databaseName, i);
+            expectedSearchRequest.source().query(new TermQueryBuilder("_id", id));
+            when(client.search(eq(expectedSearchRequest))).thenReturn(actionFuture);
+        }
     }
 
-    private static RoutingTable createIndexRoutingTable(String indexName) {
-        Index index = new Index(indexName, UUID.randomUUID().toString());
+    private static RoutingTable createIndexRoutingTable() {
+        Index index = new Index(GeoIpDownloader.DATABASES_INDEX, UUID.randomUUID().toString());
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             new ShardId(index, 0),
             true,

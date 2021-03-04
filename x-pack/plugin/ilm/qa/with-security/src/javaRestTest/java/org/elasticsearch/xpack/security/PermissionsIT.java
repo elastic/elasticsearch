@@ -58,12 +58,14 @@ import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class PermissionsIT extends ESRestTestCase {
 
@@ -125,7 +127,6 @@ public class PermissionsIT extends ESRestTestCase {
      * but then not have permissions to operate on an index that was later associated with that policy by another
      * user
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69925")
     @SuppressWarnings("unchecked")
     public void testCanManageIndexWithNoPermissions() throws Exception {
         createIndexAsAdmin("not-ilm", indexSettingsWithPolicy, "");
@@ -141,16 +142,23 @@ public class PermissionsIT extends ESRestTestCase {
                 Map<String, Object> mapResponse = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                 Map<String, Object> indexExplain = (Map<String, Object>) ((Map<String, Object>) mapResponse.get("indices")).get("not-ilm");
                 assertThat(indexExplain.get("managed"), equalTo(true));
-                assertThat(indexExplain.get("step"), equalTo("ERROR"));
-                assertThat(indexExplain.get("failed_step"), equalTo("wait-for-shard-history-leases"));
-                Map<String, String> stepInfo = (Map<String, String>) indexExplain.get("step_info");
-                assertThat(stepInfo.get("type"), equalTo("security_exception"));
-                assertThat(stepInfo.get("reason"), equalTo("action [indices:monitor/stats] is unauthorized" +
-                    " for user [test_ilm]" +
-                    " on indices [not-ilm]," +
-                    " this action is granted by the index privileges [monitor,manage,all]"));
+                assertThat((Integer) indexExplain.get("failed_step_retry_count"), greaterThanOrEqualTo(1));
+
+                // as `wait-for-shard-history-leases` is now retryable, when it fails ILM moves into ERROR and when it retries it moves back
+                // into `wait-for-shard-history-leases`. this assertBusy block might never catch ILM in the `ERROR` step (if unlucky) so
+                // the following checks are lenient
+                String currentStep = (String) indexExplain.get("step");
+                if (currentStep != null && currentStep.equals("ERROR")) {
+                    assertThat(indexExplain.get("failed_step"), equalTo("wait-for-shard-history-leases"));
+                    Map<String, String> stepInfo = (Map<String, String>) indexExplain.get("step_info");
+                    assertThat(stepInfo.get("type"), equalTo("security_exception"));
+                    assertThat(stepInfo.get("reason"), equalTo("action [indices:monitor/stats] is unauthorized" +
+                        " for user [test_ilm]" +
+                        " on indices [not-ilm]," +
+                        " this action is granted by the index privileges [monitor,manage,all]"));
+                }
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testSLMWithPermissions() throws Exception {
@@ -300,7 +308,7 @@ public class PermissionsIT extends ESRestTestCase {
             Request request = new Request("HEAD", "/" + "foo-logs-000002");
             int status = adminClient().performRequest(request).getStatusLine().getStatusCode();
             assertThat(status, equalTo(200));
-        });
+        }, 30, TimeUnit.SECONDS);
 
         // test_user: index docs using alias, now should be able write to new index
         indexDocs("test_user", "x-pack-test-password", "foo_alias", 1);

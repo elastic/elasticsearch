@@ -91,6 +91,12 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     protected Settings restClientSettings() {
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
+
+                // increase the timeout here to 90 seconds to handle long waits for a green
+                // cluster health. the waits for green need to be longer than a minute to
+                // account for delayed shards
+                .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
+
                 .build();
     }
 

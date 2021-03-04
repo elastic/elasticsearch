@@ -29,16 +29,18 @@ Use a keyword family field type if:
 
 * The content is machine-generated, such as a log message or HTTP request
 information.
-* You plan to search the field for character sequences, such as `org.foo.bar` or
-`org.foo.*`, using <<term-level-queries,term-level queries>>.
+* You plan to search the field for exact full values, such as `org.foo.bar`, or
+partial character sequences, such as `org.foo.*`, using
+<<term-level-queries,term-level queries>>.
 
 **Choosing a keyword family field type**
 
 If you choose a keyword family field type, you can map the field as a `keyword`
 or `wildcard` field depending on the cardinality and size of the field's values.
-Use the `wildcard` type if you plan to regularly search the field using a
-<<query-dsl-wildcard-query,`wildcard`>> or <<query-dsl-regexp-query,`regexp`>>
-query and meet one of the following criteria:
+Use the `wildcard` type if you plan to regularly search the field for partial
+character sequences using a <<query-dsl-wildcard-query,`wildcard`>> or
+<<query-dsl-regexp-query,`regexp`>> query and meet one of the following
+criteria:
 
 * The field contains more than a million unique values. +
 AND +

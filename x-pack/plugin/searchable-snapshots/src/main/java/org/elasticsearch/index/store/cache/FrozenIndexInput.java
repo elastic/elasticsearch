@@ -36,8 +36,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -60,6 +58,8 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
     private long lastReadPosition;
     // last seek position is kept around in order to detect forward/backward seeks for stats
     private long lastSeekPosition;
+
+    private long physicalOffset;
 
     public FrozenIndexInput(
         String name,
@@ -130,28 +130,20 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
     }
 
     private long getDefaultRangeSize() {
-        return (context != CACHE_WARMING_CONTEXT)
-            ? (directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize)
-            : fileInfo.partSize().getBytes();
+        return directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize;
     }
 
-    private ByteRange computeRange(long position, long length) {
+    private ByteRange computeRange(long position) {
         final long rangeSize = getDefaultRangeSize();
         long start = (position / rangeSize) * rangeSize;
-        long end = Math.min(start + rangeSize, length);
+        long end = Math.min(start + rangeSize, frozenCacheFile.getLength());
         return ByteRange.of(start, end);
     }
 
     @Override
     protected void doReadInternal(ByteBuffer b) throws IOException {
         ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
-        final long position;
-        if (isCompoundFile) {
-            position = getFilePointer();
-            assert isClone;
-        } else {
-            position = getAbsolutePosition();
-        }
+        final long position = getFilePointer() + this.offset;
         final int length = b.remaining();
 
         final ReentrantReadWriteLock luceneByteBufLock = new ReentrantReadWriteLock();
@@ -292,9 +284,8 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             // Requested data is also not in the cache index, so we must visit the blob store to satisfy both the target range and any
             // miss in the cache index.
 
-            final long fileLength = frozenCacheFile.getLength();
-            final ByteRange startRangeToWrite = computeRange(position, fileLength);
-            final ByteRange endRangeToWrite = computeRange(position + length - 1, fileLength);
+            final ByteRange startRangeToWrite = computeRange(position);
+            final ByteRange endRangeToWrite = computeRange(position + length - 1);
             assert startRangeToWrite.end() <= endRangeToWrite.end() : startRangeToWrite + " vs " + endRangeToWrite;
             final ByteRange rangeToWrite = startRangeToWrite.minEnvelope(endRangeToWrite).minEnvelope(indexCacheMiss);
 
@@ -425,10 +416,8 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         lastSeekPosition = lastReadPosition;
     }
 
-    private int readDirectlyIfAlreadyClosed(long pos, ByteBuffer b, Exception e) throws IOException {
+    private int readDirectlyIfAlreadyClosed(long position, ByteBuffer b, Exception e) throws IOException {
         if (e instanceof AlreadyClosedException || (e.getCause() != null && e.getCause() instanceof AlreadyClosedException)) {
-            // we need to compute a the global position for compound files
-            final long position = pos + (isCompoundFile ? this.offset : 0L);
             try {
                 // cache file was evicted during the range fetching, read bytes directly from blob container
                 final long length = b.remaining();
@@ -444,7 +433,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
 
                 int bytesCopied = 0;
                 final long startTimeNanos = stats.currentTimeNanos();
-                try (InputStream input = openInputStreamFromBlobStore(position, length)) {
+                try (InputStream input = openInputStreamFromBlobStore(position + this.physicalOffset, length)) {
                     long remaining = length;
                     while (remaining > 0) {
                         final int len = (remaining < copyBuffer.length) ? (int) remaining : copyBuffer.length;
@@ -608,8 +597,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         long bytesCopied = 0L;
         long remaining = length;
         final long startTimeNanos = stats.currentTimeNanos();
-        // we need to compute the global position for compound files
-        try (InputStream input = openInputStreamFromBlobStore(logicalPos + relativePos + (isCompoundFile ? this.offset : 0L), length)) {
+        try (InputStream input = openInputStreamFromBlobStore(logicalPos + relativePos + this.physicalOffset, length)) {
             while (remaining > 0L) {
                 final int bytesRead = readSafe(input, copyBuffer, relativePos, end, remaining, frozenCacheFile);
                 positionalWrite(fc, fileChannelPos + bytesCopied, ByteBuffer.wrap(copyBuffer, 0, bytesRead));
@@ -630,7 +618,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         } else if (pos < 0L) {
             throw new IOException("Seeking to negative position [" + pos + "] for " + toString());
         }
-        final long position = isCompoundFile ? pos : pos + this.offset;
+        final long position = pos + this.offset;
         stats.incrementSeeks(lastSeekPosition, position);
         lastSeekPosition = position;
     }
@@ -658,28 +646,32 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         }
 
         // Are we creating a slice from a CFS file?
-        boolean sliceCompoundFile = IndexFileNames.matchesExtension(name, "cfs")
+        final boolean sliceCompoundFile = IndexFileNames.matchesExtension(name, "cfs")
             && IndexFileNames.getExtension(sliceName) != null
-            && isCompoundFile == false
-            && isClone == false;
+            && isCompoundFile == false;
 
-        final FrozenCacheFile sliceFrozenCacheFile;
-        final ByteRange sliceHeaderByteRange;
-        final ByteRange sliceFooterByteRange;
+        final long offset;
+        final long physicalOffset;
+        final FrozenCacheFile frozenCacheFile;
+        final ByteRange headerBlobCacheByteRange;
+        final ByteRange footerBlobCacheByteRange;
 
         if (sliceCompoundFile) {
-            sliceFrozenCacheFile = directory.getFrozenCacheFile(sliceName, sliceLength);
-            sliceHeaderByteRange = directory.getBlobCacheByteRange(sliceName, sliceLength);
-            if (sliceHeaderByteRange.length() < sliceLength) {
-                sliceFooterByteRange = ByteRange.of(sliceLength - CodecUtil.footerLength(), sliceLength);
+            offset = 0L;
+            physicalOffset = this.physicalOffset + this.offset + sliceOffset;
+            frozenCacheFile = directory.getFrozenCacheFile(sliceName, sliceLength);
+            headerBlobCacheByteRange = directory.getBlobCacheByteRange(sliceName, sliceLength);
+            if (headerBlobCacheByteRange.length() < sliceLength) {
+                footerBlobCacheByteRange = ByteRange.of(sliceLength - CodecUtil.footerLength(), sliceLength);
             } else {
-                sliceFooterByteRange = ByteRange.EMPTY;
+                footerBlobCacheByteRange = ByteRange.EMPTY;
             }
         } else {
-            sliceFrozenCacheFile = this.frozenCacheFile;
-            sliceCompoundFile = this.isCompoundFile; // fix this
-            sliceHeaderByteRange = ByteRange.EMPTY;
-            sliceFooterByteRange = ByteRange.EMPTY;
+            offset = this.offset + sliceOffset;
+            physicalOffset = this.physicalOffset;
+            frozenCacheFile = this.frozenCacheFile;
+            headerBlobCacheByteRange = ByteRange.EMPTY;
+            footerBlobCacheByteRange = ByteRange.EMPTY;
         }
 
         final FrozenIndexInput slice = new FrozenIndexInput(
@@ -688,16 +680,17 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             fileInfo,
             context,
             stats,
-            this.offset + sliceOffset,
+            offset,
             sliceLength,
-            sliceFrozenCacheFile,
+            frozenCacheFile,
             defaultRangeSize,
             recoveryRangeSize,
-            sliceHeaderByteRange,
-            sliceFooterByteRange,
+            headerBlobCacheByteRange,
+            footerBlobCacheByteRange,
             sliceCompoundFile
         );
         slice.isClone = true;
+        slice.physicalOffset = physicalOffset;
         return slice;
     }
 

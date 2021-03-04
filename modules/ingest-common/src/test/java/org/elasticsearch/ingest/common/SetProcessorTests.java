@@ -135,6 +135,7 @@ public class SetProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class), Matchers.equalTo(ifPrimaryTerm));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69876")
     public void testCopyFromOtherField() throws Exception {
         Map<String, Object> document = new HashMap<>();
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());

@@ -13,6 +13,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -26,6 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -34,6 +36,8 @@ import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -49,6 +53,10 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
+import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -56,17 +64,23 @@ import org.elasticsearch.search.internal.ContextIndexSearcherTests.DocumentSubse
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 
 public class FiltersAggregatorTests extends AggregatorTestCase {
@@ -99,6 +113,24 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         assertFalse(AggregationInspectionHelper.hasValue(response));
         indexReader.close();
         directory.close();
+    }
+
+    public void testNoFilters() throws IOException {
+        testCase(new FiltersAggregationBuilder("test", new KeyedFilter[0]), new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(List.of());
+        }, (InternalFilters result) -> {
+            assertThat(result.getBuckets(), hasSize(0));
+        });
+    }
+
+    public void testNoFiltersWithSubAggs() throws IOException {
+        testCase(
+            new FiltersAggregationBuilder("test", new KeyedFilter[0]).subAggregation(new MaxAggregationBuilder("m").field("i")),
+            new MatchAllDocsQuery(),
+            iw -> { iw.addDocument(List.of(new SortedNumericDocValuesField("i", 1))); },
+            (InternalFilters result) -> { assertThat(result.getBuckets(), hasSize(0)); },
+            new NumberFieldMapper.NumberFieldType("m", NumberFieldMapper.NumberType.INTEGER)
+        );
     }
 
     public void testKeyedFilter() throws Exception {
@@ -513,6 +545,217 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(4L));
         }, ft);
     }
+
+    public void testSubAggs() throws IOException {
+        MappedFieldType dateFt = new DateFieldMapper.DateFieldType(
+            "test",
+            true,
+            false,
+            false,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            Resolution.MILLISECONDS,
+            null,
+            null
+        );
+        MappedFieldType intFt = new NumberFieldMapper.NumberFieldType("int", NumberType.INTEGER);
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("q1", new RangeQueryBuilder("test").from("2010-01-01").to("2010-03-01").includeUpper(false)),
+            new KeyedFilter("q2", new RangeQueryBuilder("test").from("2020-01-01").to("2020-03-01").includeUpper(false))
+        ).subAggregation(new MaxAggregationBuilder("m").field("int")).subAggregation(new SumAggregationBuilder("s").field("int"));
+        List<List<IndexableField>> docs = new ArrayList<>();
+        docs.add(
+            List.of(
+                new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02")),
+                new SortedNumericDocValuesField("int", 100)
+            )
+        );
+        docs.add(
+            List.of(
+                new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02")),
+                new SortedNumericDocValuesField("int", 5)
+            )
+        );
+        docs.add(
+            List.of(
+                new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-03")),
+                new SortedNumericDocValuesField("int", 10)
+            )
+        );
+         /*
+          * Shuffle the docs so we collect them in a random order which causes
+          * bad implementations of filter-by-filter aggregation to fail with
+          * assertion errors while executing.
+          */
+        Collections.shuffle(docs, random());
+        testCase(builder, new MatchAllDocsQuery(), iw -> iw.addDocuments(docs), result -> {
+            InternalFilters filters = (InternalFilters) result;
+            assertThat(filters.getBuckets(), hasSize(2));
+
+            InternalFilters.InternalBucket b = filters.getBucketByKey("q1"); 
+            assertThat(b.getDocCount(), equalTo(1L));
+            InternalMax max = b.getAggregations().get("m");
+            assertThat(max.getValue(), equalTo(100.0));
+            InternalSum sum = b.getAggregations().get("s");
+            assertThat(sum.getValue(), equalTo(100.0));
+
+            b = filters.getBucketByKey("q2");
+            assertThat(b.getDocCount(), equalTo(2L));
+            max = b.getAggregations().get("m");
+            assertThat(max.getValue(), equalTo(10.0));
+            sum = b.getAggregations().get("s");
+            assertThat(sum.getValue(), equalTo(15.0));
+        }, dateFt, intFt);
+        withAggregator(builder, new MatchAllDocsQuery(), iw -> iw.addDocuments(docs), (searcher, aggregator) -> {
+            assertThat(aggregator, instanceOf(FiltersAggregator.FilterByFilter.class));
+            FiltersAggregator.FilterByFilter filterByFilter = (FiltersAggregator.FilterByFilter) aggregator;
+            int maxDoc = searcher.getIndexReader().maxDoc();
+            assertThat(filterByFilter.estimateCost(maxDoc), equalTo(3L));
+            Map<String, Object> debug = new HashMap<>();
+            filterByFilter.filters().get(0).collectDebugInfo(debug::put);
+            assertThat((int) debug.get("scorers_prepared_while_estimating_cost"), greaterThanOrEqualTo(1));
+            debug = new HashMap<>();
+            filterByFilter.filters().get(1).collectDebugInfo(debug::put);
+            assertThat((int) debug.get("scorers_prepared_while_estimating_cost"), greaterThanOrEqualTo(1));
+        }, dateFt, intFt);
+    }
+
+    public void testSubAggsManyDocs() throws IOException {
+        MappedFieldType dateFt = new DateFieldMapper.DateFieldType(
+            "test",
+            true,
+            false,
+            false,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            Resolution.MILLISECONDS,
+            null,
+            null
+        );
+        MappedFieldType intFt = new NumberFieldMapper.NumberFieldType("int", NumberType.INTEGER);
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("q1", new RangeQueryBuilder("test").from("2010-01-01").to("2010-03-01").includeUpper(false)),
+            new KeyedFilter("q2", new RangeQueryBuilder("test").from("2020-01-01").to("2020-03-01").includeUpper(false))
+        ).subAggregation(new MaxAggregationBuilder("m").field("int")).subAggregation(new SumAggregationBuilder("s").field("int"));
+        List<List<IndexableField>> docs = new ArrayList<>();
+        long[] times = new long[] {
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02"),
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02"),
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-03"),
+        };
+        for (int i = 0; i < 10000; i++) {
+            docs.add(List.of(new LongPoint("test", times[i % 3]), new SortedNumericDocValuesField("int", i)));
+        }
+         /*
+          * Shuffle the docs so we collect them in a random order which causes
+          * bad implementations of filter-by-filter aggregation to fail with
+          * assertion errors while executing.
+          */
+        Collections.shuffle(docs, random());
+        testCase(builder, new MatchAllDocsQuery(), iw -> iw.addDocuments(docs), result -> {
+            InternalFilters filters = (InternalFilters) result;
+            assertThat(filters.getBuckets(), hasSize(2));
+
+            InternalFilters.InternalBucket b = filters.getBucketByKey("q1"); 
+            assertThat(b.getDocCount(), equalTo(3334L));
+            InternalMax max = b.getAggregations().get("m");
+            assertThat(max.getValue(), equalTo(9999.0));
+            InternalSum sum = b.getAggregations().get("s");
+            assertThat(sum.getValue(), equalTo(16668333.0));
+
+            b = filters.getBucketByKey("q2");
+            assertThat(b.getDocCount(), equalTo(6666L));
+            max = b.getAggregations().get("m");
+            assertThat(max.getValue(), equalTo(9998.0));
+            sum = b.getAggregations().get("s");
+            assertThat(sum.getValue(), equalTo(33326667.0));
+        }, dateFt, intFt);
+        withAggregator(builder, new MatchAllDocsQuery(), iw -> iw.addDocuments(docs), (searcher, aggregator) -> {
+            assertThat(aggregator, instanceOf(FiltersAggregator.FilterByFilter.class));
+            FiltersAggregator.FilterByFilter filterByFilter = (FiltersAggregator.FilterByFilter) aggregator;
+            int maxDoc = searcher.getIndexReader().maxDoc();
+            assertThat(filterByFilter.estimateCost(maxDoc), both(greaterThanOrEqualTo(10000L)).and(lessThan(20000L)));
+            Map<String, Object> debug = new HashMap<>();
+            filterByFilter.filters().get(0).collectDebugInfo(debug::put);
+            assertThat((int) debug.get("scorers_prepared_while_estimating_cost"), greaterThanOrEqualTo(1));
+            debug = new HashMap<>();
+            filterByFilter.filters().get(1).collectDebugInfo(debug::put);
+            assertThat((int) debug.get("scorers_prepared_while_estimating_cost"), greaterThanOrEqualTo(1));
+        }, dateFt, intFt);
+    }
+
+    public void testSubAggsManyFilters() throws IOException {
+        MappedFieldType dateFt = new DateFieldMapper.DateFieldType(
+            "test",
+            true,
+            false,
+            false,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            Resolution.MILLISECONDS,
+            null,
+            null
+        );
+        MappedFieldType intFt = new NumberFieldMapper.NumberFieldType("int", NumberType.INTEGER);
+        List<KeyedFilter> buckets = new ArrayList<>();
+        DateFormatter formatter = DateFormatter.forPattern("strict_date");
+        long start = formatter.parseMillis("2010-01-01");
+        long lastRange = formatter.parseMillis("2020-03-01");
+        while (start < lastRange) {
+            long end = start + TimeUnit.DAYS.toMillis(30);
+            String key = formatter.formatMillis(start) + " to " + formatter.formatMillis(end);
+            buckets.add(new KeyedFilter(key, new RangeQueryBuilder("test").from(start).to(end).includeUpper(false)));
+            start = end;
+        }
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            buckets.toArray(KeyedFilter[]::new)
+        ).subAggregation(new MaxAggregationBuilder("m").field("int")).subAggregation(new SumAggregationBuilder("s").field("int"));
+        List<List<IndexableField>> docs = new ArrayList<>();
+        long[] times = new long[] {
+            formatter.parseMillis("2010-01-02"),
+            formatter.parseMillis("2020-01-02"),
+            formatter.parseMillis("2020-01-03"), };
+        for (int i = 0; i < 10000; i++) {
+            docs.add(List.of(new LongPoint("test", times[i % 3]), new SortedNumericDocValuesField("int", i)));
+        }
+         /*
+          * Shuffle the docs so we collect them in a random order which causes
+          * bad implementations of filter-by-filter aggregation to fail with
+          * assertion errors while executing.
+          */
+        Collections.shuffle(docs, random());
+        testCase(builder, new MatchAllDocsQuery(), iw -> iw.addDocuments(docs), result -> {
+            InternalFilters filters = (InternalFilters) result;
+            assertThat(filters.getBuckets(), hasSize(buckets.size()));
+
+            InternalFilters.InternalBucket b = filters.getBucketByKey("2010-01-01 to 2010-01-31");
+            assertThat(b.getDocCount(), equalTo(3334L));
+            InternalMax max = b.getAggregations().get("m");
+            assertThat(max.getValue(), equalTo(9999.0));
+            InternalSum sum = b.getAggregations().get("s");
+            assertThat(sum.getValue(), equalTo(16668333.0));
+
+            b = filters.getBucketByKey("2019-12-10 to 2020-01-09");
+            assertThat(b.getDocCount(), equalTo(6666L));
+            max = b.getAggregations().get("m");
+            assertThat(max.getValue(), equalTo(9998.0));
+            sum = b.getAggregations().get("s");
+            assertThat(sum.getValue(), equalTo(33326667.0));
+        }, dateFt, intFt);
+        withAggregator(builder, new MatchAllDocsQuery(), iw -> iw.addDocuments(docs), (searcher, aggregator) -> {
+            assertThat(aggregator, instanceOf(FiltersAggregator.FilterByFilter.class));
+            FiltersAggregator.FilterByFilter filterByFilter = (FiltersAggregator.FilterByFilter) aggregator;
+            int maxDoc = searcher.getIndexReader().maxDoc();
+            assertThat(filterByFilter.estimateCost(maxDoc), both(greaterThanOrEqualTo(10000L)).and(lessThan(20000L)));
+            for (int b = 0; b < buckets.size(); b++) {
+                Map<String, Object> debug = new HashMap<>();
+                filterByFilter.filters().get(0).collectDebugInfo(debug::put);
+                assertThat((int) debug.get("scorers_prepared_while_estimating_cost"), greaterThanOrEqualTo(1));
+            }
+        }, dateFt, intFt);
+    }
+
+
 
     @Override
     protected List<ObjectMapper> objectMappers() {

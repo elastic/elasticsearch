@@ -15,11 +15,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -37,7 +34,7 @@ import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SIZE_S
  * Keeps track of the nodes in the cluster and whether they do or do not have a frozen-tier shared cache, because we can only allocate
  * frozen-tier shards to such nodes.
  */
-public class FrozenCacheInfoService implements ClusterStateListener {
+public class FrozenCacheInfoService {
 
     private static final Logger logger = LogManager.getLogger(FrozenCacheInfoService.class);
 
@@ -48,28 +45,7 @@ public class FrozenCacheInfoService implements ClusterStateListener {
      */
     private final Map<DiscoveryNode, NodeStateHolder> nodeStates = new HashMap<>();
 
-    /**
-     * Whether this node is currently the master; if not then we stop retrying any failed fetches
-     */
-    private volatile boolean isElectedMaster;
-
-    public void initialize(ClusterService clusterService) {
-        clusterService.addListener(this);
-    }
-
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        isElectedMaster = event.localNodeMaster();
-        if (isElectedMaster == false) {
-            clear();
-        }
-    }
-
     public void updateNodes(Client client, Set<DiscoveryNode> nodes, RerouteService rerouteService) {
-        if (isElectedMaster == false) {
-            return;
-        }
-
         final List<AsyncNodeFetch> newFetches;
         synchronized (mutex) {
             // clean up nodes that left the cluster
@@ -171,7 +147,7 @@ public class FrozenCacheInfoService implements ClusterStateListener {
         private void recordFailure(Exception e) {
             final boolean shouldRetry;
             synchronized (mutex) {
-                shouldRetry = isElectedMaster && nodeStates.get(discoveryNode) == nodeStateHolder;
+                shouldRetry = nodeStates.get(discoveryNode) == nodeStateHolder;
             }
             logger.debug(
                 new ParameterizedMessage("failed to retrieve node settings from node {}, shouldRetry={}", discoveryNode, shouldRetry),

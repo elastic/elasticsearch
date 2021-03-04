@@ -56,7 +56,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests.randomPivotConfig;
@@ -226,7 +225,7 @@ public class TransformIndexerTests extends ESTestCase {
             // pretend that we processed 10k documents for each call
             getStats().incrementNumDocuments(10_000);
             return new IterationResult<>(
-                singletonList(new IndexRequest()),
+                Collections.singletonList(new IndexRequest()),
                 new TransformIndexerPosition(null, null),
                 numberOfLoops == 0
             );

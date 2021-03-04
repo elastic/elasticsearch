@@ -274,10 +274,11 @@ final class DatabaseRegistry implements Closeable {
             MessageDigest md = MessageDigests.md5();
             Long lastSortValue = null;
 
+            int firstChunk = metadata.getFirstChunk();
+            int lastChunk = metadata.getLastChunk();
             try {
                 do {
-                    SearchRequest searchRequest =
-                        createSearchRequest(databaseName, metadata.getFirstChunk(), metadata.getLastChunk(), lastSortValue);
+                    SearchRequest searchRequest = createSearchRequest(databaseName, firstChunk, lastChunk, lastSortValue);
                     lastSortValue = null;
 
                     // At most once a day a few searches may be executed to fetch the new files,

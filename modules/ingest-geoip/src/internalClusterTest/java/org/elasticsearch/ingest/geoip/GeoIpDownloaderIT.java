@@ -237,8 +237,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::toString)
-                        .collect(Collectors.toList());
+                    List<String> files = list.map(Path::toString).collect(Collectors.toList());
                     assertThat(files, containsInAnyOrder(endsWith("GeoLite2-City.mmdb"), endsWith("GeoLite2-Country.mmdb"),
                         endsWith("GeoLite2-ASN.mmdb")));
                 }
@@ -263,8 +262,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::toString)
-                        .collect(Collectors.toList());
+                    List<String> files = list.map(Path::toString).collect(Collectors.toList());
                     assertThat(files, empty());
                 }
             }

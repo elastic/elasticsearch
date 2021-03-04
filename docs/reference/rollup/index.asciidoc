@@ -81,7 +81,7 @@ See <<legacy-rollup-apis>>.
 
 [discrete]
 [[differences-with-legacy-rollups]]
-==== Differences with legacy rollups
+==== Differences from legacy rollups
 
 The new rollup functionality differs from legacy rollups as follows:
 

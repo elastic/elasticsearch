@@ -272,3 +272,4 @@ teardown:
         id: 1
   - match: { _source.foo: "bar" }
   - match: { _source.final_pipeline_2: true }
+  - is_false: _source.final_pipeline_1

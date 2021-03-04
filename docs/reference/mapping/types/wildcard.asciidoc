@@ -37,10 +37,9 @@ partial character sequences, such as `org.foo.*`, using
 
 If you choose a keyword family field type, you can map the field as a `keyword`
 or `wildcard` field depending on the cardinality and size of the field's values.
-Use the `wildcard` type if you plan to regularly search the field for partial
-character sequences using a <<query-dsl-wildcard-query,`wildcard`>> or
-<<query-dsl-regexp-query,`regexp`>> query and meet one of the following
-criteria:
+Use the `wildcard` type if you plan to regularly search the field using a
+<<query-dsl-wildcard-query,`wildcard`>> or <<query-dsl-regexp-query,`regexp`>>
+query and meet one of the following criteria:
 
 * The field contains more than a million unique values. +
 AND +
@@ -61,9 +60,9 @@ blog post].
 
 If you previously used a `text` field to index unstructured machine-generated
 content, you can <<update-mapping,reindex to update the mapping>> to a `keyword`
-or `wildcard` field. We also recommend you update your application to replace
-any word-based <<full-text-queries,full text queries>> on the field to
-equivalent <<term-level-queries,term-level queries>>.
+or `wildcard` field. We also recommend you update your application or workflow
+to replace any word-based <<full-text-queries,full text queries>> on the field
+to equivalent <<term-level-queries,term-level queries>>.
 ****
 
 Internally the `wildcard` field indexes the whole field value using ngrams and stores the full string.

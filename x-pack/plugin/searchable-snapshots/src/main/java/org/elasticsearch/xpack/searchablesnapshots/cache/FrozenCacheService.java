@@ -398,7 +398,7 @@ public class FrozenCacheService implements Releasable {
 
     private synchronized boolean invariant(final Entry<CacheFileRegion> e, boolean present) {
         boolean found = false;
-        final Entry<CacheFileRegion>[] freqs = getFrequencies(e);
+        final Entry<CacheFileRegion>[] freqs = getFrequencies(e.chunk.regionSize());
         for (int i = 0; i < maxFreq; i++) {
             assert freqs[i] == null || freqs[i].prev != null;
             assert freqs[i] == null || freqs[i].prev != freqs[i] || freqs[i].next == null;
@@ -428,18 +428,7 @@ public class FrozenCacheService implements Releasable {
 
     private void maybeEvict(RegionSize size) {
         assert Thread.holdsLock(this);
-        final Entry<CacheFileRegion>[] freqs;
-        switch (size) {
-            case STANDARD:
-                freqs = regionFreqs;
-                break;
-            case SMALL:
-                freqs = smallRegionFreqs;
-                break;
-            default:
-                freqs = tinyRegionFreqs;
-                break;
-        }
+        final Entry<CacheFileRegion>[] freqs = getFrequencies(size);
         for (int i = 0; i < maxFreq; i++) {
             for (Entry<CacheFileRegion> entry = freqs[i]; entry != null; entry = entry.next) {
                 boolean evicted = entry.chunk.tryEvict();
@@ -457,7 +446,7 @@ public class FrozenCacheService implements Releasable {
         assert invariant(entry, false);
         assert entry.prev == null;
         assert entry.next == null;
-        final Entry<CacheFileRegion>[] freqs = getFrequencies(entry);
+        final Entry<CacheFileRegion>[] freqs = getFrequencies(entry.chunk.regionSize());
         final Entry<CacheFileRegion> currFront = freqs[entry.freq];
         if (currFront == null) {
             freqs[entry.freq] = entry;
@@ -482,7 +471,7 @@ public class FrozenCacheService implements Releasable {
         assert Thread.holdsLock(this);
         assert invariant(entry, true);
         assert entry.prev != null;
-        final Entry<CacheFileRegion>[] freqs = getFrequencies(entry);
+        final Entry<CacheFileRegion>[] freqs = getFrequencies(entry.chunk.regionSize());
         final Entry<CacheFileRegion> currFront = freqs[entry.freq];
         assert currFront != null;
         if (currFront == entry) {
@@ -505,9 +494,9 @@ public class FrozenCacheService implements Releasable {
         assert invariant(entry, false);
     }
 
-    private Entry<CacheFileRegion>[] getFrequencies(Entry<CacheFileRegion> entry) {
+    private Entry<CacheFileRegion>[] getFrequencies(RegionSize regionSize) {
         final Entry<CacheFileRegion>[] freqs;
-        switch (entry.chunk.regionSize()) {
+        switch (regionSize) {
             case STANDARD:
                 freqs = regionFreqs;
                 break;

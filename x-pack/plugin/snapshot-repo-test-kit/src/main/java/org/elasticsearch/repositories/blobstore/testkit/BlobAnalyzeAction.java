@@ -273,7 +273,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
 
         void run() {
             writeRandomBlob(
-                request.readEarly || (request.targetLength <= Integer.MAX_VALUE && random.nextBoolean()),
+                request.readEarly || (request.targetLength <= MAX_ATOMIC_WRITE_SIZE && random.nextBoolean()),
                 true,
                 this::doReadBeforeWriteComplete,
                 write1Step

@@ -458,6 +458,14 @@ public class IndexNameExpressionResolver {
     }
 
     /**
+     * @param time instant to consider when parsing the expression
+     * @return If the specified string is data math expression then this method returns the resolved expression.
+     */
+    public String resolveDateMathExpression(String dateExpression, long time) {
+        return dateMathExpressionResolver.resolveExpression(dateExpression, new Context(null, null, time, getSystemIndexAccessLevel()));
+    }
+
+    /**
      * Resolve an array of expressions to the set of indices and aliases that these expressions match.
      */
     public Set<String> resolveExpressions(ClusterState state, String... expressions) {

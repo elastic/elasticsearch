@@ -32,6 +32,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -317,9 +318,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         List<IndexableField> doc = new ArrayList<IndexableField>();
         for (String v : values) {
             BytesRef bytes = new BytesRef(v);
-            doc.add(new SortedSetDocValuesField("string", bytes));
+            doc.add(new SortedSetDocValuesField(ft.name(), bytes));
             if (ft.isSearchable()) {
-                doc.add(new KeywordField("string", bytes, KeywordFieldMapper.Defaults.FIELD_TYPE));
+                doc.add(new KeywordField(ft.name(), bytes, KeywordFieldMapper.Defaults.FIELD_TYPE));
             }
         }
         return doc;
@@ -645,7 +646,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testStringTermsAggregator() throws Exception {
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field", randomBoolean(), true, null);
         BiFunction<String, Boolean, List<IndexableField>> luceneFieldFactory = (val, mv) -> {
             List<IndexableField> result = new ArrayList<>(2);
             if (mv) {
@@ -660,8 +661,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         };
         termsAggregator(ValueType.STRING, fieldType, i -> Integer.toString(i),
             String::compareTo, luceneFieldFactory);
-        termsAggregatorWithNestedMaxAgg(ValueType.STRING, fieldType, i -> Integer.toString(i),
-            val -> new SortedDocValuesField("field", new BytesRef(val)));
+        termsAggregatorWithNestedMaxAgg(ValueType.STRING, fieldType, i -> Integer.toString(i), val -> luceneFieldFactory.apply(val, false));
     }
 
     public void testLongTermsAggregator() throws Exception {
@@ -675,7 +675,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType
             = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
         termsAggregator(ValueType.LONG, fieldType, Integer::longValue, Long::compareTo, luceneFieldFactory);
-        termsAggregatorWithNestedMaxAgg(ValueType.LONG, fieldType, Integer::longValue, val -> new NumericDocValuesField("field", val));
+        termsAggregatorWithNestedMaxAgg(ValueType.LONG, fieldType, Integer::longValue, val -> luceneFieldFactory.apply(val, false));
     }
 
     public void testDoubleTermsAggregator() throws Exception {
@@ -690,7 +690,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
         termsAggregator(ValueType.DOUBLE, fieldType, Integer::doubleValue, Double::compareTo, luceneFieldFactory);
         termsAggregatorWithNestedMaxAgg(ValueType.DOUBLE, fieldType, Integer::doubleValue,
-            val -> new NumericDocValuesField("field", Double.doubleToRawLongBits(val)));
+            val -> luceneFieldFactory.apply(val, false));
     }
 
     public void testIpTermsAggregator() throws Exception {
@@ -857,7 +857,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     private <T> void termsAggregatorWithNestedMaxAgg(ValueType valueType, MappedFieldType fieldType,
                                      Function<Integer, T> valueFactory,
-                                     Function<T, IndexableField> luceneFieldFactory) throws Exception {
+                                     Function<T, List<IndexableField>> luceneFieldFactory) throws Exception {
         final Map<T, Long> counts = new HashMap<>();
         int numTerms = scaledRandomIntBetween(8, 128);
         for (int i = 0; i < numTerms; i++) {
@@ -867,8 +867,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 for (Map.Entry<T, Long> entry : counts.entrySet()) {
-                    Document document = new Document();
-                    document.add(luceneFieldFactory.apply(entry.getKey()));
+                    List<IndexableField> document = new ArrayList<>();
+                    document.addAll(luceneFieldFactory.apply(entry.getKey()));
                     document.add(new NumericDocValuesField("value", entry.getValue()));
                     indexWriter.addDocument(document);
                 }
@@ -901,7 +901,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                     MappedFieldType fieldType2
                         = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
-                    AggregationContext context = createAggregationContext(indexSearcher, null, fieldType, fieldType2);
+                    AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType, fieldType2);
                     Aggregator aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -1091,19 +1091,21 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNestedTermsAgg() throws Exception {
+        MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("field1", randomBoolean(), true, null);
+        MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType("field2", randomBoolean(), true, null);
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                Document document = new Document();
-                document.add(new SortedDocValuesField("field1", new BytesRef("a")));
-                document.add(new SortedDocValuesField("field2", new BytesRef("b")));
+                List<IndexableField> document = new ArrayList<>();
+                document.addAll(doc(fieldType1, "a"));
+                document.addAll(doc(fieldType2, "b"));
                 indexWriter.addDocument(document);
-                document = new Document();
-                document.add(new SortedDocValuesField("field1", new BytesRef("c")));
-                document.add(new SortedDocValuesField("field2", new BytesRef("d")));
+                document = new ArrayList<>();
+                document.addAll(doc(fieldType1, "c"));
+                document.addAll(doc(fieldType2, "d"));
                 indexWriter.addDocument(document);
-                document = new Document();
-                document.add(new SortedDocValuesField("field1", new BytesRef("e")));
-                document.add(new SortedDocValuesField("field2", new BytesRef("f")));
+                document = new ArrayList<>();
+                document.addAll(doc(fieldType1, "e"));
+                document.addAll(doc(fieldType2, "f"));
                 indexWriter.addDocument(document);
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
@@ -1121,10 +1123,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             .field("field2")
                             .order(BucketOrder.key(true))
                         );
-                    MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("field1");
-                    MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType("field2");
-
-                    AggregationContext context = createAggregationContext(indexSearcher, null, fieldType1, fieldType2);
+                    AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType1, fieldType2);
                     Aggregator aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -1309,12 +1308,14 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHeisenpig() throws IOException {
+        MappedFieldType nestedFieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+        KeywordFieldType animalFieldType = new KeywordFieldType("str", randomBoolean(), true, null);
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 String[] tags = new String[] {"danger", "fluffiness"};
-                indexWriter.addDocuments(generateAnimalDocsWithNested("1", "sheep", tags, new int[] {1, 10}));
-                indexWriter.addDocuments(generateAnimalDocsWithNested("2", "cow", tags, new int[] {3, 1}));
-                indexWriter.addDocuments(generateAnimalDocsWithNested("3", "pig", tags, new int[] {100, 1}));
+                indexWriter.addDocuments(generateAnimalDocsWithNested("1", animalFieldType, "sheep", tags, new int[] {1, 10}));
+                indexWriter.addDocuments(generateAnimalDocsWithNested("2", animalFieldType, "cow", tags, new int[] {3, 1}));
+                indexWriter.addDocuments(generateAnimalDocsWithNested("3", animalFieldType, "pig", tags, new int[] {100, 1}));
                 indexWriter.commit();
                 NestedAggregationBuilder nested = new NestedAggregationBuilder("nested", "nested_object")
                     .subAggregation(
@@ -1326,12 +1327,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     .shardSize(10)
                     .size(10)
                     .order(BucketOrder.aggregation("nested>max_number", false));
-                MappedFieldType nestedFieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-                MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("str");
                 try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                     StringTerms result = searchAndReduce(newSearcher(indexReader, false, true),
                         // match root document only
-                        new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME), terms, fieldType, nestedFieldType);
+                        Queries.newNonNestedFilter(), terms, animalFieldType, nestedFieldType);
                     assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("pig"));
                     assertThat(result.getBuckets().get(0).docCount, equalTo(1L));
                     assertThat(((InternalMax) (((InternalNested)result.getBuckets().get(0).getAggregations().get("nested"))
@@ -1404,15 +1403,19 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     private void threeLayerStringTestCase(String executionHint) throws IOException {
+        MappedFieldType ift = new KeywordFieldType("i", randomBoolean(), true, null);
+        MappedFieldType jft = new KeywordFieldType("j", randomBoolean(), true, null);
+        MappedFieldType kft = new KeywordFieldType("k", randomBoolean(), true, null);
+
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 for (int i = 0; i < 10; i++) {
                     for (int j = 0; j < 10; j++) {
                         for (int k = 0; k < 10; k++) {
-                            Document d = new Document();
-                            d.add(new SortedDocValuesField("i", new BytesRef(Integer.toString(i))));
-                            d.add(new SortedDocValuesField("j", new BytesRef(Integer.toString(j))));
-                            d.add(new SortedDocValuesField("k", new BytesRef(Integer.toString(k))));
+                            List<IndexableField> d = new ArrayList<>();
+                            d.addAll(doc(ift, Integer.toString(i)));
+                            d.addAll(doc(jft, Integer.toString(j)));
+                            d.addAll(doc(kft, Integer.toString(k)));
                             writer.addDocument(d);
                         }
                     }
@@ -1422,8 +1425,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     TermsAggregationBuilder request = new TermsAggregationBuilder("i").field("i").executionHint(executionHint)
                         .subAggregation(new TermsAggregationBuilder("j").field("j").executionHint(executionHint)
                             .subAggregation(new TermsAggregationBuilder("k").field("k").executionHint(executionHint)));
-                    StringTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request,
-                        keywordField("i"), keywordField("j"), keywordField("k"));
+                    StringTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request, ift, jft, kft);
                     for (int i = 0; i < 10; i++) {
                         StringTerms.Bucket iBucket = result.getBucketByKey(Integer.toString(i));
                         assertThat(iBucket.getDocCount(), equalTo(100L));
@@ -1707,11 +1709,17 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         return documents;
     }
 
-    private List<Document> generateAnimalDocsWithNested(String id, String animal, String[] tags, int[] nestedValues) {
-        List<Document> documents = new ArrayList<>();
+    private List<List<IndexableField>> generateAnimalDocsWithNested(
+        String id,
+        KeywordFieldType animalFieldType,
+        String animal,
+        String[] tags,
+        int[] nestedValues
+    ) {
+        List<List<IndexableField>> documents = new ArrayList<>();
 
         for (int i = 0; i < tags.length; i++) {
-            Document document = new Document();
+            List<IndexableField> document = new ArrayList<>();
             document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
 
             document.add(new Field(NestedPathFieldMapper.NAME, "nested_object", NestedPathFieldMapper.Defaults.FIELD_TYPE));
@@ -1720,9 +1728,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             documents.add(document);
         }
 
-        Document document = new Document();
+        List<IndexableField> document = new ArrayList<>();
         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
-        document.add(new SortedDocValuesField("str", new BytesRef(animal)));
+        document.addAll(doc(animalFieldType, animal));
         document.add(new Field(NestedPathFieldMapper.NAME, "docs", NestedPathFieldMapper.Defaults.FIELD_TYPE));
         document.add(sequenceIDFields.primaryTerm);
         documents.add(document);

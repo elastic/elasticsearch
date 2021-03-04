@@ -130,7 +130,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         parser = mock(TriggeredWatch.Parser.class);
         BulkProcessor bulkProcessor = BulkProcessor.
-            builder(client::bulk, listener).setConcurrentRequests(0).setBulkActions(1).build();
+            builder(client::bulk, listener, "TriggeredWatchStoreTests").setConcurrentRequests(0).setBulkActions(1).build();
         triggeredWatchStore = new TriggeredWatchStore(settings, client, parser, bulkProcessor);
     }
 

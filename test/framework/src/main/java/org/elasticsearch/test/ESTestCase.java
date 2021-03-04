@@ -47,7 +47,7 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -1303,7 +1303,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final XContentParser createParser(XContent xContent, String data) throws IOException {
         if (randomBoolean()) {
-            return createParserWithCompatibilityFor(xContent, data, RestApiCompatibleVersion.minimumSupported());
+            return createParserWithCompatibilityFor(xContent, data, RestApiVersion.minimumSupported());
         } else {
             return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
         }
@@ -1344,9 +1344,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected final XContentParser createParserWithCompatibilityFor(XContent xContent, String data,
-                                                            RestApiCompatibleVersion restApiCompatibleVersion) throws IOException {
+                                                            RestApiVersion restApiVersion) throws IOException {
         return xContent.createParserForCompatibility(xContentRegistry(), LoggingDeprecationHandler.INSTANCE,
-            new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8)), restApiCompatibleVersion);
+            new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8)), restApiVersion);
     }
 
     private static final NamedXContentRegistry DEFAULT_NAMED_X_CONTENT_REGISTRY =

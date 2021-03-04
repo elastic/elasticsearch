@@ -27,7 +27,7 @@ Path to the buckets to average. For syntax, see <<buckets-path-syntax>>.
 `gap_policy`::
 (Optional, string)
 Policy to apply when gaps are found in the data. For valid values, see
-<<buckets-path-syntax>>. Defaults to `skip`.
+<<gap-policy>>. Defaults to `skip`.
 
 `format`::
 (Optional, string)

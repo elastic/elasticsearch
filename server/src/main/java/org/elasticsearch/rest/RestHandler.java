@@ -9,7 +9,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.MediaTypeRegistry;
 import org.elasticsearch.common.xcontent.XContent;
@@ -102,8 +102,8 @@ public interface RestHandler {
      * If no version is specified, handler is assumed to be compatible with <code>Version.CURRENT</code>
      * @return a version
      */
-    default RestApiCompatibleVersion compatibleWithVersion() {
-        return RestApiCompatibleVersion.currentVersion();
+    default RestApiVersion compatibleWithVersion() {
+        return RestApiVersion.current();
     }
 
     class Route {

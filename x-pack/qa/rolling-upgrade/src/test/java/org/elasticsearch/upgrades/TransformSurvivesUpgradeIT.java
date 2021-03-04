@@ -275,7 +275,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             Response response = client().performRequest(getStatsDocsRequest);
             assertEquals(200, response.getStatusLine().getStatusCode());
             Map<String, Object> responseBody = entityAsMap(response);
-            assertEquals(1, XContentMapValues.extractValue("hits.total.value", responseBody));
+            assertEquals("expected only 1 hit, got: " + responseBody, 1, XContentMapValues.extractValue("hits.total.value", responseBody));
             responseAssertion.accept(responseBody);
         }, 60, TimeUnit.SECONDS);
     }

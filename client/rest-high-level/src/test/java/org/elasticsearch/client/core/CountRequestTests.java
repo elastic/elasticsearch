@@ -84,8 +84,8 @@ public class CountRequestTests extends AbstractRequestTestCase<CountRequest, Que
         e = expectThrows(NullPointerException.class, () -> countRequest.query(null));
         assertEquals("query must not be null", e.getMessage());
 
-        e = expectThrows(IllegalArgumentException.class, () -> countRequest.terminateAfter(-randomInt(100)));
-        assertEquals("terminateAfter must be positive", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> countRequest.terminateAfter(-(randomIntBetween(1, 100))));
+        assertEquals("terminateAfter must be > 0", e.getMessage());
     }
 
     public void testEqualsAndHashcode() {

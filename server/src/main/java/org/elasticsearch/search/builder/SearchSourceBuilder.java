@@ -482,7 +482,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public  SearchSourceBuilder terminateAfter(int terminateAfter) {
         if (terminateAfter < 0) {
-            throw new IllegalArgumentException("terminateAfter must be positive");
+            throw new IllegalArgumentException("terminateAfter must be > 0");
         }
         this.terminateAfter = terminateAfter;
         return this;

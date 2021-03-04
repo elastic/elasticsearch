@@ -487,12 +487,12 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         int randomNegativeValue = randomIntBetween(-100000, -1);
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class,
                 () -> new SearchSourceBuilder().terminateAfter(randomNegativeValue));
-        assertEquals("terminateAfter must be positive", expected.getMessage());
+        assertEquals("terminateAfter must be > 0", expected.getMessage());
 
         String restContent = "{\"terminate_after\" :" + randomNegativeValue + "}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
-            assertThat(ex.getMessage(), containsString("terminateAfter must be positive"));
+            assertThat(ex.getMessage(), containsString("terminateAfter must be > 0"));
         }
     }
 

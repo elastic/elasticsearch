@@ -72,7 +72,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                 case 3:
                     // Read using slice
                     len = randomIntBetween(1, length - readPos);
-                    IndexInput slice = indexInput.slice("slice (" + readPos + ", " + len + ") of " + indexInput, readPos, len);
+                    IndexInput slice = indexInput.slice(randomAlphaOfLength(10) + randomFileExtension(), readPos, len);
                     temp = randomReadAndSlice(slice, len);
                     // assert that position in the original input didn't change
                     assertEquals(readPos, indexInput.getFilePointer());
@@ -121,7 +121,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                                     clone = indexInput.clone();
                                 } else {
                                     final int sliceEnd = between(readEnd, length);
-                                    clone = indexInput.slice("concurrent slice (0, " + sliceEnd + ") of " + indexInput, 0L, sliceEnd);
+                                    clone = indexInput.slice("slice" + randomAlphaOfLength(10) + randomFileExtension(), 0L, sliceEnd);
                                 }
                                 startLatch.countDown();
                                 startLatch.await();
@@ -178,4 +178,34 @@ public class ESIndexInputTestCase extends ESTestCase {
         return output;
     }
 
+    protected static String randomFileExtension() {
+        return randomFrom(
+            ".cfe",
+            ".cfs",
+            ".dii",
+            ".dim",
+            ".doc",
+            ".dvd",
+            ".dvm",
+            ".fdt",
+            ".fdx",
+            ".fdm",
+            ".fnm",
+            ".kdd",
+            ".kdi",
+            ".kdm",
+            ".liv",
+            ".nvd",
+            ".nvm",
+            ".pay",
+            ".pos",
+            ".tim",
+            ".tip",
+            ".tmd",
+            ".tvd",
+            ".tvx",
+            ".vec",
+            ".vem"
+        );
+    }
 }

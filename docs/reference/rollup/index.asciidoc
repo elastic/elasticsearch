@@ -26,8 +26,8 @@ image::images/rollups/rollups.gif[Use rollups to reduce the size of your data]
 === Roll up your data
 
 You typically perform rollups using the {ilm-init} <<ilm-rollup,`rollup`>>
-action. You can configure the `rollup` action with the aggregations and metrics
-you want to roll up.
+action. You configure the `rollup` action with the aggregations and metrics
+you want to store in the rollup index.
 
 The `rollup` action also lets you specify an {ilm-init} policy for the resulting
 rollup index. If you don't specify this policy, {ilm-init} will not manage the

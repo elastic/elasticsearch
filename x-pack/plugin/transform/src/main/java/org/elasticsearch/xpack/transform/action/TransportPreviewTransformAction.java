@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSetti
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
-import org.elasticsearch.xpack.transform.transforms.TransformIndexer;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.time.Clock;
@@ -175,7 +174,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
                 Clock.systemUTC()
             );
 
-            List<String> warnings = TransformIndexer.getWarnings(function, source, syncConfig);
+            List<String> warnings = TransformWarnings.getWarnings(function, source, syncConfig);
             warnings.forEach(HeaderWarning::addWarning);
             listener.onResponse(new PreviewTransformAction.Response(docs, generatedDestIndexSettings));
         }, listener::onFailure);
@@ -194,7 +193,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
                             transformId,
                             Clock.systemUTC()
                         );
-                        List<String> warnings = TransformIndexer.getWarnings(function, source, syncConfig);
+                        List<String> warnings = TransformWarnings.getWarnings(function, source, syncConfig);
                         warnings.forEach(HeaderWarning::addWarning);
                         listener.onResponse(new PreviewTransformAction.Response(docs, generatedDestIndexSettings));
                     } else {

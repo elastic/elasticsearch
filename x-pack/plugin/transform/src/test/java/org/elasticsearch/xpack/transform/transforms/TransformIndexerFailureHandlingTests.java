@@ -38,18 +38,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
-import org.elasticsearch.xpack.core.transform.transforms.QueryConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
-import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
-import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
-import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
-import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
@@ -60,10 +55,7 @@ import org.junit.Before;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.time.Instant;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -72,9 +64,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests.randomPivotConfig;
@@ -500,114 +490,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         assertThat(
             failureMessage.get(),
             matchesRegex("Failed to execute script with error: \\[.*ArithmeticException: / by zero\\], stack trace: \\[stack\\]")
-        );
-    }
-
-    public void testOnStart_WithNoWarnings() {
-        String transformId = randomAlphaOfLength(10);
-        SourceConfig sourceConfig = new SourceConfig(
-            generateRandomStringArray(10, 10, false, false),
-            QueryConfigTests.randomQueryConfig(),
-            new HashMap<>() {
-                {
-                    put("field-A", singletonMap("script", "some script"));
-                    put("field-B", emptyMap());
-                    put("field-C", singletonMap("script", "some script"));
-                }
-            }
-        );
-        SyncConfig syncConfig = new TimeSyncConfig("field-t", null);
-        LatestConfig latestConfig = new LatestConfig(Arrays.asList("field-A", "field-B"), "sort");
-        TransformConfig config = new TransformConfig(
-            transformId,
-            sourceConfig,
-            randomDestConfig(),
-            null,
-            syncConfig,
-            null,
-            null,
-            latestConfig,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-
-        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
-        auditor.addExpectation(new MockTransformAuditor.UnseenAuditExpectation("any warnings", Level.WARNING, transformId, "*"));
-        TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
-        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
-        TransformIndexer indexer =
-            createMockIndexer(config, null, null, null, null, null, threadPool, ThreadPool.Names.GENERIC, auditor, context);
-        indexer.onStart(
-            Instant.now().toEpochMilli(),
-            ActionListener.wrap(
-                r -> auditor.assertAllExpectationsMatched(),
-                e -> fail(e.getMessage())
-            )
-        );
-    }
-
-    public void testOnStart_WithWarnings() {
-        String transformId = randomAlphaOfLength(10);
-        SourceConfig sourceConfig = new SourceConfig(
-            generateRandomStringArray(10, 10, false, false),
-            QueryConfigTests.randomQueryConfig(),
-            new HashMap<>() {
-                {
-                    put("field-A", singletonMap("script", "some script"));
-                    put("field-B", singletonMap("script", "some script"));
-                    put("field-C", singletonMap("script", "some script"));
-                    put("field-t", singletonMap("script", "some script"));
-                }
-            }
-        );
-        SyncConfig syncConfig = new TimeSyncConfig("field-t", null);
-        LatestConfig latestConfig = new LatestConfig(Arrays.asList("field-A", "field-B"), "sort");
-        TransformConfig config = new TransformConfig(
-            transformId,
-            sourceConfig,
-            randomDestConfig(),
-            null,
-            syncConfig,
-            null,
-            null,
-            latestConfig,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-
-        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
-        auditor.addExpectation(
-            new MockTransformAuditor.SeenAuditExpectation(
-                "warn when all the group-by fields are script-based runtime fields",
-                Level.WARNING,
-                transformId,
-                "all the group-by fields are script-based runtime fields"
-            )
-        );
-        auditor.addExpectation(
-            new MockTransformAuditor.SeenAuditExpectation(
-                "warn when the sync time field is a script-based runtime field",
-                Level.WARNING,
-                transformId,
-                "sync time field is a script-based runtime field"
-            )
-        );
-        TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
-        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
-        TransformIndexer indexer =
-            createMockIndexer(config, null, null, null, null, null, threadPool, ThreadPool.Names.GENERIC, auditor, context);
-        indexer.onStart(
-            Instant.now().toEpochMilli(),
-            ActionListener.wrap(
-                r -> auditor.assertAllExpectationsMatched(),
-                e -> fail(e.getMessage())
-            )
         );
     }
 

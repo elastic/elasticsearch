@@ -34,8 +34,6 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
-import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
-import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
@@ -51,7 +49,6 @@ import org.elasticsearch.xpack.transform.transforms.RetentionPolicyToDeleteByQue
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -280,12 +277,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             initializeFunction();
 
             if (initialRun()) {
-                List<String> warnings = getWarnings(function, getConfig().getSource(), getConfig().getSyncConfig());
-                for (String warning : warnings) {
-                    logger.warn(new ParameterizedMessage("[{}] {}", getJobId(), warning));
-                    auditor.warning(getJobId(), warning);
-                }
-
                 createCheckpoint(ActionListener.wrap(cp -> {
                     nextCheckpoint = cp;
                     // If nextCheckpoint > 1, this means that we are now on the checkpoint AFTER the batch checkpoint
@@ -388,33 +379,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         if (isContinuous()) {
             changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
         }
-    }
-
-    public static List<String> getWarnings(Function function, SourceConfig sourceConfig, SyncConfig syncConfig) {
-        if (syncConfig == null) {
-            return Collections.emptyList();
-        }
-
-        List<String> warnings = new ArrayList<>();
-        Map<String, Object> scriptBasedRuntimeFieldNames = sourceConfig.getScriptBasedRuntimeMappings();
-        List<String> performanceCriticalFields = function.getPerformanceCriticalFields();
-        if (performanceCriticalFields.stream().allMatch(scriptBasedRuntimeFieldNames::containsKey)) {
-            String message = "all the group-by fields are script-based runtime fields, "
-                + "this transform might run slowly, please check your configuration.";
-            warnings.add(message);
-        }
-        if (scriptBasedRuntimeFieldNames.containsKey(syncConfig.getField())) {
-            String message = "sync time field is a script-based runtime field, "
-                + "this transform might run slowly, please check your configuration.";
-            warnings.add(message);
-        }
-        Function.ChangeCollector changeCollector = function.buildChangeCollector(syncConfig.getField());
-        if (changeCollector.isOptimized() == false) {
-            String message = "could not find any optimizations for continuous execution, "
-                + "this transform might run slowly, please check your configuration.";
-            warnings.add(message);
-        }
-        return warnings;
     }
 
     protected boolean initialRun() {

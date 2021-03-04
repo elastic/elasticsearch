@@ -121,6 +121,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69986")
     public void testCheckDatabases() throws Exception {
         String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;
         PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
@@ -218,6 +219,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69986")
     public void testRetrieveDatabase() throws Exception {
         String md5 = "7a39822e85d3eeb863657b7865597a7a";
         GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(-1, 0, 29, md5);
@@ -236,6 +238,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         verify(client, times(30)).search(any());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69986")
     public void testRetrieveDatabaseCorruption() throws Exception {
         String md5 = "different";
         GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(-1, 0, 9, md5);

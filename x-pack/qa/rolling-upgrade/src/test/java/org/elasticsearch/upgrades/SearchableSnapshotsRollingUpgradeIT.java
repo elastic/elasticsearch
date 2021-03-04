@@ -108,8 +108,29 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         final String suffix = "blob_cache_" + storage.storageName().toLowerCase(Locale.ROOT);
         final String repository = "repository_" + suffix;
 
+        final int numberOfSnapshots = 2;
+        final String[] snapshots = new String[numberOfSnapshots];
+        final String[] indices = new String[numberOfSnapshots];
+        for (int i = 0; i < numberOfSnapshots; i++) {
+            snapshots[i] = "snapshot_" + i;
+            indices[i] = "index_" + i;
+        }
+
         if (CLUSTER_TYPE.equals(ClusterType.OLD)) {
             registerRepository(repository, FsRepository.TYPE, true, repositorySettings(repository));
+
+            // snapshots must be created from indices on the lowest version, otherwise we won't be able
+            // to mount them again in the mixed version cluster (and we'll have IndexFormatTooNewException)
+            for (int i = 0; i < numberOfSnapshots; i++) {
+                createIndex(indices[i], Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build());
+                indexDocs(indices[i], numberOfDocs * (i + 1L));
+
+                createSnapshot(repository, snapshots[i], indices[i]);
+                deleteIndex(indices[i]);
+            }
 
         } else if (CLUSTER_TYPE.equals(ClusterType.MIXED)) {
             final int numberOfNodes = 3;
@@ -134,21 +155,10 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             // Then the snapshot is mounted again on a different node with a higher version in order to verify that the docs in the cache
             // index can be used.
 
-            final String firstIndex = "first_index_" + suffix;
-            createIndex(firstIndex, Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build());
-            indexDocs(firstIndex, numberOfDocs);
-
-            final String firstSnapshot = "first_snapshot_" + suffix;
-            createSnapshot(repository, firstSnapshot, firstIndex);
-            deleteIndex(firstIndex);
-
-            String index = "first_mount_" + suffix;
+            String index = "first_mount_" + indices[0];
             logger.info("mounting snapshot as index [{}] with storage [{}] on node [{}] with min. version [{}]",
                 index, storage, nodeIdWithMinVersion, minVersion);
-            mountSnapshot(repository, firstSnapshot, firstIndex, index, storage,
+            mountSnapshot(repository, snapshots[0], indices[0], index, storage,
                 Settings.builder()
                     // we want a specific node version to create docs in the blob cache index
                     .put("index.routing.allocation.include._id", nodeIdWithMinVersion)
@@ -159,10 +169,10 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             assertHitCount(index, equalTo(numberOfDocs));
             deleteIndex(index);
 
-            index = "second_mount_" + suffix;
+            index = "second_mount_" + indices[0];
             logger.info("mounting the same snapshot of index [{}] with storage [{}], this time on node [{}] with higher version [{}]",
                 index, storage, nodeIdWithMaxVersion, maxVersion);
-            mountSnapshot(repository, firstSnapshot, firstIndex, index, storage,
+            mountSnapshot(repository, snapshots[0], indices[0], index, storage,
                 Settings.builder()
                     // we want a specific node version to use the cached blobs created by the nodeIdWithMinVersion
                     .put("index.routing.allocation.include._id", nodeIdWithMaxVersion)
@@ -174,26 +184,13 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             assertHitCount(index, equalTo(numberOfDocs));
             deleteIndex(index);
 
-            deleteSnapshot(repository, firstSnapshot);
-
             // Now the same thing but this time the docs in blob cache index are created from the upgraded version and mounted in a second
             // time on the node with the minimum version.
 
-            final String secondIndex = "second_index_" + suffix;
-            createIndex(secondIndex, Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(3, 5))
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build());
-            indexDocs(secondIndex, numberOfDocs * 2L);
-
-            final String secondSnapshot = "second_snapshot_" + suffix;
-            createSnapshot(repository, secondSnapshot, secondIndex);
-            deleteIndex(secondIndex);
-
-            index = "first_mount_" + suffix;
+            index = "first_mount_" + indices[1];
             logger.info("mounting snapshot as index [{}] with storage [{}] on node [{}] with max. version [{}]",
                 index, storage, nodeIdWithMaxVersion, maxVersion);
-            mountSnapshot(repository, secondSnapshot, secondIndex, index, storage,
+            mountSnapshot(repository, snapshots[1], indices[1], index, storage,
                 Settings.builder()
                     // we want a specific node version to create docs in the blob cache index
                     .put("index.routing.allocation.include._id", nodeIdWithMaxVersion)
@@ -204,10 +201,10 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             assertHitCount(index, equalTo(numberOfDocs * 2L));
             deleteIndex(index);
 
-            index = "second_mount_" + suffix;
+            index = "second_mount_" + indices[1];
             logger.info("mounting the same snapshot of index [{}] with storage [{}], this time on node [{}] with lower version [{}]",
                 index, storage, nodeIdWithMinVersion, minVersion);
-            mountSnapshot(repository, secondSnapshot, secondIndex, index, storage,
+            mountSnapshot(repository, snapshots[1], indices[1], index, storage,
                 Settings.builder()
                     // we want a specific node version to use the cached blobs created by the nodeIdWithMinVersion
                     .put("index.routing.allocation.include._id", nodeIdWithMinVersion)
@@ -219,9 +216,10 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             assertHitCount(index, equalTo(numberOfDocs * 2L));
             deleteIndex(index);
 
-            deleteSnapshot(repository, secondSnapshot);
-
         } else if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
+            for (String snapshot : snapshots) {
+                deleteSnapshot(repository, snapshot);
+            }
             deleteRepository(repository);
         }
     }

@@ -23,6 +23,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class SchedulerTests extends ESTestCase {
 
     public void testCancelOnThreadPool() {
@@ -51,7 +53,7 @@ public class SchedulerTests extends ESTestCase {
     }
 
     public void testCancelOnScheduler() {
-        ScheduledThreadPoolExecutor executor = Scheduler.initScheduler(Settings.EMPTY);
+        ScheduledThreadPoolExecutor executor = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
         Scheduler scheduler = (command, delay, name) ->
             Scheduler.wrapAsScheduledCancellable(executor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));
 
@@ -130,13 +132,17 @@ public class SchedulerTests extends ESTestCase {
 
     // simple test for successful scheduling, exceptions tested more thoroughly in EvilThreadPoolTests
     public void testScheduledOnScheduler() throws InterruptedException {
-        ScheduledThreadPoolExecutor executor = Scheduler.initScheduler(Settings.EMPTY);
+        final String schedulerName = "test-scheduler";
+        ScheduledThreadPoolExecutor executor = Scheduler.initScheduler(Settings.EMPTY, schedulerName);
         Scheduler scheduler = (command, delay, name) ->
             Scheduler.wrapAsScheduledCancellable(executor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));
 
         CountDownLatch missingExecutions = new CountDownLatch(1);
         try {
-            scheduler.schedule(missingExecutions::countDown, TimeValue.timeValueMillis(randomInt(5)), ThreadPool.Names.SAME);
+            scheduler.schedule(() -> {
+                assertThat(Thread.currentThread().getName(), containsString("[" + schedulerName + "]"));
+                missingExecutions.countDown();
+            }, TimeValue.timeValueMillis(randomInt(5)), ThreadPool.Names.SAME);
             assertTrue(missingExecutions.await(30, TimeUnit.SECONDS));
         } finally {
             Scheduler.terminate(executor, 10, TimeUnit.SECONDS);
@@ -144,7 +150,7 @@ public class SchedulerTests extends ESTestCase {
     }
 
     public void testScheduleAtFixedRate() throws InterruptedException {
-        ScheduledThreadPoolExecutor executor = Scheduler.initScheduler(Settings.EMPTY);
+        ScheduledThreadPoolExecutor executor = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
         try {
             CountDownLatch missingExecutions = new CountDownLatch(randomIntBetween(1, 10));
             executor.scheduleAtFixedRate(missingExecutions::countDown,

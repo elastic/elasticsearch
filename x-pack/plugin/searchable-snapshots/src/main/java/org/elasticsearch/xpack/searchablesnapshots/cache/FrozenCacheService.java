@@ -260,7 +260,7 @@ public class FrozenCacheService implements Releasable {
         final long currentRegionSize = regionSize(region, fileLength, cachedHeaderLength);
         assert fileLength > 0;
         final int maxRegion = getRegion(fileLength, fileLength, cachedHeaderLength);
-        assert region >= 0 && region <= maxRegion;
+        assert region >= 0 && region <= maxRegion : region + " - " + maxRegion;
         final long effectiveRegionSize;
         final long regionStart = getRegionStart(region, fileLength, cachedHeaderLength);
         if (region == maxRegion && regionStart + currentRegionSize != fileLength) {
@@ -887,6 +887,10 @@ public class FrozenCacheService implements Releasable {
 
         public long getLength() {
             return fileSize;
+        }
+
+        public CacheKey getCacheKey() {
+            return cacheKey;
         }
 
         public StepListener<Integer> populateAndRead(

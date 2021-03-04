@@ -216,6 +216,16 @@ public class BulkProcessor implements Closeable {
     /**
      * @param consumer The consumer that is called to fulfil bulk operations
      * @param listener The BulkProcessor listener that gets called on bulk events
+     * @return the builder for BulkProcessor
+     * @deprecated use {@link #builder(BiConsumer, Listener, String)} instead
+     */
+    public static Builder builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener) {
+        return builder(consumer, listener, "anonymous-bulk-processor");
+    }
+
+    /**
+     * @param consumer The consumer that is called to fulfil bulk operations
+     * @param listener The BulkProcessor listener that gets called on bulk events
      * @param name     The name of this processor, e.g. to identify the scheduler threads
      * @return the builder for BulkProcessor
      */

@@ -81,7 +81,8 @@ memory that {ml} may use for running analytics processes. (These processes are
 separate to the {es} JVM.) Defaults to `30` percent. The limit is based on the
 total memory of the machine, not current free memory. Jobs are not allocated to
 a node if doing so would cause the estimated memory use of {ml} jobs to exceed
-the limit.
+the limit. When the {operator-feature} is enabled, this setting can be updated
+only by operator users.
 
 `xpack.ml.max_model_memory_limit`::
 (<<cluster-update-settings,Dynamic>>) The maximum `model_memory_limit` property
@@ -107,16 +108,18 @@ higher. The maximum permitted value is `512`.
 (<<cluster-update-settings,Dynamic>>) The rate at which the nightly maintenance 
 task deletes expired model snapshots and results. The setting is a proxy to the
 <<docs-delete-by-query-throttle,requests_per_second>> parameter used in the 
-delete by query requests and controls throttling. Valid values must be greater 
-than `0.0` or equal to `-1.0` where `-1.0` means a default value is used. 
-Defaults to `-1.0`
+delete by query requests and controls throttling. When the {operator-feature} is 
+enabled, this setting can be updated only by operator users. Valid values must
+be greater than `0.0` or equal to `-1.0` where `-1.0` means a default value is
+used. Defaults to `-1.0`
 
 `xpack.ml.node_concurrent_job_allocations`::
 (<<cluster-update-settings,Dynamic>>) The maximum number of jobs that can
 concurrently be in the `opening` state on each node. Typically, jobs spend a
 small amount of time in this state before they move to `open` state. Jobs that
 must restore large models when they are opening spend more time in the `opening`
-state. Defaults to `2`.
+state. When the {operator-feature} is enabled, this setting can be updated only 
+by operator users. Defaults to `2`.
 
 [discrete]
 [[advanced-ml-settings]]
@@ -126,7 +129,8 @@ These settings are for advanced use cases; the default values are generally
 sufficient:
 
 `xpack.ml.enable_config_migration`::
-(<<cluster-update-settings,Dynamic>>) Reserved.
+(<<cluster-update-settings,Dynamic>>) Reserved. When the {operator-feature} is 
+enabled, this setting can be updated only by operator users.
 
 `xpack.ml.max_anomaly_records`::
 (<<cluster-update-settings,Dynamic>>) The maximum number of records that are
@@ -141,7 +145,8 @@ assumed that there are no more lazy nodes available as the desired number
 of nodes have already been provisioned. If a job is opened and this setting has
 a value greater than zero and there are no nodes that can accept the job, the
 job stays in the `OPENING` state until a new {ml} node is added to the cluster
-and the job is assigned to run on that node.
+and the job is assigned to run on that node. When the {operator-feature} is
+enabled, this setting can be updated only by operator users.
 +
 IMPORTANT: This setting assumes some external process is capable of adding {ml}
 nodes to the cluster. This setting is only useful when used in conjunction with
@@ -153,7 +158,15 @@ The maximum node size for {ml} nodes in a deployment that supports automatic
 cluster scaling. Defaults to `0b`, which means this value is ignored. If you set
 it to the maximum possible size of future {ml} nodes, when a {ml} job is
 assigned to a lazy node it can check (and fail quickly) when scaling cannot 
-support the size of the job. 
+support the size of the job. When the {operator-feature} is enabled, this
+setting can be updated only by operator users.
+
+`xpack.ml.persist_results_max_retries`::
+(<<cluster-update-settings,Dynamic>>) The maximum number of times to retry bulk
+indexing requests that fail while processing {ml} results. If the limit is
+reached, the {ml} job stops processing data and its status is `failed`. When the
+{operator-feature} is enabled, this setting can be updated only by operator
+users. Defaults to `20`. The maximum value for this setting is `50`. 
 
 `xpack.ml.process_connect_timeout`::
 (<<cluster-update-settings,Dynamic>>) The connection timeout for {ml} processes
@@ -161,8 +174,9 @@ that run separately from the {es} JVM. Defaults to `10s`. Some {ml} processing
 is done by processes that run separately to the {es} JVM. When such processes
 are started they must connect to the {es} JVM. If such a process does not
 connect within the time period specified by this setting then the process is
-assumed to have failed. Defaults to `10s`. The minimum value for this setting is
-`5s`.
+assumed to have failed. When the {operator-feature} is enabled, this setting can
+be updated only by operator users. Defaults to `10s`. The minimum value for this 
+setting is `5s`. 
 
 xpack.ml.use_auto_machine_memory_percent::
 (<<cluster-update-settings,Dynamic>>) If this setting is `true`, the
@@ -171,6 +185,8 @@ percentage of the machine's memory that can be used for running {ml} analytics
 processes is calculated automatically and takes into account the total node size
 and the size of the JVM on the node. The default value is `false`. If this
 setting differs between nodes, the value on the current master node is heeded.
+When the {operator-feature} is enabled, this setting can be updated only by
+operator users.
 +
 TIP: If you do not have dedicated {ml} nodes (that is to say, the node has
 multiple roles), do not enable this setting. Its calculations assume that {ml}

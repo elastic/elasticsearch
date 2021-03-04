@@ -429,6 +429,8 @@ public class Constants {
         "internal:admin/ccr/restore/session/clear",
         "internal:admin/ccr/restore/session/put",
         "internal:admin/xpack/searchable_snapshots/cache/store",
+        "internal:admin/xpack/searchable_snapshots/frozen_cache_info",
+        "internal:admin/xpack/searchable_snapshots/frozen_cache_info[n]",
         "internal:cluster/nodes/indices/shard/store",
         "internal:gateway/local/meta_state",
         "internal:gateway/local/started_shards"

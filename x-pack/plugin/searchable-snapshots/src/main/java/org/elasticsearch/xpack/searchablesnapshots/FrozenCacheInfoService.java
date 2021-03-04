@@ -10,10 +10,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -27,8 +24,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING;
 
 /**
  * Keeps track of the nodes in the cluster and whether they do or do not have a frozen-tier shared cache, because we can only allocate
@@ -105,36 +100,22 @@ public class FrozenCacheInfoService {
 
         @Override
         protected void doRun() {
-            client.admin()
-                .cluster()
-                .prepareNodesInfo(discoveryNode.getId())
-                .clear()
-                .setSettings(true)
-                .execute(new ActionListener<NodesInfoResponse>() {
-
+            client.execute(
+                FrozenCacheInfoAction.INSTANCE,
+                new FrozenCacheInfoAction.Request(discoveryNode),
+                new ActionListener<FrozenCacheInfoResponse>() {
                     @Override
-                    public void onResponse(NodesInfoResponse nodesInfoResponse) {
-                        if (nodesInfoResponse.getNodesMap().isEmpty() == false) {
-                            assert nodesInfoResponse.hasFailures() == false;
-                            assert nodesInfoResponse.getNodes().size() == 1;
-                            final NodeInfo nodeInfo = nodesInfoResponse.getNodes().get(0);
-                            assert nodeInfo.getNode().getId().equals(discoveryNode.getId());
-                            final boolean hasFrozenCache = SNAPSHOT_CACHE_SIZE_SETTING.get(nodeInfo.getSettings()).getBytes() > 0;
-                            updateEntry(hasFrozenCache ? NodeState.HAS_CACHE : NodeState.NO_CACHE);
-                            rerouteService.reroute("frozen cache state retrieved", Priority.LOW, ActionListener.wrap(() -> {}));
-                        } else if (nodesInfoResponse.hasFailures()) {
-                            assert nodesInfoResponse.failures().size() == 1;
-                            recordFailure(nodesInfoResponse.failures().get(0));
-                        } else {
-                            recordFailure(new ElasticsearchException("node not found"));
-                        }
+                    public void onResponse(FrozenCacheInfoResponse response) {
+                        updateEntry(response.hasFrozenCache() ? NodeState.HAS_CACHE : NodeState.NO_CACHE);
+                        rerouteService.reroute("frozen cache state retrieved", Priority.LOW, ActionListener.wrap(() -> {}));
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        recordFailure(e);
+                        retryOrRecordFailure(e);
                     }
-                });
+                }
+            );
         }
 
         @Override
@@ -144,7 +125,7 @@ public class FrozenCacheInfoService {
             updateEntry(NodeState.FAILED);
         }
 
-        private void recordFailure(Exception e) {
+        private void retryOrRecordFailure(Exception e) {
             final boolean shouldRetry;
             synchronized (mutex) {
                 shouldRetry = nodeStates.get(discoveryNode) == nodeStateHolder;

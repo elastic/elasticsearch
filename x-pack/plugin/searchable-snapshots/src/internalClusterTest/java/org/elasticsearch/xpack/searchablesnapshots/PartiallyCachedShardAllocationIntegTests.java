@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -162,21 +161,21 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseSearchableSnap
 
         final MountSearchableSnapshotRequest req = prepareMountRequest();
 
-        final Map<String, ListenableActionFuture<Void>> nodeInfoBlocks = ConcurrentCollections.newConcurrentMap();
-        final Function<String, ListenableActionFuture<Void>> nodeInfoBlockGetter = nodeName -> nodeInfoBlocks.computeIfAbsent(
+        final Map<String, ListenableActionFuture<Void>> cacheInfoBlocks = ConcurrentCollections.newConcurrentMap();
+        final Function<String, ListenableActionFuture<Void>> cacheInfoBlockGetter = nodeName -> cacheInfoBlocks.computeIfAbsent(
             nodeName,
             ignored -> new ListenableActionFuture<>()
         );
         // Unblock all the existing nodes
         for (final String nodeName : internalCluster().getNodeNames()) {
-            nodeInfoBlockGetter.apply(nodeName).onResponse(null);
+            cacheInfoBlockGetter.apply(nodeName).onResponse(null);
         }
 
         for (final TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             final MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.startsWith(NodesInfoAction.NAME)) {
-                    nodeInfoBlockGetter.apply(connection.getNode().getName()).addListener(new ActionListener<Void>() {
+                if (action.equals(FrozenCacheInfoNodeAction.NAME)) {
+                    cacheInfoBlockGetter.apply(connection.getNode().getName()).addListener(new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void aVoid) {
                             try {
@@ -216,6 +215,8 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseSearchableSnap
                     .get()
                     .getExplanation();
 
+                assertTrue(Strings.toString(explanation), explanation.getShardAllocationDecision().getAllocateDecision().isDecisionTaken());
+
                 assertThat(
                     Strings.toString(explanation),
                     explanation.getShardAllocationDecision().getAllocateDecision().getAllocationStatus(),
@@ -228,7 +229,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseSearchableSnap
         });
 
         // Unblock one of the new nodes
-        nodeInfoBlockGetter.apply(newNodes.get(1)).onResponse(null);
+        cacheInfoBlockGetter.apply(newNodes.get(1)).onResponse(null);
 
         // Still won't be allocated
         assertFalse(responseFuture.isDone());
@@ -253,14 +254,14 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseSearchableSnap
             newNodes.get(0)
         );
         final Semaphore failurePermits = new Semaphore(between(0, 2));
-        transportService.addRequestHandlingBehavior(NodesInfoAction.NAME + "[n]", (handler, request, channel, task) -> {
+        transportService.addRequestHandlingBehavior(FrozenCacheInfoNodeAction.NAME, (handler, request, channel, task) -> {
             if (failurePermits.tryAcquire()) {
                 channel.sendResponse(new ElasticsearchException("simulated"));
             } else {
                 handler.messageReceived(request, channel, task);
             }
         });
-        nodeInfoBlockGetter.apply(newNodes.get(0)).onResponse(null);
+        cacheInfoBlockGetter.apply(newNodes.get(0)).onResponse(null);
 
         final RestoreSnapshotResponse restoreSnapshotResponse = responseFuture.actionGet(10, TimeUnit.SECONDS);
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));

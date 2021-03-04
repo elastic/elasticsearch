@@ -227,17 +227,20 @@ public class FrozenCacheService implements Releasable {
             return 0L;
         }
         final int largeRegions = largeRegions(fileSize, cachedHeaderSize);
+        final long offset;
+        final int effectiveRegion;
         if (cachedHeaderSize > 0) {
-            if (region - 1 < largeRegions) {
-                return cachedHeaderSize + (long) (region - 1) * regionSize;
-            }
-            return largeRegions * regionSize + (region - largeRegions - 1) * smallRegionSize + cachedHeaderSize;
+            effectiveRegion = region - 1;
+            offset = cachedHeaderSize;
         } else {
-            if (region < largeRegions) {
-                return (long) region * regionSize;
-            }
-            return largeRegions * regionSize + (region - largeRegions) * smallRegionSize;
+            effectiveRegion = region;
+            offset = 0L;
         }
+
+        if (effectiveRegion < largeRegions) {
+            return (long) effectiveRegion * regionSize + offset;
+        }
+        return largeRegions * regionSize + (effectiveRegion - largeRegions) * smallRegionSize + offset;
     }
 
     private ByteRange mapSubRangeToRegion(ByteRange range, int region, long fileLength, ByteRange cacheRange) {
@@ -251,10 +254,8 @@ public class FrozenCacheService implements Releasable {
             return ByteRange.EMPTY;
         }
         final ByteRange overlap = regionRange.overlap(range);
-        return ByteRange.of(
-            getRegionRelativePosition(overlap.start(), fileLength, cacheRange.length()),
-            overlap.end() == regionRange.end() ? regionSize : getRegionRelativePosition(overlap.end(), fileLength, cacheRange.length())
-        );
+        final long start = overlap.start() - regionStart;
+        return ByteRange.of(start, start + overlap.length());
     }
 
     private long getRegionSize(long fileLength, int region, long cachedHeaderLength) {
@@ -938,11 +939,8 @@ public class FrozenCacheService implements Releasable {
         public StepListener<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
             StepListener<Integer> stepListener = null;
             final long start = rangeToRead.start();
-            for (int i = getRegion(rangeToRead.start(), fileSize, cacheRange.length()); i <= getRegion(
-                rangeToRead.end(),
-                fileSize,
-                cacheRange.length()
-            ); i++) {
+            final int lastRegion = getRegion(rangeToRead.end(), fileSize, cacheRange.length());
+            for (int i = getRegion(rangeToRead.start(), fileSize, cacheRange.length()); i <= lastRegion; i++) {
                 final int region = i;
                 final CacheFileRegion fileRegion = get(cacheKey, fileSize, region, cacheRange.length());
                 final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region, fileRegion.fileSize, cacheRange);

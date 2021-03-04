@@ -30,15 +30,16 @@ public final class SharedCacheConfiguration {
     public SharedCacheConfiguration(Settings settings) {
         final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
         this.regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
-        this.smallRegionSize = Math.min(SNAPSHOT_CACHE_SMALL_REGION_SIZE.get(settings).getBytes(), regionSize / 2);
+        this.smallRegionSize = SNAPSHOT_CACHE_SMALL_REGION_SIZE.get(settings).getBytes();
         this.tinyRegionSize = SNAPSHOT_CACHE_TINY_REGION_SIZE.get(settings).getBytes();
         final float smallRegionShare = SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.get(settings);
         final float tinyRegionShare = SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE.get(settings);
         this.numRegions = Math.round(Math.toIntExact(cacheSize / regionSize) * (1 - smallRegionShare - tinyRegionShare));
         this.numSmallRegions = Math.round(Math.toIntExact(cacheSize / smallRegionSize) * smallRegionShare);
         this.numTinyRegions = Math.round(Math.toIntExact(cacheSize / tinyRegionSize) * tinyRegionShare);
-        if (smallRegionSize >= regionSize || tinyRegionSize >= smallRegionSize) {
-            throw new IllegalArgumentException();
+
+        if (smallRegionSize > regionSize / 2 || tinyRegionSize > smallRegionSize / 2) {
+            throw new IllegalArgumentException("region sizes are not consistent");
         }
     }
 
@@ -48,9 +49,13 @@ public final class SharedCacheConfiguration {
 
     public long getPhysicalOffset(long chunkPosition) {
         long physicalOffset;
-        if (chunkPosition > numRegions) {
+        if (chunkPosition > numRegions + numSmallRegions) {
+            physicalOffset = numRegions * regionSize + numSmallRegions * smallRegionSize
+                    + (chunkPosition - numSmallRegions - numRegions) * tinyRegionSize;
+            assert physicalOffset <= numRegions * regionSize + numSmallRegions * smallRegionSize + numTinyRegions * tinyRegionSize;
+        } else if (chunkPosition > numRegions) {
             physicalOffset = numRegions * regionSize + (chunkPosition - numRegions) * smallRegionSize;
-            assert physicalOffset <= numRegions * regionSize + numSmallRegions * regionSize;
+            assert physicalOffset <= numRegions * regionSize + numSmallRegions * smallRegionSize;
         } else {
             physicalOffset = chunkPosition * regionSize;
             assert physicalOffset <= numRegions * regionSize;
@@ -71,8 +76,8 @@ public final class SharedCacheConfiguration {
     }
 
     public long regionSize(long pageStart) {
-        if (pageStart >= numRegions * regionSize) {
-            if (pageStart >= numRegions * regionSize + numSmallRegions * smallRegionSize) {
+        if (pageStart >= numRegions) {
+            if (pageStart >= numRegions + numSmallRegions) {
                 return tinyRegionSize;
             }
             return smallRegionSize;

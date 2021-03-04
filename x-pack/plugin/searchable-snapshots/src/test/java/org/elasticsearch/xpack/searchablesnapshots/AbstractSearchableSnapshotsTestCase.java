@@ -156,7 +156,10 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             cacheSettings.put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
         }
         if (randomBoolean()) {
-            cacheSettings.put(SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), randomFrozenCacheSize());
+            final ByteSizeValue cacheRangeSize = randomFrozenCacheRangeSize();
+            cacheSettings.put(SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), cacheRangeSize)
+                .put(SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes() / 2))
+                .put(SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes() / 4));
         }
         if (randomBoolean()) {
             cacheSettings.put(SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
@@ -188,6 +191,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                 Settings.builder()
                     .put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
                     .put(SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
+                    .put(SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes() / 2))
+                    .put(SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes() / 4))
                     .build()
             ),
             threadPool

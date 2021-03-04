@@ -698,7 +698,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public FrozenCacheFile getFrozenCacheFile(String fileName, long length) {
-        return frozenCacheService.getFrozenCacheFile(createCacheKey(fileName), length);
+        return frozenCacheService.getFrozenCacheFile(createCacheKey(fileName), length, getBlobCacheByteRange(fileName, length));
     }
 
     private static Repository repositoryByUuid(Map<String, Repository> repositories, String repositoryUuid, String originalName) {

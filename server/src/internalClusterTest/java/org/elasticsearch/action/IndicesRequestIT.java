@@ -67,11 +67,11 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -381,7 +381,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         internalCluster().coordOnlyNodeClient().admin().indices().flush(flushRequest).actionGet();
 
         clearInterceptedActions();
-        String[] indices = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+        String[] indices = TestIndexNameExpressionResolver.newInstance()
                 .concreteIndexNames(client().admin().cluster().prepareState().get().getState(), flushRequest);
         assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
@@ -406,7 +406,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         internalCluster().coordOnlyNodeClient().admin().indices().refresh(refreshRequest).actionGet();
 
         clearInterceptedActions();
-        String[] indices = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+        String[] indices = TestIndexNameExpressionResolver.newInstance()
                 .concreteIndexNames(client().admin().cluster().prepareState().get().getState(), refreshRequest);
         assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }

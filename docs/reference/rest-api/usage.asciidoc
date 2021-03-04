@@ -127,6 +127,15 @@ GET /_xpack/usage
     "data_frame_analytics_jobs" : {
       "_all" : {
         "count" : 0
+      },
+      "analysis_counts": { },
+      "memory_usage": {
+        "peak_usage_bytes": {
+          "min": 0.0,
+          "max": 0.0,
+          "avg": 0.0,
+          "total": 0.0
+        }
       }
     },
     "inference" : {
@@ -155,6 +164,25 @@ GET /_xpack/usage
       "trained_models" : {
         "_all" : {
           "count" : 0
+        },
+        "count": {
+          "total": 1,
+          "classification": 0,
+          "regression": 0,
+          "prepackaged": 1,
+          "other": 0
+        },
+        "estimated_heap_memory_usage_bytes": {
+          "min": 0.0,
+          "max": 0.0,
+          "avg": 0.0,
+          "total": 0.0
+        },
+        "estimated_operations": {
+          "min": 0.0,
+          "max": 0.0,
+          "avg": 0.0,
+          "total": 0.0
         }
       }
     },

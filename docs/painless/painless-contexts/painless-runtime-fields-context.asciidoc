@@ -1,6 +1,5 @@
 [[painless-runtime-fields-context]]
 === Runtime fields context
-beta::[]
 Use a Painless script to calculate and emit
 <<painless-runtime-fields,runtime field>> values.
 

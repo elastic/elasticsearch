@@ -307,6 +307,7 @@ Network::
 * Remote/info should fail on node without `remote_cluster_client` role {es-pull}65289[#65289]
 
 Packaging::
+* Autodetermine heap settings based on node roles and total system memory {es-pull}65905[#65905]
 * Clarify usage of `jvm.options` in its comments {es-pull}61456[#61456] (issue: {es-issue}51882[#51882])
 
 Query Languages::

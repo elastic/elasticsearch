@@ -18,6 +18,8 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
+import org.elasticsearch.index.store.SearchableSnapshotDirectory;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -67,7 +69,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private static final int COPY_BUFFER_SIZE = 8192;
 
     public DirectBlobContainerIndexInput(
-        BlobContainer blobContainer,
+        SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
@@ -76,7 +78,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     ) {
         this(
             "DirectBlobContainerIndexInput(" + fileInfo.physicalName() + ")",
-            blobContainer,
+            directory,
             fileInfo,
             context,
             stats,
@@ -91,7 +93,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     private DirectBlobContainerIndexInput(
         String resourceDesc,
-        BlobContainer blobContainer,
+        SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
@@ -101,7 +103,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long sequentialReadSize,
         int bufferSize
     ) {
-        super(logger, resourceDesc, blobContainer, fileInfo, context, stats, offset, length);
+        super(logger, resourceDesc, directory, fileInfo, context, stats, offset, length, ByteRange.EMPTY); // TODO should use blob cache
         this.position = position;
         assert sequentialReadSize >= 0;
         this.sequentialReadSize = sequentialReadSize;
@@ -271,7 +273,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     public DirectBlobContainerIndexInput clone() {
         final DirectBlobContainerIndexInput clone = new DirectBlobContainerIndexInput(
             "clone(" + this + ")",
-            blobContainer,
+            directory,
             fileInfo,
             context,
             stats,
@@ -291,8 +293,8 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
             final DirectBlobContainerIndexInput slice = new DirectBlobContainerIndexInput(
-                sliceDescription,
-                blobContainer,
+                getFullSliceDescription(sliceDescription),
+                directory,
                 fileInfo,
                 context,
                 stats,
@@ -330,18 +332,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     @Override
     public String toString() {
-        return "DirectBlobContainerIndexInput{"
-            + "resourceDesc="
-            + super.toString()
-            + ", fileInfo="
-            + fileInfo
-            + ", offset="
-            + offset
-            + ", length="
-            + length()
-            + ", position="
-            + position
-            + '}';
+        return super.toString() + "[read seq=" + (streamForSequentialReads != null ? "yes" : "no") + ']';
     }
 
     private InputStream openBlobStream(int part, long pos, long length) throws IOException {

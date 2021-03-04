@@ -23,6 +23,7 @@ import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.http.WaitForHttpResource;
 import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.util.Pair;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -84,6 +85,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.Optional.ofNullable;
 
 public class ElasticsearchNode implements TestClusterConfiguration {
 
@@ -114,8 +116,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final String path;
     private final String name;
     private final Project project;
-    private final ReaperService reaper;
     private final Jdk bwcJdk;
+    private final Provider<ReaperService> reaperServiceProvider;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private final ExecOperations execOperations;
@@ -164,7 +166,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         String path,
         String name,
         Project project,
-        ReaperService reaper,
+        Provider<ReaperService> reaperServiceProvider,
         File workingDirBase,
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
@@ -175,7 +177,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.path = path;
         this.name = name;
         this.project = project;
-        this.reaper = reaper;
+        this.reaperServiceProvider = reaperServiceProvider;
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
         this.execOperations = execOperations;
@@ -263,16 +265,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (testDistribution == TestDistribution.INTEG_TEST) {
             distribution.setType(ElasticsearchDistribution.Type.INTEG_TEST_ZIP);
             // we change the underlying distribution when changing the test distribution of the cluster.
-            distribution.setFlavor(null);
             distribution.setPlatform(null);
             distribution.setBundledJdk(null);
         } else {
             distribution.setType(ElasticsearchDistribution.Type.ARCHIVE);
-            if (testDistribution == TestDistribution.DEFAULT) {
-                distribution.setFlavor(ElasticsearchDistribution.Flavor.DEFAULT);
-            } else {
-                distribution.setFlavor(ElasticsearchDistribution.Flavor.OSS);
-            }
         }
     }
 
@@ -851,7 +847,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new TestClustersException("Failed to start ES process for " + this, e);
         }
-        reaper.registerPid(toString(), esProcess.pid());
+        reaperServiceProvider.get().registerPid(toString(), esProcess.pid());
     }
 
     @Internal
@@ -919,7 +915,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
         // Test clusters are not reused, don't spend time on a graceful shutdown
         stopHandle(esProcess.toHandle(), true);
-        reaper.unregister(toString());
+        reaperServiceProvider.get().unregister(toString());
         esProcess = null;
         // Clean up the ports file in case this is started again.
         try {
@@ -986,7 +982,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void logFileContents(String description, Path from, boolean tailLogs) {
-        final Map<String, Integer> errorsAndWarnings = new LinkedHashMap<>();
+        final Map<String, Pair<String, Integer>> errorsAndWarnings = new LinkedHashMap<>();
         LinkedList<String> ring = new LinkedList<>();
         try (LineNumberReader reader = new LineNumberReader(Files.newBufferedReader(from))) {
             for (String line = reader.readLine(); line != null; line = reader.readLine()) {
@@ -998,10 +994,18 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                         lineToAdd = line;
                         // check to see if the previous message (possibly combined from multiple lines) was an error or
                         // warning as we want to show all of them
-                        String previousMessage = normalizeLogLine(ring.getLast());
-                        if (MESSAGES_WE_DONT_CARE_ABOUT.stream().noneMatch(previousMessage::contains)
-                            && (previousMessage.contains("ERROR") || previousMessage.contains("WARN"))) {
-                            errorsAndWarnings.put(ring.getLast(), errorsAndWarnings.getOrDefault(previousMessage, 0) + 1);
+                        String normalizedMessage = normalizeLogLine(ring.getLast());
+                        if (MESSAGES_WE_DONT_CARE_ABOUT.stream().noneMatch(normalizedMessage::contains)
+                            && (normalizedMessage.contains("ERROR") || normalizedMessage.contains("WARN"))) {
+
+                            // De-duplicate repeated errors
+                            errorsAndWarnings.put(
+                                normalizedMessage,
+                                Pair.of(
+                                    ring.getLast(), // Original, non-normalized message (so we keep the first timestamp)
+                                    ofNullable(errorsAndWarnings.get(normalizedMessage)).map(p -> p.right() + 1).orElse(1)
+                                )
+                            );
                         }
                     } else {
                         // We combine multi line log messages to make sure we never break exceptions apart
@@ -1034,10 +1038,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
             if (errorsAndWarnings.isEmpty() == false) {
                 LOGGER.lifecycle("\n»    ↓ errors and warnings from " + from + " ↓");
-                errorsAndWarnings.forEach((message, count) -> {
-                    LOGGER.lifecycle("» " + message.replace("\n", "\n»  "));
-                    if (count > 1) {
-                        LOGGER.lifecycle("»   ↑ repeated " + count + " times ↑");
+                errorsAndWarnings.forEach((key, pair) -> {
+                    LOGGER.lifecycle("» " + pair.left().replace("\n", "\n»  "));
+                    if (pair.right() > 1) {
+                        LOGGER.lifecycle("»   ↑ repeated " + pair.right() + " times ↑");
                     }
                 });
             }

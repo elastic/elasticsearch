@@ -193,12 +193,12 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("test", "value")));
         assertEquals("{\"_doc\":{\"properties\":{" +
             "\"test\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}",
-            Strings.toString(doc.dynamicMappingsUpdate().root));
+            Strings.toString(doc.dynamicMappingsUpdate().getRoot()));
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
         Mapping merged = mapperService.documentMapper().mapping();
-        assertNotNull(merged.root.getMapper("test"));
-        assertEquals(1, merged.root.runtimeFieldTypes().size());
-        assertNotNull(merged.root.getRuntimeFieldType("field"));
+        assertNotNull(merged.getRoot().getMapper("test"));
+        assertEquals(1, merged.getRoot().runtimeFieldTypes().size());
+        assertNotNull(merged.getRoot().getRuntimeFieldType("field"));
     }
 
     public void testDynamicUpdateWithRuntimeFieldDottedName() throws Exception {
@@ -209,7 +209,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             b.field("field", "value");
             b.endObject().endObject().endObject();
         }));
-        RootObjectMapper root = doc.dynamicMappingsUpdate().root;
+        RootObjectMapper root = doc.dynamicMappingsUpdate().getRoot();
         assertEquals(0, root.runtimeFieldTypes().size());
         {
             //the runtime field is defined but the object structure is not, hence it is defined under properties
@@ -225,7 +225,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
         Mapping merged = mapperService.documentMapper().mapping();
         {
-            Mapper path1 = merged.root.getMapper("path1");
+            Mapper path1 = merged.getRoot().getMapper("path1");
             assertThat(path1, instanceOf(ObjectMapper.class));
             Mapper path2 = ((ObjectMapper) path1).getMapper("path2");
             assertThat(path2, instanceOf(ObjectMapper.class));
@@ -233,8 +233,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             assertThat(path3, instanceOf(ObjectMapper.class));
             assertFalse(path3.iterator().hasNext());
         }
-        assertEquals(1, merged.root.runtimeFieldTypes().size());
-        assertNotNull(merged.root.getRuntimeFieldType("path1.path2.path3.field"));
+        assertEquals(1, merged.getRoot().runtimeFieldTypes().size());
+        assertNotNull(merged.getRoot().getRuntimeFieldType("path1.path2.path3.field"));
     }
 
     public void testIncremental() throws Exception {
@@ -469,10 +469,10 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             source, builder.contentType()));
         Mapping update = parsedDocument.dynamicMappingsUpdate();
         assertNotNull(update);
-        assertThat(((FieldMapper) update.root().getMapper("foo")).fieldType().typeName(), equalTo("float"));
-        assertThat(((FieldMapper) update.root().getMapper("bar")).fieldType().typeName(), equalTo("float"));
-        assertThat(((FieldMapper) update.root().getMapper("baz")).fieldType().typeName(), equalTo("float"));
-        assertThat(((FieldMapper) update.root().getMapper("quux")).fieldType().typeName(), equalTo("float"));
+        assertThat(((FieldMapper) update.getRoot().getMapper("foo")).fieldType().typeName(), equalTo("float"));
+        assertThat(((FieldMapper) update.getRoot().getMapper("bar")).fieldType().typeName(), equalTo("float"));
+        assertThat(((FieldMapper) update.getRoot().getMapper("baz")).fieldType().typeName(), equalTo("float"));
+        assertThat(((FieldMapper) update.getRoot().getMapper("quux")).fieldType().typeName(), equalTo("float"));
     }
 
     public void testNumericDetectionEnabled() throws Exception {

@@ -89,6 +89,7 @@ import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.merge.MergeStats;
@@ -111,7 +112,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
@@ -603,7 +603,7 @@ public class IndicesService extends AbstractLifecycleComponent
             // double check that shard is not created.
             new IndexEventListener() {
                 @Override
-                public void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
+                public void beforeIndexShardCreated(ShardRouting shardRouting, Settings indexSettings) {
                     assert false : "temp index should not trigger shard creation";
                     throw new ElasticsearchException("temp index should not trigger shard creation [{}]", index);
                 }

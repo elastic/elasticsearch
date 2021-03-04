@@ -131,7 +131,7 @@ public class RandomBlobContentStreamTests extends ESTestCase {
     }
 
     private static int randomSize() {
-        return between(0, 30000);
+        return between(1, 30000);
     }
 
     private static void readAllBytes(InputStream inputStream) throws IOException {

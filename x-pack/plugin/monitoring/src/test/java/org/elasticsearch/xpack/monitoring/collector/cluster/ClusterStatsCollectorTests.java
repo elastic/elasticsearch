@@ -22,9 +22,9 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -72,7 +72,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
     public void testShouldCollectReturnsFalseIfNotMaster() {
         final ClusterStatsCollector collector =
                 new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService,
-                    new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+                    TestIndexNameExpressionResolver.newInstance());
 
         assertThat(collector.shouldCollect(false), is(false));
     }
@@ -80,7 +80,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
     public void testShouldCollectReturnsTrue() {
         final ClusterStatsCollector collector =
                 new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService,
-                    new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+                    TestIndexNameExpressionResolver.newInstance());
 
         assertThat(collector.shouldCollect(true), is(true));
     }

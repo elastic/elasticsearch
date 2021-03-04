@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
@@ -286,7 +286,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
     private void createIndexAndAliasIfNecessary(ClusterState clusterState) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
-            client, clusterState, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            client, clusterState, TestIndexNameExpressionResolver.newInstance(),
             TEST_INDEX_PREFIX, TEST_INDEX_ALIAS, listener);
     }
 

@@ -70,11 +70,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         BuildParams.withInternalBuild(() -> project.getPlugins().apply(InternalDistributionDownloadPlugin.class))
             .orElse(() -> project.getPlugins().apply(DistributionDownloadPlugin.class));
-
         project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
-
-        ReaperService reaper = project.getRootProject().getExtensions().getByType(ReaperService.class);
-
         // register legacy jdk distribution for testing pre-7.0 BWC clusters
         Jdk bwcJdk = JdkDownloadPlugin.getContainer(project).create("bwc_jdk", jdk -> {
             jdk.setVendor(LEGACY_JAVA_VENDOR);
@@ -83,8 +79,16 @@ public class TestClustersPlugin implements Plugin<Project> {
             jdk.setArchitecture(Architecture.current().name().toLowerCase());
         });
 
+        Provider<ReaperService> reaperServiceProvider = GradleUtils.getBuildService(
+            project.getGradle().getSharedServices(),
+            ReaperPlugin.REAPER_SERVICE_NAME
+        );
         // enable the DSL to describe clusters
-        NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project, reaper, bwcJdk);
+        NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(
+            project,
+            reaperServiceProvider,
+            bwcJdk
+        );
 
         // provide a task to be able to list defined clusters.
         createListClustersTask(project, container);
@@ -107,7 +111,7 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(
         Project project,
-        ReaperService reaper,
+        Provider<ReaperService> reaper,
         Jdk bwcJdk
     ) {
         // Create an extensions that allows describing clusters

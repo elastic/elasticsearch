@@ -237,7 +237,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         nodesPerAttributesCounts = new ObjectIntHashMap<>();
         for (RoutingNode routingNode : this) {
             String attrValue = routingNode.node().getAttributes().get(attributeName);
-            nodesPerAttributesCounts.addTo(attrValue, 1);
+            if (attrValue != null) {
+                nodesPerAttributesCounts.addTo(attrValue, 1);
+            }
         }
         nodesPerAttributeNames.put(attributeName, nodesPerAttributesCounts);
         return nodesPerAttributesCounts;

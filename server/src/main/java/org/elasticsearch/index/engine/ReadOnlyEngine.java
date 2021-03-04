@@ -318,8 +318,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo,
-                                                long toSeqNo, boolean requiredFullRange)  {
+    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo,
+                                                boolean requiredFullRange, boolean singleConsumer)  {
         return newEmptySnapshot();
     }
 

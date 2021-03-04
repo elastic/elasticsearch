@@ -325,7 +325,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     public void testSerializeDefaults() throws Exception {
         for (String type : types()) {
             DocumentMapper docMapper = createDocumentMapper(fieldMapping(b -> b.field("type", type)));
-            RangeFieldMapper mapper = (RangeFieldMapper) docMapper.root().getMapper("field");
+            RangeFieldMapper mapper = (RangeFieldMapper) docMapper.mapping().getRoot().getMapper("field");
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
             mapper.doXContentBody(builder, true, ToXContent.EMPTY_PARAMS);
             String got = Strings.toString(builder.endObject());

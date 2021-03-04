@@ -379,7 +379,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
                 logger.error("error executing bulk", failure);
             }
-        })
+        }, "watcher")
             .setFlushInterval(SETTING_BULK_FLUSH_INTERVAL.get(settings))
             .setBulkActions(SETTING_BULK_ACTIONS.get(settings))
             .setBulkSize(SETTING_BULK_SIZE.get(settings))

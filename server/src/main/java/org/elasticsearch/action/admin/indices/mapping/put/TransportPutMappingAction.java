@@ -129,20 +129,11 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
             .indices(concreteIndices)
             .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
 
-        metadataMappingService.putMapping(updateRequest, new ActionListener<>() {
-
-            @Override
-            public void onResponse(AcknowledgedResponse response) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
-                    Arrays.asList(concreteIndices)), t);
-                listener.onFailure(t);
-            }
-        });
+        metadataMappingService.putMapping(updateRequest, listener.delegateResponse((l, e) -> {
+            logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
+                    Arrays.asList(concreteIndices)), e);
+            l.onFailure(e);
+        }));
     }
 
     static String checkForSystemIndexViolations(SystemIndices systemIndices, Index[] concreteIndices, PutMappingRequest request) {

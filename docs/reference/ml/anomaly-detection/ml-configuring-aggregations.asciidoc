@@ -182,6 +182,7 @@ the metrics based on time and terms:
 
 [source,console]
 ----------------------------------
+PUT _ml/datafeeds/datafeed-farequote-composite
 {
   "job_id": "farequote-composite",
   "indices": [

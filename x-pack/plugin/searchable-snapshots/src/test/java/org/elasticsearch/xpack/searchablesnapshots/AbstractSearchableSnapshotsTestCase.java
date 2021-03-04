@@ -223,15 +223,18 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      */
     protected static ByteSizeValue randomCacheRangeSize() {
         return new ByteSizeValue(
-            randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), CacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes())
+            randomLongBetween(
+                CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes() / 4,
+                CacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes() / 4
+            )
         );
     }
 
     protected static ByteSizeValue randomFrozenCacheRangeSize() {
         return new ByteSizeValue(
             randomLongBetween(
-                SnapshotsService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(),
-                SnapshotsService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes()
+                SnapshotsService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes() / 4,
+                SnapshotsService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes() / 4
             )
         );
     }

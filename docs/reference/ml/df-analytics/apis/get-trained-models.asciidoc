@@ -78,8 +78,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from-models]
 A comma delimited string of optional fields to include in the response body. The
 default value is empty, indicating no optional fields are included. Valid
 options are:
- - `definition`: Includes the model definition
+ - `definition`: Includes the model definition.
  - `feature_importance_baseline`: Includes the baseline for {feat-imp} values.
+ - `hyperparameters`: Includes the information about hyperparameters used to 
+    train the model. This information consists of the value, the absolute and 
+    relative importance of the hyperparameter as well as an indicator of whether 
+    it was specified by the user or tuned during hyperparameter optimization.
  - `total_feature_importance`: Includes the total {feat-imp} for the training
    data set.
 The baseline and total {feat-imp} values are returned in the `metadata` field

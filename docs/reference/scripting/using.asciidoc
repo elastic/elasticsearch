@@ -204,8 +204,7 @@ A primitive type holds a singular piece of data. Examples of
 of a variable value. For example, an `int` is 32-bit and stores whole numbers,
 whereas a `double` is 64-bit and stores fractional numbers.
 
-The following example builds on the previous one, but adds a declaration for a
-`double` primitive type:
+The following example declares three primitive types:
 
 [source,console]
 ----
@@ -235,13 +234,13 @@ to force evaluation as its corresponding reference type value.
 ==== Reference types
 A reference type is a complex structure that can represent multiple pieces of
 data and logic to manipulate that data. Reference types hold references to
-objects and provide a way to access those objects. You define reference types as
-part of the API for scripts.
+objects and provide a way to access them. You define reference types as part of
+the API for scripts.
 
-Reference types are complex types that have method and fields available to
-modify internal state. You cannot define new types, but can call any of the
-available types in the API's allowlist. For example, let's assume that the
-allowlist contains an `Example` reference type with the following definition:
+Reference types have methods and fields available to modify internal state. You
+cannot define new types, but can call any of the available types in the API's
+allowlist. For example, let's assume that the allowlist contains an `Example`
+reference type with the following definition:
 
 [source,java]
 ----
@@ -254,9 +253,13 @@ class Example {
 <1> This operation adds together the `my_int` and `my_double` variables.
 
 To use the `Example` reference type, you create a new instance of `Example`
-named `my_example`. You can then define this new instance. The following
-example declares two primitive types named `my_int` and `my_double`, assigns
-them each a value, and includes them in the `my_example` reference type.
+that we'll name `my_example`. To call the `Example` method, include the
+{painless}/painless-operators-reference.html[method call operator] `()`, which
+in this example is `Example()`.
+
+You can then define this new instance. The following example declares two
+primitive types named `my_int` and `my_double`, assigns them each a value, and
+includes them in the `my_example` reference type.
 
 [source,painless]
 ----
@@ -269,6 +272,9 @@ double my_add = my_example.add();
 <2> Declare `my_int` as part of the `my_example` reference type
 <3> Declare `my_double` as part of the `my_example` reference type
 
+That's a brief overview of how reference types are structured within Painless,
+but what you really need to know is how to use reference types.
+
 [discrete]
 ===== How to use reference types
 What if you want to modify the types and values that are part of a reference
@@ -276,8 +282,8 @@ type? That's where you can leverage the magic of reference types! You can have
 multiple reference type values that point to the _same_ instance, which means
 you don't have to modify the instance itself.
 
-The following example creates two new reference types: `my_example1` and
-`my_example2`:
+For example, the following statement creates two new reference types:
+`my_example1` and `my_example2`:
 
 [source,painless]
 ----
@@ -292,7 +298,7 @@ By creating a new instance of `Example`, `my_example1` references `Example`
 and inherits all of the data and logic that it contains.
 
 Similarly, `my_example2` references `my_example1` and inherits everything it
-contains. However, even though `my_example2` references `my_example1`, you can
+contains. Even though `my_example2` references `my_example1`, you can
 modify `my_example2` without impacting `my_example1`.
 
 Looking back, `Example` indicates that `my_example.my_int = 1`. The last line
@@ -311,6 +317,9 @@ The `my_add` variable would return `3` because it adds the values of
 `my_example.my_int` (`1`) and `my_example.my_double` (`2`). However,
 `my_example2` would return `6`, because the value of `my_example2.my_int` is
 now `4` and the value of `my_example.my_double` is `2`.
+
+By creating a new reference type, you can access existing objects and build
+logic on top of them without changing how they operate.
 
 [[script-type-dynamic]]
 ==== Dynamic types
@@ -331,8 +340,8 @@ primitive types and reference types directly when performance is critical.
 [discrete]
 ===== How to use dynamic types
 So how do dynamic types work in practice? Let's look at a basic example. The
-following request creates a `List` named `x` and adds `1` to the list.
-The example declares an `int` named `y` and says that it's equal to an `int`
+following script creates a `List` named `x` and adds `1` to the list.
+The script then declares an `int` named `y` and says that it's equal to an `int`
 named `x`.
 
 [source,console]
@@ -352,8 +361,8 @@ POST /_scripts/painless/_execute
 <1> The brackets `[]` indicate that this is an empty list.
 
 We can simplify that request by using `def`. Instead of explicitly declaring
-a variable named `y`, we can say that `def y = x[0]`. Now, the `y` variable
-will mimic `x` however it's defined.
+a variable named `y` and equating it to `x`, we can say that `def y = x[0]`.
+Now, the `y` variable will mimic `x` however it's defined.
 
 [source,console]
 ----
@@ -381,10 +390,10 @@ We'll talk more about retrieving data later on, but the main takeaway relating
 to `def` values is this: you don't really need to know what primitive type your
 data is; you can just call a `def` type and then start operating on the data.
 
-The following request starts with a list that includes primitive types of
-`int`, `double`, and `String`. The request then declares an empty `String` and
-introduces a `for` loop. This loop iterates through the values in the list and
-changes the value three times:
+For example, the following request starts with a list that includes primitive
+types of `int`, `double`, and `String`. The request then declares an empty
+`String` and introduces a `for` loop. This loop iterates through the values in
+the list and changes the value three times:
 
 * `1` is an `int`
 * `2.0` is a `double`
@@ -408,37 +417,55 @@ POST /_scripts/painless/_execute
 
 The type changes occur automatically without doing anything other than using
 `def` and iterating through the values. Painless changes the type for you so
-that you can focus on writing your script without worrying about what type your
-data is.
+that you can focus on writing your script without worrying about what your data
+type is.
 
 [discrete]
 [[types-whats-next]]
 ==== What's next
-These types are the most basic structures in Painless, and there are other
-types that you can learn about when writing scripts. Now that you've learned
-about types and variables, you can start combining them with operators.
+These types are the most basic structures in Painless. There are {painless}/painless-types.html[other types] that you can learn about as you script writing
+skills develop. Now that you've learned about types and variables, you can
+start combining them with operators.
 
 <<script-spec-operators,Learn about operators>>
 
 [[script-spec-operators]]
 === Operators
-An operator is the most basic action that can be taken to evaluate variables
-and values in a script. Painless offers basic operators for numeric computations
+An operator is the most basic action to evaluate variables and values in a
+script. Painless offers basic operators for numeric computations
 such as addition, division, and subtraction, but also provides operators for
 comparisons, conditionals, and {painless}/painless-operators.html[much more].
 
-An expression is one-to-many consecutive operations. Precedence is the
-order in which an operator will be evaluated relative to another operator.
+An _expression_ is one-to-many consecutive operations. For example, a basic
+expression can declare a variable and complete a simple arithmetic operation:
+
+[source,painless]
+----
+int x = 5+4
+----
+
+_Precedence_ is the order in which an operator is evaluated relative to another
+operator. Parentheses `()` indicate precendence, meaning the expression in
+parentheses is evaluated first. An expression in parentheses overrides existing
+precedence relationships between operators. The following expression indicates
+that the addition operation should occur first:
+
+[source,painless]
+----
+int x = (5+4)*6
+----
+
 Associativity is the direction within an expression in which a specific
-operator is evaluated.
+operator is evaluated. The following expression indicates that value for `x` is
+calculated first before evaluating `y`. This means that `x = 54`, and that
+value is passed into the expression for `y`.
 
-The following example introduces a basic expression with arithmetic operators.
-The parentheses `()` indicate precendence, meaning the expression in
-parentheses will be evaluated first.
+The expression in parentheses takes precedence `(x-50)`, resulting in `54-50`,
+which equals `4`. Divide `12/4` and the result of the entire expression equals
+`3`, which is stored to the `y` variable.
 
-[[script-spec-statements]]
-=== Statements
-
-
-[[script-spec-functions]]
-=== Functions
+[source,painless]
+----
+int x = (5+4)*6
+int y = 12/(x-50)
+----

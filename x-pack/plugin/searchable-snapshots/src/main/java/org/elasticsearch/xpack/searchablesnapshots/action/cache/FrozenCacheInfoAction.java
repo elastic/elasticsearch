@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.searchablesnapshots;
+package org.elasticsearch.xpack.searchablesnapshots.action.cache;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;

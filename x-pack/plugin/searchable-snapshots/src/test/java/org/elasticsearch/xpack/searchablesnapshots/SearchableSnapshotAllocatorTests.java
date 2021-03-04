@@ -40,6 +40,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction;
+import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheInfoService;
 
 import java.util.Collections;
 import java.util.List;

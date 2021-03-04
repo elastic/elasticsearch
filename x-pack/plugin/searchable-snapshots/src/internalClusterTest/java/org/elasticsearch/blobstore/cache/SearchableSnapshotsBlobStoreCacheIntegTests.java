@@ -62,6 +62,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.DA
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
@@ -154,8 +155,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             () -> systemClient().admin().indices().prepareGetIndex().addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
         );
 
-        // TODO randomize this with FULL_COPY too when cold tier also handle blob cache for footers
-        final Storage storage = Storage.SHARED_CACHE;
+        final Storage storage = randomFrom(Storage.values());
         logger.info(
             "--> mount snapshot [{}] as an index for the first time [storage={}, max length={}]",
             snapshot,
@@ -264,7 +264,13 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             new SearchableSnapshotsStatsRequest()
         ).actionGet().getStats()) {
             for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
-                assertThat(Strings.toString(indexInputStats), indexInputStats.getBlobStoreBytesRequested().getCount(), equalTo(0L));
+                assertThat(
+                    Strings.toString(indexInputStats),
+                    indexInputStats.getBlobStoreBytesRequested().getCount(),
+                    storage == Storage.SHARED_CACHE ? equalTo(0L)
+                        : indexInputStats.getFileExt().equals("cfs") ? greaterThanOrEqualTo(0L)
+                        : equalTo(0L)
+                );
             }
         }
 
@@ -308,7 +314,13 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             new SearchableSnapshotsStatsRequest()
         ).actionGet().getStats()) {
             for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
-                assertThat(Strings.toString(indexInputStats), indexInputStats.getBlobStoreBytesRequested().getCount(), equalTo(0L));
+                assertThat(
+                    Strings.toString(indexInputStats),
+                    indexInputStats.getBlobStoreBytesRequested().getCount(),
+                    storage == Storage.SHARED_CACHE ? equalTo(0L)
+                        : indexInputStats.getFileExt().equals("cfs") ? greaterThanOrEqualTo(0L)
+                        : equalTo(0L)
+                );
             }
         }
 

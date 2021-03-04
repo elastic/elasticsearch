@@ -323,7 +323,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             if (indexCacheMiss != null) {
 
                 fillIndexCache(fileName, indexCacheMiss);
-                if (compoundFileOffset > 0
+                if (compoundFileOffset > 0L
                     && indexCacheMiss.equals(headerBlobCacheByteRange)
                     && footerBlobCacheByteRange != ByteRange.EMPTY) {
                     fillIndexCache(fileName, footerBlobCacheByteRange);

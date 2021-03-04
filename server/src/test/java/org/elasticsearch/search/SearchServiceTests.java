@@ -1178,7 +1178,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     public void testCancelEarly() throws Exception {
         createIndex("index");
-        final SearchService service = getInstanceFromNode(SearchService.class);
+        final MockSearchService service = (MockSearchService) getInstanceFromNode(SearchService.class);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
         final IndexShard indexShard = indexService.getShard(0);
@@ -1226,6 +1226,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         });
         latch2.await();
 
+        AtomicBoolean searchContextCreated = new AtomicBoolean(false);
+        service.setOnCreateSearchContext(c -> searchContextCreated.set(true));
         CountDownLatch latch3 = new CountDownLatch(1);
         when(task.isCancelled()).thenReturn(true);
         service.executeQueryPhase(request, randomBoolean(), task, new ActionListener<>() {
@@ -1243,11 +1245,13 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             public void onFailure(Exception e) {
                 assertThat(e, is(instanceOf(TaskCancelledException.class)));
                 assertThat(e.getMessage(), is("cancelled"));
+                assertThat(searchContextCreated.get(), is(false));
                 latch3.countDown();
             }
         });
         latch3.await();
 
+        searchContextCreated.set(false);
         CountDownLatch latch4 = new CountDownLatch(1);
         service.executeDfsPhase(request, randomBoolean(), task, new ActionListener<>() {
             @Override
@@ -1264,6 +1268,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             public void onFailure(Exception e) {
                 assertThat(e, is(instanceOf(TaskCancelledException.class)));
                 assertThat(e.getMessage(), is("cancelled"));
+                assertThat(searchContextCreated.get(), is(false));
                 latch4.countDown();
             }
         });

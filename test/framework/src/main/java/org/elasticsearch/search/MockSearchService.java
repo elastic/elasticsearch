@@ -9,6 +9,7 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -17,8 +18,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,6 +37,8 @@ public class MockSearchService extends SearchService {
     private static final Map<ReaderContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
 
     private Consumer<ReaderContext> onPutContext = context -> {};
+
+    private Consumer<SearchContext> onCreateSearchContext = context -> {};
 
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
     public static void assertNoInFlightContext() {
@@ -83,5 +89,16 @@ public class MockSearchService extends SearchService {
 
     public void setOnPutContext(Consumer<ReaderContext> onPutContext) {
         this.onPutContext = onPutContext;
+    }
+
+    public void setOnCreateSearchContext(Consumer<SearchContext> onCreateSearchContext) {
+        this.onCreateSearchContext = onCreateSearchContext;
+    }
+
+    @Override
+    public DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
+        DefaultSearchContext searchContext = super.createSearchContext(request, timeout);
+        onCreateSearchContext.accept(searchContext);
+        return searchContext;
     }
 }

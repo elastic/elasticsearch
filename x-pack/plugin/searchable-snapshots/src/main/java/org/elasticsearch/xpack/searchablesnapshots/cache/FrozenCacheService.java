@@ -228,7 +228,7 @@ public class FrozenCacheService implements Releasable {
         final int largeRegions = largeRegions(fileSize, cachedHeaderSize);
         if (cachedHeaderSize > 0) {
             if (region - 1 < largeRegions) {
-                return cachedHeaderSize + (long) region * regionSize;
+                return cachedHeaderSize + (long) (region - 1) * regionSize;
             }
             return largeRegions * regionSize + (region - largeRegions - 1) * smallRegionSize + cachedHeaderSize;
         } else {

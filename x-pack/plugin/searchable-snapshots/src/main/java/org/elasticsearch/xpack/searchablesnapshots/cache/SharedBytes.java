@@ -144,7 +144,7 @@ public class SharedBytes extends AbstractRefCounted {
         }
 
         private void checkOffsets(long position, long length) {
-            final long regionSize = sharedCacheConfiguration.regionSize(pageStart);
+            final long regionSize = sharedCacheConfiguration.regionSize(sharedBytesPos);
             long pageEnd = pageStart + regionSize;
             if (position < pageStart || position > pageEnd || position + length > pageEnd) {
                 assert false;

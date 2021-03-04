@@ -30,7 +30,7 @@ public final class SharedCacheConfiguration {
     public SharedCacheConfiguration(Settings settings) {
         final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
         this.regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
-        this.smallRegionSize = SNAPSHOT_CACHE_SMALL_REGION_SIZE.get(settings).getBytes();
+        this.smallRegionSize = Math.min(SNAPSHOT_CACHE_SMALL_REGION_SIZE.get(settings).getBytes(), regionSize / 2);
         this.tinyRegionSize = SNAPSHOT_CACHE_TINY_REGION_SIZE.get(settings).getBytes();
         final float smallRegionShare = SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.get(settings);
         final float tinyRegionShare = SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE.get(settings);
@@ -38,7 +38,7 @@ public final class SharedCacheConfiguration {
         this.numSmallRegions = Math.round(Math.toIntExact(cacheSize / smallRegionSize) * smallRegionShare);
         this.numTinyRegions = Math.round(Math.toIntExact(cacheSize / tinyRegionSize) * tinyRegionShare);
 
-        if (smallRegionSize > regionSize / 2 || tinyRegionSize > smallRegionSize / 2) {
+        if (smallRegionSize * 2 > regionSize || tinyRegionSize * 2> smallRegionSize) {
             throw new IllegalArgumentException("region sizes are not consistent");
         }
     }
@@ -75,9 +75,9 @@ public final class SharedCacheConfiguration {
         return numSmallRegions;
     }
 
-    public long regionSize(long pageStart) {
-        if (pageStart >= numRegions) {
-            if (pageStart >= numRegions + numSmallRegions) {
+    public long regionSize(int pageNum) {
+        if (pageNum >= numRegions) {
+            if (pageNum >= numRegions + numSmallRegions) {
                 return tinyRegionSize;
             }
             return smallRegionSize;

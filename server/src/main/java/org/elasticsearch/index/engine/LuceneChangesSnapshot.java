@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -151,6 +152,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private boolean assertAccessingThread() {
         assert singleConsumer == false || creationThread == Thread.currentThread() :
             "created by [" + creationThread + "] != current thread [" + Thread.currentThread() + "]";
+        assert Transports.assertNotTransportThread("reading changes snapshot may involve slow IO");
         return true;
     }
 

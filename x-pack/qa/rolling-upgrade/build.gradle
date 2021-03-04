@@ -44,7 +44,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       numberOfNodes = 3
 
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-      setting 'path.repo', "[ \"${buildDir}/cluster/shared/repo/${baseName}\", \"${searchableSnapshotRepository}\" ]"
+      setting 'path.repo', "['${buildDir}/cluster/shared/repo/${baseName}', '${searchableSnapshotRepository}']"
       setting 'xpack.license.self_generated.type', 'trial'
       setting 'xpack.security.enabled', 'true'
       setting 'xpack.security.transport.ssl.enabled', 'true'

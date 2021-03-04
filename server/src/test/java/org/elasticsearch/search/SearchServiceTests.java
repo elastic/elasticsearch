@@ -8,7 +8,6 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
@@ -86,10 +85,10 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -117,6 +116,8 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchServiceTests extends ESSingleNodeTestCase {
 
@@ -139,7 +140,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     @Before
-    private void resetCount() {
+    public void resetCount() {
         numWrapInvocations = new AtomicInteger(0);
     }
 
@@ -1173,6 +1174,58 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         future.actionGet();
         assertThat(searchService.getActiveContexts(), equalTo(1));
         assertTrue(searchService.freeReaderContext(future.actionGet()));
+    }
+
+    public void testCancelEarly() throws Exception {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null);
+
+        CountDownLatch latch1 = new CountDownLatch(1);
+        SearchShardTask task = mock(SearchShardTask.class);
+        when(task.isCancelled()).thenReturn(false);
+        service.executeQueryPhase(request, randomBoolean(), task, new ActionListener<>() {
+            @Override
+            public void onResponse(SearchPhaseResult searchPhaseResult) {
+                latch1.countDown();
+
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    fail("Search not cancelled early");
+                } finally {
+                    latch1.countDown();
+                }
+            }
+        });
+        latch1.await();
+
+        CountDownLatch latch2 = new CountDownLatch(1);
+        when(task.isCancelled()).thenReturn(true);
+        service.executeQueryPhase(request, randomBoolean(), task, new ActionListener<>() {
+            @Override
+            public void onResponse(SearchPhaseResult searchPhaseResult) {
+                try {
+                    fail("Search not cancelled early");
+                } finally {
+                    latch2.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e, is(instanceOf(TaskCancelledException.class)));
+                latch2.countDown();
+            }
+        });
+        latch2.await();
     }
 
     private ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {

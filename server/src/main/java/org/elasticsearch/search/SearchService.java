@@ -356,17 +356,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                             SearchShardTask task,
                                             boolean keepStatesInContext) throws IOException {
         ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
-        if (task.isCancelled()) {
-            logger.trace("task cancelled before executing dfs phase");
-            final TaskCancelledException taskCancelledException = new TaskCancelledException("cancelled");
-            processFailure(readerContext, taskCancelledException);
-            throw taskCancelledException;
-        }
-
-        try (Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
-                SearchContext context = createContext(readerContext, request, task, true)) {
-            dfsPhase.execute(context);
-            return context.dfsResult();
+        try {
+            checkCancelled(task, "dfs");
+            try (Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
+                    SearchContext context = createContext(readerContext, request, task, true)) {
+                dfsPhase.execute(context);
+                return context.dfsResult();
+            }
         } catch (Exception e) {
             logger.trace("Dfs phase failed", e);
             processFailure(readerContext, e);
@@ -443,32 +439,29 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                                 SearchShardTask task,
                                                 boolean keepStatesInContext) throws Exception {
         final ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
-        if (task.isCancelled()) {
-            logger.trace("task cancelled before executing query phase");
-            final TaskCancelledException taskCancelledException = new TaskCancelledException("cancelled");
-            processFailure(readerContext, taskCancelledException);
-            throw taskCancelledException;
-        }
-
-        try (Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
+        try {
+            checkCancelled(task, "query");
+            try (Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
                 SearchContext context = createContext(readerContext, request, task, true)) {
-            final long afterQueryTime;
-            try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
-                loadOrExecuteQueryPhase(request, context);
-                if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
-                    freeReaderContext(readerContext.id());
+                final long afterQueryTime;
+                try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
+                    loadOrExecuteQueryPhase(request, context);
+                    if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
+                        freeReaderContext(readerContext.id());
+                    }
+                    afterQueryTime = executor.success();
                 }
-                afterQueryTime = executor.success();
-            }
-            if (request.numberOfShards() == 1) {
-                return executeFetchPhase(readerContext, context, afterQueryTime);
-            } else {
-                // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
-                // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
-                final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
-                context.queryResult().setRescoreDocIds(rescoreDocIds);
-                readerContext.setRescoreDocIds(rescoreDocIds);
-                return context.queryResult();
+                if (request.numberOfShards() == 1) {
+                    return executeFetchPhase(readerContext, context, afterQueryTime);
+                } else {
+                    // Pass the rescoreDocIds to the queryResult to send them the coordinating node
+                    // and receive them back in the fetch phase.
+                    // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
+                    final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
+                    context.queryResult().setRescoreDocIds(rescoreDocIds);
+                    readerContext.setRescoreDocIds(rescoreDocIds);
+                    return context.queryResult();
+                }
             }
         } catch (Exception e) {
             // execution exception can happen while loading the cache, strip it
@@ -507,6 +500,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             throw e;
         }
         runAsync(getExecutor(readerContext.indexShard()), () -> {
+            checkCancelled(task, "query");
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
                  SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)) {
@@ -529,6 +523,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.shardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         runAsync(getExecutor(readerContext.indexShard()), () -> {
+            checkCancelled(task, "query");
             readerContext.setAggregatedDfs(request.dfs());
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, true);
                  SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)) {
@@ -579,6 +574,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             throw e;
         }
         runAsync(getExecutor(readerContext.indexShard()), () -> {
+            checkCancelled(task, "fetch");
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
                  SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)) {
@@ -603,6 +599,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         runAsync(getExecutor(readerContext.indexShard()), () -> {
+            checkCancelled(task, "fetch");
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false)) {
                 if (request.lastEmittedDoc() != null) {
                     searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
@@ -625,6 +622,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 throw e;
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));
+    }
+
+    private void checkCancelled(SearchShardTask task, String phase) {
+        // check cancellation as early as possible, as it avoids opening up a Lucene reader on FrozenEngine
+        if (task.isCancelled()) {
+            logger.trace("task cancelled before executing {} phase", phase);
+            throw new TaskCancelledException("cancelled");
+        }
     }
 
     private ReaderContext findReaderContext(ShardSearchContextId id, TransportRequest request) throws SearchContextMissingException {

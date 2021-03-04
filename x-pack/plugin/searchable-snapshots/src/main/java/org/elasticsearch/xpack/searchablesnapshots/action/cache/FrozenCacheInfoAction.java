@@ -70,7 +70,7 @@ public class FrozenCacheInfoAction extends ActionType<FrozenCacheInfoResponse> {
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<FrozenCacheInfoResponse> listener) {
-            if (request.discoveryNode.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO adjust version after backport
+            if (request.discoveryNode.getVersion().onOrAfter(Version.V_7_12_0)) {
                 transportService.sendChildRequest(
                     request.discoveryNode,
                     FrozenCacheInfoNodeAction.NAME,
@@ -80,9 +80,7 @@ public class FrozenCacheInfoAction extends ActionType<FrozenCacheInfoResponse> {
                     new ActionListenerResponseHandler<>(listener, FrozenCacheInfoResponse::new)
                 );
             } else {
-                // Before this is backported, be lenient with older versions.
-                // TODO after backport, can hard-code this to false.
-                listener.onResponse(new FrozenCacheInfoResponse(request.discoveryNode.getVersion().onOrAfter(Version.V_7_12_0)));
+                listener.onResponse(new FrozenCacheInfoResponse(false));
             }
         }
 

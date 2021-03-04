@@ -35,6 +35,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * The {@link IndexRoutingTable} represents routing information for a single
@@ -457,23 +458,28 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 for (ShardRouting shardRouting : indexShard) {
                     builder.addShard(shardRouting);
                 }
-                // first check if there is one that is not assigned to a node, and remove it
+
+                // define remove priority
+                List<Function<ShardRouting, Boolean>> priorityRemoveClauses = List.of(
+                    shardRouting -> shardRouting.assignedToNode() == false,
+                    shardRouting -> shardRouting.initializing(),
+                    shardRouting -> shardRouting.relocating(),
+                    shardRouting -> true
+                );
+
                 boolean removed = false;
-                for (ShardRouting shardRouting : indexShard) {
-                    if (shardRouting.primary() == false && shardRouting.assignedToNode() == false) {
-                        builder.removeShard(shardRouting);
-                        removed = true;
-                        break;
-                    }
-                }
-                if (removed == false) {
-                    for (ShardRouting shardRouting : indexShard) {
-                        if (shardRouting.primary() == false) {
-                            builder.removeShard(shardRouting);
-                            break;
+                for(Function<ShardRouting, Boolean> removeClause : priorityRemoveClauses) {
+                    if (removed == false) {
+                        for (ShardRouting shardRouting : indexShard) {
+                            if (shardRouting.primary() == false && removeClause.apply(shardRouting)) {
+                                builder.removeShard(shardRouting);
+                                removed = true;
+                                break;
+                            }
                         }
                     }
                 }
+
                 shards.put(shardId, builder.build());
             }
             return this;

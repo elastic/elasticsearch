@@ -10,18 +10,22 @@ queries.
 
 [IMPORTANT]
 ====
-We only recommend the `wildcard` type for fields that meet the following criteria:
+We only recommend the `wildcard` type for fields that meet one of the following
+criteria:
 
-* You plan to regularly search the field using a pattern with leading wildcards,
+* The field contains more than a million unique values. +
+AND +
+You plan to regularly search the field using a pattern with leading wildcards,
 such as `*foo` or `*baz`.
 
 * The field contains values larger than 32KB. +
-OR +
-The field contains more than a million unique values.
+AND +
+You plan to regularly search the field using any type of wildcard pattern, such
+as `*foo`, `baz*`, or `*bar*`.
 
 Otherwise, use the `keyword` field type for faster searches, faster indexing,
 and lower storage costs. For an in-depth comparison and decision flowchart, see
-our
+our related
 https://www.elastic.co/blog/find-strings-within-strings-faster-with-the-new-elasticsearch-wildcard-field[blog
 post].
 ====

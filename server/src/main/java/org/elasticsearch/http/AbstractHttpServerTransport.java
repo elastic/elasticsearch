@@ -306,12 +306,19 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         boolean addedOnThisCall = httpChannels.add(httpChannel);
         assert addedOnThisCall : "Channel should only be added to http channel set once";
         totalChannelsAccepted.incrementAndGet();
-        httpChannelStats.put(System.identityHashCode(httpChannel), new HttpStats.ClientStats(threadPool.absoluteTimeInMillis()));
+        httpChannelStats.put(
+            HttpStats.ClientStats.getChannelKey(httpChannel),
+            new HttpStats.ClientStats(threadPool.absoluteTimeInMillis())
+        );
         httpChannel.addCloseListener(ActionListener.wrap(() -> {
-            httpChannels.remove(httpChannel);
-            HttpStats.ClientStats clientStats = httpChannelStats.get(System.identityHashCode(httpChannel));
-            if (clientStats != null) {
-                clientStats.closedTimeMillis = threadPool.absoluteTimeInMillis();
+            try {
+                httpChannels.remove(httpChannel);
+                HttpStats.ClientStats clientStats = httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
+                if (clientStats != null) {
+                    clientStats.closedTimeMillis = threadPool.absoluteTimeInMillis();
+                }
+            } catch (Exception e) {
+
             }
         }));
         logger.trace(() -> new ParameterizedMessage("Http channel accepted: {}", httpChannel));
@@ -339,12 +346,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     void updateClientStats(final HttpRequest httpRequest, final HttpChannel httpChannel) {
-        HttpStats.ClientStats clientStats = httpChannelStats.get(System.identityHashCode(httpChannel));
+        HttpStats.ClientStats clientStats = httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
         if (clientStats != null) {
             if (clientStats.agent == null) {
-                if (httpRequest.getHeaders().containsKey("x-elastic-product-origin")) {
+                if (hasAtLeastOneHeaderValue(httpRequest, "x-elastic-product-origin")) {
                     clientStats.agent = httpRequest.getHeaders().get("x-elastic-product-origin").get(0);
-                } else if (httpRequest.getHeaders().containsKey("User-Agent")) {
+                } else if (hasAtLeastOneHeaderValue(httpRequest, "User-Agent")) {
                     clientStats.agent = httpRequest.getHeaders().get("User-Agent").get(0);
                 }
             }
@@ -353,20 +360,24 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 clientStats.remoteAddress = NetworkAddress.format(httpChannel.getRemoteAddress());
             }
             if (clientStats.forwardedFor == null) {
-                if (httpRequest.getHeaders().containsKey("x-forwarded-for")) {
+                if (hasAtLeastOneHeaderValue(httpRequest, "x-forwarded-for")) {
                     clientStats.forwardedFor = httpRequest.getHeaders().get("x-forwarded-for").get(0);
                 }
             }
             if (clientStats.opaqueId == null) {
-                if (httpRequest.getHeaders().containsKey("x-opaque-id")) {
+                if (hasAtLeastOneHeaderValue(httpRequest, "x-opaque-id")) {
                     clientStats.opaqueId = httpRequest.getHeaders().get("x-opaque-id").get(0);
                 }
             }
             clientStats.lastRequestTimeMillis = threadPool.absoluteTimeInMillis();
             clientStats.lastUri = httpRequest.uri();
-            clientStats.requestCount++;
-            clientStats.requestSizeBytes += httpRequest.content().length();
+            clientStats.requestCount.increment();
+            clientStats.requestSizeBytes.add(httpRequest.content().length());
         }
+    }
+
+    private static boolean hasAtLeastOneHeaderValue(final HttpRequest request, final String header) {
+        return request.getHeaders().containsKey(header) && request.getHeaders().get(header).size() > 0;
     }
 
     // Visible for testing

@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.LongAdder;
 
 public class HttpStats implements Writeable, ToXContentFragment {
 
@@ -109,7 +110,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
     }
 
     public static class ClientStats implements Writeable {
-        int id;
+        final int id;
         String agent = Strings.EMPTY;
         String localAddress = Strings.EMPTY;
         String remoteAddress = Strings.EMPTY;
@@ -119,8 +120,8 @@ public class HttpStats implements Writeable, ToXContentFragment {
         long openedTimeMillis;
         long closedTimeMillis = -1;
         volatile long lastRequestTimeMillis = -1;
-        volatile long requestCount;
-        volatile long requestSizeBytes;
+        final LongAdder requestCount = new LongAdder();
+        final LongAdder requestSizeBytes = new LongAdder();
 
         ClientStats(long openedTimeMillis) {
             this.id = System.identityHashCode(this);
@@ -140,8 +141,8 @@ public class HttpStats implements Writeable, ToXContentFragment {
             this.openedTimeMillis = openedTimeMillis;
             this.closedTimeMillis = closedTimeMillis;
             this.lastRequestTimeMillis = lastRequestTimeMillis;
-            this.requestCount = requestCount;
-            this.requestSizeBytes = requestSizeBytes;
+            this.requestCount.add(requestCount);
+            this.requestSizeBytes.add(requestSizeBytes);
         }
 
         ClientStats(StreamInput in) throws IOException {
@@ -155,8 +156,8 @@ public class HttpStats implements Writeable, ToXContentFragment {
             this.openedTimeMillis = in.readLong();
             this.closedTimeMillis = in.readLong();
             this.lastRequestTimeMillis = in.readLong();
-            this.requestCount = in.readLong();
-            this.requestSizeBytes = in.readLong();
+            this.requestCount.add(in.readLong());
+            this.requestSizeBytes.add(in.readLong());
         }
 
         @Override
@@ -171,8 +172,16 @@ public class HttpStats implements Writeable, ToXContentFragment {
             out.writeLong(openedTimeMillis);
             out.writeLong(closedTimeMillis);
             out.writeLong(lastRequestTimeMillis);
-            out.writeLong(requestCount);
-            out.writeLong(requestSizeBytes);
+            out.writeLong(requestCount.longValue());
+            out.writeLong(requestSizeBytes.longValue());
+        }
+
+        /**
+         * Returns a key suitable for use in a hash table for the specified HttpChannel
+         */
+        public static int getChannelKey(HttpChannel channel) {
+            // always use an identity-based hash code rather than one based on object state
+            return System.identityHashCode(channel);
         }
     }
 }

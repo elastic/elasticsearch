@@ -33,7 +33,6 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -180,7 +179,7 @@ public class RestControllerTests extends ESTestCase {
     public void testRegisterAsDeprecatedHandler() {
         RestController controller = mock(RestController.class);
 
-        Method method = randomFrom(Method.values());
+        RestRequest.Method method = randomFrom(RestRequest.Method.values());
         String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         RestHandler handler = (request, channel, client) -> {};
         String deprecationMessage = randomAlphaOfLengthBetween(1, 10);
@@ -201,10 +200,10 @@ public class RestControllerTests extends ESTestCase {
     public void testRegisterAsReplacedHandler() {
         final RestController controller = mock(RestController.class);
 
-        final Method method = randomFrom(Method.values());
+        final RestRequest.Method method = randomFrom(RestRequest.Method.values());
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         final RestHandler handler = (request, channel, client) -> {};
-        final Method replacedMethod = randomFrom(Method.values());
+        final RestRequest.Method replacedMethod = randomFrom(RestRequest.Method.values());
         final String replacedPath = "/_" + randomAlphaOfLengthBetween(1, 6);
         final RestApiVersion current = RestApiVersion.current();
         final RestApiVersion previous = current.previous();
@@ -228,9 +227,9 @@ public class RestControllerTests extends ESTestCase {
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
         final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService);
 
-        Method firstMethod = randomFrom(Method.values());
-        Method secondMethod =
-            randomFrom(Arrays.stream(Method.values()).filter(m -> m != firstMethod).collect(Collectors.toList()));
+        RestRequest.Method firstMethod = randomFrom(RestRequest.Method.values());
+        RestRequest.Method secondMethod =
+            randomFrom(Arrays.stream(RestRequest.Method.values()).filter(m -> m != firstMethod).collect(Collectors.toList()));
 
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
 
@@ -491,7 +490,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDoesNotConsumeContent() throws Exception {
-        final Method method = randomFrom(Method.values());
+        final RestRequest.Method method = randomFrom(RestRequest.Method.values());
         restController.registerHandler(new Route(method, "/notconsumed"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
@@ -544,7 +543,7 @@ public class RestControllerTests extends ESTestCase {
     public void testFaviconWithWrongHttpMethod() {
         final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
             randomValueOtherThanMany(m -> m == GET || m == OPTIONS,
-                () -> randomFrom(Method.values())))
+                () -> randomFrom(RestRequest.Method.values())))
             .withPath("/favicon.ico")
             .build();
         final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.METHOD_NOT_ALLOWED);
@@ -558,7 +557,7 @@ public class RestControllerTests extends ESTestCase {
         final boolean hasContent = randomBoolean();
         final RestRequest request = RestRequest.request(xContentRegistry(), new HttpRequest() {
             @Override
-            public Method method() {
+            public RestRequest.Method method() {
                 throw new IllegalArgumentException("test");
             }
 

@@ -57,10 +57,6 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
         this.totalDocUsages = in.readLong();
     }
 
-    public void process() {
-
-    }
-
     public String type() {
         return type;
     }

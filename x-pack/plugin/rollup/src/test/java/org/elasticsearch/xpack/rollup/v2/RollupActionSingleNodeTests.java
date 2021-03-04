@@ -292,7 +292,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testRollupDatastream() throws Exception {
         RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig(timestampFieldName);
-        String dataStreamName = createDataStream(false);
+        String dataStreamName = createDataStream();
 
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
             .field(timestampFieldName, randomDateForInterval(dateHistogramGroupConfig.getInterval()))
@@ -463,7 +463,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         XContentBuilder get() throws IOException;
     }
 
-    private String createDataStream(boolean hidden) throws Exception {
+    private String createDataStream() throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
         Template idxTemplate = new Template(
             null,
@@ -477,7 +477,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(hidden),
+            new ComposableIndexTemplate.DataStreamTemplate(),
             null
         );
         assertTrue(

@@ -119,6 +119,7 @@ public class Constants {
         "cluster:admin/xpack/ml/data_frame/analytics/delete",
         "cluster:admin/xpack/ml/data_frame/analytics/explain",
         "cluster:admin/xpack/ml/data_frame/analytics/put",
+        "cluster:admin/xpack/ml/data_frame/analytics/preview",
         "cluster:admin/xpack/ml/data_frame/analytics/start",
         "cluster:admin/xpack/ml/data_frame/analytics/stop",
         "cluster:admin/xpack/ml/data_frame/analytics/update",

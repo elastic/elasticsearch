@@ -97,19 +97,21 @@ public class RollupILMAction implements LifecycleAction {
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyStep.NAME);
+        StepKey generateRollupIndexNameKey = new StepKey(phase, NAME, GenerateRollupIndexNameStep.NAME);
         StepKey rollupKey = new StepKey(phase, NAME, NAME);
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             readOnlyKey);
-        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, rollupKey, client);
+        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateRollupIndexNameKey, client);
+        GenerateRollupIndexNameStep generateRollupIndexNameStep = new GenerateRollupIndexNameStep(generateRollupIndexNameKey, rollupKey);
         if (rollupPolicy == null) {
             Step rollupStep = new RollupStep(rollupKey, nextStepKey, client, config);
-            return List.of(checkNotWriteIndexStep, readOnlyStep, rollupStep);
+            return List.of(checkNotWriteIndexStep, readOnlyStep, generateRollupIndexNameStep, rollupStep);
         } else {
             StepKey updateRollupIndexPolicyStepKey = new StepKey(phase, NAME, UpdateRollupIndexPolicyStep.NAME);
             Step rollupStep = new RollupStep(rollupKey, updateRollupIndexPolicyStepKey, client, config);
             Step updateRollupIndexPolicyStep = new UpdateRollupIndexPolicyStep(updateRollupIndexPolicyStepKey, nextStepKey,
                 client, rollupPolicy);
-            return List.of(checkNotWriteIndexStep, readOnlyStep, rollupStep, updateRollupIndexPolicyStep);
+            return List.of(checkNotWriteIndexStep, readOnlyStep, generateRollupIndexNameStep, rollupStep, updateRollupIndexPolicyStep);
         }
     }
 

@@ -60,7 +60,7 @@ class GeoIpDownloader extends AllocatedPersistentTask {
     public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting("geoip.downloader.poll.interval",
         TimeValue.timeValueDays(3), TimeValue.timeValueDays(1), Property.Dynamic, Property.NodeScope);
     public static final Setting<String> ENDPOINT_SETTING = Setting.simpleString("geoip.downloader.endpoint",
-        "https://paisano.elastic.dev/v1/geoip/database", Property.NodeScope);
+        "https://geoip.elastic.co/v1/database", Property.NodeScope);
 
     public static final String GEOIP_DOWNLOADER = "geoip-downloader";
     static final String DATABASES_INDEX = ".geoip_databases";
@@ -106,7 +106,9 @@ class GeoIpDownloader extends AllocatedPersistentTask {
 
     @SuppressWarnings("unchecked")
     private <T> List<T> fetchDatabasesOverview() throws IOException {
-        byte[] data = httpClient.getBytes(endpoint + "?key=11111111-1111-1111-1111-111111111111&elastic_geoip_service_tos=agree");
+        String url = endpoint + "?elastic_geoip_service_tos=agree";
+        logger.info("fetching geoip databases overview from [" + url + "]");
+        byte[] data = httpClient.getBytes(url);
         try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
             DeprecationHandler.THROW_UNSUPPORTED_OPERATION, data)) {
             return (List<T>) parser.list();

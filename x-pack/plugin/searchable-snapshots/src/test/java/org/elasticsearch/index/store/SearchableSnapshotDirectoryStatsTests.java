@@ -401,9 +401,8 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 // Use assertBusy() here to wait for the cache write to be processed in the searchable snapshot thread pool
                 assertBusy(() -> {
                     // cache file has been written in a single chunk
-                    // TODO : fix
-                    // assertCounter(inputStats.getCachedBytesWritten(), input.length(), 2L, input.length(), input.length());
-                    // assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                    assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
+                    assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
                 });
 
                 assertCounter(inputStats.getContiguousReads(), 0L, 0L, 0L, 0L);

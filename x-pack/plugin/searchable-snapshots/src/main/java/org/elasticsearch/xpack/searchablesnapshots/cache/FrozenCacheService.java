@@ -185,7 +185,7 @@ public class FrozenCacheService implements Releasable {
 
     // get the region of a file of the given size that the given position belongs to
     private int getRegion(long position, long fileSize, long cacheHeaderLength) {
-        if (position < cacheHeaderLength) {
+        if (position < cacheHeaderLength || fileSize == cacheHeaderLength) {
             return 0;
         }
         final long tinyRegionSize = sharedBytes.sharedCacheConfiguration.tinyRegionSize();

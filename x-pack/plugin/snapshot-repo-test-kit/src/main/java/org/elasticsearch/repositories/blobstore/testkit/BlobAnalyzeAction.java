@@ -265,7 +265,12 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         }
 
         void run() {
-            writeRandomBlob(request.readEarly || random.nextBoolean(), true, this::doReadBeforeWriteComplete, write1Step);
+            writeRandomBlob(
+                request.readEarly || (request.targetLength <= Integer.MAX_VALUE && random.nextBoolean()),
+                true,
+                this::doReadBeforeWriteComplete,
+                write1Step
+            );
 
             if (request.writeAndOverwrite) {
                 assert request.targetLength <= Integer.MAX_VALUE : "oversized atomic write";

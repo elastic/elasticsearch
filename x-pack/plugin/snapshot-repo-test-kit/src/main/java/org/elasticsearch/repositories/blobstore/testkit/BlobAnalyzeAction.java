@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -189,6 +190,12 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
     }
 
     /**
+     * The atomic write API is based around a {@link BytesReference} which uses {@code int} for lengths and offsets and so on, so we can
+     * only use it to write a blob with size at most {@link Integer#MAX_VALUE}:
+     */
+    static final long MAX_ATOMIC_WRITE_SIZE = Integer.MAX_VALUE;
+
+    /**
      * Analysis on a single blob, performing the write(s) and orchestrating the read(s).
      */
     static class BlobAnalysis {
@@ -265,10 +272,15 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         }
 
         void run() {
-            writeRandomBlob(request.readEarly || random.nextBoolean(), true, this::doReadBeforeWriteComplete, write1Step);
+            writeRandomBlob(
+                request.readEarly || (request.targetLength <= MAX_ATOMIC_WRITE_SIZE && random.nextBoolean()),
+                true,
+                this::doReadBeforeWriteComplete,
+                write1Step
+            );
 
             if (request.writeAndOverwrite) {
-                assert request.targetLength <= Integer.MAX_VALUE : "oversized atomic write";
+                assert request.targetLength <= MAX_ATOMIC_WRITE_SIZE : "oversized atomic write";
                 write1Step.whenComplete(ignored -> writeRandomBlob(true, false, this::doReadAfterWrite, write2Step), ignored -> {});
             } else {
                 write2Step.onResponse(null);
@@ -277,7 +289,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         }
 
         private void writeRandomBlob(boolean atomic, boolean failIfExists, Runnable onLastRead, StepListener<WriteDetails> stepListener) {
-            assert atomic == false || request.targetLength <= Integer.MAX_VALUE : "oversized atomic write";
+            assert atomic == false || request.targetLength <= MAX_ATOMIC_WRITE_SIZE : "oversized atomic write";
             final RandomBlobContent content = new RandomBlobContent(
                 request.getRepositoryName(),
                 random.nextLong(),
@@ -296,7 +308,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                 // E.g. for S3 blob containers we would like to choose somewhat more randomly between single-part and multi-part uploads,
                 // rather than relying on the usual distinction based on the size of the blob.
 
-                if (atomic || (request.targetLength <= Integer.MAX_VALUE && random.nextBoolean())) {
+                if (atomic || (request.targetLength <= MAX_ATOMIC_WRITE_SIZE && random.nextBoolean())) {
                     final RandomBlobContentBytesReference bytesReference = new RandomBlobContentBytesReference(
                         content,
                         Math.toIntExact(request.getTargetLength())
@@ -613,7 +625,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             boolean writeAndOverwrite
         ) {
             assert 0 < targetLength;
-            assert targetLength <= Integer.MAX_VALUE || (readEarly == false && writeAndOverwrite == false) : "oversized atomic write";
+            assert targetLength <= MAX_ATOMIC_WRITE_SIZE || (readEarly == false && writeAndOverwrite == false) : "oversized atomic write";
             this.repositoryName = repositoryName;
             this.blobPath = blobPath;
             this.blobName = blobName;

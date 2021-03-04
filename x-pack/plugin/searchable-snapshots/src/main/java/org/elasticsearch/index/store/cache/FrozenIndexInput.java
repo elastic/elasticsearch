@@ -91,7 +91,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             0L,
             0L,
             fileInfo.length(),
-            directory.getFrozenCacheFile(name, fileInfo.length()),
+            directory.getFrozenCacheFile(name, fileInfo.length(), ByteRange.EMPTY),
             rangeSize,
             recoveryRangeSize,
             directory.getBlobCacheByteRange(name, fileInfo.length()),
@@ -673,13 +673,13 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
 
         if (sliceCompoundFile) {
             sliceCompoundFileOffset = this.offset + sliceOffset;
-            sliceFrozenCacheFile = directory.getFrozenCacheFile(sliceName, sliceLength);
             sliceHeaderByteRange = directory.getBlobCacheByteRange(sliceName, sliceLength);
             if (sliceHeaderByteRange.length() < sliceLength) {
                 sliceFooterByteRange = ByteRange.of(sliceLength - CodecUtil.footerLength(), sliceLength);
             } else {
                 sliceFooterByteRange = ByteRange.EMPTY;
             }
+            sliceFrozenCacheFile = directory.getFrozenCacheFile(sliceName, sliceLength, sliceFooterByteRange);
         } else {
             sliceCompoundFileOffset = this.compoundFileOffset;
             sliceFrozenCacheFile = this.frozenCacheFile;

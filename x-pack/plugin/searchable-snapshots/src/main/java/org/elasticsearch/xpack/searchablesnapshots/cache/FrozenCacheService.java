@@ -861,10 +861,12 @@ public class FrozenCacheService implements Releasable {
         private final CacheKey cacheKey;
         private final long fileSize;
         private final ByteRange cacheRange;
+        private final ByteRange sliceFooterByteRange;
 
-        private FrozenCacheFile(CacheKey cacheKey, long fileSize, ByteRange cacheRange) {
+        private FrozenCacheFile(CacheKey cacheKey, long fileSize, ByteRange cacheRange, ByteRange sliceFooterByteRange) {
             this.cacheKey = cacheKey;
             this.fileSize = fileSize;
+            this.sliceFooterByteRange = sliceFooterByteRange;
             this.cacheRange = cacheRange.length() > smallRegionSize || cacheRange.length() == 0
                 ? ByteRange.EMPTY
                 : (cacheRange.length() > sharedBytes.sharedCacheConfiguration.tinyRegionSize()
@@ -971,8 +973,8 @@ public class FrozenCacheService implements Releasable {
         }
     }
 
-    public FrozenCacheFile getFrozenCacheFile(CacheKey cacheKey, long length, ByteRange cacheRange) {
-        return new FrozenCacheFile(cacheKey, length, cacheRange);
+    public FrozenCacheFile getFrozenCacheFile(CacheKey cacheKey, long length, ByteRange cacheRange, ByteRange sliceFooterByteRange) {
+        return new FrozenCacheFile(cacheKey, length, cacheRange, sliceFooterByteRange);
     }
 
     @FunctionalInterface

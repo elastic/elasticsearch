@@ -707,8 +707,13 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         blobStoreCacheService.putAsync(repository, name, blobStoreCachePath, offset, content, listener);
     }
 
-    public FrozenCacheFile getFrozenCacheFile(String fileName, long length) {
-        return frozenCacheService.getFrozenCacheFile(createCacheKey(fileName), length, getBlobCacheByteRange(fileName, length));
+    public FrozenCacheFile getFrozenCacheFile(String fileName, long length, ByteRange sliceFooterByteRange) {
+        return frozenCacheService.getFrozenCacheFile(
+            createCacheKey(fileName),
+            length,
+            getBlobCacheByteRange(fileName, length),
+            sliceFooterByteRange
+        );
     }
 
     private static Repository repositoryByUuid(Map<String, Repository> repositories, String repositoryUuid, String originalName) {

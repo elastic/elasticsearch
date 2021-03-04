@@ -188,19 +188,21 @@ public class FrozenCacheService implements Releasable {
         if (position < cacheHeaderLength || fileSize == cacheHeaderLength) {
             return 0;
         }
-        final long tinyRegionSize = sharedBytes.sharedCacheConfiguration.tinyRegionSize();
-        final long smallRegionSize = sharedBytes.sharedCacheConfiguration.smallRegionSize();
-        assert cacheHeaderLength == 0 || cacheHeaderLength == tinyRegionSize || cacheHeaderLength == smallRegionSize;
+        assert cacheHeaderLength == 0
+            || cacheHeaderLength == sharedBytes.sharedCacheConfiguration.tinyRegionSize()
+            || cacheHeaderLength == smallRegionSize;
         final long positionAfterHeader = position - cacheHeaderLength;
         final int numberOfLargeRegions = largeRegions(fileSize, cacheHeaderLength);
         final int largeRegionIndex = Math.toIntExact(positionAfterHeader / regionSize);
+
+        final int lastLargeRegionIndex = largeRegionIndex + (cacheHeaderLength > 0 ? 1 : 0);
         if (largeRegionIndex < numberOfLargeRegions) {
-            return largeRegionIndex + (cacheHeaderLength > 0 ? 1 : 0);
+            return lastLargeRegionIndex;
         }
         final long remainder = positionAfterHeader % regionSize;
-        return largeRegionIndex + Math.toIntExact(remainder / smallRegionSize) + (remainder > 0 && remainder % smallRegionSize == 0
+        return lastLargeRegionIndex + Math.toIntExact(remainder / smallRegionSize) + (remainder > 0 && remainder % smallRegionSize == 0
             ? -1
-            : 0) + (cacheHeaderLength > 0 ? 1 : 0);
+            : 0);
     }
 
     // get the relative position from the start of its region for the given position in a file of given size
@@ -209,14 +211,13 @@ public class FrozenCacheService implements Releasable {
         if (region == 0) {
             return position;
         }
-        final long afterHeaderSize = position - cacheHeaderLength;
-        switch (regionType(region, fileSize, cacheHeaderLength)) {
-            case SMALL:
-                return (afterHeaderSize % regionSize) % smallRegionSize;
-            case STANDARD:
-                return afterHeaderSize % regionSize;
-            default:
-                throw new AssertionError();
+        final long relativeToLargePage = (position - cacheHeaderLength) % regionSize;
+        final RegionSize size = regionType(region, fileSize, cacheHeaderLength);
+        if (size == RegionSize.SMALL) {
+            return relativeToLargePage % smallRegionSize;
+        } else {
+            assert size == RegionSize.STANDARD : "tiny regions only for region 0";
+            return relativeToLargePage;
         }
     }
 

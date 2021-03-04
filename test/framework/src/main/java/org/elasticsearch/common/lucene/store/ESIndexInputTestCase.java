@@ -50,7 +50,7 @@ public class ESIndexInputTestCase extends ESTestCase {
         int readPos = (int) indexInput.getFilePointer();
         byte[] output = new byte[length];
         while (readPos < length) {
-            switch (randomIntBetween(0, 3)) {
+            switch (randomIntBetween(0, 5)) {
                 case 0:
                     // Read by one byte at a time
                     output[readPos++] = indexInput.readByte();

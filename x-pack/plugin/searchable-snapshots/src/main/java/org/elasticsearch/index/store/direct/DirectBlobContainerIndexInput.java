@@ -77,18 +77,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long sequentialReadSize,
         int bufferSize
     ) {
-        this(
-            name,
-            directory,
-            fileInfo,
-            context,
-            stats,
-            0L,
-            0L,
-            fileInfo.length(),
-            sequentialReadSize,
-            bufferSize
-        );
+        this(name, directory, fileInfo, context, stats, 0L, 0L, fileInfo.length(), sequentialReadSize, bufferSize);
         stats.incrementOpenCount();
     }
 
@@ -312,16 +301,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             return slice;
         } else {
             throw new IllegalArgumentException(
-                "slice() "
-                    + sliceName
-                    + " out of bounds: offset="
-                    + offset
-                    + ",length="
-                    + length
-                    + ",fileLength="
-                    + length()
-                    + ": "
-                    + this
+                "slice() " + sliceName + " out of bounds: offset=" + offset + ",length=" + length + ",fileLength=" + length() + ": " + this
             );
         }
     }

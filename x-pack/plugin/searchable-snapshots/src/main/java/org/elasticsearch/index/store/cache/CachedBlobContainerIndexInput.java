@@ -85,8 +85,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()),
             rangeSize,
             recoveryRangeSize,
-            directory.getBlobCacheByteRange(name, fileInfo.length()),
-            ByteRange.EMPTY
+            directory.getBlobCacheByteRange(name, fileInfo.length())
         );
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
         stats.incrementOpenCount();
@@ -103,22 +102,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         CacheFileReference cacheFileReference,
         int rangeSize,
         int recoveryRangeSize,
-        ByteRange headerBlobCacheByteRange,
-        ByteRange footerBlobCacheByteRange
+        ByteRange headerBlobCacheByteRange
     ) {
-        super(
-            logger,
-            name,
-            directory,
-            fileInfo,
-            context,
-            stats,
-            offset,
-            length,
-            headerBlobCacheByteRange,
-            footerBlobCacheByteRange,
-            false
-        );
+        super(logger, name, directory, fileInfo, context, stats, offset, length, headerBlobCacheByteRange);
         this.cacheFileReference = cacheFileReference;
         this.lastReadPosition = this.offset;
         this.lastSeekPosition = this.offset;
@@ -604,8 +590,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             cacheFileReference,
             defaultRangeSize,
             recoveryRangeSize,
-            headerBlobCacheByteRange,
-            footerBlobCacheByteRange
+            headerBlobCacheByteRange
         );
         slice.isClone = true;
         return slice;

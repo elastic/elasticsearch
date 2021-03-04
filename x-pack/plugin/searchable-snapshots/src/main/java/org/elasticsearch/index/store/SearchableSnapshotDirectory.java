@@ -426,7 +426,15 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 );
             }
         } else {
-            return new DirectBlobContainerIndexInput(name, this, fileInfo, context, inputStats, getUncachedChunkSize(), bufferSize(context));
+            return new DirectBlobContainerIndexInput(
+                name,
+                this,
+                fileInfo,
+                context,
+                inputStats,
+                getUncachedChunkSize(),
+                bufferSize(context)
+            );
         }
     }
 

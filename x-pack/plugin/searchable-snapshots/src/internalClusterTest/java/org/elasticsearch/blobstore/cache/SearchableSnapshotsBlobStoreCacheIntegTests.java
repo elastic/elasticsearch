@@ -36,7 +36,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
@@ -115,7 +114,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(cacheSettings).build();
     }
 
-    @TestLogging(reason = "code", value = "org.elasticsearch.blobstore.cache:TRACE")
     public void testBlobStoreCache() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
@@ -156,6 +154,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             () -> systemClient().admin().indices().prepareGetIndex().addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
         );
 
+        // TODO randomize this with FULL_COPY too when cold tier also handle blob cache for footers
         final Storage storage = Storage.SHARED_CACHE;
         logger.info(
             "--> mount snapshot [{}] as an index for the first time [storage={}, max length={}]",
@@ -215,6 +214,62 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             );
         }
 
+        logger.info("--> verifying number of documents in index [{}]", restoredIndex);
+        assertHitCount(client().prepareSearch(restoredIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
+        assertAcked(client().admin().indices().prepareDelete(restoredIndex));
+
+        assertBusy(() -> {
+            refreshSystemIndex();
+            assertThat(
+                systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0).get().getHits().getTotalHits().value,
+                greaterThan(0L)
+            );
+        });
+
+        logger.info("--> mount snapshot [{}] as an index for the second time [storage={}]", snapshot, storage);
+        final String restoredIndexSecondTime = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        mountSnapshot(
+            repositoryName,
+            snapshot.getName(),
+            indexName,
+            restoredIndexSecondTime,
+            Settings.builder()
+                .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
+                .put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false)
+                .put(SearchableSnapshots.SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH, blobCacheMaxLength)
+                .build(),
+            storage
+        );
+        ensureGreen(restoredIndexSecondTime);
+
+        // wait for all async cache fills to complete
+        assertBusy(() -> {
+            for (final SearchableSnapshotShardStats shardStats : client().execute(
+                SearchableSnapshotsStatsAction.INSTANCE,
+                new SearchableSnapshotsStatsRequest()
+            ).actionGet().getStats()) {
+                for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
+                    assertThat(Strings.toString(indexInputStats), indexInputStats.getCurrentIndexCacheFills(), equalTo(0L));
+                }
+            }
+        });
+
+        logger.info("--> verifying cached documents in system index [{}]", SNAPSHOT_BLOB_CACHE_INDEX);
+        if (numberOfDocs > 0) {
+            ensureYellow(SNAPSHOT_BLOB_CACHE_INDEX);
+            refreshSystemIndex();
+
+            logger.info("--> verifying system index [{}] data tiers preference", SNAPSHOT_BLOB_CACHE_INDEX);
+            assertThat(
+                systemClient().admin()
+                    .indices()
+                    .prepareGetSettings(SNAPSHOT_BLOB_CACHE_INDEX)
+                    .get()
+                    .getSetting(SNAPSHOT_BLOB_CACHE_INDEX, DataTierAllocationDecider.INDEX_ROUTING_PREFER),
+                equalTo(DATA_TIERS_CACHE_INDEX_PREFERENCE)
+            );
+        }
+
         final long numberOfCachedBlobs = systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .get()
@@ -231,25 +286,15 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             .getIndexing();
         final long numberOfCacheWrites = indexingStats != null ? indexingStats.getTotal().getIndexCount() : 0L;
 
-        logger.info("--> verifying number of documents in index [{}]", restoredIndex);
-        assertHitCount(client().prepareSearch(restoredIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
-        assertAcked(client().admin().indices().prepareDelete(restoredIndex));
+        assertAcked(client().admin().indices().prepareDelete(restoredIndexSecondTime));
 
-        assertBusy(() -> {
-            refreshSystemIndex();
-            assertThat(
-                systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0).get().getHits().getTotalHits().value,
-                greaterThan(0L)
-            );
-        });
-
-        logger.info("--> mount snapshot [{}] as an index for the second time [storage={}]", snapshot, storage);
-        final String restoredAgainIndex = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        logger.info("--> mount snapshot [{}] as an index for the third time [storage={}]", snapshot, storage);
+        final String restoredIndexThirdTime = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         mountSnapshot(
             repositoryName,
             snapshot.getName(),
             indexName,
-            restoredAgainIndex,
+            restoredIndexThirdTime,
             Settings.builder()
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false)
@@ -257,9 +302,9 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
                 .build(),
             storage
         );
-        ensureGreen(restoredAgainIndex);
+        ensureGreen(restoredIndexThirdTime);
 
-        logger.info("--> verifying shards of [{}] were started without using the blob store more than necessary", restoredAgainIndex);
+        logger.info("--> verifying shards of [{}] were started without using the blob store more than necessary", restoredIndexThirdTime);
         for (final SearchableSnapshotShardStats shardStats : client().execute(
             SearchableSnapshotsStatsAction.INSTANCE,
             new SearchableSnapshotsStatsRequest()
@@ -269,13 +314,14 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             }
         }
 
-        logger.info("--> verifying number of documents in index [{}]", restoredAgainIndex);
-        assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
+        logger.info("--> verifying number of documents in index [{}]", restoredIndexThirdTime);
+        assertHitCount(client().prepareSearch(restoredIndexThirdTime).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
 
         logger.info("--> verifying that no extra cached blobs were indexed [{}]", SNAPSHOT_BLOB_CACHE_INDEX);
         if (numberOfDocs > 0) {
             refreshSystemIndex();
         }
+
         assertHitCount(
             systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN).setSize(0).get(),
             numberOfCachedBlobs
@@ -301,9 +347,9 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
                     .build();
             }
         });
-        ensureGreen(restoredAgainIndex);
+        ensureGreen(restoredIndexThirdTime);
 
-        logger.info("--> shards of [{}] should start without downloading bytes from the blob store", restoredAgainIndex);
+        logger.info("--> shards of [{}] should start without downloading bytes from the blob store", restoredIndexThirdTime);
         for (final SearchableSnapshotShardStats shardStats : client().execute(
             SearchableSnapshotsStatsAction.INSTANCE,
             new SearchableSnapshotsStatsRequest()
@@ -329,8 +375,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             .getIndexing();
         assertThat(indexingStats != null ? indexingStats.getTotal().getIndexCount() : 0L, equalTo(0L));
 
-        logger.info("--> verifying number of documents in index [{}]", restoredAgainIndex);
-        assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
+        logger.info("--> verifying number of documents in index [{}]", restoredIndexThirdTime);
+        assertHitCount(client().prepareSearch(restoredIndexThirdTime).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
 
         // TODO also test when the index is frozen
         // TODO also test when prewarming is enabled

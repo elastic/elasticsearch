@@ -2658,24 +2658,43 @@ public class QueryTranslatorTests extends ESTestCase {
             "ORDER BY s.i > 10");
     }
     
-    public void testReferenceResolutionInSubqueries() {
+    public void testMultiLevelSubqueriesOrderByByAlias() {
         optimizeAndPlan("SELECT i AS j FROM ( SELECT int AS i FROM test) ORDER BY j");
         optimizeAndPlan("SELECT j AS k FROM (SELECT i AS j FROM ( SELECT int AS i FROM test)) ORDER BY k");
+    }
+    
+    public void testSubqueryGroupByOrderByAliasedExpression() {
         optimizeAndPlan("SELECT int_group AS g, min_date AS d " +
             "FROM (" + 
             "    SELECT int % 2 AS int_group, MIN(date) AS min_date " +
-            "    FROM test WHERE date > '1970-01-01'::datetime GROUP BY int_group" + 
+            "    FROM test WHERE date > '1970-01-01'::datetime " +
+            "    GROUP BY int_group" + 
             ") " +
             "ORDER BY d DESC");
+    }
+
+    public void testSubqueryGroupByOrderByAliasedAggFunction() {
         optimizeAndPlan("SELECT int_group AS g, min_date AS d " +
             "FROM (" + 
             "    SELECT int % 2 AS int_group, MIN(date) AS min_date " +
-            "    FROM test WHERE date > '1970-01-01'::datetime GROUP BY int_group " + 
+            "    FROM test WHERE date > '1970-01-01'::datetime " +
+            "    GROUP BY int_group " + 
             ")" +
             "ORDER BY g DESC");
+    }
+    
+    public void testMultiLevelSubquerySelectStar() {
+        optimizeAndPlan("SELECT * FROM (SELECT * FROM ( SELECT * FROM test ))");
+        optimizeAndPlan("SELECT * FROM (SELECT * FROM ( SELECT * FROM test ) b) c");
+    }
+
+    public void testMultiLevelSubqueryGroupBy() {
         optimizeAndPlan("SELECT i AS j FROM ( SELECT int AS i FROM test) GROUP BY j");
         optimizeAndPlan("SELECT j AS k FROM (SELECT i AS j FROM ( SELECT int AS i FROM test)) GROUP BY k");
-        optimizeAndPlan("SELECT g FROM (SELECT date AS f, int AS g FROM test) WHERE g IS NOT NULL GROUP BY g ORDER BY g ASC");
+    }
+
+    public void testSubqueryGroupByFilterAndOrderByByRealiased() {
+        optimizeAndPlan("SELECT g as h FROM (SELECT date AS f, int AS g FROM test) WHERE h IS NOT NULL GROUP BY h ORDER BY h ASC");
     }
     
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69758")

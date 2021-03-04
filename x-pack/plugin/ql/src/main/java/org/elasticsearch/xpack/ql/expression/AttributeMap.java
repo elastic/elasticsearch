@@ -148,6 +148,8 @@ public class AttributeMap<E> implements Map<Attribute, E> {
         return EMPTY;
     }
 
+    private static final Object NOT_FOUND = new Object();
+
     private final Map<AttributeWrapper, E> delegate;
     private Set<Attribute> keySet = null;
     private Collection<E> values = null;
@@ -248,42 +250,31 @@ public class AttributeMap<E> implements Map<Attribute, E> {
         return delegate.containsValue(value);
     }
 
-    /**
-     * @param key {@link NamedExpression} to look up
-     * @return Looks up the key in the AttributeMap recursively, meaning if the value for this key
-     * is another key in the map, it will follow it. It will return the final value or null if the key
-     * does not exist in the map.
-     */
     @Override
     public E get(Object key) {
-        return getOrDefault(key, null);
-    }
-
-    /**
-     * @param key {@link NamedExpression} to look up
-     * @return Looks up the key in the AttributeMap recursively, meaning if the value for this key
-     * is another key in the map, it will follow it. It will return the final value or the
-     * specified default value if the key does not exist in the map.
-     */
-    @Override
-    public E getOrDefault(Object key, E defaultValue) {
-        E candidate = defaultValue;
-        E value = null;
-        while (((value = lookup(key)) != null || containsKey(key)) && value != key) {
-            key = candidate = value;
-        }
-        return candidate;
-    }
-
-    /**
-     * @param key {@link NamedExpression} to look up
-     * @return Result of the non-recursive lookup of the key in the map.
-     */
-    private E lookup(Object key) {
         if (key instanceof NamedExpression) {
             return delegate.get(new AttributeWrapper(((NamedExpression) key).toAttribute()));
         }
         return null;
+    }
+
+    @Override
+    public E getOrDefault(Object key, E defaultValue) {
+        if (key instanceof NamedExpression) {
+            return delegate.getOrDefault(new AttributeWrapper(((NamedExpression) key).toAttribute()), defaultValue);
+        }
+        return defaultValue;
+    }
+
+    @SuppressWarnings({ "unchecked" })
+    public E resolve(Object key, E defaultValue) {
+        AttributeMap<Object> map = (AttributeMap<Object>) this;
+        Object candidate = defaultValue;
+        Object value = null;
+        while ((value = map.getOrDefault(key, NOT_FOUND)) != NOT_FOUND && value != key) {
+            key = candidate = value;
+        }
+        return (E) candidate;
     }
 
     @Override

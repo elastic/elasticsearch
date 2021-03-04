@@ -35,6 +35,12 @@ FROM (
 )
 ORDER BY e DESC;
 
+multiLevelSelectStar
+SELECT * FROM (SELECT * FROM ( SELECT * FROM test_emp ));
+
+multiLevelSelectStarWithAlias
+SELECT * FROM (SELECT * FROM ( SELECT * FROM test_emp ) b) c;
+
 // AwaitsFix: https://github.com/elastic/elasticsearch/issues/69758
 filterAfterGroupBy-Ignore
 SELECT s2 AS s3 FROM (SELECT s AS s2 FROM ( SELECT salary AS s FROM test_emp) GROUP BY s2) WHERE s2 < 5 ORDER BY s3 DESC NULLS last;

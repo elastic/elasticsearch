@@ -63,7 +63,7 @@ public class AttributeMapTests extends ESTestCase {
         assertTrue(newAttributeMap.get(param2.toAttribute()) == param2.child());
     }
 
-    public void testResolveRecursively() {
+    public void testResolve() {
         AttributeMap.Builder<Object> builder = AttributeMap.builder();
         Attribute one = a("one");
         Attribute two = fieldAttribute("two", DataTypes.INTEGER);
@@ -77,19 +77,14 @@ public class AttributeMapTests extends ESTestCase {
         builder.put(threeAliasAlias.toAttribute(), threeAliasAlias.child());
         AttributeMap<Object> map = builder.build();
         
-        assertEquals(of("one"), map.get(one));
-        assertEquals(map.get(one), map.getOrDefault(one, null));
-        assertEquals("two", map.get(two));
-        assertEquals(map.get(two), map.getOrDefault(two, null));
-        assertEquals(of("three"), map.get(three));
-        assertEquals(map.get(three), map.getOrDefault(three, null));
-        assertEquals(map.get(three), map.getOrDefault(threeAlias, null));
-        assertEquals(map.get(three), map.get(threeAlias));
-        assertEquals(map.get(three), map.getOrDefault(threeAliasAlias, null));
-        assertEquals(map.get(three), map.get(threeAliasAlias));
+        assertEquals(of("one"), map.resolve(one, null));
+        assertEquals("two", map.resolve(two, null));
+        assertEquals(of("three"), map.resolve(three, null));
+        assertEquals(of("three"), map.resolve(threeAlias, null));
+        assertEquals(of("three"), map.resolve(threeAliasAlias, null));
         Attribute four = a("four");
-        assertEquals("not found", map.getOrDefault(four, "not found"));
-        assertNull(map.get(four));
+        assertEquals("not found", map.resolve(four, "not found"));
+        assertNull(map.resolve(four, null));
     }
 
     private Alias createIntParameterAlias(int index, int value) {

@@ -1075,23 +1075,41 @@ public class ObjectParserTests extends ESTestCase {
 
         }
     }
+    public static class StructWithOnOrAfterField {
+        // real usage would have exact version like RestApiVersion.V_7 (equal to current version) instead of minimumSupported
 
-//    protected boolean enableWarningsCheck() {
-//        return false;
-//    }
-//
-//    public void testFutureDeclaration() throws IOException {
-//
-//        {
-//            RestApiCompatibleVersion futureVersion = RestApiCompatibleVersion.V_9;
-//            Mockito.spy(RestApiCompatibleVersion.currentVersion());
-//            Mockito.when(futureVersion.major).thenReturn((byte) (RestApiCompatibleVersion.currentVersion().major+1));
-//
-//            // new name is accessed in future versions
-//            XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"new_name\": 1}",
-//                futureVersion);
-//            StructWithCompatibleFields o = StructWithCompatibleFields.PARSER.parse(parser, null);
-//            assertEquals(1, o.intField);
-//        }
-//    }
+        static final ObjectParser<StructWithOnOrAfterField, Void> PARSER =
+            new ObjectParser<>("struct_with_on_or_after_field", StructWithOnOrAfterField::new);
+        static {
+
+            // in real usage you would use a real version like RestApiVersion.V_8 and expect it to parse for version V_9, V_10 etc
+            PARSER.declareInt(StructWithOnOrAfterField::setIntField,
+                new ParseField("new_name")
+                    .withRestApiVersionMacher(RestApiVersion.onOrAfter(RestApiVersion.minimumSupported())));
+
+        }
+
+        private int intField;
+
+        private  void setIntField(int intField) {
+            this.intField = intField;
+        }
+    }
+
+    public void testFieldsForVersionsOnOrAfter() throws IOException {
+        // this test needs to verify that a field declared in version N will be available in version N+1
+        // to do this, we assume a version N is minimum (so that the test passes for future releases) and the N+1 is current()
+
+        // new name is accessed in "current" version - lets assume the current is minimumSupported
+        XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"new_name\": 1}",
+            RestApiVersion.minimumSupported());
+        StructWithOnOrAfterField o1 = StructWithOnOrAfterField.PARSER.parse(parser, null);
+        assertEquals(1, o1.intField);
+
+        // new name is accessed in "future" version - lets assume the future is currentVersion (minimumSupported+1)
+        XContentParser futureParser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"new_name\": 1}",
+            RestApiVersion.current());
+        StructWithOnOrAfterField o2 = StructWithOnOrAfterField.PARSER.parse(futureParser, null);
+        assertEquals(1, o2.intField);
+    }
 }

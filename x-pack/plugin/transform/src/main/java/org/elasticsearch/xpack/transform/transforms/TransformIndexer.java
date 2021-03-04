@@ -280,6 +280,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             initializeFunction();
 
             if (initialRun()) {
+                List<String> warnings = getWarnings(function, getConfig().getSource(), getConfig().getSyncConfig());
+                for (String warning : warnings) {
+                    logger.warn(new ParameterizedMessage("[{}] {}", getJobId(), warning));
+                    auditor.warning(getJobId(), warning);
+                }
+
                 createCheckpoint(ActionListener.wrap(cp -> {
                     nextCheckpoint = cp;
                     // If nextCheckpoint > 1, this means that we are now on the checkpoint AFTER the batch checkpoint
@@ -381,11 +387,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         function = FunctionFactory.create(getConfig());
         if (isContinuous()) {
             changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
-        }
-        List<String> warnings = getWarnings(function, getConfig().getSource(), getConfig().getSyncConfig());
-        for (String warning : warnings) {
-            logger.warn(new ParameterizedMessage("[{}] {}", getJobId(), warning));
-            auditor.warning(getJobId(), warning);
         }
     }
 

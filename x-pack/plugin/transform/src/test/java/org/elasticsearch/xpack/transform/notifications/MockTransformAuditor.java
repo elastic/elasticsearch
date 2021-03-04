@@ -114,7 +114,7 @@ public class MockTransformAuditor extends TransformAuditor {
 
         @Override
         public void match(final Level level, final String resourceId, final String message) {
-            if (level.equals(expectedLevel) && resourceId.equals(expectedResourceId) && innerMatch(level, resourceId, message)) {
+            if (level.equals(expectedLevel) && resourceId.equals(expectedResourceId)) {
                 if (Regex.isSimpleMatchPattern(expectedMessage)) {
                     if (Regex.simpleMatch(expectedMessage, message)) {
                         saw = true;
@@ -125,10 +125,6 @@ public class MockTransformAuditor extends TransformAuditor {
                     }
                 }
             }
-        }
-
-        public boolean innerMatch(final Level level, final String resourceId, final String message) {
-            return true;
         }
     }
 
@@ -155,7 +151,6 @@ public class MockTransformAuditor extends TransformAuditor {
             assertThat("expected not to see " + expectedName + " but did", saw, equalTo(false));
         }
     }
-
 
     private void audit(Level level, String resourceId, String message) {
         for (AuditExpectation expectation : expectations) {

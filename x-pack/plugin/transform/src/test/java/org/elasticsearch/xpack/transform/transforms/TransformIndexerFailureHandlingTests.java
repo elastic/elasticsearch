@@ -60,6 +60,7 @@ import org.junit.Before;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -85,6 +86,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.matches;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -501,7 +503,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
     }
 
-    public void testInitializeFunction_WithNoWarnings() {
+    public void testOnStart_WithNoWarnings() {
         String transformId = randomAlphaOfLength(10);
         SourceConfig sourceConfig = new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
@@ -514,7 +516,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 }
             }
         );
-        SyncConfig syncConfig = new TimeSyncConfig("field", null);
+        SyncConfig syncConfig = new TimeSyncConfig("field-t", null);
         LatestConfig latestConfig = new LatestConfig(Arrays.asList("field-A", "field-B"), "sort");
         TransformConfig config = new TransformConfig(
             transformId,
@@ -533,21 +535,21 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
 
         MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
-        auditor.addExpectation(
-            new MockTransformAuditor.UnseenAuditExpectation(
-                "warn when all the group-by fields are script-based runtime fields",
-                Level.WARNING,
-                transformId,
-                "all the group-by fields are script-based runtime fields"
-            )
-        );
+        auditor.addExpectation(new MockTransformAuditor.UnseenAuditExpectation("any warnings", Level.WARNING, transformId, "*"));
         TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
-        createMockIndexer(config, null, null, null, null, null, threadPool, ThreadPool.Names.GENERIC, auditor, context);
-        auditor.assertAllExpectationsMatched();
+        TransformIndexer indexer =
+            createMockIndexer(config, null, null, null, null, null, threadPool, ThreadPool.Names.GENERIC, auditor, context);
+        indexer.onStart(
+            Instant.now().toEpochMilli(),
+            ActionListener.wrap(
+                r -> auditor.assertAllExpectationsMatched(),
+                e -> fail(e.getMessage())
+            )
+        );
     }
 
-    public void testInitializeFunction_WithWarnings() {
+    public void testOnStart_WithWarnings() {
         String transformId = randomAlphaOfLength(10);
         SourceConfig sourceConfig = new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
@@ -598,8 +600,15 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
         TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
-        createMockIndexer(config, null, null, null, null, null, threadPool, ThreadPool.Names.GENERIC, auditor, context);
-        auditor.assertAllExpectationsMatched();
+        TransformIndexer indexer =
+            createMockIndexer(config, null, null, null, null, null, threadPool, ThreadPool.Names.GENERIC, auditor, context);
+        indexer.onStart(
+            Instant.now().toEpochMilli(),
+            ActionListener.wrap(
+                r -> auditor.assertAllExpectationsMatched(),
+                e -> fail(e.getMessage())
+            )
+        );
     }
 
     public void testRetentionPolicyDeleteByQueryThrowsIrrecoverable() throws Exception {
@@ -817,10 +826,17 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         TransformAuditor auditor,
         TransformContext context
     ) {
+        IndexBasedTransformConfigManager transformConfigManager = mock(IndexBasedTransformConfigManager.class);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TransformConfig> listener = (ActionListener<TransformConfig>) invocationOnMock.getArguments()[1];
+            listener.onResponse(config);
+            return null;
+        }).when(transformConfigManager).getTransformConfiguration(any(), any());
         MockedTransformIndexer indexer = new MockedTransformIndexer(
             threadPool,
             executorName,
-            mock(IndexBasedTransformConfigManager.class),
+            transformConfigManager,
             mock(CheckpointProvider.class),
             config,
             Collections.emptyMap(),

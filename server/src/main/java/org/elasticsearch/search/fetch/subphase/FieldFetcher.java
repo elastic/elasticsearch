@@ -13,6 +13,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedValueFetcher;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -37,6 +38,11 @@ import java.util.stream.Collectors;
  * Then given a specific document, it can retrieve the corresponding fields from the document's source.
  */
 public class FieldFetcher {
+
+    /**
+     * Default maximum number of states in the automaton that looks up unmapped fields.
+     */
+    private static final int AUTOMATON_MAX_DETERMINIZED_STATES = 100000;
 
     public static FieldFetcher create(SearchExecutionContext context,
         Collection<FieldAndFormat> fieldAndFormats) {
@@ -115,23 +121,31 @@ public class FieldFetcher {
         }
 
         CharacterRunAutomaton unmappedFieldsFetchAutomaton = null;
-        if (unmappedFetchPattern.isEmpty() == false) {
+        Map<Boolean, List<String>> partitions = unmappedFetchPattern.stream()
+            .collect(Collectors.partitioningBy((s -> Regex.isSimpleMatchPattern(s))));
+        List<String> unmappedWildcardPattern = partitions.get(true);
+        List<String> unmappedConcreteFields = partitions.get(false);
+        if (unmappedWildcardPattern.isEmpty() == false) {
             unmappedFieldsFetchAutomaton = new CharacterRunAutomaton(
-                Regex.simpleMatchToAutomaton(unmappedFetchPattern.toArray(new String[unmappedFetchPattern.size()]))
+                Regex.simpleMatchToAutomaton(unmappedWildcardPattern.toArray(new String[unmappedWildcardPattern.size()])),
+                AUTOMATON_MAX_DETERMINIZED_STATES
             );
         }
-        return new FieldFetcher(fieldContexts, unmappedFieldsFetchAutomaton);
+        return new FieldFetcher(fieldContexts, unmappedFieldsFetchAutomaton, unmappedConcreteFields);
     }
 
     private final Map<String, FieldContext> fieldContexts;
     private final CharacterRunAutomaton unmappedFieldsFetchAutomaton;
+    private final List<String> unmappedConcreteFields;
 
     private FieldFetcher(
         Map<String, FieldContext> fieldContexts,
-        @Nullable CharacterRunAutomaton unmappedFieldsFetchAutomaton
+        @Nullable CharacterRunAutomaton unmappedFieldsFetchAutomaton,
+        @Nullable List<String> unmappedConcreteFields
     ) {
         this.fieldContexts = fieldContexts;
         this.unmappedFieldsFetchAutomaton = unmappedFieldsFetchAutomaton;
+        this.unmappedConcreteFields = unmappedConcreteFields;
     }
 
     public Map<String, DocumentField> fetch(SourceLookup sourceLookup) throws IOException {
@@ -147,6 +161,17 @@ public class FieldFetcher {
         }
         if (this.unmappedFieldsFetchAutomaton != null) {
             collectUnmapped(documentFields, sourceLookup.source(), "", 0);
+        }
+        if (this.unmappedConcreteFields != null) {
+            for (String path : unmappedConcreteFields) {
+                if (this.fieldContexts.containsKey(path)) {
+                    continue; // this is actually a mapped field
+                }
+                List<Object> values = XContentMapValues.extractRawValues(path, sourceLookup.source());
+                if (values.isEmpty() == false) {
+                    documentFields.put(path, new DocumentField(path, values));
+                }
+            }
         }
         return documentFields;
     }

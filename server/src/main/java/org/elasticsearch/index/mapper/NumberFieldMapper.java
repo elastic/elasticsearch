@@ -151,7 +151,9 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
-                return DOUBLE.compiler(fieldName);
+                return (s, ss) -> {
+                    throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
+                };
             }
 
             @Override
@@ -266,7 +268,9 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
-                return DOUBLE.compiler(fieldName);
+                return (s, ss) -> {
+                    throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
+                };
             }
 
             @Override
@@ -439,7 +443,9 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
-                return LONG.compiler(fieldName);
+                return (s, ss) -> {
+                    throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
+                };
             }
 
             @Override
@@ -510,7 +516,9 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
-                return LONG.compiler(fieldName);
+                return (s, ss) -> {
+                    throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
+                };
             }
 
             @Override
@@ -572,7 +580,9 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
-                return LONG.compiler(fieldName);
+                return (s, ss) -> {
+                    throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
+                };
             }
 
             @Override

@@ -287,4 +287,21 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         );
         assertEquals(0, doc.rootDoc().getFields("field").length);
     }
+
+    public void testScriptableTypes() {
+        Set<String> scriptableTypes = Set.of("long", "double");
+        for (String type : types()) {
+            if (scriptableTypes.contains(type)) {
+                // won't actually compile because we don't have painless in unit tests, but we can
+                // check that it gets as far as trying to compile it
+                Exception e = expectThrows(MapperParsingException.class,
+                    () -> createDocumentMapper(fieldMapping(b -> b.field("type", type).field("script", "foo"))));
+                assertEquals("Failed to parse mapping: script_lang not supported [painless]", e.getMessage());
+            } else {
+                Exception e = expectThrows(MapperParsingException.class, "Missing exception on type " + type,
+                    () -> createDocumentMapper(fieldMapping(b -> b.field("type", type).field("script", "foo"))));
+                assertEquals("Failed to parse mapping: Unknown parameter [script] for mapper [field]", e.getMessage());
+            }
+        }
+    }
 }

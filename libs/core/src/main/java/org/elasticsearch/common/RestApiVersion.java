@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common;
 
-import java.util.Collection;
 import java.util.function.Function;
 
 /**

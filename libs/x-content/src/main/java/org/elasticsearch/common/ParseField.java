@@ -24,7 +24,7 @@ import java.util.function.Supplier;
 public class ParseField {
     private final String name;
     private final String[] deprecatedNames;
-    private final Function<RestApiVersion, Boolean> restApiVersionMatcher;
+    private final Function<RestApiVersion, Boolean> forRestApiVersion;
     private String allReplacedWith = null;
     private final String[] allNames;
     private boolean fullyDeprecated = false;
@@ -32,8 +32,7 @@ public class ParseField {
     private static final String[] EMPTY = new String[0];
 
 
-    private ParseField(String name, Function<RestApiVersion, Boolean> restApiVersionMatcher,
-                       String[] deprecatedNames) {
+    private ParseField(String name, Function<RestApiVersion, Boolean> forRestApiVersion, String[] deprecatedNames) {
         this.name = name;
         if (deprecatedNames == null || deprecatedNames.length == 0) {
             this.deprecatedNames = EMPTY;
@@ -42,7 +41,7 @@ public class ParseField {
             Collections.addAll(set, deprecatedNames);
             this.deprecatedNames = set.toArray(new String[set.size()]);
         }
-        this.restApiVersionMatcher = restApiVersionMatcher;
+        this.forRestApiVersion = forRestApiVersion;
 
         Set<String> allNames = new HashSet<>();
         allNames.add(name);
@@ -89,18 +88,18 @@ public class ParseField {
 
 
     /**
-     * Creates a new field with current name and deprecatedNames, but overrides restApiVersionMatcher
-     * @param restApiVersionMatcher rest api versions which specifies when a lookup will be allowed
+     * Creates a new field with current name and deprecatedNames, but overrides forRestApiVersion
+     * @param forRestApiVersion - a boolean function indicating if a field is for the given RestApiVersion
      */
-    public ParseField withRestApiVersionMacher(Function<RestApiVersion, Boolean> restApiVersionMatcher) {
-        return new ParseField(this.name, restApiVersionMatcher, this.deprecatedNames);
+    public ParseField forRestApiVersion(Function<RestApiVersion, Boolean> forRestApiVersion) {
+        return new ParseField(this.name, forRestApiVersion, this.deprecatedNames);
     }
 
     /**
-     * @return rest api compatibility versions under which a lookup will be allowed
+     * @return a function indicating for which RestApiVersion a field is declared for
      */
-    public Function<RestApiVersion, Boolean> getRestApiVersionMatcher() {
-        return restApiVersionMatcher;
+    public Function<RestApiVersion, Boolean> getForRestApiVersion() {
+        return forRestApiVersion;
     }
 
     /**

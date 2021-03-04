@@ -337,11 +337,11 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
 
         boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
 
-        if (RestApiVersion.minimumSupported().matches(parseField.getRestApiVersionMatcher())) {
+        if (RestApiVersion.minimumSupported().matches(parseField.getForRestApiVersion())) {
             constructorArgInfos.computeIfAbsent(RestApiVersion.minimumSupported(), (v)-> new ArrayList<>())
                 .add(new ConstructorArgInfo(parseField, required));
         }
-        if (RestApiVersion.current().matches(parseField.getRestApiVersionMatcher())) {
+        if (RestApiVersion.current().matches(parseField.getForRestApiVersion())) {
             constructorArgInfos.computeIfAbsent(RestApiVersion.current(), (v)-> new ArrayList<>())
                 .add(new ConstructorArgInfo(parseField, required));
         }

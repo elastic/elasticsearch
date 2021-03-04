@@ -1018,17 +1018,17 @@ public class ObjectParserTests extends ESTestCase {
             // The declaration is only available for lookup when parser has compatibility set
             PARSER.declareInt(StructWithCompatibleFields::setIntField,
                 new ParseField("new_name", "old_name")
-                    .withRestApiVersionMacher(RestApiVersion.equalTo(RestApiVersion.minimumSupported())));
+                    .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported())));
 
             // declare `new_name` to be parsed when compatibility is NOT used
             PARSER.declareInt(StructWithCompatibleFields::setIntField,
                 new ParseField("new_name")
-                    .withRestApiVersionMacher(RestApiVersion.onOrAfter(RestApiVersion.current())));
+                    .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.current())));
 
             // declare `old_name` to throw exception when compatibility is NOT used
             PARSER.declareInt((r,s) -> failWithException(),
                 new ParseField("old_name")
-                    .withRestApiVersionMacher(RestApiVersion.onOrAfter(RestApiVersion.current())));
+                    .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.current())));
         }
 
         private static void failWithException() {
@@ -1085,7 +1085,7 @@ public class ObjectParserTests extends ESTestCase {
             // in real usage you would use a real version like RestApiVersion.V_8 and expect it to parse for version V_9, V_10 etc
             PARSER.declareInt(StructWithOnOrAfterField::setIntField,
                 new ParseField("new_name")
-                    .withRestApiVersionMacher(RestApiVersion.onOrAfter(RestApiVersion.minimumSupported())));
+                    .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.minimumSupported())));
 
         }
 

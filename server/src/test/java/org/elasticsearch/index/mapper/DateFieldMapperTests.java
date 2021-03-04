@@ -164,7 +164,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             .field("type", "date")
             .field("format", "epoch_second")));
 
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", 1457654400)));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", 1614774616.0585806)));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);

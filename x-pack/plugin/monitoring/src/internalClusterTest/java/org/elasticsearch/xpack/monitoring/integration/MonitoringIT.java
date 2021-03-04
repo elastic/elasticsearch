@@ -375,9 +375,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertThat(clusterState.remove("cluster_uuid"), notNullValue());
         assertThat(clusterState.remove("master_node"), notNullValue());
         assertThat(clusterState.remove("nodes"), notNullValue());
-        assertThat(clusterState.remove("term"), notNullValue());
-        assertThat(clusterState.remove("last_committed_config"), notNullValue());
-        assertThat(clusterState.remove("last_accepted_config"), notNullValue());
         assertThat(clusterState.keySet(), empty());
 
         final Map<String, Object> clusterSettings = (Map<String, Object>) source.get("cluster_settings");

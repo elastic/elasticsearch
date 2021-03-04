@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -53,9 +52,7 @@ import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * The master rollup action that coordinates
@@ -103,8 +100,19 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             return;
         }
 
+        // Add the source index name and id to the rollup index metadata. If the original index is a rollup index itself
+        // we will add the name and id of the raw index that we initially rolled up.
+        IndexMetadata originalIndexMetadata = state.getMetadata().index(originalIndexName);
+        String sourceIndexName = IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.exists(originalIndexMetadata.getSettings()) ?
+            IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.get(originalIndexMetadata.getSettings()) : originalIndexName;
+        String sourceIndexUuid = IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.exists(originalIndexMetadata.getSettings()) ?
+            IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.get(originalIndexMetadata.getSettings()) : originalIndexMetadata.getIndexUUID();
+
         CreateIndexRequest req = new CreateIndexRequest(tmpIndexName, Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build())
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            .put(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey(), sourceIndexName)
+            .put(IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.getKey(), sourceIndexUuid)
+            .build())
             .mapping(mapping);
         RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(request);
         ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
@@ -233,23 +241,9 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             public ClusterState execute(ClusterState currentState) {
                 IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
                 Index rollupIndex = rollupIndexMetadata.getIndex();
-                IndexMetadata sourceIndexMetadata = currentState.getMetadata().index(originalIndexName);
                 IndexAbstraction originalIndex = currentState.getMetadata().getIndicesLookup().get(originalIndexName);
 
-                // Add the source index name and id to the rollup index metadata. If the original index is a rollup index itself
-                // we will add the name and id of the raw index that we initially rolled up.
-                Map<String, String> rollupMetadata = sourceIndexMetadata.getCustomData(RollupMetadata.TYPE);
-                String sourceIndexName = rollupMetadata != null ?
-                    rollupMetadata.get(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD) : originalIndexName;
-                String sourceIndexId = rollupMetadata != null ?
-                    rollupMetadata.get(RollupMetadata.SOURCE_INDEX_ID_META_FIELD) : sourceIndexMetadata.getIndexUUID();
-                Map<String, String> rollupIndexRollupMetadata = new HashMap<>();
-                rollupIndexRollupMetadata.put(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD, sourceIndexName);
-                rollupIndexRollupMetadata.put(RollupMetadata.SOURCE_INDEX_ID_META_FIELD, sourceIndexId);
-
-                Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata())
-                    .put(IndexMetadata.builder(rollupIndexMetadata).putCustom(RollupMetadata.TYPE, rollupIndexRollupMetadata));
-
+                Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
                 if (originalIndex.getParentDataStream() != null) {
                     // If rolling up a backing index of a data stream, add rolled up index to backing data stream
                     DataStream originalDataStream = originalIndex.getParentDataStream().getDataStream();

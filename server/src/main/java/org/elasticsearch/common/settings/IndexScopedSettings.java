@@ -208,6 +208,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             case "index.shrink.source.name":
             case IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY:
             case IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY:
+            case IndexMetadata.INDEX_ROLLUP_SOURCE_UUID_KEY:
+            case IndexMetadata.INDEX_ROLLUP_SOURCE_NAME_KEY:
                 return true;
             default:
                 return IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);

@@ -829,6 +829,10 @@ public class IndicesService extends AbstractLifecycleComponent
         return indicesQueryCache;
     }
 
+    public MapperRegistry getMapperRegistry() {
+        return mapperRegistry;
+    }
+
     static class OldShardsStats implements IndexEventListener {
 
         final SearchStats searchStats = new SearchStats();

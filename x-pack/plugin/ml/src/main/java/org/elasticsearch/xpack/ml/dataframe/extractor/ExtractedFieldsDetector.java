@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -58,9 +59,7 @@ public class ExtractedFieldsDetector {
     /**
      * Fields to ignore. These are mostly internal meta fields.
      */
-    private static final List<String> IGNORE_FIELDS = Arrays.asList("_id", "_field_names", "_index", "_parent", "_routing", "_seq_no",
-        "_source", "_type", "_uid", "_version", "_feature", "_ignored", "_nested_path", DestinationIndex.INCREMENTAL_ID,
-        "_data_stream_timestamp", "_doc_count");
+    private static final List<String> IGNORE_FIELDS = Collections.singletonList(DestinationIndex.INCREMENTAL_ID);
 
     private final DataFrameAnalyticsConfig config;
     private final int docValueFieldsLimit;
@@ -100,7 +99,11 @@ public class ExtractedFieldsDetector {
     }
 
     private Set<String> getIncludedFields(Set<FieldSelection> fieldSelection, Set<String> requiredFieldsForProcessors) {
-        Set<String> fields = new TreeSet<>(fieldCapabilitiesResponse.get().keySet());
+        Set<String> fields = new TreeSet<>();
+        // filter metadata field
+        fieldCapabilitiesResponse.get().keySet().stream()
+            .filter(Predicate.not(fieldCapabilitiesResponse::isMetadataField))
+            .forEach(fields::add);
         validateFieldsRequireForProcessors(requiredFieldsForProcessors);
         fields.removeAll(IGNORE_FIELDS);
         removeFieldsUnderResultsField(fields);

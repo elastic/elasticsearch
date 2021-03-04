@@ -322,68 +322,11 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
 
             if (indexCacheMiss != null) {
 
-                // TODO also index footer for compound files if rangeToWrite encapsulates footerBlobCacheByteRange,
-                // otherwise the blob cache won't be populate for the footer and only the header.
-
-                final Releasable onCacheFillComplete = stats.addIndexCacheFill();
-                final int indexCacheMissLength = toIntBytes(indexCacheMiss.length());
-
-                // We assume that we only cache small portions of blobs so that we do not need to:
-                // - use a BigArrays for allocation
-                // - use an intermediate copy buffer to read the file in sensibly-sized chunks
-                // - release the buffer once the indexing operation is complete
-                final ByteBuffer byteBuffer = ByteBuffer.allocate(indexCacheMissLength);
-
-                final StepListener<Integer> readListener = frozenCacheFile.readIfAvailableOrPending(
-                    indexCacheMiss,
-                    (channel, channelPos, relativePos, len) -> {
-                        assert len <= indexCacheMissLength;
-
-                        if (len == 0) {
-                            return 0;
-                        }
-
-                        // create slice that is positioned to read the given values
-                        final ByteBuffer dup = byteBuffer.duplicate();
-                        final int newPosition = dup.position() + Math.toIntExact(relativePos);
-                        assert newPosition <= dup.limit() : "newpos " + newPosition + " limit " + dup.limit();
-                        assert newPosition + len <= byteBuffer.limit();
-                        dup.position(newPosition);
-                        dup.limit(newPosition + Math.toIntExact(len));
-
-                        final int read = channel.read(dup, channelPos);
-                        if (read < 0) {
-                            throw new EOFException("read past EOF. pos [" + relativePos + "] length: [" + len + "]");
-                        }
-                        // NB use Channels.readFromFileChannelWithEofException not readCacheFile() to avoid counting this in the stats
-                        assert read == len;
-                        return read;
-                    }
-                );
-
-                if (readListener == null) {
-                    // Normally doesn't happen, we're already obtaining a range covering all cache misses above, but theoretically
-                    // possible in the case that the real populateAndRead call already failed to obtain this range of the file. In that
-                    // case, simply move on.
-                    onCacheFillComplete.close();
-                } else {
-                    readListener.whenComplete(read -> {
-                        assert read == indexCacheMissLength;
-                        byteBuffer.position(read); // mark all bytes as accounted for
-                        byteBuffer.flip();
-                        final BytesReference content = BytesReference.fromByteBuffer(byteBuffer);
-                        directory.putCachedBlob(fileName, indexCacheMiss.start(), content, new ActionListener<>() {
-                            @Override
-                            public void onResponse(Void response) {
-                                onCacheFillComplete.close();
-                            }
-
-                            @Override
-                            public void onFailure(Exception e1) {
-                                onCacheFillComplete.close();
-                            }
-                        });
-                    }, e -> onCacheFillComplete.close());
+                fillIndexCache(fileName, indexCacheMiss);
+                if (compoundFileOffset > 0
+                    && indexCacheMiss.equals(headerBlobCacheByteRange)
+                    && footerBlobCacheByteRange != ByteRange.EMPTY) {
+                    fillIndexCache(fileName, footerBlobCacheByteRange);
                 }
             }
 
@@ -406,6 +349,69 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         }
 
         readComplete(position, length);
+    }
+
+    private void fillIndexCache(String fileName, ByteRange indexCacheMiss) {
+        final Releasable onCacheFillComplete = stats.addIndexCacheFill();
+        final int indexCacheMissLength = toIntBytes(indexCacheMiss.length());
+
+        // We assume that we only cache small portions of blobs so that we do not need to:
+        // - use a BigArrays for allocation
+        // - use an intermediate copy buffer to read the file in sensibly-sized chunks
+        // - release the buffer once the indexing operation is complete
+        final ByteBuffer byteBuffer = ByteBuffer.allocate(indexCacheMissLength);
+
+        final StepListener<Integer> readListener = frozenCacheFile.readIfAvailableOrPending(
+            indexCacheMiss,
+            (channel, channelPos, relativePos, len) -> {
+                assert len <= indexCacheMissLength;
+
+                if (len == 0) {
+                    return 0;
+                }
+
+                // create slice that is positioned to read the given values
+                final ByteBuffer dup = byteBuffer.duplicate();
+                final int newPosition = dup.position() + Math.toIntExact(relativePos);
+                assert newPosition <= dup.limit() : "newpos " + newPosition + " limit " + dup.limit();
+                assert newPosition + len <= byteBuffer.limit();
+                dup.position(newPosition);
+                dup.limit(newPosition + Math.toIntExact(len));
+
+                final int read = channel.read(dup, channelPos);
+                if (read < 0) {
+                    throw new EOFException("read past EOF. pos [" + relativePos + "] length: [" + len + "]");
+                }
+                // NB use Channels.readFromFileChannelWithEofException not readCacheFile() to avoid counting this in the stats
+                assert read == len;
+                return read;
+            }
+        );
+
+        if (readListener == null) {
+            // Normally doesn't happen, we're already obtaining a range covering all cache misses above, but theoretically
+            // possible in the case that the real populateAndRead call already failed to obtain this range of the file. In that
+            // case, simply move on.
+            onCacheFillComplete.close();
+        } else {
+            readListener.whenComplete(read -> {
+                assert read == indexCacheMissLength;
+                byteBuffer.position(read); // mark all bytes as accounted for
+                byteBuffer.flip();
+                final BytesReference content = BytesReference.fromByteBuffer(byteBuffer);
+                directory.putCachedBlob(fileName, indexCacheMiss.start(), content, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void response) {
+                        onCacheFillComplete.close();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e1) {
+                        onCacheFillComplete.close();
+                    }
+                });
+            }, e -> onCacheFillComplete.close());
+        }
     }
 
     private void readComplete(long position, int length) {

@@ -1192,14 +1192,14 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         service.executeQueryPhase(request, randomBoolean(), task, new ActionListener<>() {
             @Override
             public void onResponse(SearchPhaseResult searchPhaseResult) {
-                service.freeReaderContext(searchPhaseResult.getContextId());
                 latch1.countDown();
+
             }
 
             @Override
             public void onFailure(Exception e) {
                 try {
-                    fail("Search should not be cancelled");
+                    fail("Search not cancelled early");
                 } finally {
                     latch1.countDown();
                 }
@@ -1208,25 +1208,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         latch1.await();
 
         CountDownLatch latch2 = new CountDownLatch(1);
-        service.executeDfsPhase(request, randomBoolean(), task, new ActionListener<>() {
-            @Override
-            public void onResponse(SearchPhaseResult searchPhaseResult) {
-                service.freeReaderContext(searchPhaseResult.getContextId());
-                latch2.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    fail("Search should not be cancelled");
-                } finally {
-                    latch2.countDown();
-                }
-            }
-        });
-        latch2.await();
-
-        CountDownLatch latch3 = new CountDownLatch(1);
         when(task.isCancelled()).thenReturn(true);
         service.executeQueryPhase(request, randomBoolean(), task, new ActionListener<>() {
             @Override
@@ -1234,40 +1215,17 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 try {
                     fail("Search not cancelled early");
                 } finally {
-                    service.freeReaderContext(searchPhaseResult.getContextId());
-                    latch3.countDown();
+                    latch2.countDown();
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
                 assertThat(e, is(instanceOf(TaskCancelledException.class)));
-                assertThat(e.getMessage(), is("cancelled"));
-                latch3.countDown();
+                latch2.countDown();
             }
         });
-        latch3.await();
-
-        CountDownLatch latch4 = new CountDownLatch(1);
-        service.executeDfsPhase(request, randomBoolean(), task, new ActionListener<>() {
-            @Override
-            public void onResponse(SearchPhaseResult searchPhaseResult) {
-                try {
-                    fail("Search not cancelled early");
-                } finally {
-                    service.freeReaderContext(searchPhaseResult.getContextId());
-                    latch4.countDown();
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertThat(e, is(instanceOf(TaskCancelledException.class)));
-                assertThat(e.getMessage(), is("cancelled"));
-                latch4.countDown();
-            }
-        });
-        latch4.await();
+        latch2.await();
     }
 
     private ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {

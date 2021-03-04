@@ -11,8 +11,8 @@ distributes these calculations across your cluster. You can then feed this
 aggregated data into the {ml-features} instead of raw results, which
 reduces the volume of data that must be considered while detecting anomalies.
 
-TIP: If you use a terms aggregation and the cardinality of a term is high, you
-should use composite aggregations.
+TIP: If you use a terms aggregation and the cardinality of a term is high, 
+use composite aggregations instead.
 
 [discrete]
 [[aggs-limits-dfeeds]]
@@ -25,7 +25,7 @@ This requirement ensures that the aggregated data is a time series and the times
 of each bucket is the time of the last record in the bucket.
 
 For `composite` aggregation support, there must be exactly one `date_histogram` value
-source. Additionally, that value source must NOT be sorted in descending order. Additional
+source. That value source must not be sorted in descending order. Additional
 `composite` aggregation value sources are allowed, such as `terms`.
 
 IMPORTANT: The name of the aggregation and the name of the field that the agg
@@ -145,14 +145,14 @@ PUT _ml/datafeeds/datafeed-farequote
 `responsetime`.
 
 TIP: If you are utilizing a `term` aggregation to gather influencer or partition
-detector field information, consider using a `composite` aggregation. It will perform
-better than a `date_histogram` with a nested `term` aggregation and will also include
-ALL the values of the field instead of the top values per bucket.
+detector field information, consider using a `composite` aggregation. It performs
+better than a `date_histogram` with a nested `term` aggregation and also includes
+all the values of the field instead of the top values per bucket.
 
 Your {dfeed} can contain multiple aggregations, but only the ones with names
 that match values in the job configuration are fed to the job.
 
-Here is a similar example utilizing a `composite` aggregation instead of a
+Here is an example utilizing a `composite` aggregation instead of a
 `date_histogram`.
 
 Assuming the same job configuration as above.
@@ -177,8 +177,8 @@ PUT _ml/anomaly_detectors/farequote-composite
 ----------------------------------
 // TEST[skip:setup:farequote_data]
 
-Here is a datafeed utilizing a `composite` aggregation to bucket
-the metrics based on time and terms.
+This is an example of a datafeed utilizing a `composite` aggregation to bucket
+the metrics based on time and terms:
 
 [source,console]
 ----------------------------------
@@ -237,7 +237,7 @@ is named differently than your desired time field.
 aggregation `term` source with the name `airline` works. Note its name
 is the same as the field.
 <4> The required `max` aggregation whose name is the time field in the
-job analysis config
+job analysis config.
 <5> The `avg` aggregation is named `responsetime` and its field is also named
 `responsetime`.
 
@@ -345,7 +345,7 @@ number of unique entries for the `error` field.
 
 When you define an aggregation in a {dfeed}, it must have one of the following forms:
 
-When using a `date_histogram` aggregation to bucket by time
+When using a `date_histogram` aggregation to bucket by time:
 [source,js]
 ----------------------------------
 "aggregations": {
@@ -379,7 +379,7 @@ When using a `date_histogram` aggregation to bucket by time
 ----------------------------------
 // NOTCONSOLE
 
-When using a `composite` aggregation
+When using a `composite` aggregation:
 
 [source,js]
 ----------------------------------
@@ -416,7 +416,7 @@ When using a `composite` aggregation
 The top level aggregation must be either a
 {ref}/search-aggregations-bucket.html[bucket aggregation] containing as single
 sub-aggregation that is a `date_histogram`, the top level aggregation is the
-required `date_histogram`, or the top leve aggregation is the required `composite`.
+required `date_histogram`, or the top level aggregation is the required `composite`.
 There must be exactly one `date_histogram` or `composite` aggregation. For more information, see
 {ref}/search-aggregations-bucket-datehistogram-aggregation.html[Date histogram aggregation] and
 {ref}/search-aggregations-bucket-composite-aggregation.html[Composite aggregation].
@@ -435,7 +435,7 @@ the time of the latest record within a bucket.
 You can optionally specify a terms aggregation, which creates buckets for
 different values of a field.
 
-TIP: Instead of nesting a `term` aggregation, try using `composite` aggs.
+TIP: Instead of nesting a `term` aggregation, use `composite` aggs.
 
 IMPORTANT: If you use a terms aggregation, by default it returns buckets for
 the top ten terms. Thus if the cardinality of the term is greater than 10, not

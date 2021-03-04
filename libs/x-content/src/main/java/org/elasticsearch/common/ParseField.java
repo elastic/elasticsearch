@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentLocation;
 
@@ -27,7 +26,7 @@ import java.util.function.Supplier;
 public class ParseField {
     private final String name;
     private final String[] deprecatedNames;
-    private final Set<Function<RestApiCompatibleVersion, Boolean>> restApiCompatibleVersions = new HashSet<>(2);
+    private final Set<Function<RestApiVersion, Boolean>> restApiVersions = new HashSet<>(2);
     private String allReplacedWith = null;
     private final String[] allNames;
     private boolean fullyDeprecated = false;
@@ -35,7 +34,7 @@ public class ParseField {
     private static final String[] EMPTY = new String[0];
 
 
-    private ParseField(String name, Collection<Function<RestApiCompatibleVersion, Boolean>> restApiCompatibleVersions,
+    private ParseField(String name, Collection<Function<RestApiVersion, Boolean>> restApiCompatibleVersions,
                        String[] deprecatedNames) {
         this.name = name;
         if (deprecatedNames == null || deprecatedNames.length == 0) {
@@ -45,7 +44,7 @@ public class ParseField {
             Collections.addAll(set, deprecatedNames);
             this.deprecatedNames = set.toArray(new String[set.size()]);
         }
-        this.restApiCompatibleVersions.addAll(restApiCompatibleVersions);
+        this.restApiVersions.addAll(restApiVersions);
 
         Set<String> allNames = new HashSet<>();
         allNames.add(name);
@@ -54,15 +53,15 @@ public class ParseField {
     }
 
     /**
-     * Creates a field available for lookup for both current and previous REST API compatible versions
+     * Creates a field available for lookup for both current and previous REST API versions
      * @param name            the primary name for this field. This will be returned by
      *                        {@link #getPreferredName()}
      * @param deprecatedNames names for this field which are deprecated and will not be
      *                        accepted when strict matching is used.
      */
     public ParseField(String name, String... deprecatedNames) {
-        this(name, List.of(RestApiCompatibleVersion.equalTo(RestApiCompatibleVersion.currentVersion()),
-            RestApiCompatibleVersion.equalTo(RestApiCompatibleVersion.minimumSupported())) ,deprecatedNames);
+        this(name, List.of(RestApiVersion.equalTo(RestApiVersion.current()),
+            RestApiVersion.equalTo(RestApiVersion.minimumSupported())) ,deprecatedNames);
     }
 
     /**
@@ -93,22 +92,23 @@ public class ParseField {
 
 
     /**
-     * Creates a new field with current name and deprecatedNames, but overrides restApiCompatibleVersions
-     * @param restApiCompatibleVersions rest api compatibility versions under which specifies when a lookup will be allowed
+     * Creates a new field with current name and deprecatedNames, but overrides restApiVersions
+     * @param restApiVersions rest api versions which specifies when a lookup will be allowed
      */
-    public ParseField withRestCompatibility(Function<RestApiCompatibleVersion, Boolean> restApiCompatibleVersions) {
-        return new ParseField(this.name, List.of(restApiCompatibleVersions), this.deprecatedNames);
+    public ParseField withRestApiVersions(Function<RestApiVersion, Boolean> restApiVersions) {
+        return new ParseField(this.name, List.of(restApiVersions), this.deprecatedNames);
     }
 
-    public ParseField withRestCompat(Function<RestApiCompatibleVersion,Boolean> restCompat){
+    public ParseField withRestCompat(Function<RestApiVersion,Boolean> restCompat){
         return new ParseField(this.name, List.of(restCompat), this.deprecatedNames);
     }
     /**
      * @return rest api compatibility versions under which a lookup will be allowed
      */
-    public Set<Function<RestApiCompatibleVersion, Boolean>> getRestApiCompatibleVersions() {
-        return restApiCompatibleVersions;
+    public Set<Function<RestApiVersion, Boolean>> getRestApiVersions() {
+        return restApiVersions;
     }
+
     /**
      * Return a new ParseField where all field names are deprecated and replaced
      * with {@code allReplacedWith}.

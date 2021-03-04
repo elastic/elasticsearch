@@ -15,7 +15,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -350,15 +350,15 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
         PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical,
             new ParseField("max_docs", "size")
-                .withRestCompatibility(RestApiCompatibleVersion.equalTo(RestApiCompatibleVersion.V_7)));
+                .withRestApiVersions(RestApiVersion.equalTo(RestApiVersion.V_7)));
 
         PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical,
             new ParseField("max_docs")
-                .withRestCompatibility(RestApiCompatibleVersion.onOrAfter(RestApiCompatibleVersion.V_8)));
+                .withRestApiVersions(RestApiVersion.onOrAfter(RestApiVersion.V_8)));
         // avoid silently accepting an ignored size.
         PARSER.declareInt((r,s) -> failOnSizeSpecified(),
             new ParseField("size")
-                .withRestCompatibility(RestApiCompatibleVersion.onOrAfter(RestApiCompatibleVersion.V_8)));
+                .withRestApiVersions(RestApiVersion.onOrAfter(RestApiVersion.V_8)));
 
         PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"),
             ObjectParser.ValueType.OBJECT);

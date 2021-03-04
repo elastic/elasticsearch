@@ -170,6 +170,7 @@ class GeoIpDownloader extends AllocatedPersistentTask {
         for (byte[] buf = getChunk(is); buf.length != 0; buf = getChunk(is)) {
             md.update(buf);
             client.prepareIndex(DATABASES_INDEX).setId(name + "_" + chunk)
+                .setCreate(true)
                 .setSource(XContentType.SMILE, "name", name, "chunk", chunk, "data", buf)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setWaitForActiveShards(ActiveShardCount.ALL)

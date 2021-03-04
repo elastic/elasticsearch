@@ -23,9 +23,9 @@ configurations {
 }
 
 dependencies {
-  aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar", configuration:"default")
-  dockerSource project(path: ":distribution:archives:linux-tar", configuration:"default")
-  transformLog4jJar project(path: ":distribution:docker:transform-log4j-config", configuration: "default")
+  aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar", configuration: 'default')
+  dockerSource project(path: ":distribution:archives:linux-tar", configuration: 'default')
+  transformLog4jJar project(path: ":distribution:docker:transform-log4j-config", configuration: 'default')
 }
 
 ext.expansions = { Architecture architecture, DockerBase base, boolean local ->
@@ -162,7 +162,7 @@ void addCopyDockerContextTask(Architecture architecture, DockerBase base) {
 
     with dockerBuildContext(architecture, base, true)
 
-    into(base == DockerBase.IRON_BANK ? 'scripts' : 'bin') {
+    into('bin') {
       from configurations.transformLog4jJar
     }
 

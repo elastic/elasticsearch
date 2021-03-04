@@ -169,16 +169,10 @@ if (project != rootProject) {
   dependencies {
     reaper project('reaper')
     distribution project(':distribution:archives:windows-zip')
-    distribution project(':distribution:archives:oss-windows-zip')
     distribution project(':distribution:archives:darwin-tar')
     distribution project(':distribution:archives:darwin-aarch64-tar')
-    distribution project(':distribution:archives:oss-darwin-tar')
-    distribution project(':distribution:archives:oss-darwin-aarch64-tar')
     distribution project(':distribution:archives:linux-aarch64-tar')
     distribution project(':distribution:archives:linux-tar')
-    distribution project(':distribution:archives:oss-linux-tar')
-    distribution project(':distribution:archives:oss-linux-aarch64-tar')
-
     integTestRuntimeOnly(project(":libs:elasticsearch-core"))
   }
 

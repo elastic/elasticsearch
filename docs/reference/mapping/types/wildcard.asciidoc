@@ -5,7 +5,7 @@
 === Wildcard field type
 
 The `wildcard` field type is a specialized keyword field for unstructured
-machine-generated content you plan to search using
+machine-generated content you plan to search using grep-like 
 <<query-dsl-wildcard-query,`wildcard`>> and <<query-dsl-regexp-query,`regexp`>>
 queries. The `wildcard` type is optimized for fields with large values or high
 cardinality.
@@ -51,9 +51,9 @@ You plan to regularly search the field using any wildcard pattern.
 
 Otherwise, use the `keyword` field type for faster searches, faster indexing,
 and lower storage costs. For an in-depth comparison and decision flowchart, see
-our related
-https://www.elastic.co/blog/find-strings-within-strings-faster-with-the-new-elasticsearch-wildcard-field[blog
-post].
+our
+https://www.elastic.co/blog/find-strings-within-strings-faster-with-the-new-elasticsearch-wildcard-field[related
+blog post].
 
 **Switching from a `text` field to a keyword field**
 

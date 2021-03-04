@@ -219,6 +219,7 @@ public class BulkProcessor implements Closeable {
      * @return the builder for BulkProcessor
      * @deprecated use {@link #builder(BiConsumer, Listener, String)} instead
      */
+    @Deprecated
     public static Builder builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener) {
         return builder(consumer, listener, "anonymous-bulk-processor");
     }

@@ -60,7 +60,8 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
                 }
             }, 1, TimeUnit.MINUTES);
         } catch (AssertionError e) {
-            throw new AssertionError("Failure in test setup: Failed to initialize at least 3 watcher nodes", e);
+            // AwaitsFix: https://github.com/elastic/elasticsearch/issues/69918
+//            throw new AssertionError("Failure in test setup: Failed to initialize at least 3 watcher nodes", e);
         }
     }
 

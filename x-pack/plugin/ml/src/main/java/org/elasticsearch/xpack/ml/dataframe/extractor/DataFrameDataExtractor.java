@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.extractor;
 
@@ -104,7 +105,7 @@ public class DataFrameDataExtractor {
     }
 
     public Optional<List<Row>> next() throws IOException {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
@@ -115,6 +116,57 @@ public class DataFrameDataExtractor {
             hasNext = false;
         }
         return hits;
+    }
+
+    /**
+     * Provides a preview of the data. Assumes this was created from the source indices.
+     * Does no sorting of the results.
+     * @param listener To alert with the extracted rows
+     */
+    public void preview(ActionListener<List<Row>> listener) {
+
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
+            // This ensures the search throws if there are failures and the scroll context gets cleared automatically
+            .setAllowPartialSearchResults(false)
+            .setIndices(context.indices)
+            .setSize(context.scrollSize)
+            .setQuery(QueryBuilders.boolQuery().filter(context.query));
+
+        setFetchSource(searchRequestBuilder);
+
+        for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
+            searchRequestBuilder.addDocValueField(docValueField.getSearchField(), docValueField.getDocValueFormat());
+        }
+
+        searchRequestBuilder.setRuntimeMappings(context.runtimeMappings);
+
+        ClientHelper.executeWithHeadersAsync(
+            context.headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            searchRequestBuilder.request(),
+            ActionListener.wrap(
+                searchResponse -> {
+                    if (searchResponse.getHits().getHits().length == 0) {
+                        listener.onResponse(Collections.emptyList());
+                        return;
+                    }
+
+                    final SearchHit[] hits = searchResponse.getHits().getHits();
+                    List<Row> rows = new ArrayList<>(hits.length);
+                    for (SearchHit hit : hits) {
+                        String[] extractedValues = extractValues(hit);
+                        rows.add(extractedValues == null ?
+                            new Row(null, hit, true) :
+                            new Row(extractedValues, hit, false)
+                        );
+                    }
+                    listener.onResponse(rows);
+                },
+                listener::onFailure
+            )
+        );
     }
 
     protected List<Row> nextSearch() throws IOException {
@@ -174,6 +226,8 @@ public class DataFrameDataExtractor {
         for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
             searchRequestBuilder.addDocValueField(docValueField.getSearchField(), docValueField.getDocValueFormat());
         }
+
+        searchRequestBuilder.setRuntimeMappings(context.runtimeMappings);
 
         return searchRequestBuilder;
     }
@@ -263,29 +317,37 @@ public class DataFrameDataExtractor {
     }
 
     private Row createRow(SearchHit hit) {
-        String[] extractedValues = new String[organicFeatures.length + processedFeatures.length];
-        int i = 0;
-        for (String organicFeature : organicFeatures) {
-            String extractedValue = extractNonProcessedValues(hit, organicFeature);
-            if (extractedValue == null) {
-                return new Row(null, hit, true);
-            }
-            extractedValues[i++] = extractedValue;
-        }
-        for (ProcessedField processedField : context.extractedFields.getProcessedFields()) {
-            String[] processedValues = extractProcessedValue(processedField, hit);
-            if (processedValues == null) {
-                return new Row(null, hit, true);
-            }
-            for (String processedValue : processedValues) {
-                extractedValues[i++] = processedValue;
-            }
+        String[] extractedValues = extractValues(hit);
+        if (extractedValues == null) {
+            return new Row(null, hit, true);
         }
         boolean isTraining = trainTestSplitter.get().isTraining(extractedValues);
         Row row = new Row(extractedValues, hit, isTraining);
         LOGGER.trace(() -> new ParameterizedMessage("[{}] Extracted row: sort key = [{}], is_training = [{}], values = {}",
             context.jobId, row.getSortKey(), isTraining, Arrays.toString(row.values)));
         return row;
+    }
+
+    private String[] extractValues(SearchHit hit) {
+        String[] extractedValues = new String[organicFeatures.length + processedFeatures.length];
+        int i = 0;
+        for (String organicFeature : organicFeatures) {
+            String extractedValue = extractNonProcessedValues(hit, organicFeature);
+            if (extractedValue == null) {
+                return null;
+            }
+            extractedValues[i++] = extractedValue;
+        }
+        for (ProcessedField processedField : context.extractedFields.getProcessedFields()) {
+            String[] processedValues = extractProcessedValue(processedField, hit);
+            if (processedValues == null) {
+                return null;
+            }
+            for (String processedValue : processedValues) {
+                extractedValues[i++] = processedValue;
+            }
+        }
+        return extractedValues;
     }
 
     private void markScrollAsErrored() {
@@ -340,7 +402,8 @@ public class DataFrameDataExtractor {
             .setIndices(context.indices)
             .setSize(0)
             .setQuery(summaryQuery)
-            .setTrackTotalHits(true);
+            .setTrackTotalHits(true)
+            .setRuntimeMappings(context.runtimeMappings);
     }
 
     private QueryBuilder allExtractedFieldsExistQuery() {

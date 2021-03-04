@@ -1,12 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.proto;
 
 import org.elasticsearch.test.ESTestCase;
+
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.MAJOR_MULTIPLIER;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.MINOR_MULTIPLIER;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.REVISION_MULTIPLIER;
 
 public class SqlVersionTests extends ESTestCase {
     public void test123FromString() {
@@ -14,7 +19,8 @@ public class SqlVersionTests extends ESTestCase {
         assertEquals(1, ver.major);
         assertEquals(2, ver.minor);
         assertEquals(3, ver.revision);
-        assertEquals(1 * SqlVersion.MAJOR_MULTIPLIER + 2 * SqlVersion.MINOR_MULTIPLIER + 3 * SqlVersion.REVISION_MULTIPLIER, ver.id);
+        assertEquals(REVISION_MULTIPLIER - 1, ver.build);
+        assertEquals(1 * MAJOR_MULTIPLIER + 2 * MINOR_MULTIPLIER + 3 * REVISION_MULTIPLIER + REVISION_MULTIPLIER - 1, ver.id);
         assertEquals("1.2.3", ver.version);
     }
 
@@ -23,7 +29,8 @@ public class SqlVersionTests extends ESTestCase {
         assertEquals(1, ver.major);
         assertEquals(2, ver.minor);
         assertEquals(3, ver.revision);
-        assertEquals(1 * SqlVersion.MAJOR_MULTIPLIER + 2 * SqlVersion.MINOR_MULTIPLIER + 3 * SqlVersion.REVISION_MULTIPLIER, ver.id);
+        assertEquals(REVISION_MULTIPLIER - 1, ver.build);
+        assertEquals(1 * MAJOR_MULTIPLIER + 2 * MINOR_MULTIPLIER + 3 * REVISION_MULTIPLIER + REVISION_MULTIPLIER - 1, ver.id);
         assertEquals("1.2.3-Alpha", ver.version);
     }
 
@@ -32,8 +39,14 @@ public class SqlVersionTests extends ESTestCase {
         assertEquals(1, ver.major);
         assertEquals(2, ver.minor);
         assertEquals(3, ver.revision);
-        assertEquals(1 * SqlVersion.MAJOR_MULTIPLIER + 2 * SqlVersion.MINOR_MULTIPLIER + 3 * SqlVersion.REVISION_MULTIPLIER, ver.id);
+        assertEquals(REVISION_MULTIPLIER - 1, ver.build);
+        assertEquals(1 * MAJOR_MULTIPLIER + 2 * MINOR_MULTIPLIER + 3 * REVISION_MULTIPLIER + REVISION_MULTIPLIER - 1, ver.id);
         assertEquals("1.2.3-Alpha-SNAPSHOT", ver.version);
+    }
+
+    public void testFromId() {
+        SqlVersion ver = new SqlVersion((byte)randomIntBetween(0, 99), (byte)randomIntBetween(0, 99), (byte)randomIntBetween(0, 99));
+        assertEquals(ver, SqlVersion.fromId(ver.id));
     }
 
     public void testVersionsEqual() {

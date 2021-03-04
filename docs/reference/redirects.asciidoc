@@ -933,7 +933,6 @@ See <<settings,Configuring Elasticsearch>> for settings information:
 * <<modules-cluster>>
 * <<modules-discovery-settings>>
 * <<modules-fielddata>>
-* <<modules-http>>
 * <<recovery>>
 * <<indexing-buffer>>
 * <<modules-gateway>>
@@ -944,11 +943,20 @@ See <<settings,Configuring Elasticsearch>> for settings information:
 
 For other information, see:
 
-* <<modules-transport>>
 * <<modules-threadpool>>
 * <<modules-node>>
 * <<modules-plugins>>
 * <<modules-remote-clusters>>
+
+[role="exclude",id="modules-http"]
+=== HTTP
+
+See <<modules-network,Networking>>.
+
+[role="exclude",id="modules-transport"]
+=== Transport
+
+See <<modules-network,Networking>>.
 
 [role="exclude",id="modules-discovery-adding-removing-nodes"]
 === Adding and removing nodes

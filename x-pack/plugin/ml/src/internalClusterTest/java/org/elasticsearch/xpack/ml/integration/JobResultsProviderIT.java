@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -21,7 +22,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -33,11 +33,11 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -113,7 +113,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     public void createComponents() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
-        jobProvider = new JobResultsProvider(client(), builder.build(), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+        jobProvider = new JobResultsProvider(client(), builder.build(), TestIndexNameExpressionResolver.newInstance());
         ThreadPool tp = mockThreadPool();
         ClusterSettings clusterSettings = new ClusterSettings(builder.build(),
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
@@ -949,8 +949,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
     private void indexQuantiles(Quantiles quantiles) {
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), future);
+        createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE, TestIndexNameExpressionResolver.newInstance(), future);
         future.actionGet();
         JobResultsPersister persister =
             new JobResultsPersister(new OriginSettingClient(client(), ClientHelper.ML_ORIGIN), resultsPersisterService, auditor);

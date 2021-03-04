@@ -56,7 +56,8 @@ See <<set-up-a-data-stream>>.
 (Required, string) Name of the data stream to create.
 
 // tag::data-stream-name[]
-Data stream names must meet the following criteria:
+We recommend using the <<elastic-data-stream-naming-scheme,Elastic data stream
+naming scheme>>. Data stream names must meet the following criteria:
 
 - Lowercase only
 - Cannot include `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, `,`, `#`, `:`, or a

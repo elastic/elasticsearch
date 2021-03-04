@@ -73,12 +73,12 @@ Defaults to `1s`.
 `discovery.probe.connect_timeout`::
 (<<static-cluster-setting,Static>>)
 Sets how long to wait when attempting to connect to each address. Defaults to
-`3s`.
+`30s`.
 
 `discovery.probe.handshake_timeout`::
 (<<static-cluster-setting,Static>>)
 Sets how long to wait when attempting to identify the remote node via a
-handshake. Defaults to `1s`.
+handshake. Defaults to `30s`.
 
 `discovery.request_peers_timeout`::
 (<<static-cluster-setting,Static>>)

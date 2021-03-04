@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action;
@@ -178,7 +179,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             final IndexMetadata followIndex,
             final String[] leaderIndexHistoryUUID,
             final MapperService followerMapperService) {
-        FollowParameters parameters = request.getParameters();
 
         Map<String, String> ccrIndexMetadata = followIndex.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         if (ccrIndexMetadata == null) {
@@ -432,7 +432,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING,
             MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING,
             MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
-            MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING,
             MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
             MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
             MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,

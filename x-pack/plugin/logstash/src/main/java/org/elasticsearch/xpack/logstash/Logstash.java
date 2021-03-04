@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.logstash;
 
@@ -174,5 +175,15 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to build " + LOGSTASH_CONCRETE_INDEX_NAME + " index mappings", e);
         }
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "logstash_management";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Enables Logstash Central Management pipeline storage";
     }
 }

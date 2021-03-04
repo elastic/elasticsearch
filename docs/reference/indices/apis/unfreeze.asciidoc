@@ -13,8 +13,11 @@ Unfreezes an index.
 
 `POST /<index>/_unfreeze`
 
-//[[unfreeze-index-api-prereqs]]
-//==== {api-prereq-title}
+[[unfreeze-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
 
 [[unfreeze-index-api-desc]]
 ==== {api-description-title}

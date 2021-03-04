@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.store;
 
@@ -34,10 +35,11 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -76,7 +78,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                     IndexInputStats inputStats = directory.getStats(fileName);
                     assertThat(inputStats, (i == 0L) ? nullValue() : notNullValue());
 
-                    final IndexInput input = directory.openInput(fileName, newIOContext(random()));
+                    final IndexInput input = directory.openInput(fileName, randomIOContext());
                     inputStats = directory.getStats(fileName);
                     assertThat(inputStats.getOpened().longValue(), equalTo(i + 1L));
                     input.close();
@@ -91,7 +93,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
         executeTestCase((fileName, fileContent, directory) -> {
             try {
                 for (long i = 0L; i < randomLongBetween(1L, 20L); i++) {
-                    final IndexInput input = directory.openInput(fileName, newIOContext(random()));
+                    final IndexInput input = directory.openInput(fileName, randomIOContext());
 
                     IndexInputStats inputStats = directory.getStats(fileName);
                     assertThat(inputStats, notNullValue());
@@ -108,11 +110,11 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     public void testCachedBytesReadsAndWrites() throws Exception {
         // a cache service with a low range size but enough space to not evict the cache file
-        final ByteSizeValue rangeSize = randomCacheRangeSize();
-        final ByteSizeValue cacheSize = new ByteSizeValue(1, ByteSizeUnit.GB);
+        final ByteSizeValue rangeSize = new ByteSizeValue(randomLongBetween(MAX_FILE_LENGTH, MAX_FILE_LENGTH * 2), ByteSizeUnit.BYTES);
+        final ByteSizeValue cacheSize = new ByteSizeValue(10, ByteSizeUnit.MB);
 
         executeTestCaseWithCache(cacheSize, rangeSize, (fileName, fileContent, directory) -> {
-            try (IndexInput input = directory.openInput(fileName, newIOContext(random()))) {
+            try (IndexInput input = directory.openInput(fileName, randomIOContext())) {
                 final long length = input.length();
 
                 final IndexInputStats inputStats = directory.getStats(fileName);
@@ -164,7 +166,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     public void testCachedBytesReadsAndWritesNoCache() throws Exception {
         final ByteSizeValue uncachedChunkSize = new ByteSizeValue(randomIntBetween(512, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
         executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
-            try (IndexInput input = directory.openInput(fileName, newIOContext(random()))) {
+            try (IndexInput input = directory.openInput(fileName, randomIOContext())) {
                 final long length = input.length();
 
                 final IndexInputStats inputStats = directory.getStats(fileName);
@@ -190,7 +192,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
         executeTestCaseWithCache(ByteSizeValue.ZERO, randomCacheRangeSize(), (fileName, fileContent, directory) -> {
             assertThat(directory.getStats(fileName), nullValue());
 
-            final IOContext ioContext = newIOContext(random());
+            final IOContext ioContext = randomIOContext();
             try {
                 IndexInput input = directory.openInput(fileName, ioContext);
                 if (randomBoolean()) {
@@ -243,7 +245,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
         executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
             assertThat(directory.getStats(fileName), nullValue());
 
-            final IOContext ioContext = newIOContext(random());
+            final IOContext ioContext = randomIOContext();
             try (IndexInput original = directory.openInput(fileName, ioContext)) {
                 final IndexInput input = original.clone(); // always clone to only execute direct reads
                 final IndexInputStats inputStats = directory.getStats(fileName);
@@ -278,7 +280,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
         // use a large uncached chunk size that allows to read the file in a single operation
         final ByteSizeValue uncachedChunkSize = new ByteSizeValue(1, ByteSizeUnit.GB);
         executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
-            final IOContext context = newIOContext(random());
+            final IOContext context = randomIOContext();
             try (IndexInput input = directory.openInput(fileName, context)) {
                 final IndexInputStats inputStats = directory.getStats(fileName);
                 assertThat(inputStats, notNullValue());
@@ -313,7 +315,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     public void testReadBytesContiguously() throws Exception {
         executeTestCaseWithDefaultCache((fileName, fileContent, cacheDirectory) -> {
-            final IOContext ioContext = newIOContext(random());
+            final IOContext ioContext = randomIOContext();
 
             try (IndexInput input = cacheDirectory.openInput(fileName, ioContext)) {
                 final IndexInputStats inputStats = cacheDirectory.getStats(fileName);
@@ -364,7 +366,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     public void testReadBytesNonContiguously() throws Exception {
         executeTestCaseWithDefaultCache((fileName, fileContent, cacheDirectory) -> {
-            final IOContext ioContext = newIOContext(random());
+            final IOContext ioContext = randomIOContext();
 
             try (IndexInput input = cacheDirectory.openInput(fileName, ioContext)) {
                 final IndexInputStats inputStats = cacheDirectory.getStats(fileName);
@@ -415,7 +417,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     public void testForwardSeeks() throws Exception {
         executeTestCaseWithDefaultCache((fileName, fileContent, cacheDirectory) -> {
-            final IOContext ioContext = newIOContext(random());
+            final IOContext ioContext = randomIOContext();
             try (IndexInput indexInput = cacheDirectory.openInput(fileName, ioContext)) {
                 IndexInput input = indexInput;
                 if (randomBoolean()) {
@@ -473,7 +475,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     public void testBackwardSeeks() throws Exception {
         executeTestCaseWithDefaultCache((fileName, fileContent, cacheDirectory) -> {
-            final IOContext ioContext = newIOContext(random());
+            final IOContext ioContext = randomIOContext();
             try (IndexInput indexInput = cacheDirectory.openInput(fileName, ioContext)) {
                 IndexInput input = indexInput;
                 if (randomBoolean()) {
@@ -507,20 +509,20 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
                 do {
                     long moveBackward = -1L * randomLongBetween(1L, input.getFilePointer());
+                    long moveBackwardAbs = Math.abs(moveBackward);
                     input.seek(input.getFilePointer() + moveBackward);
 
                     if (inputStats.isLargeSeek(moveBackward)) {
-                        minLargeSeeks = (moveBackward < minLargeSeeks) ? moveBackward : minLargeSeeks;
-                        maxLargeSeeks = (moveBackward > maxLargeSeeks) ? moveBackward : maxLargeSeeks;
-                        totalLargeSeeks += moveBackward;
+                        minLargeSeeks = (moveBackwardAbs < minLargeSeeks) ? moveBackwardAbs : minLargeSeeks;
+                        maxLargeSeeks = (moveBackwardAbs > maxLargeSeeks) ? moveBackwardAbs : maxLargeSeeks;
+                        totalLargeSeeks += moveBackwardAbs;
                         countLargeSeeks += 1;
 
                         assertCounter(backwardLargeSeeks, totalLargeSeeks, countLargeSeeks, minLargeSeeks, maxLargeSeeks);
-
                     } else {
-                        minSmallSeeks = (moveBackward < minSmallSeeks) ? moveBackward : minSmallSeeks;
-                        maxSmallSeeks = (moveBackward > maxSmallSeeks) ? moveBackward : maxSmallSeeks;
-                        totalSmallSeeks += moveBackward;
+                        minSmallSeeks = (moveBackwardAbs < minSmallSeeks) ? moveBackwardAbs : minSmallSeeks;
+                        maxSmallSeeks = (moveBackwardAbs > maxSmallSeeks) ? moveBackwardAbs : maxSmallSeeks;
+                        totalSmallSeeks += moveBackwardAbs;
                         countSmallSeeks += 1;
 
                         assertCounter(backwardSmallSeeks, totalSmallSeeks, countSmallSeeks, minSmallSeeks, maxSmallSeeks);
@@ -536,9 +538,11 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     private void executeTestCase(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) throws Exception {
         executeTestCase(
             randomCacheService(),
+            randomFrozenCacheService(),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean())
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
+                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
@@ -550,18 +554,28 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     ) throws Exception {
         executeTestCase(
             defaultCacheService(),
+            defaultFrozenCacheService(),
             Settings.builder()
                 .put(SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.getKey(), uncachedChunkSize)
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), false)
+                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
     }
 
     private void executeTestCaseWithDefaultCache(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) throws Exception {
-        executeTestCaseWithCache(
-            CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getDefault(Settings.EMPTY),
-            CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getDefault(Settings.EMPTY),
+        executeTestCase(
+            defaultCacheService(),
+            createFrozenCacheService(
+                ByteSizeValue.ofMb(10),
+                new ByteSizeValue(randomLongBetween(MAX_FILE_LENGTH, MAX_FILE_LENGTH * 2), ByteSizeUnit.BYTES)
+            ),
+            Settings.builder()
+                .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
+                .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
+                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
+                .build(),
             test
         );
     }
@@ -573,9 +587,11 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     ) throws Exception {
         executeTestCase(
             createCacheService(cacheSize, cacheRangeSize),
+            createFrozenCacheService(cacheSize, cacheRangeSize),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
+                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
@@ -583,13 +599,13 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     private void executeTestCase(
         final CacheService cacheService,
+        final FrozenCacheService frozenCacheService,
         final Settings indexSettings,
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
     ) throws Exception {
 
-        final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(10, MAX_FILE_LENGTH)).getBytes(StandardCharsets.UTF_8);
-        final String fileExtension = randomAlphaOfLength(3);
-        final String fileName = randomAlphaOfLength(10) + '.' + fileExtension;
+        final byte[] fileContent = randomByteArrayOfLength(randomIntBetween(10, MAX_FILE_LENGTH));
+        final String fileName = randomAlphaOfLength(10) + randomFileExtension();
         final SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
         final IndexId indexId = new IndexId("_name", "_uuid");
         final ShardId shardId = new ShardId("_name", "_uuid", 0);
@@ -598,9 +614,14 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
         final Long seekingThreshold = randomBoolean() ? randomLongBetween(1L, fileContent.length) : null;
 
+        // Passing a wrong checksum here disables the BaseSearchableSnapshotIndexInput#maybeReadChecksumFromFileInfo(ByteBuffer)
+        // optimisation which, if it was enabled, would makes the stats tests much more complicated in order to accommodate for
+        // potential footer checksum reads.
+        final String fileChecksum = "_checksum";
+
         final String blobName = randomUnicodeOfLength(10);
         final BlobContainer blobContainer = singleBlobContainer(blobName, fileContent);
-        final StoreFileMetadata metadata = new StoreFileMetadata(fileName, fileContent.length, "_checksum", Version.CURRENT.luceneVersion);
+        final StoreFileMetadata metadata = new StoreFileMetadata(fileName, fileContent.length, fileChecksum, Version.CURRENT.luceneVersion);
         final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, new ByteSizeValue(fileContent.length)));
         final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
         final Path shardDir = randomShardPath(shardId);
@@ -609,6 +630,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
         try (
             CacheService ignored = cacheService;
+            FrozenCacheService ignored2 = frozenCacheService;
             SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                 () -> blobContainer,
                 () -> snapshot,
@@ -622,14 +644,15 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 cacheService,
                 cacheDir,
                 shardPath,
-                threadPool
+                threadPool,
+                frozenCacheService
             ) {
                 @Override
-                protected IndexInputStats createIndexInputStats(long fileLength) {
+                protected IndexInputStats createIndexInputStats(final int numFiles, final long totalSize) {
                     if (seekingThreshold == null) {
-                        return super.createIndexInputStats(fileLength);
+                        return super.createIndexInputStats(numFiles, totalSize);
                     }
-                    return new IndexInputStats(fileLength, seekingThreshold, statsCurrentTimeNanos);
+                    return new IndexInputStats(numFiles, totalSize, seekingThreshold, statsCurrentTimeNanos);
                 }
             }
         ) {

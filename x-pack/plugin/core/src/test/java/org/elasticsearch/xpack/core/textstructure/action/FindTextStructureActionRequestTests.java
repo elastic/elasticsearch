@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.textstructure.action;
 
@@ -81,13 +82,13 @@ public class FindTextStructureActionRequestTests extends AbstractWireSerializing
     public void testValidateLinesToSample() {
 
         FindStructureAction.Request request = new FindStructureAction.Request();
-        request.setLinesToSample(randomIntBetween(-1, 0));
+        request.setLinesToSample(randomIntBetween(-1, 1));
         request.setSample(new BytesArray("foo\n"));
 
         ActionRequestValidationException e = request.validate();
         assertNotNull(e);
         assertThat(e.getMessage(), startsWith("Validation Failed: "));
-        assertThat(e.getMessage(), containsString(" [lines_to_sample] must be positive if specified"));
+        assertThat(e.getMessage(), containsString(" [lines_to_sample] must be at least [2] if specified"));
     }
 
     public void testValidateLineMergeSizeLimit() {

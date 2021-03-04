@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -29,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.core.ilm.SearchableSnapshotActionTests.randomStorageType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -59,7 +61,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, UnfollowAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, MigrateAction.NAME, MigrateAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, SearchableSnapshotAction.NAME, SearchableSnapshotAction::new)
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, SearchableSnapshotAction.NAME, SearchableSnapshotAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RollupILMAction.NAME, RollupILMAction::new)
             ));
     }
 
@@ -82,7 +85,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MigrateAction.NAME), MigrateAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SearchableSnapshotAction.NAME),
-                SearchableSnapshotAction::parse)
+                SearchableSnapshotAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RollupILMAction.NAME), RollupILMAction::parse)
         ));
         return new NamedXContentRegistry(entries);
     }
@@ -132,7 +136,16 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             phaseNames.add(0, TimeseriesLifecycleType.HOT_PHASE);
         }
         boolean hotPhaseContainsSearchableSnap = false;
-        for (String phase : phaseNames) {
+        boolean coldPhaseContainsSearchableSnap = false;
+        // let's order the phases so we can reason about actions in a previous phase in order to generate a random *valid* policy
+        List<String> orderedPhases = new ArrayList<>(phaseNames.size());
+        for (String validPhase : TimeseriesLifecycleType.VALID_PHASES) {
+            if (phaseNames.contains(validPhase)) {
+                orderedPhases.add(validPhase);
+            }
+        }
+
+        for (String phase : orderedPhases) {
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<String> actionNames = randomSubsetOf(validActions.apply(phase));
@@ -146,10 +159,21 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 if (actionNames.contains(SearchableSnapshotAction.NAME)) {
                     hotPhaseContainsSearchableSnap = true;
                 }
-            } else {
+            }
+            if (phase.equals(TimeseriesLifecycleType.COLD_PHASE)) {
                 if (hotPhaseContainsSearchableSnap) {
                     // let's make sure the other phases don't configure actions that conflict with a possible `searchable_snapshot` action
                     // configured in the hot phase
+                    actionNames.removeAll(TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT);
+                }
+
+                if (actionNames.contains(SearchableSnapshotAction.NAME)) {
+                    coldPhaseContainsSearchableSnap = true;
+                }
+            } else {
+                if (hotPhaseContainsSearchableSnap || coldPhaseContainsSearchableSnap) {
+                    // let's make sure the other phases don't configure actions that conflict with a possible `searchable_snapshot` action
+                    // configured in a previous phase (hot/cold)
                     actionNames.removeAll(TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT);
                 }
             }
@@ -171,6 +195,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     return new HashSet<>(TimeseriesLifecycleType.VALID_WARM_ACTIONS);
                 case "cold":
                     return new HashSet<>(TimeseriesLifecycleType.VALID_COLD_ACTIONS);
+                case "frozen":
+                    return new HashSet<>(TimeseriesLifecycleType.VALID_FROZEN_ACTIONS);
                 case "delete":
                     return new HashSet<>(TimeseriesLifecycleType.VALID_DELETE_ACTIONS);
                 default:
@@ -202,9 +228,11 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     case UnfollowAction.NAME:
                         return new UnfollowAction();
                     case SearchableSnapshotAction.NAME:
-                        return new SearchableSnapshotAction(randomAlphaOfLengthBetween(1, 10));
+                        return new SearchableSnapshotAction("repo", randomBoolean(), randomStorageType());
                     case MigrateAction.NAME:
                         return new MigrateAction(false);
+                    case RollupILMAction.NAME:
+                        return RollupILMActionTests.randomInstance();
                     default:
                         throw new IllegalArgumentException("invalid action [" + action + "]");
                 }};

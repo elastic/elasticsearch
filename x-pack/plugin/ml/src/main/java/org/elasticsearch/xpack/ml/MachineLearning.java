@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml;
 
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -69,7 +71,6 @@ import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -78,6 +79,7 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
@@ -90,9 +92,11 @@ import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
@@ -128,6 +132,7 @@ import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -153,7 +158,6 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
@@ -168,9 +172,11 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteForecastAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction;
+import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.action.TransportEstimateModelMemoryAction;
 import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.action.TransportExplainDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.action.TransportPreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportFinalizeJobExecutionAction;
 import org.elasticsearch.xpack.ml.action.TransportFlushJobAction;
 import org.elasticsearch.xpack.ml.action.TransportForecastJobAction;
@@ -206,6 +212,7 @@ import org.elasticsearch.xpack.ml.action.TransportPutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportPutFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportPutJobAction;
 import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelAction;
+import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportSetUpgradeModeAction;
 import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction;
@@ -239,6 +246,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactor
 import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
+import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.aggs.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.inference.aggs.InternalInferenceAggregation;
@@ -302,6 +310,7 @@ import org.elasticsearch.xpack.ml.rest.datafeeds.RestUpdateDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestDeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestExplainDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.rest.dataframe.RestPreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestPostDataFrameAnalyticsUpdateAction;
@@ -313,9 +322,11 @@ import org.elasticsearch.xpack.ml.rest.filter.RestGetFiltersAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestUpdateFilterAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteForecastAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteJobAction;
@@ -358,6 +369,9 @@ import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
+import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX;
 
 public class MachineLearning extends Plugin implements SystemIndexPlugin,
                                                        AnalysisPlugin,
@@ -415,7 +429,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final String MAX_JVM_SIZE_NODE_ATTR = "ml.max_jvm_size";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
-            Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
+            Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.OperatorDynamic, Property.NodeScope);
     /**
      * The amount of memory needed to load the ML native code shared libraries. The assumption is that the first
      * ML job to run on a given node will do this, and then subsequent ML jobs on the same node will reuse the
@@ -429,7 +443,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // controls the types of jobs that can be created, and each job alone is considerably smaller than what each node
     // can handle.
     public static final Setting<Integer> MAX_MACHINE_MEMORY_PERCENT =
-           Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 200, Property.Dynamic, Property.NodeScope);
+           Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 200, Property.OperatorDynamic, Property.NodeScope);
     /**
      * This boolean value indicates if `max_machine_memory_percent` should be ignored and a automatic calculation is used instead.
      *
@@ -445,10 +459,10 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final Setting<Boolean> USE_AUTO_MACHINE_MEMORY_PERCENT = Setting.boolSetting(
         "xpack.ml.use_auto_machine_memory_percent",
         false,
-        Property.Dynamic,
+        Property.OperatorDynamic,
         Property.NodeScope);
     public static final Setting<Integer> MAX_LAZY_ML_NODES =
-            Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, Property.Dynamic, Property.NodeScope);
+            Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, Property.OperatorDynamic, Property.NodeScope);
 
     // Before 8.0.0 this needs to match the max allowed value for xpack.ml.max_open_jobs,
     // as the current node could be running in a cluster where some nodes are still using
@@ -463,7 +477,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     public static final Setting<TimeValue> PROCESS_CONNECT_TIMEOUT =
         Setting.timeSetting("xpack.ml.process_connect_timeout", TimeValue.timeValueSeconds(10),
-            TimeValue.timeValueSeconds(5), Setting.Property.Dynamic, Setting.Property.NodeScope);
+            TimeValue.timeValueSeconds(5), Property.OperatorDynamic, Setting.Property.NodeScope);
 
     // Undocumented setting for integration test purposes
     public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
@@ -482,7 +496,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 }
                 return value;
             },
-            Property.Dynamic,
+            Property.OperatorDynamic,
             Property.NodeScope
         );
 
@@ -495,7 +509,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final Setting<ByteSizeValue> MAX_ML_NODE_SIZE = Setting.byteSizeSetting(
         "xpack.ml.max_ml_node_size",
         ByteSizeValue.ZERO,
-        Property.Dynamic,
+        Property.OperatorDynamic,
         Property.NodeScope);
 
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
@@ -636,7 +650,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(client, clusterService);
         InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService);
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
-        OriginSettingClient originSettingClient = new OriginSettingClient(client, ClientHelper.ML_ORIGIN);
+        OriginSettingClient originSettingClient = new OriginSettingClient(client, ML_ORIGIN);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(
             threadPool,
             originSettingClient,
@@ -853,8 +867,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     dataFrameAnalyticsManager.get(),
                     dataFrameAnalyticsAuditor.get(),
                     memoryTracker.get(),
-                    expressionResolver,
-                    MlIndexTemplateRegistry.INFERENCE_TEMPLATE),
+                    expressionResolver),
                 new SnapshotUpgradeTaskExecutor(settings,
                     clusterService,
                     autodetectProcessManager.get(),
@@ -933,6 +946,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             new RestGetTrainedModelsStatsAction(),
             new RestPutTrainedModelAction(),
             new RestUpgradeJobModelSnapshotAction(),
+            new RestPutTrainedModelAliasAction(),
+            new RestDeleteTrainedModelAliasAction(),
+            new RestPreviewDataFrameAnalyticsAction(),
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
@@ -1016,7 +1032,10 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 new ActionHandler<>(GetTrainedModelsStatsAction.INSTANCE, TransportGetTrainedModelsStatsAction.class),
                 new ActionHandler<>(PutTrainedModelAction.INSTANCE, TransportPutTrainedModelAction.class),
                 new ActionHandler<>(UpgradeJobModelSnapshotAction.INSTANCE, TransportUpgradeJobModelSnapshotAction.class),
-            usageAction,
+                new ActionHandler<>(PutTrainedModelAliasAction.INSTANCE, TransportPutTrainedModelAliasAction.class),
+                new ActionHandler<>(DeleteTrainedModelAliasAction.INSTANCE, TransportDeleteTrainedModelAliasAction.class),
+                new ActionHandler<>(PreviewDataFrameAnalyticsAction.INSTANCE, TransportPreviewDataFrameAnalyticsAction.class),
+                usageAction,
                 infoAction);
     }
 
@@ -1084,10 +1103,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         List<String> templateNames =
             Arrays.asList(
                 NotificationsIndex.NOTIFICATIONS_INDEX,
-                MlMetaIndex.indexName(),
-                AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
-                AnomalyDetectorsIndex.jobResultsIndexPrefix(),
-                InferenceIndexConstants.LATEST_INDEX_NAME);
+                STATE_INDEX_PREFIX,
+                AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String templateName : templateNames) {
             allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
         }
@@ -1123,6 +1140,13 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlModelSizeNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(ModelAliasMetadata.NAME),
+                ModelAliasMetadata::fromXContent
+            )
+        );
         return namedXContent;
     }
 
@@ -1133,6 +1157,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         // Custom metadata
         namedWriteables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, "ml", MlMetadata::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelAliasMetadata.NAME, ModelAliasMetadata::readDiffFrom));
 
         // Persistent tasks params
         namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DATAFEED_TASK_NAME,
@@ -1164,10 +1190,59 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(
-            new SystemIndexDescriptor(MlMetaIndex.indexName(), "Contains scheduling and anomaly tracking metadata"),
-            new SystemIndexDescriptor(MlConfigIndex.indexName(), "Contains ML configuration data"),
-            new SystemIndexDescriptor(InferenceIndexConstants.INDEX_PATTERN, "Contains ML model configuration and statistics")
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(MlMetaIndex.indexName() + "*")
+                .setPrimaryIndex(MlMetaIndex.indexName())
+                .setDescription("Contains scheduling and anomaly tracking metadata")
+                .setMappings(MlMetaIndex.mapping())
+                .setSettings(MlMetaIndex.settings())
+                .setVersionMetaKey("version")
+                .setOrigin(ML_ORIGIN)
+                .build(),
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(MlConfigIndex.indexName() + "*")
+                .setPrimaryIndex(MlConfigIndex.indexName())
+                .setDescription("Contains ML configuration data")
+                .setMappings(MlConfigIndex.mapping())
+                .setSettings(MlConfigIndex.settings())
+                .setVersionMetaKey("version")
+                .setOrigin(ML_ORIGIN)
+                .build(),
+            getInferenceIndexSecurityDescriptor()
         );
+    }
+
+    public static SystemIndexDescriptor getInferenceIndexSecurityDescriptor() {
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(InferenceIndexConstants.INDEX_PATTERN)
+            .setPrimaryIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
+            .setDescription("Contains ML model configuration and statistics")
+            .setMappings(InferenceIndexConstants.mapping())
+            .setSettings(InferenceIndexConstants.settings())
+            .setVersionMetaKey("version")
+            .setOrigin(ML_ORIGIN)
+            .build();
+    }
+
+    @Override
+    public Collection<String> getAssociatedIndexPatterns() {
+        return List.of(
+            RESULTS_INDEX_PREFIX + "*",
+            STATE_INDEX_PREFIX + "*",
+            MlStatsIndex.indexPattern(),
+            ".ml-notifications*",
+            ".ml-annotations*"
+        );
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "machine_learning";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Provides anomaly detection and forecasting functionality";
     }
 
     @Override

@@ -25,6 +25,14 @@ GET /my-index-000001/_alias/alias1
 
 `GET /<index>/_alias/<alias>`
 
+[[get-alias-api-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the index alias. If you specify an index, you must also have
+`view_index_metadata` or `manage` index privilege for the index.
+
 
 [[get-alias-api-path-params]]
 ==== {api-path-parms-title}

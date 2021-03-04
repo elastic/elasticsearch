@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.results;
 
@@ -54,7 +55,7 @@ public class RestGetBucketsAction extends BaseRestHandler {
             request = GetBucketsAction.Request.parseRequest(jobId, parser);
 
             // A timestamp in the URL overrides any timestamp that may also have been set in the body
-            if (!Strings.isNullOrEmpty(timestamp)) {
+            if (Strings.isNullOrEmpty(timestamp) == false) {
                 request.setTimestamp(timestamp);
             }
         } else {
@@ -62,7 +63,7 @@ public class RestGetBucketsAction extends BaseRestHandler {
 
             // Check if the REST param is set first so mutually exclusive
             // options will cause an error if set
-            if (!Strings.isNullOrEmpty(timestamp)) {
+            if (Strings.isNullOrEmpty(timestamp) == false) {
                 request.setTimestamp(timestamp);
             }
             // multiple bucket options

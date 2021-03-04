@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test;
 
@@ -88,8 +89,6 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -477,12 +476,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             GetComposableIndexTemplateAction.Response response = client().execute(GetComposableIndexTemplateAction.INSTANCE,
                 new GetComposableIndexTemplateAction.Request(HISTORY_TEMPLATE_NAME)).get();
             assertThat("[" + HISTORY_TEMPLATE_NAME + "] is missing", response.indexTemplates().size(), equalTo(1));
-            response = client().execute(GetComposableIndexTemplateAction.INSTANCE,
-                new GetComposableIndexTemplateAction.Request(TRIGGERED_TEMPLATE_NAME)).get();
-            assertThat("[" + TRIGGERED_TEMPLATE_NAME + "] is missing", response.indexTemplates().size(), equalTo(1));
-            response = client().execute(GetComposableIndexTemplateAction.INSTANCE,
-                new GetComposableIndexTemplateAction.Request(WATCHES_TEMPLATE_NAME)).get();
-            assertThat("[" + WATCHES_TEMPLATE_NAME + "] is missing", response.indexTemplates().size(), equalTo(1));
         });
     }
 

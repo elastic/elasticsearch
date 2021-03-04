@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
@@ -11,20 +12,20 @@ import java.util.Collections;
 
 public class NdJsonTextStructureFinderTests extends TextStructureTestCase {
 
-    private final FileStructureFinderFactory factory = new NdJsonFileStructureFinderFactory();
+    private final TextStructureFinderFactory factory = new NdJsonTextStructureFinderFactory();
 
     public void testCreateConfigsGivenGoodJson() throws Exception {
         assertTrue(factory.canCreateFromSample(explanation, NDJSON_SAMPLE, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = factory.createFromSample(
+        TextStructureFinder structureFinder = factory.createFromSample(
             explanation,
             NDJSON_SAMPLE,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
 

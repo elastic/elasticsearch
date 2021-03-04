@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.sameInstance;
@@ -33,7 +22,7 @@ public class MethodHandlersTests extends ESTestCase {
         MethodHandlers methodHandlers = new MethodHandlers("path", putHandler, RestRequest.Method.PUT);
         methodHandlers.addMethods(postHandler, RestRequest.Method.POST);
 
-        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, Version.CURRENT);
+        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, RestApiVersion.current());
         assertThat(handler, sameInstance(putHandler));
     }
 
@@ -41,10 +30,10 @@ public class MethodHandlersTests extends ESTestCase {
         RestHandler handler = new CurrentVersionHandler();
         MethodHandlers methodHandlers = new MethodHandlers("path", handler, RestRequest.Method.PUT, RestRequest.Method.POST);
 
-        RestHandler handlerFound = methodHandlers.getHandler(RestRequest.Method.PUT, Version.CURRENT);
+        RestHandler handlerFound = methodHandlers.getHandler(RestRequest.Method.PUT, RestApiVersion.current());
         assertThat(handlerFound, sameInstance(handler));
 
-        handlerFound = methodHandlers.getHandler(RestRequest.Method.POST, Version.CURRENT);
+        handlerFound = methodHandlers.getHandler(RestRequest.Method.POST, RestApiVersion.current());
         assertThat(handlerFound, sameInstance(handler));
     }
 
@@ -54,10 +43,10 @@ public class MethodHandlersTests extends ESTestCase {
         MethodHandlers methodHandlers = new MethodHandlers("path", currentVersionHandler, RestRequest.Method.PUT);
         methodHandlers.addMethods(previousVersionHandler, RestRequest.Method.PUT);
 
-        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, Version.CURRENT);
+        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, RestApiVersion.current());
         assertThat(handler, sameInstance(currentVersionHandler));
 
-        handler = methodHandlers.getHandler(RestRequest.Method.PUT, Version.CURRENT.previousMajor());
+        handler = methodHandlers.getHandler(RestRequest.Method.PUT, RestApiVersion.current().previous());
         assertThat(handler, sameInstance(previousVersionHandler));
     }
 
@@ -71,14 +60,14 @@ public class MethodHandlersTests extends ESTestCase {
     public void testMissingCurrentHandler(){
         RestHandler previousVersionHandler = new PreviousVersionHandler();
         MethodHandlers methodHandlers = new MethodHandlers("path", previousVersionHandler, RestRequest.Method.PUT, RestRequest.Method.POST);
-        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, Version.CURRENT);
+        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, RestApiVersion.current());
         assertNull(handler);
     }
 
     public void testMissingPriorHandlerReturnsCurrentHandler(){
         RestHandler currentVersionHandler = new CurrentVersionHandler();
         MethodHandlers methodHandlers = new MethodHandlers("path", currentVersionHandler, RestRequest.Method.PUT, RestRequest.Method.POST);
-        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, Version.CURRENT.previousMajor());
+        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, RestApiVersion.current().previous());
         assertThat(handler, sameInstance(currentVersionHandler));
     }
 
@@ -96,8 +85,8 @@ public class MethodHandlersTests extends ESTestCase {
         }
 
         @Override
-        public Version compatibleWithVersion() {
-            return Version.CURRENT.previousMajor();
+        public RestApiVersion compatibleWithVersion() {
+            return RestApiVersion.current().previous();
         }
     }
 }

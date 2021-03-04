@@ -1,5 +1,6 @@
 package org.elasticsearch.xpack.transform.integration.continuous;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -26,6 +27,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/67887") 
 public class HistogramGroupByIT extends ContinuousTestCase {
     private static final String NAME = "continuous-histogram-pivot-test";
 

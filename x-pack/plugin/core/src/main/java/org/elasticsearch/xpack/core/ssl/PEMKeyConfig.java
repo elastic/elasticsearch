@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl;
 
@@ -142,15 +143,16 @@ class PEMKeyConfig extends KeyConfig {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         PEMKeyConfig that = (PEMKeyConfig) o;
-
-        if (keyPath != null ? !keyPath.equals(that.keyPath) : that.keyPath != null) return false;
-        if (keyPassword != null ? !keyPassword.equals(that.keyPassword) : that.keyPassword != null) return false;
-        return certPath != null ? certPath.equals(that.certPath) : that.certPath == null;
-
+        return Objects.equals(keyPath, that.keyPath)
+            && Objects.equals(keyPassword, that.keyPassword)
+            && Objects.equals(certPath, that.certPath);
     }
 
     @Override

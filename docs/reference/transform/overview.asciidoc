@@ -11,6 +11,12 @@ You can choose either of the following methods to transform your data:
 IMPORTANT: All {transforms} leave your source index intact. They create a new
 index that is dedicated to the transformed data.
 
+{transforms-cap} are persistent tasks; they are stored in cluster state which 
+makes them resilient for node failures. Refer to <<transform-checkpoints>> and 
+<<ml-transform-checkpoint-errors>> to learn more about the machinery behind 
+{transforms}.
+
+
 [[pivot-transform-overview]]
 == Pivot {transforms}
 

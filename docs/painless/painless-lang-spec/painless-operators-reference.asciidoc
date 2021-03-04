@@ -716,9 +716,9 @@ d = "con" + d + "cat"; <2>
 <1> declare `def`;
     implicit cast `int 2` to `def` -> `def`;
     store `def` in `d`;
-<2> concat `String "con"` and `int 9` -> `String "con9"`;
-    concat `String "con9"` and `String "con"` -> `String "con9cat"`
-    implicit cast `String "con9cat"` to `def` -> `def`;
+<2> concat `String "con"` and `int 2` -> `String "con2"`;
+    concat `String "con2"` and `String "cat"` -> `String "con2cat"`
+    implicit cast `String "con2cat"` to `def` -> `def`;
     store `def` to `d`;
     (note the switch in type of `d` from `int` to `String`)
 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
@@ -507,67 +496,61 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final BiConsumer<Thread, Exception> onCompletion,
         final Thread originalThread
     ) {
-        while (it.hasNext()) {
-            final String pipelineId = it.next();
-            try {
-                PipelineHolder holder = pipelines.get(pipelineId);
-                if (holder == null) {
-                    throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
-                }
-                Pipeline pipeline = holder.pipeline;
-                String originalIndex = indexRequest.indices()[0];
-                innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
-                    if (e != null) {
-                        logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}]",
-                            pipelineId, indexRequest.index(), indexRequest.id()), e);
-                        onFailure.accept(slot, e);
-                    }
-
-                    Iterator<String> newIt = it;
-                    boolean newHasFinalPipeline = hasFinalPipeline;
-                    String newIndex = indexRequest.indices()[0];
-
-                    if (Objects.equals(originalIndex, newIndex) == false) {
-                        if (hasFinalPipeline && it.hasNext() == false) {
-                            totalMetrics.ingestFailed();
-                            onFailure.accept(slot, new IllegalStateException("final pipeline [" + pipelineId +
-                                "] can't change the target index"));
-                        } else {
-
-                            //Drain old it so it's not looped over
-                            it.forEachRemaining($ -> {
-                            });
-                            indexRequest.isPipelineResolved(false);
-                            resolvePipelines(null, indexRequest, state.metadata());
-                            if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
-                                newIt = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
-                                newHasFinalPipeline = true;
-                            } else {
-                                newIt = Collections.emptyIterator();
-                            }
-                        }
-                    }
-
-                    if (newIt.hasNext()) {
-                        executePipelines(slot, newIt, newHasFinalPipeline, indexRequest, onDropped, onFailure, counter, onCompletion,
-                            originalThread);
-                    } else {
-                        if (counter.decrementAndGet() == 0) {
-                            onCompletion.accept(originalThread, null);
-                        }
-                        assert counter.get() >= 0;
-                    }
-                });
-            } catch (Exception e) {
-                logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}]",
-                    pipelineId, indexRequest.index(), indexRequest.id()), e);
-                onFailure.accept(slot, e);
-                if (counter.decrementAndGet() == 0) {
-                    onCompletion.accept(originalThread, null);
-                }
-                assert counter.get() >= 0;
-                break;
+        assert it.hasNext();
+        final String pipelineId = it.next();
+        try {
+            PipelineHolder holder = pipelines.get(pipelineId);
+            if (holder == null) {
+                throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
             }
+            Pipeline pipeline = holder.pipeline;
+            String originalIndex = indexRequest.indices()[0];
+            innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
+                if (e != null) {
+                    logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}]",
+                        pipelineId, indexRequest.index(), indexRequest.id()), e);
+                    onFailure.accept(slot, e);
+                }
+
+                Iterator<String> newIt = it;
+                boolean newHasFinalPipeline = hasFinalPipeline;
+                String newIndex = indexRequest.indices()[0];
+
+                if (Objects.equals(originalIndex, newIndex) == false) {
+                    if (hasFinalPipeline && it.hasNext() == false) {
+                        totalMetrics.ingestFailed();
+                        onFailure.accept(slot, new IllegalStateException("final pipeline [" + pipelineId +
+                            "] can't change the target index"));
+                    } else {
+                        indexRequest.isPipelineResolved(false);
+                        resolvePipelines(null, indexRequest, state.metadata());
+                        if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
+                            newIt = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
+                            newHasFinalPipeline = true;
+                        } else {
+                            newIt = Collections.emptyIterator();
+                        }
+                    }
+                }
+
+                if (newIt.hasNext()) {
+                    executePipelines(slot, newIt, newHasFinalPipeline, indexRequest, onDropped, onFailure, counter, onCompletion,
+                        originalThread);
+                } else {
+                    if (counter.decrementAndGet() == 0) {
+                        onCompletion.accept(originalThread, null);
+                    }
+                    assert counter.get() >= 0;
+                }
+            });
+        } catch (Exception e) {
+            logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}]",
+                pipelineId, indexRequest.index(), indexRequest.id()), e);
+            onFailure.accept(slot, e);
+            if (counter.decrementAndGet() == 0) {
+                onCompletion.accept(originalThread, null);
+            }
+            assert counter.get() >= 0;
         }
     }
 
@@ -615,7 +598,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             sb.append(pipelineName);
         }
         String tag = processor.getTag();
-        if(tag != null && !tag.isEmpty()){
+        if (tag != null && tag.isEmpty() == false) {
             sb.append(":");
             sb.append(tag);
         }

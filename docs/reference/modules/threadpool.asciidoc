@@ -164,7 +164,7 @@ node.processors: 2
 There are a few use-cases for explicitly overriding the `node.processors`
 setting:
 
-. If you are running multiple instances of {es} on the same host but want want
+. If you are running multiple instances of {es} on the same host but want
 {es} to size its thread pools as if it only has a fraction of the CPU, you
 should override the `node.processors` setting to the desired fraction, for
 example, if you're running two instances of {es} on a 16-core machine, set

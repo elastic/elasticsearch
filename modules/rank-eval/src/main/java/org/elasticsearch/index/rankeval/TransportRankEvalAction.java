@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.rankeval;
@@ -29,7 +18,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -74,8 +62,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     @Inject
     public TransportRankEvalAction(ActionFilters actionFilters, Client client, TransportService transportService,
                                    ScriptService scriptService, NamedXContentRegistry namedXContentRegistry) {
-        super(RankEvalAction.NAME, transportService, actionFilters,
-              (Writeable.Reader<RankEvalRequest>) RankEvalRequest::new);
+        super(RankEvalAction.NAME, transportService, actionFilters, RankEvalRequest::new);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
         this.client = client;
@@ -137,9 +124,8 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 ratedRequestsInSearch.toArray(new RatedRequest[ratedRequestsInSearch.size()]), errors));
     }
 
-    class RankEvalActionListener implements ActionListener<MultiSearchResponse> {
+    static class RankEvalActionListener extends ActionListener.Delegating<MultiSearchResponse, RankEvalResponse> {
 
-        private final ActionListener<RankEvalResponse> listener;
         private final RatedRequest[] specifications;
 
         private final Map<String, Exception> errors;
@@ -147,7 +133,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
 
         RankEvalActionListener(ActionListener<RankEvalResponse> listener, EvaluationMetric metric, RatedRequest[] specifications,
                 Map<String, Exception> errors) {
-            this.listener = listener;
+            super(listener);
             this.metric = metric;
             this.errors = errors;
             this.specifications = specifications;
@@ -168,12 +154,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 }
                 responsePosition++;
             }
-            listener.onResponse(new RankEvalResponse(this.metric.combine(responseDetails.values()), responseDetails, this.errors));
-        }
-
-        @Override
-        public void onFailure(Exception exception) {
-            listener.onFailure(exception);
+            delegate.onResponse(new RankEvalResponse(this.metric.combine(responseDetails.values()), responseDetails, this.errors));
         }
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml;
 
@@ -83,7 +84,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
-        verify(client.admin().indices(), times(7)).putTemplate(putIndexTemplateRequestCaptor.capture(), anyObject());
+        verify(client.admin().indices(), times(4)).putTemplate(putIndexTemplateRequestCaptor.capture(), anyObject());
 
         PutIndexTemplateRequest req = putIndexTemplateRequestCaptor.getAllValues().stream()
             .filter(r -> r.name().equals(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX))
@@ -99,7 +100,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
-        verify(client.admin().indices(), times(7)).putTemplate(putIndexTemplateRequestCaptor.capture(), anyObject());
+        verify(client.admin().indices(), times(4)).putTemplate(putIndexTemplateRequestCaptor.capture(), anyObject());
 
         PutIndexTemplateRequest req = putIndexTemplateRequestCaptor.getAllValues().stream()
             .filter(r -> r.name().equals(MlStatsIndex.TEMPLATE_NAME))

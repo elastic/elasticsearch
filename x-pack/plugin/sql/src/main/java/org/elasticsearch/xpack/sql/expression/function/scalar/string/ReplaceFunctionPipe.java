@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
@@ -30,7 +31,7 @@ public class ReplaceFunctionPipe extends Pipe {
     public final Pipe replaceChildren(List<Pipe> newChildren) {
         return replaceChildren(newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
-    
+
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
         Pipe newInput = input.resolveAttributes(resolver);
@@ -51,7 +52,7 @@ public class ReplaceFunctionPipe extends Pipe {
     public boolean resolved() {
         return input.resolved() && pattern.resolved() && replacement.resolved();
     }
-    
+
     protected Pipe replaceChildren(Pipe newInput, Pipe newPattern, Pipe newReplacement) {
         return new ReplaceFunctionPipe(source(), expression(), newInput, newPattern, newReplacement);
     }
@@ -72,19 +73,19 @@ public class ReplaceFunctionPipe extends Pipe {
     public ReplaceFunctionProcessor asProcessor() {
         return new ReplaceFunctionProcessor(input.asProcessor(), pattern.asProcessor(), replacement.asProcessor());
     }
-    
+
     public Pipe input() {
         return input;
     }
-    
+
     public Pipe pattern() {
         return pattern;
     }
-    
+
     public Pipe replacement() {
         return replacement;
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(input, pattern, replacement);

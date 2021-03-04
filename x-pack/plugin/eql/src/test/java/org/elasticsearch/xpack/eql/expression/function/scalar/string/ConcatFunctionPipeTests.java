@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
@@ -69,7 +70,7 @@ public class ConcatFunctionPipeTests extends AbstractNodeTestCase<ConcatFunction
 
         ConcatFunctionPipe newB = new ConcatFunctionPipe(b.source(), b.expression(), b.values());
         ConcatFunctionPipe transformed = (ConcatFunctionPipe) newB.replaceChildrenSameSize(newValues);
-        
+
         assertEquals(transformed.values(), newValues);
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());

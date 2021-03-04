@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security;
@@ -124,6 +125,7 @@ public class PermissionsIT extends ESRestTestCase {
      * but then not have permissions to operate on an index that was later associated with that policy by another
      * user
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69925")
     @SuppressWarnings("unchecked")
     public void testCanManageIndexWithNoPermissions() throws Exception {
         createIndexAsAdmin("not-ilm", indexSettingsWithPolicy, "");
@@ -146,7 +148,7 @@ public class PermissionsIT extends ESRestTestCase {
                 assertThat(stepInfo.get("reason"), equalTo("action [indices:monitor/stats] is unauthorized" +
                     " for user [test_ilm]" +
                     " on indices [not-ilm]," +
-                    " this action is granted by the privileges [monitor,manage,all]"));
+                    " this action is granted by the index privileges [monitor,manage,all]"));
             }
         });
     }
@@ -283,7 +285,7 @@ public class PermissionsIT extends ESRestTestCase {
          * - Create role with just write and manage privileges on alias
          * - Create user and assign newly created role.
          */
-        createNewSingletonPolicy(adminClient(), "foo-policy", "hot", new RolloverAction(null, null, 2L));
+        createNewSingletonPolicy(adminClient(), "foo-policy", "hot", new RolloverAction(null, null, null, 2L));
         createIndexTemplate("foo-template", "foo-logs-*", "foo_alias", "foo-policy");
         createIndexAsAdmin("foo-logs-000001", "foo_alias", randomBoolean());
         createRole("foo_alias_role", "foo_alias");

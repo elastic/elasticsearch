@@ -241,7 +241,6 @@
 
 ---
 "Test field_selection given job":
-
   - do:
       indices.create:
         index: index-source

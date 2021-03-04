@@ -1,21 +1,10 @@
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
@@ -35,6 +24,7 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
@@ -297,6 +287,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // to release memory and let references to the filesystem go etc.
         if (reason == IndexRemovalReason.DELETED || reason == IndexRemovalReason.CLOSED || reason == IndexRemovalReason.REOPENED) {
             freeAllContextForIndex(index);
+        }
+    }
+
+    @Override
+    public void beforeIndexShardCreated(ShardRouting routing, Settings indexSettings) {
+        // if a shard is reassigned to a node where we still have searches against the same shard and it is not a relocate, we prefer
+        // to stop searches to restore full availability as fast as possible. A known scenario here is that we lost connection to master
+        // or master(s) were restarted.
+        assert routing.initializing();
+        if (routing.isRelocationTarget() == false) {
+            freeAllContextsForShard(routing.shardId());
         }
     }
 
@@ -811,6 +812,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert index != null;
         for (ReaderContext ctx : activeReaders.values()) {
             if (index.equals(ctx.indexShard().shardId().getIndex())) {
+                freeReaderContext(ctx.id());
+            }
+        }
+    }
+
+    private void freeAllContextsForShard(ShardId shardId) {
+        assert shardId != null;
+        for (ReaderContext ctx : activeReaders.values()) {
+            if (shardId.equals(ctx.indexShard().shardId())) {
                 freeReaderContext(ctx.id());
             }
         }

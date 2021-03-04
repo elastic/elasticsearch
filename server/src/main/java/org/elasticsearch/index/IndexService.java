@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index;
@@ -60,6 +49,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
@@ -79,7 +69,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
@@ -412,9 +401,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Store store = null;
         IndexShard indexShard = null;
         ShardLock lock = null;
+        eventListener.beforeIndexShardCreated(routing, indexSettings);
         try {
             lock = nodeEnv.shardLock(shardId, "starting shard", TimeUnit.SECONDS.toMillis(5));
-            eventListener.beforeIndexShardCreated(shardId, indexSettings);
             ShardPath path;
             try {
                 path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
@@ -657,12 +646,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return searchOperationListeners;
     }
 
-    @Override
-    public boolean updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
-        if (mapperService == null) {
-            return false;
+    public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
+        if (mapperService != null) {
+            mapperService.updateMapping(currentIndexMetadata, newIndexMetadata);
         }
-        return mapperService.updateMapping(currentIndexMetadata, newIndexMetadata);
     }
 
     private class StoreCloseListener implements Store.OnClose {
@@ -837,6 +824,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         } finally {
             refreshTask = new AsyncRefreshTask(this);
         }
+    }
+
+    public Function<String, String> dateMathExpressionResolverAt() {
+        return expression-> expressionResolver.resolveDateMathExpression(expression, System.currentTimeMillis());
+    }
+    public Function<String, String> dateMathExpressionResolverAt(long instant) {
+        return expression-> expressionResolver.resolveDateMathExpression(expression, instant);
     }
 
     public interface ShardStoreDeleter {

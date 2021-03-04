@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration.continuous;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -25,11 +27,13 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.S
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -38,13 +42,20 @@ public class LatestContinuousIT extends ContinuousTestCase {
 
     private static final String NAME = "continuous-latest-test";
 
+    private static final Map<String, Object> RUNTIME_MAPPINGS =
+        new HashMap<String, Object>() {{
+            put("event-upper-at-search", new HashMap<String, Object>() {{
+                put("type", "keyword");
+                put("script", singletonMap("source", "if (params._source.event != null) {emit(params._source.event.toUpperCase())}"));
+            }});
+        }};
     private static final String MISSING_BUCKET_KEY = "~~NULL~~"; // ensure that this key is last after sorting
 
     private final String eventField;
     private final String timestampField;
 
     public LatestContinuousIT() {
-        eventField = randomFrom(TERMS_FIELDS);
+        eventField = randomFrom("event", "event-upper", "event-upper-at-search");
         timestampField = randomFrom(TIMESTAMP_FIELDS);
     }
 
@@ -53,7 +64,11 @@ public class LatestContinuousIT extends ContinuousTestCase {
         TransformConfig.Builder transformConfigBuilder =
             new TransformConfig.Builder()
                 .setId(NAME)
-                .setSource(new SourceConfig(CONTINUOUS_EVENTS_SOURCE_INDEX))
+                .setSource(
+                    SourceConfig.builder()
+                        .setIndex(CONTINUOUS_EVENTS_SOURCE_INDEX)
+                        .setRuntimeMappings(RUNTIME_MAPPINGS)
+                        .build())
                 .setDest(new DestConfig(NAME, INGEST_PIPELINE))
                 .setLatestConfig(
                     LatestConfig.builder()
@@ -77,6 +92,8 @@ public class LatestContinuousIT extends ContinuousTestCase {
                 .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
                 .source(
                     new SearchSourceBuilder()
+                        // runtime mappings are needed in case "event-upper-at-search" is selected as the event field in test constructor
+                        .runtimeMappings(RUNTIME_MAPPINGS)
                         .size(0)
                         .aggregation(
                             new TermsAggregationBuilder("by_event")

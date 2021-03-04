@@ -248,7 +248,7 @@ documents if your {transform} contains a `group_by` based on `date_histogram`.
 
 
 [discrete]
-[[transform-painless-imitation]]
+[[transform-painless-limitation]]
 == Using scripts in {transforms}
 
 {transforms-cap} support scripting in every case when aggregations support them. 
@@ -264,3 +264,14 @@ in {transforms}:
 * {transforms-cap} cannot optimize queries when you use scripts for all the 
   groupings defined in `group_by`, you will receive a warning message when you 
   use scripts this way.
+  
+
+[discrete]
+[[transform-runtime-field-limitation]]
+=== {transforms-cap} perform better on indexed fields
+
+{transforms-cap} sort data by a user-defined time field, which is frequently 
+accessed. If the time field is a {ref}/runtime.html[runtime field], the 
+performance impact of calculating field values at query time can significantly 
+slow the {transform}. Use an indexed field as a time field when using 
+{transforms}.

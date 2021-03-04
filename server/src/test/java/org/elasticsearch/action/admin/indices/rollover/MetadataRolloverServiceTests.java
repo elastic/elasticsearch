@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
@@ -50,7 +39,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
@@ -65,10 +53,11 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -295,7 +284,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
     public void testGenerateRolloverIndexName() {
         String invalidIndexName = randomAlphaOfLength(10) + "A";
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         expectThrows(IllegalArgumentException.class, () ->
             MetadataRolloverService.generateRolloverIndexName(invalidIndexName, indexNameExpressionResolver));
         int num = randomIntBetween(0, 100);
@@ -490,7 +479,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
                 clusterService, indicesService, allocationService, null, shardLimitValidator, env,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, new SystemIndices(Map.of()), false);
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, EmptySystemIndices.INSTANCE, false);
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
@@ -590,7 +579,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
                 clusterService, indicesService, allocationService, null, shardLimitValidator, env,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, new SystemIndices(Map.of()), false);
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, EmptySystemIndices.INSTANCE, false);
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
@@ -626,6 +615,85 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             assertThat(info.getTime(), greaterThanOrEqualTo(before));
             assertThat(info.getMetConditions(), hasSize(1));
             assertThat(info.getMetConditions().get(0).value(), equalTo(condition.value()));
+        } finally {
+            testThreadPool.shutdown();
+        }
+    }
+
+    public void testRolloverDataStreamWorksWithTemplateThatAlsoCreatesAliases() throws Exception {
+        final DataStream dataStream = DataStreamTestHelper.randomInstance()
+            // ensure no replicate data stream
+            .promoteDataStream();
+        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+            .template(new Template(null, null, Map.of("my-alias", AliasMetadata.newAliasMetadataBuilder("my-alias").build())))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate()).build();
+        Metadata.Builder builder = Metadata.builder();
+        builder.put("template", template);
+        for (Index index : dataStream.getIndices()) {
+            builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
+        }
+        builder.put(dataStream);
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
+
+        ThreadPool testThreadPool = new TestThreadPool(getTestName());
+        try {
+            DateFieldMapper dateFieldMapper
+                = new DateFieldMapper.Builder("@timestamp", DateFieldMapper.Resolution.MILLISECONDS, null, false, Version.CURRENT)
+                .build(new ContentPath());
+            MappedFieldType mockedTimestampFieldType = mock(MappedFieldType.class);
+            when(mockedTimestampFieldType.name()).thenReturn("_data_stream_timestamp");
+            MetadataFieldMapper mockedTimestampField = new MetadataFieldMapper(mockedTimestampFieldType) {
+                @Override
+                protected String contentType() {
+                    return null;
+                }
+            };
+            MappingLookup mappingLookup = new MappingLookup(
+                Mapping.EMPTY,
+                List.of(mockedTimestampField, dateFieldMapper),
+                List.of(),
+                List.of(),
+                null,
+                null,
+                null);
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
+            Environment env = mock(Environment.class);
+            when(env.sharedDataFile()).thenReturn(null);
+            AllocationService allocationService = mock(AllocationService.class);
+            when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
+            DocumentMapper documentMapper = mock(DocumentMapper.class);
+            when(documentMapper.mappers()).thenReturn(mappingLookup);
+            when(documentMapper.type()).thenReturn("_doc");
+            CompressedXContent mapping =
+                new CompressedXContent("{\"_doc\":" + generateMapping(dataStream.getTimeStampField().getName(), "date") + "}");
+            when(documentMapper.mappingSource()).thenReturn(mapping);
+            RoutingFieldMapper routingFieldMapper = mock(RoutingFieldMapper.class);
+            when(routingFieldMapper.required()).thenReturn(false);
+            when(documentMapper.routingFieldMapper()).thenReturn(routingFieldMapper);
+            IndicesService indicesService = mockIndicesServices(documentMapper);
+            IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+            when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
+
+            ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
+            MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
+                clusterService, indicesService, allocationService, new AliasValidator(), shardLimitValidator, env,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, EmptySystemIndices.INSTANCE, false);
+            MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
+                new AliasValidator(), null, xContentRegistry());
+            MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
+                mockIndexNameExpressionResolver);
+
+            MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
+            List<Condition<?>> metConditions = Collections.singletonList(condition);
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
+
+            // Ensure that a warning header is emitted
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> rolloverService.rolloverClusterState(clusterState, dataStream.getName(), null, createIndexRequest, metConditions,
+                    randomBoolean(), false)
+            );
+            assertThat(e.getMessage(), equalTo("template [template] has alias and data stream definitions"));
         } finally {
             testThreadPool.shutdown();
         }
@@ -714,7 +782,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
             clusterService, indicesService, allocationService, null, null, env,
-            null, testThreadPool, null, new SystemIndices(Map.of()), false);
+            null, testThreadPool, null, EmptySystemIndices.INSTANCE, false);
         MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
             new AliasValidator(), null, xContentRegistry());
         MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ilm;
 
@@ -206,7 +207,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     public void testRequestedStopInShrinkActionButNotShrinkStep() {
         // test all the shrink action steps that ILM can be stopped during (basically all of them minus the actual shrink)
-        ShrinkAction action = new ShrinkAction(1);
+        ShrinkAction action = new ShrinkAction(1, null);
         action.toSteps(mock(Client.class), "warm", randomStepKey()).stream()
             .map(sk -> sk.getKey().getName())
             .filter(name -> name.equals(ShrinkStep.NAME) == false)

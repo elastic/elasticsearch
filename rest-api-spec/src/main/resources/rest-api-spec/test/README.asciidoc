@@ -141,7 +141,34 @@ cases where they would otherwise fail, see `default_shards` and `fips_140`.
 ....
 
 The `features` field can either be a string or an array of strings.
-The skip section requires to specify either a `version` or a `features` list.
+
+The skip section can also be used to mute tests for certain operating systems.
+This way it is not necessary to mute the whole test if a operating system
+specific problem appears.
+
+The operating system is taken from the pretty name that elasticsearch reports
+using the `GET /_nodes` API. To obtain the name from a CI build grep the logs
+for:
+
+`initializing client, minimum es version`
+
+When muting by operating system, a reason is mandatory and features must contain
+skip_os:
+
+....
+    "Parent":
+     - skip:
+          features: skip_os
+          os:       debian-8
+          reason:   memory accounting problems on debian 8, see gh#xyz
+
+     - do:
+       ... test definitions ...
+....
+
+The `os` field can either be a string or an array of strings.
+
+The skip section requires to specify either a `version`, `features` or `os` list.
 
 === Available Features
 
@@ -214,8 +241,22 @@ somevalue with whatever is the response in the same position."
 
 === `warnings`
 
-The runner can assert the warnings headers returned by Elasticsearch through the `warning:` assertations
-under `do:`  operations.
+The runner can assert specific warnings headers are returned by Elasticsearch through the `warning:` assertations
+under `do:`  operations. The test will fail if the warning is not found.
+
+=== `warnings_regex`
+
+The same as `warnings`, but matches warning headers with the given regular expression.
+
+
+=== `allowed_warnings`
+
+The runner will allow specific warnings headers to be returned by Elasticsearch through the `allowed_warning:` assertations
+under `do:`  operations. The test will not fail if the warning is not found.
+
+=== `allowed_warnings_regex`
+
+The same as `allowed_warnings`, but matches warning headers with the given regular expression.
 
 === `yaml`
 

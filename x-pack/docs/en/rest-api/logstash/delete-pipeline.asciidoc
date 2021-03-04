@@ -1,0 +1,76 @@
+[role="xpack"]
+[testenv="basic"]
+[[logstash-api-delete-pipeline]]
+=== Delete {ls} pipeline API
+++++
+<titleabbrev>Delete {ls} pipeline</titleabbrev>
+++++
+
+This API deletes a pipeline used for
+{logstash-ref}/logstash-centralized-pipeline-management.html[{ls} Central
+Management].
+
+[[logstash-api-delete-pipeline-request]]
+==== {api-request-title}
+
+`DELETE _logstash/pipeline/<pipeline_id>`
+
+[[logstash-api-delete-pipeline-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_logstash_pipelines` cluster privilege to use this API.
+
+[[logstash-api-delete-pipeline-desc]]
+==== {api-description-title}
+
+Deletes a {ls} pipeline.
+
+[[logstash-api-delete-pipeline-params]]
+==== {api-path-parms-title}
+
+`<pipeline_id>`::
+  (Required, string) Identifier for the Pipeline.
+
+[[logstash-api-delete-pipeline-example]]
+==== {api-examples-title}
+
+The following example deletes the Pipeline named `my_pipeline`:
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT _logstash/pipeline/my_pipeline
+{
+  "description": "Sample Pipeline for illustration purposes",
+  "last_modified": "2021-01-02T02:50:51.250Z",
+  "pipeline_metadata": {
+    "type": "logstash_pipeline",
+    "version": "1"
+  },
+  "username": "elastic",
+  "pipeline": "input {}\n filter { grok {} }\n output {}",
+  "pipeline_settings": {
+    "pipeline.workers": 1,
+    "pipeline.batch.size": 125,
+    "pipeline.batch.delay": 50,
+    "queue.type": "memory",
+    "queue.max_bytes.number": 1,
+    "queue.max_bytes.units": "gb",
+    "queue.checkpoint.writes": 1024
+  }
+}
+--------------------------------------------------
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE _logstash/pipeline/my_pipeline
+--------------------------------------------------
+// TEST[continued]
+
+
+If the request succeeds, you receive an empty response with an appropriate
+status code.

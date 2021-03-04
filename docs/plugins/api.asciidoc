@@ -17,16 +17,5 @@ A number of plugins have been contributed by our community:
 * https://github.com/wikimedia/search-highlighter[Elasticsearch Experimental Highlighter]:
   (by Wikimedia Foundation/Nik Everett)
 
-* https://github.com/YannBrrd/elasticsearch-entity-resolution[Entity Resolution Plugin]:
-  Uses https://github.com/larsga/Duke[Duke] for duplication detection (by Yann Barraud)
-  
 * https://github.com/zentity-io/zentity[Entity Resolution Plugin] (https://zentity.io[zentity]):
   Real-time entity resolution with pure Elasticsearch (by Dave Moore)
-
-* https://github.com/ritesh-kapoor/elasticsearch-pql[PQL language Plugin]:
-  Allows Elasticsearch to be queried with simple pipeline query syntax.
-
-* https://github.com/codelibs/elasticsearch-taste[Elasticsearch Taste Plugin]:
-  Mahout Taste-based Collaborative Filtering implementation (by CodeLibs Project)
-
-* https://github.com/jurgc11/es-change-feed-plugin[WebSocket Change Feed Plugin] (by ForgeRock/Chris Clifton)

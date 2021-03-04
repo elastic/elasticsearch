@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.persistence;
@@ -149,7 +150,7 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
             return;
         }
 
-        if (!Regex.isSimpleMatchPattern(transformIdsExpression)) {
+        if (Regex.isSimpleMatchPattern(transformIdsExpression) == false) {
             if (configs.containsKey(transformIdsExpression)) {
                 foundIdsListener.onResponse(new Tuple<>(1L, Collections.singletonList(transformIdsExpression)));
             } else {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
@@ -189,6 +191,15 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         return client().execute(EvaluateDataFrameAction.INSTANCE, request).actionGet();
     }
 
+    protected PreviewDataFrameAnalyticsAction.Response previewDataFrame(String id) {
+        List<DataFrameAnalyticsConfig> analytics = getAnalytics(id);
+        assertThat(analytics, hasSize(1));
+        return client().execute(
+            PreviewDataFrameAnalyticsAction.INSTANCE,
+            new PreviewDataFrameAnalyticsAction.Request(analytics.get(0))
+        ).actionGet();
+    }
+
     protected static DataFrameAnalyticsConfig buildAnalytics(String id, String sourceIndex, String destIndex,
                                                              @Nullable String resultsField, DataFrameAnalysis analysis) throws Exception {
         return buildAnalytics(id, sourceIndex, destIndex, resultsField, analysis, QueryBuilders.matchAllQuery());
@@ -199,7 +210,8 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
                                                              QueryBuilder queryBuilder) throws Exception {
         return new DataFrameAnalyticsConfig.Builder()
             .setId(id)
-            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, QueryProvider.fromParsedQuery(queryBuilder), null))
+            .setSource(new DataFrameAnalyticsSource(
+                new String[] { sourceIndex }, QueryProvider.fromParsedQuery(queryBuilder), null, Collections.emptyMap()))
             .setDest(new DataFrameAnalyticsDest(destIndex, resultsField))
             .setAnalysis(analysis)
             .build();

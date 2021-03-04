@@ -31,7 +31,6 @@
   -->
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]ClusterClientDocumentationIT.java" id="SnippetLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]GraphDocumentationIT.java" id="SnippetLength" />
-  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]CRUDDocumentationIT.java" id="SnippetLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]IndicesClientDocumentationIT.java" id="SnippetLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]IngestClientDocumentationIT.java" id="SnippetLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]LicensingDocumentationIT.java" id="SnippetLength" />
@@ -45,9 +44,7 @@
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]SnapshotClientDocumentationIT.java" id="SnippetLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]StoredScriptsDocumentationIT.java" id="SnippetLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]TasksClientDocumentationIT.java" id="SnippetLength" />
-  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]TextStructureClientDocumentationIT.java" id="SnippetLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]WatcherDocumentationIT.java" id="SnippetLength" />
-  <suppress files="modules[/\\]reindex[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]ReindexDocumentationIT.java" id="SnippetLength" />
 
   <!-- Gradle requires inputs to be seriablizable -->
   <suppress files="buildSrc[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]gradle[/\\]internal[/\\]precommit[/\\]TestingConventionRule.java" checks="RegexpSinglelineJava" />

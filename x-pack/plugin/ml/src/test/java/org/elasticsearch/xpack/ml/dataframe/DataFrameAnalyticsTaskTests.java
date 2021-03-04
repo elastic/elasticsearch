@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
@@ -31,10 +32,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask.StartingState;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
+import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.dataframe.steps.DataFrameAnalyticsStep;
 import org.elasticsearch.xpack.ml.dataframe.steps.StepResponse;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
@@ -163,7 +166,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
             new PhaseProgress(ProgressTracker.WRITING_RESULTS, 0));
 
         StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
-            "task_id", Version.CURRENT, progress, false);
+            "task_id", Version.CURRENT, false);
 
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getHits()).thenReturn(searchHits);
@@ -180,6 +183,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
             new DataFrameAnalyticsTask(
                 123, "type", "action", null, Map.of(), client, analyticsManager, auditor, taskParams);
         task.init(persistentTasksService, taskManager, "task-id", 42);
+        task.setStatsHolder(new StatsHolder(progress, null, null, new DataCounts("test_job")));
 
         task.persistProgress(client, "task_id", runnable);
 
@@ -243,7 +247,6 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
             new StartDataFrameAnalyticsAction.TaskParams(
                 "job-id",
                 Version.CURRENT,
-                progress,
                 false);
 
         SearchResponse searchResponse = mock(SearchResponse.class);
@@ -257,6 +260,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
             new DataFrameAnalyticsTask(
                 123, "type", "action", null, Map.of(), client, analyticsManager, auditor, taskParams);
         task.init(persistentTasksService, taskManager, "task-id", 42);
+        task.setStatsHolder(new StatsHolder(progress, null, null, new DataCounts("test_job")));
         task.setStep(new StubReindexingStep(task.getStatsHolder().getProgressTracker()));
         Exception exception = new Exception("some exception");
 
@@ -301,7 +305,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         };
     }
 
-    private class StubReindexingStep implements DataFrameAnalyticsStep {
+    private static class StubReindexingStep implements DataFrameAnalyticsStep {
 
         private final ProgressTracker progressTracker;
 

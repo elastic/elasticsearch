@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.parser;
@@ -9,7 +10,11 @@ package org.elasticsearch.xpack.eql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.xpack.eql.expression.function.EqlFunctionResolution;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.Match;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.Wildcard;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ComparisonContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.DereferenceContext;
@@ -165,9 +170,26 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
         switch (predicate.kind.getType()) {
             case EqlBaseParser.SEQ:
-                return Predicates.combineOr(expressions(predicate.constant()).stream()
-                    .map(c -> new InsensitiveEquals(source, expr, c, zoneId))
-                    .collect(toList()));
+                return combineExpressions(predicate.constant(), c -> new InsensitiveWildcardEquals(source, expr, c, zoneId));
+            case EqlBaseParser.LIKE:
+            case EqlBaseParser.LIKE_INSENSITIVE:
+                return new Wildcard(
+                    source,
+                    expr,
+                    expressions(predicate.constant()),
+                    predicate.kind.getType() == EqlBaseParser.LIKE_INSENSITIVE
+                );
+            case EqlBaseParser.REGEX:
+            case EqlBaseParser.REGEX_INSENSITIVE:
+                return new Match(
+                    source,
+                    expr,
+                    expressions(predicate.constant()),
+                    predicate.kind.getType() == EqlBaseParser.REGEX_INSENSITIVE
+                );
+            case EqlBaseParser.IN_INSENSITIVE:
+                Expression insensitiveIn = combineExpressions(predicate.expression(), c -> new InsensitiveEquals(source, expr, c, zoneId));
+                return predicate.NOT() != null ? new Not(source, insensitiveIn) : insensitiveIn;
             case EqlBaseParser.IN:
                 List<Expression> container = expressions(predicate.expression());
                 Expression checkInSet = new In(source, expr, container, zoneId);
@@ -175,6 +197,13 @@ public class ExpressionBuilder extends IdentifierBuilder {
             default:
                 throw new ParsingException(source, "Unknown predicate {}", source.text());
         }
+    }
+
+    private Expression combineExpressions(
+        List<? extends ParserRuleContext> expressions,
+        java.util.function.Function<Expression, Expression> mapper
+    ) {
+        return Predicates.combineOr(expressions(expressions).stream().map(mapper::apply).collect(toList()));
     }
 
     @Override
@@ -200,7 +229,14 @@ public class ExpressionBuilder extends IdentifierBuilder {
         String name = ctx.name.getText();
         List<Expression> arguments = expressions(ctx.expression());
 
-        return new UnresolvedFunction(source, name, FunctionResolutionStrategy.DEFAULT, arguments);
+        FunctionResolutionStrategy strategy = FunctionResolutionStrategy.DEFAULT;
+
+        if (name.endsWith("~")) {
+            name = name.substring(0, name.length() - 1);
+            strategy = EqlFunctionResolution.CASE_INSENSITIVE;
+        }
+
+        return new UnresolvedFunction(source, name, strategy, arguments);
     }
 
     @Override

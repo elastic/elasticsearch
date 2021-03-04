@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -134,18 +136,38 @@ public class Authentication implements ToXContentObject {
         out.writeMap(metadata);
     }
 
-    public boolean sameUserAs(Authentication other) {
+    /**
+     * Check whether this authentication object is owned by the same user as the given authentication object.
+     * The owners are considered to be the same if:
+     *   * The authentications are for the same API key (same API key ID)
+     *   * They are the same username from the same realm
+     *      - For file/native/kerberos realm, same realm means the same realm type
+     *      - For all other realms, same realm means same realm type plus same realm name
+     *   * An user and its API key are NOT considered as the same owner
+     *   * An user and its token are treated as the same owner
+     *
+     *  This check is a best effort and it does not account for certain static and external changes.
+     *  See also <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/security-limitations.html">
+     *      security limitations</a>
+     * @param other
+     * @return
+     */
+    public boolean sameOwnerAs(Authentication other) {
         if (AuthenticationType.API_KEY == getAuthenticationType() && AuthenticationType.API_KEY == other.getAuthenticationType()) {
-            assert getUser().principal().equals(other.getUser().principal()) :
-                "The same API key ID cannot be attributed to two different usernames";
-            return getMetadata().get(API_KEY_ID_KEY).equals(other.getMetadata().get(API_KEY_ID_KEY));
+            final boolean sameKeyId = getMetadata().get(API_KEY_ID_KEY).equals(other.getMetadata().get(API_KEY_ID_KEY));
+            if (sameKeyId && Assertions.ENABLED) {
+                assert getUser().principal().equals(other.getUser().principal()) :
+                    "The same API key ID cannot be attributed to two different usernames";
+            }
+            return sameKeyId;
         }
         if (false == getUser().principal().equals(other.getUser().principal())) {
             return false;
         }
         final RealmRef thisRealm = getSourceRealm();
         final RealmRef otherRealm = other.getSourceRealm();
-        if (FileRealmSettings.TYPE.equals(thisRealm.getType()) || NativeRealmSettings.TYPE.equals(thisRealm.getType())) {
+        if (FileRealmSettings.TYPE.equals(thisRealm.getType()) || NativeRealmSettings.TYPE.equals(thisRealm.getType())
+            || KerberosRealmSettings.TYPE.equals(thisRealm.getType())) {
             return thisRealm.getType().equals(otherRealm.getType());
         }
         return thisRealm.getName().equals(otherRealm.getName()) && thisRealm.getType().equals(otherRealm.getType());

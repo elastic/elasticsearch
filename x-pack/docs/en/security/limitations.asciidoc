@@ -105,8 +105,13 @@ This logic also has a few limitations:
 * Two different realms can have the same name on different nodes. We do not
 recommend configuring realms in this inconsistent way. As such the same user check
 does not attempt to detect this inconsistency.
+* The same realm can also be renamed. This can cause inconsistency for same user check
+when submitting async search/scroll before the rename and retrieving the result after the rename.
+. Hence changing realm names should be handled with care
+since it can cause complications for more than just same user check.
 * The username is computed on the fly for realms backed by certain external authentication
-providers. It is in theory possible that two distinct users from the external system get
+providers. For example, the username can be derived from part of the DN in a LDAP realm.
+It is in theory possible that two distinct users from the external system get
 mapped to the same username. Our recommendation is to avoid this situation in the first place.
 Hence the same user check does not account for this potential discrepancy.
 

@@ -14,12 +14,13 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.ManageOwnApiKeyClusterPrivilege.API_KEY_ID_KEY;
 
@@ -42,109 +43,111 @@ public class AuthenticationTests extends ESTestCase {
         assertEquals(authenticatedBy, authentication.getSourceRealm());
     }
 
-    public void testSameUserAsForRealms() {
-        final User user1 = randomUserOtherThan(new User[0]);
-        final User user2 = randomUserOtherThan(user1);
+    public void testSameOwnerAsForRealms() {
+        // Same user is the same
+        final User user1 = randomUser();
+        final RealmRef realm1 = randomRealm();
+        assertSameOwner(randomAuthentication(user1, realm1), randomAuthentication(user1, realm1));
 
-        final RealmRef fileRealm1 = new RealmRef(
-            randomAlphaOfLengthBetween(3, 8), FileRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8));
-        final RealmRef fileRealm2 = new RealmRef(
-            randomValueOtherThan(fileRealm1.getName(), () -> randomAlphaOfLengthBetween(3, 8)),
-            FileRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8));
+        // Different username is different no matter which realm it is from
+        final User user2 = randomValueOtherThanMany(u -> u.principal().equals(user1.principal()), this::randomUser);
+        // user 2 can be from either the same realm or a different realm
+        final RealmRef realm2 = randomFrom(realm1, randomRealm());
+        assertNotTheSameOwner(randomAuthentication(user1, realm2), randomAuthentication(user2, realm2));
 
-        final RealmRef nativeRealm1 = new RealmRef(
-            randomAlphaOfLengthBetween(3, 8), NativeRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8));
-        final RealmRef nativeRealm2 = new RealmRef(
-            randomValueOtherThan(nativeRealm1.getName(), () -> randomAlphaOfLengthBetween(3, 8)),
-            NativeRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8));
+        // Same username but different realm is different
+        final RealmRef realm3;
+        switch (randomIntBetween(0, 2)) {
+            case 0: // change name
+                realm3 = mutateRealm(realm1, randomAlphaOfLengthBetween(3, 8), null);
+                if (realmIsSingleton(realm1)) {
+                    assertSameOwner(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
+                } else {
+                    assertNotTheSameOwner(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
+                }
+                break;
+            case 1: // change type
+                realm3 = mutateRealm(realm1, null, randomAlphaOfLengthBetween(3, 8));
+                assertNotTheSameOwner(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
+                break;
+            case 2: // both
+                realm3 = mutateRealm(realm1, randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+                assertNotTheSameOwner(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
+                break;
+            default:
+                assert false : "Case number out of range";
+        }
 
-        final RealmRef realm1 = randomNonFileNativeRealmOtherThan(new RealmRef[0]);
-        final RealmRef realm1Alike = new RealmRef(
-            randomValueOtherThan(realm1.getName(), () -> randomAlphaOfLengthBetween(3, 8)),
-            realm1.getType(), randomAlphaOfLengthBetween(3, 8));
-        final RealmRef realm2 = randomNonFileNativeRealmOtherThan(realm1, realm1Alike);
-        final RealmRef realm3 = randomNonFileNativeRealmOtherThan(realm1, realm1Alike, realm2);
-        final RealmRef realm4 = randomNonFileNativeRealmOtherThan(realm1, realm1Alike, realm2, realm3);
-        final RealmRef authRealm = randomFrom(realm2, realm3, realm4);
-        final RealmRef lookupRealm = randomFrom(realm2, realm3, realm4, null);
+        // User and its API key are not the same owner
+        assertNotTheSameOwner(randomAuthentication(user1, realm1),
+            randomApiKeyAuthentication(user1, randomAlphaOfLengthBetween(10, 20)));
 
-        // Same username, realm name and type
-        assertTrue(new Authentication(user1, realm1, lookupRealm).sameUserAs(new Authentication(user1, realm1, lookupRealm)));
-
-        // Same username, same realm type, different realm name
-        assertFalse(new Authentication(user1, realm1, null).sameUserAs(new Authentication(user1, realm1Alike, null)));
-        assertFalse(new Authentication(user1, authRealm, realm1).sameUserAs(new Authentication(user1, authRealm, realm1Alike)));
-
-        // File and native realms only needs realm type to match
-        assertTrue(new Authentication(user1, fileRealm1, null).sameUserAs(new Authentication(user1, fileRealm2, null)));
-        assertTrue(new Authentication(user1, authRealm, fileRealm1).sameUserAs(new Authentication(user1, authRealm, fileRealm2)));
-        assertTrue(new Authentication(user1, nativeRealm1, null).sameUserAs(new Authentication(user1, nativeRealm2, null)));
-        assertTrue(new Authentication(user1, authRealm, nativeRealm1).sameUserAs(new Authentication(user1, authRealm, nativeRealm2)));
-
-        // Different usernames
-        assertFalse(new Authentication(user1, realm1, lookupRealm).sameUserAs(new Authentication(user2, realm1, lookupRealm)));
-        // Same username, totally different realm
-        assertFalse(new Authentication(user1, realm1, null).sameUserAs(new Authentication(user1, realm2, null)));
-        // same username, totally different run-as realm
-        assertFalse(new Authentication(user1, randomFrom(realm1, realm2), realm3).sameUserAs(
-            new Authentication(user1, randomFrom(realm1, realm2), realm4)));
-    }
-
-    public void testSameUserAsForApiKeys() {
-        final String username1 = randomAlphaOfLengthBetween(3, 8);
+        // Same API key ID are the same owner
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
+        assertSameOwner(randomApiKeyAuthentication(user1, apiKeyId1), randomApiKeyAuthentication(user1, apiKeyId1));
+
+        // Two API keys (2 API key IDs) are not the same owner
         final String apiKeyId2 = randomValueOtherThan(apiKeyId1, () -> randomAlphaOfLengthBetween(10, 20));
-        // Same user, same API key ID
-        assertTrue(randomApiKeyAuthentication(username1, apiKeyId1).sameUserAs(randomApiKeyAuthentication(username1, apiKeyId1)));
-        // same user, different API key ID
-        assertFalse(randomApiKeyAuthentication(username1, apiKeyId1).sameUserAs(randomApiKeyAuthentication(username1, apiKeyId2)));
-
-        // User and its API key
-        final User user2 = randomUserOtherThan(new User[0]);
-        assertFalse(randomApiKeyAuthentication(user2.principal(), apiKeyId1).sameUserAs(
-            new Authentication(user2, randomRealmOtherThan(new RealmRef[0]), null)));
+        assertNotTheSameOwner(randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId1),
+            randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId2));
     }
 
-    public void testSameUserAsForToken() {
-        final User user1 = randomUserOtherThan(new User[0]);
-        final User user2 = randomUserOtherThan(user1);
-        final RealmRef realm1 = randomRealmOtherThan(new RealmRef[0]);
-        final RealmRef realm2 = randomRealmOtherThan(new RealmRef[0]);
-
-        final RealmRef lookupRealm = randomFrom(realm2, null);
-        assertTrue(new Authentication(user1, realm1, lookupRealm).sameUserAs(
-            new Authentication(user1, realm1, lookupRealm, Version.CURRENT, AuthenticationType.TOKEN, Map.of())));
-        assertFalse(new Authentication(user1, realm1, lookupRealm).sameUserAs(
-            new Authentication(user2, realm1, lookupRealm, Version.CURRENT, AuthenticationType.TOKEN, Map.of())));
+    private void assertSameOwner(Authentication authentication0, Authentication authentication1) {
+        assertTrue(authentication0.sameOwnerAs(authentication1));
+        assertTrue(authentication1.sameOwnerAs(authentication0));
     }
 
-    private User randomUserOtherThan(User... users) {
-        return new User(randomValueOtherThanMany(
-            username -> Arrays.stream(users).anyMatch(user -> user.principal().equals(username)),
-            () -> randomAlphaOfLengthBetween(3, 8)), randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
+    private void assertNotTheSameOwner(Authentication authentication0, Authentication authentication1) {
+        assertFalse(authentication0.sameOwnerAs(authentication1));
+        assertFalse(authentication1.sameOwnerAs(authentication0));
     }
 
-    private RealmRef randomRealmOtherThan(RealmRef ...excludedRealmRefs) {
-        return randomValueOtherThanMany(
-            r -> Arrays.stream(excludedRealmRefs)
-                .anyMatch(excluded ->
-                    (Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE).contains(excluded.getType())
-                        && excluded.getType().equals(r.getType())) ||
-                    (excluded.getName().equals(r.getName()) && excluded.getType().equals(r.getType()))),
-            () -> new RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)));
+    private User randomUser() {
+        return new User(randomAlphaOfLengthBetween(3, 8),
+            randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
     }
 
-    private RealmRef randomNonFileNativeRealmOtherThan(RealmRef ...excludedRealmRefs) {
-        final RealmRef fileRealm = new RealmRef(randomAlphaOfLengthBetween(3, 8), FileRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8));
-        final RealmRef nativeRealm =
-            new RealmRef(randomAlphaOfLengthBetween(3, 8), NativeRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8));
-        return randomRealmOtherThan(
-            Stream.concat(Arrays.stream(excludedRealmRefs), Stream.of(fileRealm, nativeRealm)).toArray(RealmRef[]::new));
+    private RealmRef randomRealm() {
+        return new RealmRef(
+            randomAlphaOfLengthBetween(3, 8),
+            randomFrom(FileRealmSettings.TYPE, NativeRealmSettings.TYPE, KerberosRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8)),
+            randomAlphaOfLengthBetween(3, 8));
     }
 
-    private Authentication randomApiKeyAuthentication(String username, String apiKeyId) {
-        final User user =
-            new User(username, randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
+    private RealmRef mutateRealm(RealmRef original, String name, String type) {
+        return new RealmRef(
+            name == null ? original.getName() : name,
+            type == null ? original.getType() : type,
+            randomBoolean() ? original.getNodeName() : randomAlphaOfLengthBetween(3, 8));
+    }
+
+    private Authentication randomAuthentication(User user, RealmRef realmRef) {
+        if (user == null) {
+            user = new User(randomAlphaOfLengthBetween(3, 8),
+                randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
+        }
+        if (realmRef == null) {
+            realmRef = randomRealm();
+        }
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
+        final AuthenticationType authenticationType =
+            randomValueOtherThan(AuthenticationType.API_KEY, () -> randomFrom(AuthenticationType.values()));
+        final Map<String, Object> metadata;
+        if (randomBoolean()) {
+            metadata = Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+        } else {
+            metadata = Arrays.stream(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)))
+                .collect(Collectors.toMap(s -> s, s -> randomAlphaOfLengthBetween(3, 8)));
+        }
+        if (randomBoolean()) { // run-as
+            return new Authentication(new User(user.principal(), user.roles(), randomUser()),
+                randomRealm(), realmRef, version, authenticationType, metadata);
+        } else {
+            return new Authentication(user, realmRef, null, version, authenticationType, metadata);
+        }
+    }
+
+    private Authentication randomApiKeyAuthentication(User user, String apiKeyId) {
         final RealmRef apiKeyRealm = new RealmRef("_es_api_key", "_es_api_key", randomAlphaOfLengthBetween(3, 8));
         return new Authentication(user,
             apiKeyRealm,
@@ -153,4 +156,9 @@ public class AuthenticationTests extends ESTestCase {
             AuthenticationType.API_KEY,
             Map.of(API_KEY_ID_KEY, apiKeyId));
     }
+
+    private boolean realmIsSingleton(RealmRef realmRef) {
+        return Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE, KerberosRealmSettings.TYPE).contains(realmRef.getType());
+    }
+
 }

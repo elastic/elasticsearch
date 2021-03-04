@@ -123,7 +123,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
     static void ensureAuthenticatedUserIsSame(Authentication original, Authentication current, AuditTrailService auditTrailService,
                                               ShardSearchContextId id, String action, TransportRequest request, String requestId,
                                               AuthorizationInfo authorizationInfo) {
-        final boolean sameUser = original.sameUserAs(current);
+        final boolean sameUser = original.sameOwnerAs(current);
         if (sameUser == false) {
             auditTrailService.get().accessDenied(requestId, current, action, request, authorizationInfo);
             throw new SearchContextMissingException(id);

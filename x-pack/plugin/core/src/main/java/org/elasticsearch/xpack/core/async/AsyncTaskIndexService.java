@@ -459,7 +459,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             return false;
         }
         Authentication origin = AuthenticationContextSerializer.decode(originHeaders.get(AUTHENTICATION_KEY));
-        return origin.sameUserAs(current);
+        return origin.sameOwnerAs(current);
     }
 
     /**

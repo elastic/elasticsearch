@@ -25,11 +25,14 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class DiscoveryNodeTests extends ESTestCase {
 
@@ -149,6 +152,16 @@ public class DiscoveryNodeTests extends ESTestCase {
         } else {
             assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)));
         }
+    }
+
+    public void testDiscoveryNodeDescriptionWithoutAttributes() {
+        final DiscoveryNode node = new DiscoveryNode("test-id", buildNewFakeTransportAddress(),
+                Collections.singletonMap("test-attr", "val"), DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+        final StringBuilder stringBuilder = new StringBuilder();
+        node.appendDescriptionWithoutAttributes(stringBuilder);
+        final String descriptionWithoutAttributes = stringBuilder.toString();
+        assertThat(node.toString(), allOf(startsWith(descriptionWithoutAttributes), containsString("test-attr=val")));
+        assertThat(descriptionWithoutAttributes, not(containsString("test-attr")));
     }
 
 }

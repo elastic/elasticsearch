@@ -1018,17 +1018,17 @@ public class ObjectParserTests extends ESTestCase {
             // The declaration is only available for lookup when parser has compatibility set
             PARSER.declareInt(StructWithCompatibleFields::setIntField,
                 new ParseField("new_name", "old_name")
-                    .withRestApiVersions(RestApiVersion.equalTo(RestApiVersion.minimumSupported())));
+                    .withRestApiVersionMacher(RestApiVersion.equalTo(RestApiVersion.minimumSupported())));
 
             // declare `new_name` to be parsed when compatibility is NOT used
             PARSER.declareInt(StructWithCompatibleFields::setIntField,
                 new ParseField("new_name")
-                    .withRestApiVersions(RestApiVersion.onOrAfter(RestApiVersion.current())));
+                    .withRestApiVersionMacher(RestApiVersion.onOrAfter(RestApiVersion.current())));
 
             // declare `old_name` to throw exception when compatibility is NOT used
             PARSER.declareInt((r,s) -> failWithException(),
                 new ParseField("old_name")
-                    .withRestApiVersions(RestApiVersion.onOrAfter(RestApiVersion.current())));
+                    .withRestApiVersionMacher(RestApiVersion.onOrAfter(RestApiVersion.current())));
         }
 
         private static void failWithException() {

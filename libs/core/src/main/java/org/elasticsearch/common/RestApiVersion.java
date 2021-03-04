@@ -33,8 +33,8 @@ public enum RestApiVersion {
         return fromMajorVersion(major - 1);
     }
 
-    public boolean matches(Collection<Function<RestApiVersion, Boolean>> restApiCompatibleVersionFunctions){
-        return restApiCompatibleVersionFunctions.stream().anyMatch(r -> r.apply(this));
+    public boolean matches(Function<RestApiVersion, Boolean> restApiVersionFunctions){
+        return restApiVersionFunctions.apply(this);
     }
 
     private static RestApiVersion fromMajorVersion(int majorVersion) {
@@ -49,12 +49,12 @@ public enum RestApiVersion {
         return CURRENT;
     }
 
-    public static Function<RestApiVersion, Boolean> equalTo(RestApiVersion restApiCompatibleVersion) {
-        return r -> r.major == restApiCompatibleVersion.major;
+    public static Function<RestApiVersion, Boolean> equalTo(RestApiVersion restApiVersion) {
+        return r -> r.major == restApiVersion.major;
     }
 
-    public static Function<RestApiVersion, Boolean> onOrAfter(RestApiVersion restApiCompatibleVersion) {
-        return r -> r.major >= restApiCompatibleVersion.major;
+    public static Function<RestApiVersion, Boolean> onOrAfter(RestApiVersion restApiVersion) {
+        return r -> r.major >= restApiVersion.major;
     }
 
 }

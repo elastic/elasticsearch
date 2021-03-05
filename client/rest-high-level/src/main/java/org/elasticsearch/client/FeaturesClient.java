@@ -9,8 +9,10 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.snapshots.GetFeaturesRequest;
-import org.elasticsearch.client.snapshots.GetFeaturesResponse;
+import org.elasticsearch.client.feature.GetFeaturesRequest;
+import org.elasticsearch.client.feature.GetFeaturesResponse;
+import org.elasticsearch.client.feature.ResetFeaturesRequest;
+import org.elasticsearch.client.feature.ResetFeaturesResponse;
 
 import java.io.IOException;
 
@@ -67,6 +69,32 @@ public class FeaturesClient {
             FeaturesRequestConverters::getFeatures,
             options,
             GetFeaturesResponse::parse,
+            listener,
+            emptySet()
+        );
+    }
+
+    // reset features
+    public ResetFeaturesResponse resetFeatures(ResetFeaturesRequest resetFeaturesRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            resetFeaturesRequest,
+            FeaturesRequestConverters::resetFeatures,
+            options,
+            e -> new ResetFeaturesResponse(), // TODO[wrb]: actual parse method
+            emptySet()
+        );
+    }
+
+    // async reset features
+    public Cancellable resetFeaturesAsync(
+        ResetFeaturesRequest resetFeaturesRequest, RequestOptions options,
+        ActionListener<ResetFeaturesResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            resetFeaturesRequest,
+            FeaturesRequestConverters::resetFeatures,
+            options,
+            e -> new ResetFeaturesResponse(), // TODO[wrb]: actual parse method
             listener,
             emptySet()
         );

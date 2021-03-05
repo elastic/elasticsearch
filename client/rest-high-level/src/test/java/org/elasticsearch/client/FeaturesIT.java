@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.snapshots.GetFeaturesRequest;
-import org.elasticsearch.client.snapshots.GetFeaturesResponse;
+import org.elasticsearch.client.feature.GetFeaturesRequest;
+import org.elasticsearch.client.feature.GetFeaturesResponse;
 
 import java.io.IOException;
 

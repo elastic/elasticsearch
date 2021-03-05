@@ -65,7 +65,7 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
             b.startObject("double_field").field("type", "double").endObject();
             b.startObject("double_field_plus_two");
             b.field("type", "double");
-            b.field("script", "plus_two");
+            b.field("script", "plus_two_double_field");
             b.endObject();
         }));
 
@@ -98,10 +98,15 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
             b.field("type", "long");
             b.field("script", "length");
             b.endObject();
+            b.startObject("message_length_plus_four");
+            b.field("type", "double");
+            b.field("script", "plus_two_message_length_plus_two");
+            b.endObject();
         }));
         ParsedDocument doc = mapper.parse(source(b -> b.field("message", "this is a message")));
         assertEquals(doc.rootDoc().getField("message_length_plus_two").numericValue(), 19L);
         assertEquals(doc.rootDoc().getField("message_length").numericValue(), 17L);
+        assertEquals(doc.rootDoc().getField("message_length_plus_four").numericValue(), 21d);
     }
 
     public static class TestScriptPlugin extends Plugin implements ScriptPlugin {
@@ -152,11 +157,12 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
                         }
                     }
                     if (context.factoryClazz == DoubleFieldScript.Factory.class) {
-                        if (code.equals("plus_two")) {
+                        if (code.startsWith("plus_two_")) {
+                            String sourceField = code.substring(9);
                             return (FactoryType) (DoubleFieldScript.Factory) (n, p, l) -> ctx -> new DoubleFieldScript(n, p, l, ctx) {
                                 @Override
                                 public void execute() {
-                                    double input = (double) getDoc().get("double_field").get(0);
+                                    double input = ((Number) getDoc().get(sourceField).get(0)).doubleValue();
                                     emit(input + 2);
                                 }
                             };

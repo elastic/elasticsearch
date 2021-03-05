@@ -61,7 +61,7 @@ final class DocumentParser {
                 source,
                 parser);
             validateStart(parser);
-            internalParseDocument(mappingLookup.getMapping().getRoot(), metadataFieldsMappers, context, parser);
+            internalParseDocument(mappingLookup, metadataFieldsMappers, context, parser);
             validateEnd(parser);
         } catch (Exception e) {
             throw wrapInMapperParsingException(source, e);
@@ -91,8 +91,10 @@ final class DocumentParser {
         return false;
     }
 
-    private static void internalParseDocument(RootObjectMapper root, MetadataFieldMapper[] metadataFieldsMappers,
+    private static void internalParseDocument(MappingLookup lookup, MetadataFieldMapper[] metadataFieldsMappers,
                                               ParseContext context, XContentParser parser) throws IOException {
+
+        RootObjectMapper root = lookup.getMapping().getRoot();
         final boolean emptyDoc = isEmptyDoc(root, parser);
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
@@ -106,7 +108,7 @@ final class DocumentParser {
             parseObjectOrNested(context, root);
         }
 
-        root.postParse(context);
+        IndexTimeScriptContext.executePostParsePhases(lookup, context);
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
             metadataMapper.postParse(context);

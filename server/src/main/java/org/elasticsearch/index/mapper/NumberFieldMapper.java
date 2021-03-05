@@ -24,6 +24,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -78,7 +79,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final Parameter<Number> nullValue;
 
-        private final Parameter<ScriptParams.CompiledScriptParameter<MapperScript>> script;
+        private final Parameter<ScriptParams.CompiledScriptParameter<NumberMapperScript>> script;
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -150,7 +151,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
+            public BiFunction<Script, ScriptService, NumberMapperScript> compiler(String fieldName) {
                 return (s, ss) -> {
                     throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
                 };
@@ -267,7 +268,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
+            public BiFunction<Script, ScriptService, NumberMapperScript> compiler(String fieldName) {
                 return (s, ss) -> {
                     throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
                 };
@@ -361,7 +362,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
+            public BiFunction<Script, ScriptService, NumberMapperScript> compiler(String fieldName) {
                 return (script, service)
                     -> new DoubleMapperScript(fieldName, service.compile(script, DoubleFieldScript.CONTEXT), script.getParams());
             }
@@ -442,7 +443,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
+            public BiFunction<Script, ScriptService, NumberMapperScript> compiler(String fieldName) {
                 return (s, ss) -> {
                     throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
                 };
@@ -515,7 +516,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
+            public BiFunction<Script, ScriptService, NumberMapperScript> compiler(String fieldName) {
                 return (s, ss) -> {
                     throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
                 };
@@ -579,7 +580,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
+            public BiFunction<Script, ScriptService, NumberMapperScript> compiler(String fieldName) {
                 return (s, ss) -> {
                     throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
                 };
@@ -691,7 +692,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName) {
+            public BiFunction<Script, ScriptService, NumberMapperScript> compiler(String fieldName) {
                 return (script, service)
                     -> new LongMapperScript(fieldName, service.compile(script, LongFieldScript.CONTEXT), script.getParams());
             }
@@ -780,7 +781,7 @@ public class NumberFieldMapper extends FieldMapper {
         public final TypeParser parser() {
             return parser;
         }
-        public abstract BiFunction<Script, ScriptService, MapperScript> compiler(String fieldName);
+        public abstract BiFunction<Script, ScriptService, NumberMapperScript> compiler(String fieldName);
         public abstract Query termQuery(String field, Object value);
         public abstract Query termsQuery(String field, Collection<?> values);
         public abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
@@ -1060,7 +1061,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final Explicit<Boolean> ignoreMalformed;
     private final Explicit<Boolean> coerce;
     private final Number nullValue;
-    private final ScriptParams.CompiledScriptParameter<MapperScript> script;
+    private final ScriptParams.CompiledScriptParameter<NumberMapperScript> script;
 
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
@@ -1154,11 +1155,11 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doPostParse(ParseContext context) {
+    public CheckedConsumer<IndexTimeScriptContext, IOException> getPostParsePhase() {
         if (this.script == null) {
-            return;
+            return null;
         }
-        this.script.compiledScript.executeAndIndex(context, this::indexValue);
+        return c -> this.script.compiledScript.executeAndIndex(c, this::indexValue);
     }
 
     @Override
@@ -1166,11 +1167,11 @@ public class NumberFieldMapper extends FieldMapper {
         return new Builder(simpleName(), type, ignoreMalformedByDefault, coerceByDefault).init(this);
     }
 
-    private interface MapperScript {
-        void executeAndIndex(ParseContext context, BiConsumer<ParseContext, Number> emitter);
+    private interface NumberMapperScript {
+        void executeAndIndex(IndexTimeScriptContext context, BiConsumer<ParseContext, Number> emitter);
     }
 
-    private static class LongMapperScript implements MapperScript {
+    private static class LongMapperScript implements NumberMapperScript {
 
         final LongFieldScript.Factory scriptFactory;
         final Map<String, Object> scriptParams;
@@ -1183,19 +1184,18 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void executeAndIndex(ParseContext context, BiConsumer<ParseContext, Number> emitter) {
-            IndexTimeScriptContext scriptContext = context.getScriptContext();
+        public void executeAndIndex(IndexTimeScriptContext scriptContext, BiConsumer<ParseContext, Number> emitter) {
             LongFieldScript s = scriptFactory
                 .newFactory(fieldName, scriptParams, scriptContext.searchLookup)
                 .newInstance(scriptContext.leafReaderContext);
             s.runForDoc(0);
             for (long v : s.values()) {
-                emitter.accept(context, v);
+                emitter.accept(scriptContext.pc, v);
             }
         }
     }
 
-    private static class DoubleMapperScript implements MapperScript {
+    private static class DoubleMapperScript implements NumberMapperScript {
 
         final DoubleFieldScript.Factory scriptFactory;
         final Map<String, Object> scriptParams;
@@ -1208,14 +1208,13 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void executeAndIndex(ParseContext context, BiConsumer<ParseContext, Number> emitter) {
-            IndexTimeScriptContext scriptContext = context.getScriptContext();
+        public void executeAndIndex(IndexTimeScriptContext scriptContext, BiConsumer<ParseContext, Number> emitter) {
             DoubleFieldScript s = scriptFactory
                 .newFactory(fieldName, scriptParams, scriptContext.searchLookup)
                 .newInstance(scriptContext.leafReaderContext);
             s.runForDoc(0);
             for (double v : s.values()) {
-                emitter.accept(context, v);
+                emitter.accept(scriptContext.pc, v);
             }
         }
     }

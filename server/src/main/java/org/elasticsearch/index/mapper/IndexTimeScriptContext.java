@@ -28,35 +28,90 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 public class IndexTimeScriptContext {
 
     public final SearchLookup searchLookup;
     public final LeafReaderContext leafReaderContext;
+    public final ParseContext pc;
+    private final Map<String, MapperScript> mapperScripts = new HashMap<>();
 
-    public IndexTimeScriptContext(SearchLookup searchLookup, ParseContext.Document doc, BytesReference sourceBytes) {
-        this.searchLookup = searchLookup;
-        LazyDocumentReader reader = new LazyDocumentReader(doc, sourceBytes);
-        this.leafReaderContext = reader.getContext();
+    public static void executePostParsePhases(MappingLookup lookup, ParseContext parseContext) throws IOException {
+        if (lookup.getPostParsePhases().isEmpty()) {
+            return;
+        }
+        IndexTimeScriptContext context = new IndexTimeScriptContext(lookup, parseContext);
+        context.executePostParse();
     }
 
-    private static class LazyDocumentReader extends LeafReader {
+    private IndexTimeScriptContext(MappingLookup mappingLookup, ParseContext pc) {
+        this.searchLookup = new SearchLookup(
+            mappingLookup::getFieldType,
+            (ft, s) -> ft.fielddataBuilder("", s).build(
+                new IndexFieldDataCache.None(),
+                new NoneCircuitBreakerService())
+        );
+        this.pc = pc;
+        LazyDocumentReader reader = new LazyDocumentReader(
+            pc.rootDoc(),
+            pc.sourceToParse().source(),
+            mappingLookup.getPostParsePhases().keySet());
+        this.leafReaderContext = reader.getContext();
+        mappingLookup.getPostParsePhases().forEach((k, c) -> mapperScripts.put(k, new MapperScript(c)));
+    }
+
+    private void executePostParse() throws IOException {
+        for (MapperScript ms : mapperScripts.values()) {
+            ms.script.accept(this);
+        }
+    }
+
+    private void executeFieldScript(String field) throws IOException {
+        assert mapperScripts.containsKey(field);
+        mapperScripts.get(field).script.accept(this);
+        mapperScripts.get(field).script = c -> {};
+    }
+
+    private static class MapperScript {
+        CheckedConsumer<IndexTimeScriptContext, IOException> script;
+        MapperScript(CheckedConsumer<IndexTimeScriptContext, IOException> script) {
+            this.script = script;
+        }
+    }
+
+    private class LazyDocumentReader extends LeafReader {
 
         private final ParseContext.Document document;
         private final BytesReference sourceBytes;
+        private final Set<String> calculatedFields;
         private LeafReaderContext in;
 
-        private LazyDocumentReader(ParseContext.Document document, BytesReference sourceBytes) {
+        private LazyDocumentReader(ParseContext.Document document, BytesReference sourceBytes, Set<String> calculatedFields) {
             this.document = document;
             this.sourceBytes = sourceBytes;
+            this.calculatedFields = calculatedFields;
         }
 
-        private void buildDocValues() {
+        private void buildDocValues(String field) throws IOException {
+            if (calculatedFields.contains(field)) {
+                // this means that a mapper script is referring to another calculated field;
+                // in which case we need to execute that field first, and then rebuild the
+                // memory index
+                executeFieldScript(field);
+                calculatedFields.remove(field);
+                this.in = null;
+            }
             if (in != null) {
                 return;
             }
@@ -72,37 +127,41 @@ public class IndexTimeScriptContext {
 
         @Override
         public NumericDocValues getNumericDocValues(String field) throws IOException {
-            buildDocValues();
+            buildDocValues(field);
             return in.reader().getNumericDocValues(field);
         }
 
         @Override
         public BinaryDocValues getBinaryDocValues(String field) throws IOException {
-            buildDocValues();
+            buildDocValues(field);
             return in.reader().getBinaryDocValues(field);
         }
 
         @Override
         public SortedDocValues getSortedDocValues(String field) throws IOException {
-            buildDocValues();
+            buildDocValues(field);
             return in.reader().getSortedDocValues(field);
         }
 
         @Override
         public SortedNumericDocValues getSortedNumericDocValues(String field) throws IOException {
-            buildDocValues();
+            buildDocValues(field);
             return in.reader().getSortedNumericDocValues(field);
         }
 
         @Override
         public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
-            buildDocValues();
+            buildDocValues(field);
             return in.reader().getSortedSetDocValues(field);
         }
 
         @Override
         public FieldInfos getFieldInfos() {
-            buildDocValues();
+            try {
+                buildDocValues(null);
+            } catch (IOException e) {
+              // won't actually happen
+            }
             return in.reader().getFieldInfos();
         }
 

@@ -570,10 +570,4 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     }
 
-    @Override
-    public void postParse(ParseContext context) throws IOException {
-        for (Mapper mapper : this) {
-            mapper.postParse(context);
-        }
-    }
 }

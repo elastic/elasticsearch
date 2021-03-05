@@ -108,11 +108,6 @@ public final class FieldAliasMapper extends Mapper {
         }
     }
 
-    @Override
-    public void postParse(ParseContext context) throws IOException {
-
-    }
-
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)

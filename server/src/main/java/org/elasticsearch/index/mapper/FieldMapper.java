@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -167,16 +168,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         multiFields.parse(this, context);
     }
 
-    @Override
-    public void postParse(ParseContext context) throws IOException { // TODO make final, convert metadatamappers to doPostParse
-        doPostParse(context);
-        for (Mapper mapper : this) {
-            mapper.postParse(context);
-        }
-    }
-
-    protected void doPostParse(ParseContext context) throws IOException {
-        // no-op by default
+    /**
+     * Returns a post-parse executor for this field mapper, or {@code null} if none is defined
+     */
+    public CheckedConsumer<IndexTimeScriptContext, IOException> getPostParsePhase() {
+        return null;
     }
 
     /**

@@ -468,7 +468,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 );
 
                 boolean removed = false;
-                for(Function<ShardRouting, Boolean> removeClause : priorityRemoveClauses) {
+                for (Function<ShardRouting, Boolean> removeClause : priorityRemoveClauses) {
                     if (removed == false) {
                         for (ShardRouting shardRouting : indexShard) {
                             if (shardRouting.primary() == false && removeClause.apply(shardRouting)) {
@@ -479,7 +479,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                         }
                     }
                 }
-
                 shards.put(shardId, builder.build());
             }
             return this;

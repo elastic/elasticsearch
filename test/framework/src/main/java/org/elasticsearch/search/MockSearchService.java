@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 public class MockSearchService extends SearchService {
@@ -42,7 +42,7 @@ public class MockSearchService extends SearchService {
 
     private Consumer<SearchContext> onCreateSearchContext = context -> {};
 
-    private BiConsumer<SearchShardTask, String> onCheckCancelled = (t, s) -> {};
+    private BiFunction<SearchShardTask, String, SearchShardTask> onCheckCancelled = (t, s) -> t;
 
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
     public static void assertNoInFlightContext() {
@@ -107,19 +107,23 @@ public class MockSearchService extends SearchService {
     }
 
     @Override
-    protected SearchContext createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTask task, boolean includeAggregations) throws IOException {
+    protected SearchContext createContext(
+        ReaderContext readerContext,
+        ShardSearchRequest request,
+        SearchShardTask task,
+        boolean includeAggregations
+    ) throws IOException {
         SearchContext searchContext = super.createContext(readerContext, request, task, includeAggregations);
         onCreateSearchContext.accept(searchContext);
         return searchContext;
     }
 
-    public void setOnCheckCancelled(BiConsumer<SearchShardTask, String> onCheckCancelled) {
+    public void setOnCheckCancelled(BiFunction<SearchShardTask, String, SearchShardTask> onCheckCancelled) {
         this.onCheckCancelled = onCheckCancelled;
     }
 
     @Override
     protected void checkCancelled(SearchShardTask task, String phase) {
-        onCheckCancelled.accept(task, phase);
-        super.checkCancelled(task, phase);
+        super.checkCancelled(onCheckCancelled.apply(task, phase), phase);
     }
 }

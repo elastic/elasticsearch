@@ -1277,6 +1277,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testCancelFetchPhaseEarly() throws Exception {
+        createIndex("index");
         final MockSearchService service = (MockSearchService) getInstanceFromNode(SearchService.class);
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
 
@@ -1284,8 +1285,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         service.setOnCreateSearchContext(c -> searchContextCreated.set(true));
 
         // Test fetch phase is cancelled early
-        String scrollId =
-                client().search(searchRequest.allowPartialSearchResults(false).scroll(TimeValue.timeValueMinutes(10))).get().getScrollId();
+        String scrollId = client().search(searchRequest.allowPartialSearchResults(false).scroll(TimeValue.timeValueMinutes(10)))
+            .get()
+            .getScrollId();
 
         client().searchScroll(new SearchScrollRequest(scrollId)).get();
         assertThat(searchContextCreated.get(), is(true));
@@ -1294,10 +1296,19 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         clearScrollRequest.addScrollId(scrollId);
         client().clearScroll(clearScrollRequest);
 
-        scrollId =
-                client().search(searchRequest.allowPartialSearchResults(false).scroll(TimeValue.timeValueMinutes(10))).get().getScrollId();
+        scrollId = client().search(searchRequest.allowPartialSearchResults(false).scroll(TimeValue.timeValueMinutes(10)))
+            .get()
+            .getScrollId();
         searchContextCreated.set(false);
-        service.setOnCheckCancelled((t, s) -> {throw new TaskCancelledException("cancelled");});
+        service.setOnCheckCancelled((t, s) -> {
+            if (s.equals("fetch")) {
+                SearchShardTask task = mock(SearchShardTask.class);
+                when(task.isCancelled()).thenReturn(true);
+                return task;
+            } else {
+                return t;
+            }
+        });
         CountDownLatch latch = new CountDownLatch(1);
         client().searchScroll(new SearchScrollRequest(scrollId), new ActionListener<>() {
             @Override

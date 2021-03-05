@@ -62,7 +62,8 @@ public class DeprecationRestHandlerTests extends ESTestCase {
             RestChannel channel = mock(RestChannel.class);
             NodeClient client = mock(NodeClient.class);
 
-            DeprecationRestHandler deprecatedHandler = new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger, compatibleVersionWarning);
+            DeprecationRestHandler deprecatedHandler = new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger,
+                compatibleVersionWarning);
 
             // test it
             deprecatedHandler.handleRequest(request, channel, client);

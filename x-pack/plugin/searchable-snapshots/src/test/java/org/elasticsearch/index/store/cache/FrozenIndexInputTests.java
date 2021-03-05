@@ -11,6 +11,7 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
@@ -43,7 +44,8 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
     private static final ShardId SHARD_ID = new ShardId(new Index("_index_name", "_index_id"), 0);
 
     public void testRandomReads() throws IOException {
-        final String fileName = randomAlphaOfLength(5) + randomFileExtension();
+        // Can't test cfs files here since the randomization uses slice names with differing offsets which breaks the frozen cache
+        final String fileName = randomAlphaOfLength(5) + randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
         final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 100_000));
 
         final byte[] fileData = bytes.v2();
@@ -78,12 +80,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             regionSize = new ByteSizeValue(randomLongBetween(ByteSizeValue.ofKb(1L).getBytes(), ByteSizeValue.ofMb(64L).getBytes()));
         }
 
-        final ByteSizeValue cacheSize;
-        if (rarely()) {
-            cacheSize = regionSize;
-        } else {
-            cacheSize = new ByteSizeValue(randomLongBetween(3L, 10L) * regionSize.getBytes() + randomIntBetween(0, 100));
-        }
+        final ByteSizeValue cacheSize = new ByteSizeValue(randomLongBetween(3L, 10L) * regionSize.getBytes() + randomIntBetween(0, 100));
 
         final ByteSizeValue smallRangeSize = new ByteSizeValue(regionSize.getBytes() / 2);
         final ByteSizeValue tinyRangeSize = new ByteSizeValue(regionSize.getBytes() / 4);
@@ -93,6 +90,8 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             .put(SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
             .put(SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), smallRangeSize)
             .put(SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), tinyRangeSize)
+            .put(SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE.getKey(), 0.25f)
+            .put(SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.getKey(), 0.125f)
             .put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
             .put("path.home", createTempDir())
             .build();

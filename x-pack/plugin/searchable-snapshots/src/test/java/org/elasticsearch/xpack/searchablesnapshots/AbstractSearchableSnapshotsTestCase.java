@@ -152,21 +152,13 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
 
     protected FrozenCacheService randomFrozenCacheService() {
         final Settings.Builder cacheSettings = Settings.builder();
-        if (randomBoolean()) {
-            cacheSettings.put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
-        }
-        if (randomBoolean()) {
-            final ByteSizeValue cacheRangeSize = randomFrozenCacheRangeSize();
-            cacheSettings.put(SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), cacheRangeSize)
-                .put(SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes() / 2))
-                .put(SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes() / 4));
-        }
-        if (randomBoolean()) {
-            cacheSettings.put(SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
-        }
-        if (randomBoolean()) {
-            cacheSettings.put(SnapshotsService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
-        }
+        final ByteSizeValue cacheRangeSize = randomFrozenCacheRangeSize();
+        cacheSettings.put(SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), cacheRangeSize)
+            .put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes() * 4))
+            .put(SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes() / 2))
+            .put(SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes() / 4))
+            .put(SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.getKey(), 0.125f)
+            .put(SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE.getKey(), 0.125f);
         return new FrozenCacheService(newEnvironment(cacheSettings.build()), threadPool);
     }
 

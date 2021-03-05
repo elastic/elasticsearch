@@ -607,7 +607,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
         final String fileName;
         if (SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.get(indexSettings)) {
-             fileName = randomAlphaOfLength(10) + randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
+            fileName = randomAlphaOfLength(10) + randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
         } else {
             fileName = randomAlphaOfLength(10) + randomFileExtension();
         }

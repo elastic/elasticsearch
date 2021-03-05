@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ClusterStateWaitUnitThresholdStepTests extends AbstractStepTestCase<ClusterStateWaitUntilThresholdStep> {
+public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCase<ClusterStateWaitUntilThresholdStep> {
 
     @Override
     public ClusterStateWaitUntilThresholdStep createRandomInstance() {
@@ -185,7 +185,7 @@ public class ClusterStateWaitUnitThresholdStepTests extends AbstractStepTestCase
             SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
             assertThat(info.getMessage(),
                 equalTo("[" + currentStepKey.getName() + "] lifecycle step, as part of [" + currentStepKey.getAction() + "] " +
-                    "action, for index [follower-index] executed for more than [1s] hours. Abandoning execution and moving to the next " +
+                    "action, for index [follower-index] executed for more than [1s]. Abandoning execution and moving to the next " +
                     "fallback step [" + nextKeyOnThresholdBreach + "]"));
 
             // the next step must change to the provided one when the threshold is breached

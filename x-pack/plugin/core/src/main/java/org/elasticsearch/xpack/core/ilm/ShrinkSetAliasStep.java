@@ -40,14 +40,14 @@ public class ShrinkSetAliasStep extends AsyncRetryDuringSnapshotActionStep {
     @Override
     public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, Listener listener) {
         // get source index
-        String index = indexMetadata.getIndex().getName();
+        String indexName = indexMetadata.getIndex().getName();
         // get target shrink index
         LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
         String targetIndexName = lifecycleState.getShrinkIndexName();
         if (targetIndexName == null) {
             // this is for BWC reasons for polices that are in the middle of executing the shrink action when the update to generated
             // names happens
-            targetIndexName = shrunkIndexPrefix + index;
+            targetIndexName = shrunkIndexPrefix + indexName;
         }
         deleteSourceIndexAndTransferAliases(getClient(), indexMetadata, getMasterTimeout(currentState), targetIndexName, listener);
     }

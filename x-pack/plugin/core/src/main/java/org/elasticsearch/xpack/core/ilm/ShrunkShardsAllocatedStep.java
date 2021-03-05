@@ -54,16 +54,11 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
         }
 
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
-        if (lifecycleState.getLifecycleDate() == null) {
-            throw new IllegalStateException("source index [" + indexMetadata.getIndex().getName() +
-                "] is missing lifecycle date");
-        }
-
         String shrunkenIndexName = lifecycleState.getShrinkIndexName();
         if (shrunkenIndexName == null) {
             // this is for BWC reasons for polices that are in the middle of executing the shrink action when the update to generated
             // names happens
-            shrunkenIndexName = shrunkIndexPrefix + index;
+            shrunkenIndexName = shrunkIndexPrefix + index.getName();
         }
 
         // We only want to make progress if all shards of the shrunk index are

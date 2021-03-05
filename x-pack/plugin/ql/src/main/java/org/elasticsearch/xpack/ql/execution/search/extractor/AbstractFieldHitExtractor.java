@@ -83,7 +83,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         Object value = null;
         DocumentField field = null;
         if (hitName != null) {
-            value = extractNestedField(hit);
+            value = unwrapFieldsMultiValue(extractNestedField(hit));
         } else {
             field = hit.field(fieldName);
             if (field != null) {
@@ -121,8 +121,8 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
             Iterator<String> pathIterator = remainingPath.iterator();
             while (pathIterator.hasNext()) {
                 String pathElement = pathIterator.next();
-                Map<String, Object> elements = (Map<String, Object>) values.get(0);
-                values = (List<Object>) elements.get(pathElement);
+                Map<String, List<Object>> elements = (Map<String, List<Object>>) values.get(0);
+                values = elements.get(pathElement);
                 /*
                  * if this path is not found it means we hit another nested document (inner_root_1.inner_root_2.nested_field_2)
                  * something like this
@@ -137,12 +137,12 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                  */
                 while (values == null) {
                     pathElement += "." + pathIterator.next();
-                    values = (List<Object>) elements.get(pathElement);
+                    values = elements.get(pathElement);
                 }
             }
-            value = unwrapFieldsMultiValue(((Map<String, Object>) values.get(0)).get(fieldName.substring(hitName.length() + 1)));
+            value = ((Map<String, Object>) values.get(0)).get(fieldName.substring(hitName.length() + 1));
         } else {
-            value = unwrapFieldsMultiValue(field.getValues());
+            value = field.getValues();
         }
         return value;
     }

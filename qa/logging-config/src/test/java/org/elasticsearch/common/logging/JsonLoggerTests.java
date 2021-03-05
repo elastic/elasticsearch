@@ -240,7 +240,8 @@ public class JsonLoggerTests extends ESTestCase {
             }
 
             assertWarnings("Deprecated field [deprecated_name] used, expected [new_name] instead",
-                "Deprecated field [deprecated_name2] used, expected [new_name] instead");
+                "Deprecated field [deprecated_name2] used, expected [new_name] instead",
+                "Deprecated field [compatible_deprecated_name] used, expected [new_name] instead");
         });
     }
 

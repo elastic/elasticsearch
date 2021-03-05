@@ -147,14 +147,19 @@ public class AllocationFilteringIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(mountRequest.mountedIndexName());
 
+        final Settings mountedIndexSettings = client().admin()
+            .indices()
+            .prepareGetSettings(mountRequest.mountedIndexName())
+            .get()
+            .getIndexToSettings()
+            .get(mountRequest.mountedIndexName());
+
         if (mountSetting != null) {
-            final Settings mountedIndexSettings = client().admin()
-                .indices()
-                .prepareGetSettings(mountRequest.mountedIndexName())
-                .get()
-                .getIndexToSettings()
-                .get(mountRequest.mountedIndexName());
             assertTrue(mountedIndexSettings.toString(), mountSetting.getConcreteSettingForNamespace("_name").exists(mountedIndexSettings));
+        }
+
+        if (indexSetting != mountSetting) {
+            assertFalse(mountedIndexSettings.toString(), indexSetting.getConcreteSettingForNamespace("_name").exists(mountedIndexSettings));
         }
 
         assertAcked(

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -36,15 +38,59 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     private final long minDocCount;
     private final DoubleBounds extendedBounds;
     private final DoubleBounds hardBounds;
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(HistogramAggregationBuilder.class);
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(HistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, RangeHistogramAggregator::new, true);
 
         builder.register(
             HistogramAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE),
             NumericHistogramAggregator::new,
                 true);
+        
+        builder.register(
+            HistogramAggregationBuilder.REGISTRY_KEY,
+            CoreValuesSourceType.BOOLEAN,
+            (
+                String name,
+                AggregatorFactories factories,
+                double interval,
+                double offset,
+                BucketOrder order,
+                boolean keyed,
+                long minDocCount,
+                DoubleBounds extendedBounds,
+                DoubleBounds hardBounds,
+                ValuesSourceConfig valuesSourceConfig,
+                AggregationContext context,
+                Aggregator parent,
+                CardinalityUpperBound cardinality,
+                Map<String, Object> metadata) -> {
+                DEPRECATION_LOGGER.deprecate(
+                    DeprecationCategory.AGGREGATIONS,
+                    "histogram-boolean",
+                    "Running Histogram aggregations on [boolean] fields is deprecated"
+                );
+                return new NumericHistogramAggregator(
+                    name,
+                    factories,
+                    interval,
+                    offset,
+                    order,
+                    keyed,
+                    minDocCount,
+                    extendedBounds,
+                    hardBounds,
+                    valuesSourceConfig,
+                    context,
+                    parent,
+                    cardinality,
+                    metadata
+                );
+            },
+            true
+        );
     }
 
     public HistogramAggregatorFactory(String name,

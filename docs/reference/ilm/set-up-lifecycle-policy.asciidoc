@@ -49,7 +49,7 @@ PUT _ilm/policy/my_policy
       "hot": {
         "actions": {
           "rollover": {
-            "max_size": "25GB" <1>
+            "max_primary_shard_size": "25GB" <1>
           }
         }
       },

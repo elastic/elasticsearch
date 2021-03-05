@@ -29,6 +29,7 @@ public final class SharedCacheConfiguration {
 
     public SharedCacheConfiguration(Settings settings) {
         long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
+        // TODO: just forcing defaults for conflicting cache- and page sizes seems wrong
         this.largeRegionSize = Math.min(SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes(), cacheSize / 4 + 4);
         this.smallRegionSize = Math.min(SNAPSHOT_CACHE_SMALL_REGION_SIZE.get(settings).getBytes(), largeRegionSize / 2);
         this.tinyRegionSize = Math.min(SNAPSHOT_CACHE_TINY_REGION_SIZE.get(settings).getBytes(), smallRegionSize  / 2);
@@ -101,26 +102,28 @@ public final class SharedCacheConfiguration {
             return 0L;
         }
         final int largeRegions = largeRegions(fileSize, cachedHeaderSize, footerCacheLength);
-        final long offset;
-        final int effectiveRegion;
+        final long headerPageSize;
+        final int largeRegionIndex; // index relative to the first large region
         if (cachedHeaderSize > 0) {
-            effectiveRegion = region - 1;
-            offset = cachedHeaderSize;
+            largeRegionIndex = region - 1; // we have a cached header region
+            headerPageSize = cachedHeaderSize;
         } else {
-            effectiveRegion = region;
-            offset = 0L;
+            largeRegionIndex = region;
+            headerPageSize = 0L;
         }
 
-        if (effectiveRegion < largeRegions) {
-            return (long) effectiveRegion * largeRegionSize + offset;
+        if (largeRegionIndex < largeRegions) {
+            // this is a large region so we can compute its starting offset as header page length + large regions
+            return (long) largeRegionIndex * largeRegionSize + headerPageSize;
         }
 
-        final long withoutFooter = largeRegions * largeRegionSize + offset;
-        if (footerCacheLength > 0 && withoutFooter > fileSize) {
+        // last page can be either a complete or partial large page depending on whether or not we have a separate footer cache page
+        final long largePagesAndHeader = largeRegions * largeRegionSize + headerPageSize;
+        if (footerCacheLength > 0 && largePagesAndHeader > fileSize) {
+            // this is the last page and we have a footer so it's just the footer cache length from the file's end here
             return fileSize - footerCacheLength;
         }
-
-        return withoutFooter;
+        return largePagesAndHeader;
     }
 
     public RegionType regionType(int region, long fileSize, long cacheHeaderLength, long footerCacheLength) {

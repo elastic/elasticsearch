@@ -89,7 +89,7 @@ public class FrozenCacheService implements Releasable {
     private final ByteSizeValue rangeSize;
     private final ByteSizeValue recoveryRangeSize;
 
-    private final ConcurrentLinkedQueue<Integer> freeRegions = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<Integer> freeLargeRegions = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<Integer> freeSmallRegions = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<Integer> freeTinyRegions = new ConcurrentLinkedQueue<>();
 
@@ -126,7 +126,7 @@ public class FrozenCacheService implements Releasable {
             regionOwners = null;
         }
         for (int i = 0; i < numRegions; i++) {
-            freeRegions.add(i);
+            freeLargeRegions.add(i);
         }
         for (int i = 0; i < numSmallRegions; i++) {
             freeSmallRegions.add(numRegions + i);
@@ -243,7 +243,7 @@ public class FrozenCacheService implements Releasable {
             case TINY:
                 return freeTinyRegions.poll();
             default:
-                return freeRegions.poll();
+                return freeLargeRegions.poll();
         }
     }
 
@@ -265,13 +265,13 @@ public class FrozenCacheService implements Releasable {
                 freeTinyRegions.add(chunk.sharedBytesPos);
                 break;
             default:
-                freeRegions.add(chunk.sharedBytesPos);
+                freeLargeRegions.add(chunk.sharedBytesPos);
         }
     }
 
     // used by tests
     int freeLargeRegionCount() {
-        return freeRegions.size();
+        return freeLargeRegions.size();
     }
 
     // used by tests

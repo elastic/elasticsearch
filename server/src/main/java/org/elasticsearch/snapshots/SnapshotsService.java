@@ -159,7 +159,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static final Setting<Float> SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE = Setting.floatSetting(
             SHARED_CACHE_SETTINGS_PREFIX + "small_region_size_share",
-            0.2f,
+            0.1f,
             0.0f,
             Setting.Property.NodeScope
     );

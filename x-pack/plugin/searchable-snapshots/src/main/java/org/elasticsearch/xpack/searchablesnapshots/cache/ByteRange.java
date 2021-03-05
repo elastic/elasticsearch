@@ -70,6 +70,7 @@ public final class ByteRange implements Comparable<ByteRange> {
     }
 
     public ByteRange overlap(ByteRange other) {
+        assert hasOverlap(other) : "no overlap between [" + this + "] and [" + other + "]";
         if (contains(other.start, other.end)) {
             return other;
         }

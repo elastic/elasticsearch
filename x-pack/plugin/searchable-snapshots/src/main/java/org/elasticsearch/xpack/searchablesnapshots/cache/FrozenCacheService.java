@@ -197,7 +197,7 @@ public class FrozenCacheService implements Releasable {
                 assert entry.freq == 0;
                 assert entry.prev == null;
                 assert entry.next == null;
-                final SharedCacheConfiguration.RegionSize regionType = sharedBytes.sharedCacheConfiguration.regionType(
+                final SharedCacheConfiguration.RegionType regionType = sharedBytes.sharedCacheConfiguration.regionType(
                     region,
                     fileLength,
                     headerCacheLength,
@@ -236,8 +236,8 @@ public class FrozenCacheService implements Releasable {
         }
     }
 
-    private Integer tryPollFreeSlot(SharedCacheConfiguration.RegionSize regionSize) {
-        switch (regionSize) {
+    private Integer tryPollFreeSlot(SharedCacheConfiguration.RegionType regionType) {
+        switch (regionType) {
             case SMALL:
                 return freeSmallRegions.poll();
             case TINY:
@@ -257,7 +257,7 @@ public class FrozenCacheService implements Releasable {
 
     public void onClose(CacheFileRegion chunk) {
         assert regionOwners[chunk.sharedBytesPos].compareAndSet(chunk, null);
-        switch (sharedBytes.sharedCacheConfiguration.sharedRegionSize(chunk.sharedBytesPos)) {
+        switch (sharedBytes.sharedCacheConfiguration.sharedRegionType(chunk.sharedBytesPos)) {
             case SMALL:
                 freeSmallRegions.add(chunk.sharedBytesPos);
                 break;
@@ -270,7 +270,7 @@ public class FrozenCacheService implements Releasable {
     }
 
     // used by tests
-    int freeRegionCount() {
+    int freeLargeRegionCount() {
         return freeRegions.size();
     }
 
@@ -287,7 +287,7 @@ public class FrozenCacheService implements Releasable {
     private synchronized boolean invariant(final Entry<CacheFileRegion> e, boolean present) {
         boolean found = false;
         final Entry<CacheFileRegion>[] freqs = getFrequencies(
-            sharedBytes.sharedCacheConfiguration.sharedRegionSize(e.chunk.sharedBytesPos)
+            sharedBytes.sharedCacheConfiguration.sharedRegionType(e.chunk.sharedBytesPos)
         );
         for (int i = 0; i < maxFreq; i++) {
             assert freqs[i] == null || freqs[i].prev != null;
@@ -316,7 +316,7 @@ public class FrozenCacheService implements Releasable {
         return true;
     }
 
-    private void maybeEvict(SharedCacheConfiguration.RegionSize size) {
+    private void maybeEvict(SharedCacheConfiguration.RegionType size) {
         assert Thread.holdsLock(this);
         final Entry<CacheFileRegion>[] freqs = getFrequencies(size);
         for (int i = 0; i < maxFreq; i++) {
@@ -337,7 +337,7 @@ public class FrozenCacheService implements Releasable {
         assert entry.prev == null;
         assert entry.next == null;
         final Entry<CacheFileRegion>[] freqs = getFrequencies(
-            sharedBytes.sharedCacheConfiguration.sharedRegionSize(entry.chunk.sharedBytesPos)
+            sharedBytes.sharedCacheConfiguration.sharedRegionType(entry.chunk.sharedBytesPos)
         );
         final Entry<CacheFileRegion> currFront = freqs[entry.freq];
         if (currFront == null) {
@@ -364,7 +364,7 @@ public class FrozenCacheService implements Releasable {
         assert invariant(entry, true);
         assert entry.prev != null;
         final Entry<CacheFileRegion>[] freqs = getFrequencies(
-            sharedBytes.sharedCacheConfiguration.sharedRegionSize(entry.chunk.sharedBytesPos)
+            sharedBytes.sharedCacheConfiguration.sharedRegionType(entry.chunk.sharedBytesPos)
         );
         final Entry<CacheFileRegion> currFront = freqs[entry.freq];
         assert currFront != null;
@@ -388,9 +388,9 @@ public class FrozenCacheService implements Releasable {
         assert invariant(entry, false);
     }
 
-    private Entry<CacheFileRegion>[] getFrequencies(SharedCacheConfiguration.RegionSize regionSize) {
+    private Entry<CacheFileRegion>[] getFrequencies(SharedCacheConfiguration.RegionType regionType) {
         final Entry<CacheFileRegion>[] freqs;
-        switch (regionSize) {
+        switch (regionType) {
             case LARGE:
                 freqs = regionFreqs;
                 break;

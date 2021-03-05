@@ -123,19 +123,19 @@ public final class SharedCacheConfiguration {
         return withoutFooter;
     }
 
-    public RegionSize regionType(int region, long fileSize, long cacheHeaderLength, long footerCacheLength) {
+    public RegionType regionType(int region, long fileSize, long cacheHeaderLength, long footerCacheLength) {
         if (region == 0 && cacheHeaderLength > 0) {
             if (cacheHeaderLength <= tinyRegionSize) {
-                return RegionSize.TINY;
+                return RegionType.TINY;
             }
             if (cacheHeaderLength <= smallRegionSize) {
-                return RegionSize.SMALL;
+                return RegionType.SMALL;
             }
         }
         if (footerCacheLength > 0 && region == getRegion(fileSize, fileSize, cacheHeaderLength, footerCacheLength)) {
-            return RegionSize.TINY;
+            return RegionType.TINY;
         }
-        return RegionSize.LARGE;
+        return RegionType.LARGE;
     }
 
     public long regionSize(int region, long fileSize, long cacheHeaderLength, long footerCacheLength) {
@@ -183,15 +183,15 @@ public final class SharedCacheConfiguration {
         return position - getRegionStart(region, fileSize, cacheHeaderLength, footerCacheLength);
     }
 
-    public RegionSize sharedRegionSize(int sharedBytesPos) {
+    public RegionType sharedRegionType(int sharedBytesPos) {
         final long rsize = regionSize(sharedBytesPos);
         if (rsize == smallRegionSize) {
-            return RegionSize.SMALL;
+            return RegionType.SMALL;
         } else if (rsize == largeRegionSize) {
-            return RegionSize.LARGE;
+            return RegionType.LARGE;
         }
         assert rsize == tinyRegionSize;
-        return RegionSize.TINY;
+        return RegionType.TINY;
     }
 
     public long getRegionSize(long fileLength, int region, long cachedHeaderLength, long footerCacheLength) {
@@ -235,7 +235,7 @@ public final class SharedCacheConfiguration {
         return remainder == 0 ? largeRegions : largeRegions + 1;
     }
 
-    public enum RegionSize {
+    public enum RegionType {
         LARGE,
         SMALL,
         TINY

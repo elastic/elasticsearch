@@ -102,7 +102,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request.
      *
      * @param method GET, POST, etc.
-     * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
+     * @param path Path to handle (e.g. "/{index}/{type}/_bulk")
+     * @param version API version to handle (e.g. RestApiVersion.V_8)
      * @param handler The handler to actually execute
      * @param deprecationMessage The message to log and send as a header in the response
      */
@@ -128,10 +129,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * with {@code replacedMethod} and {@code replacedPath}. Expected usage:
      * <pre><code>
      * // remove deprecation in next major release
-     * controller.registerAsDeprecatedHandler(POST, "/_forcemerge", this,
-     *                                        POST, "/_optimize", deprecationLogger);
-     * controller.registerAsDeprecatedHandler(POST, "/{index}/_forcemerge", this,
-     *                                        POST, "/{index}/_optimize", deprecationLogger);
+     * controller.registerAsDeprecatedHandler(POST, "/_forcemerge", RestApiVersion.V_8, someHandler,
+     *                                        POST, "/_optimize", RestApiVersion.V_7);
+     * controller.registerAsDeprecatedHandler(POST, "/{index}/_forcemerge", RestApiVersion.V_8, someHandler,
+     *                                        POST, "/{index}/_optimize", RestApiVersion.V_7);
      * </code></pre>
      * <p>
      * The registered REST handler ({@code method} with {@code path}) is a normal REST handler that is not deprecated and it is
@@ -142,14 +143,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * and a specific message.
      *
      * @param method GET, POST, etc.
-     * @param path Path to handle (e.g., "/_forcemerge")
+     * @param path Path to handle (e.g. "/_forcemerge")
+     * @param version API version to handle (e.g. RestApiVersion.V_8)
      * @param handler The handler to actually execute
      * @param replacedMethod GET, POST, etc.
-     * @param replacedPath <em>Deprecated</em> path to handle (e.g., "/_optimize")
+     * @param replacedPath <em>Replaced</em> path to handle (e.g. "/_optimize")
+     * @param replacedVersion <em>Replaced</em> API version to handle (e.g. RestApiVersion.V_7)
      */
     protected void registerAsReplacedHandler(RestRequest.Method method, String path, RestApiVersion version, RestHandler handler,
                                              RestRequest.Method replacedMethod, String replacedPath, RestApiVersion replacedVersion) {
-        // e.g., [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
+        // e.g. [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
         final String replacedMessage =
             "[" + replacedMethod.name() + " " + replacedPath + "] is deprecated! Use [" + method.name() + " " + path + "] instead.";
 
@@ -160,9 +163,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /**
      * Registers a REST handler to be executed when one of the provided methods and path match the request.
      *
-     * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
-     * @param handler The handler to actually execute
      * @param method GET, POST, etc.
+     * @param path Path to handle (e.g. "/{index}/{type}/_bulk")
+     * @param version API version to handle (e.g. RestApiVersion.V_8)
+     * @param handler The handler to actually execute
      */
     protected void registerHandler(RestRequest.Method method, String path, RestApiVersion version, RestHandler handler) {
         if (handler instanceof BaseRestHandler) {

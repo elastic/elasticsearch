@@ -111,6 +111,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -612,6 +613,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
+    protected void checkCancelled(SearchShardTask task) {
+        // check cancellation as early as possible, as it avoids opening up a Lucene reader on FrozenEngine
+        if (task.isCancelled()) {
+            logger.trace("task cancelled [id: {}, action: {}]", task.getId(), task.getAction());
+            throw new TaskCancelledException("cancelled");
+        }
+    }
+
     private ReaderContext findReaderContext(ShardSearchContextId id, TransportRequest request) throws SearchContextMissingException {
         if (id.getSessionId().isEmpty()) {
             throw new IllegalArgumentException("Session id must be specified");
@@ -739,10 +748,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         });
     }
 
-    final SearchContext createContext(ReaderContext readerContext,
-                                      ShardSearchRequest request,
-                                      SearchShardTask task,
-                                      boolean includeAggregations) throws IOException {
+    protected SearchContext createContext(ReaderContext readerContext,
+                                          ShardSearchRequest request,
+                                          SearchShardTask task,
+                                          boolean includeAggregations) throws IOException {
+        checkCancelled(task);
         final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout);
         try {
             if (request.scroll() != null) {

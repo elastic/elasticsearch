@@ -165,17 +165,19 @@ public class JsonLoggerTests extends ESTestCase {
             assertWarnings("deprecated message1", "compatible API message");
         });
     }
-
-    public void testParseFieldEmittingLogs() throws Exception {
+    public void testParseFieldEmittingDeprecatedLogs() throws Exception {
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
+
+            ParseField deprecatedField = new ParseField("new_name", "deprecated_name");
+            assertTrue(deprecatedField.match("deprecated_name", LoggingDeprecationHandler.INSTANCE));
+
+            ParseField deprecatedField2 = new ParseField("new_name", "deprecated_name2");
+            assertTrue(deprecatedField2.match("deprecated_name2", LoggingDeprecationHandler.INSTANCE));
 
             ParseField compatibleField = new ParseField("new_name", "compatible_deprecated_name")
                 .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported()));
             assertTrue(compatibleField.match("compatible_deprecated_name", LoggingDeprecationHandler.INSTANCE));
-
-            ParseField deprecatedField = new ParseField("new_name", "deprecated_name");
-            assertTrue(deprecatedField.match("deprecated_name", LoggingDeprecationHandler.INSTANCE));
 
             final Path path = PathUtils.get(
                 System.getProperty("es.logs.base_path"),
@@ -188,6 +190,36 @@ public class JsonLoggerTests extends ESTestCase {
                 assertThat(
                     jsonLogs,
                     contains(
+                        // deprecation log for field deprecated_name
+                        allOf(
+                            hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.type", "logs"),
+                            hasEntry("log.logger", "org.elasticsearch.deprecation.common.ParseField"),
+                            hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
+                            hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                            hasEntry("elasticsearch.node.name", "sample-name"),
+                            hasEntry("message", "Deprecated field [deprecated_name] used, expected [new_name] instead"),
+                            hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "deprecated_field_deprecated_name"),
+                            hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
+                            hasEntry("elasticsearch.event.category", "api")
+                        ),
+                        // deprecation log for field deprecated_name2 (note it is not being throttled)
+                        allOf(
+                            hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.type", "logs"),
+                            hasEntry("log.logger", "org.elasticsearch.deprecation.common.ParseField"),
+                            hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
+                            hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                            hasEntry("elasticsearch.node.name", "sample-name"),
+                            hasEntry("message", "Deprecated field [deprecated_name2] used, expected [new_name] instead"),
+                            hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "deprecated_field_deprecated_name2"),
+                            hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
+                            hasEntry("elasticsearch.event.category", "api")
+                        ),
                         //compatible  log line
                         allOf(
                             hasEntry("log.level", "DEPRECATION"),
@@ -202,28 +234,13 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "deprecated_field_compatible_deprecated_name"),
                             hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
                             hasEntry("elasticsearch.event.category", "compatible_api")
-                        ),
-                        // deprecation log line
-                        allOf(
-                            hasEntry("log.level", "DEPRECATION"),
-                            hasEntry("event.dataset", "elasticsearch.deprecation"),
-                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
-                            hasEntry("data_stream.type", "logs"),
-                            hasEntry("log.logger", "org.elasticsearch.deprecation.common.ParseField"),
-                            hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
-                            hasEntry("elasticsearch.cluster.name", "elasticsearch"),
-                            hasEntry("elasticsearch.node.name", "sample-name"),
-                            hasEntry("message", "Deprecated field [deprecated_name] used, expected [new_name] instead"),
-                            hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "deprecated_field_deprecated_name"),
-                            hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
-                            hasEntry("elasticsearch.event.category", "api")
                         )
                     )
                 );
             }
 
-            assertWarnings("Deprecated field [compatible_deprecated_name] used, expected [new_name] instead",
-                "Deprecated field [deprecated_name] used, expected [new_name] instead");
+            assertWarnings("Deprecated field [deprecated_name] used, expected [new_name] instead",
+                "Deprecated field [deprecated_name2] used, expected [new_name] instead");
         });
     }
 

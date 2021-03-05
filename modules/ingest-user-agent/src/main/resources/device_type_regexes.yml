@@ -24,9 +24,9 @@ os_parsers:
   #  Desktop OS, Most Common
   - regex: '^(Windows$|Windows NT$|Mac OS X|Linux$|Chrome OS|Fedora$|Ubuntu$)'
     replacement: 'Desktop'
-  #  Mobile OS
+  #  Phone OS
   - regex: '^(Android$|iOS|Windows Phone|Firefox OS|BlackBerry OS|KaiOS|Sailfish$|Maemo)'
-    replacement: 'Mobile'
+    replacement: 'Phone'
   #  Desktop OS, Not Common
   - regex: '^(Windows XP|Windows 7|Windows 10|FreeBSD|OpenBSD|Arch Linux|Solaris|NetBSD|SUSE|SunOS|BeOS\/Haiku)'
     replacement: 'Desktop'
@@ -40,12 +40,12 @@ browser_parsers:
   #  Desktop Browsers
   - regex: '^(Chrome$|Chromium$|Edge$|Firefox$|IE$|Maxthon$|Opera$|Safari$|SeaMonkey$|Vivaldi$|Yandex Browser$)'
     replacement: 'Desktop'
-  #  Mobile Browsers, Most Common
+  #  Phone Browsers, Most Common
   - regex: '^(Chrome Mobile$|Chrome Mobile iOS|Firefox Mobile|Firefox iOS|Edge Mobile|Android|Facebook|Instagram|IE Mobile)'
-    replacement: 'Mobile'
-  #  Mobile Browsers, Not Common
+    replacement: 'Phone'
+  #  Phone Browsers, Not Common
   - regex: '^(BlackBerry WebKit|OktaMobile|Sailfish Browser|Amazon Silk|Pinterest|Flipboard)'
-    replacement: 'Mobile'
+    replacement: 'Phone'
   - regex: 'Tablet|BlackBerry Tablet OS|iPad|FireOS|Crosswalk'
     replacement: 'Tablet'
 

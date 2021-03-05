@@ -160,7 +160,7 @@ public class UserAgentProcessorTests extends ESTestCase {
 
         Map<String, String> device = new HashMap<>();
         device.put("name", "Motorola Xoom");
-        device.put("type", "Mobile");
+        device.put("type", "Phone");
         assertThat(target.get("device"), is(device));
     }
 

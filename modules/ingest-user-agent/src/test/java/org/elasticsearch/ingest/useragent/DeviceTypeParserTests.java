@@ -100,7 +100,7 @@ public class DeviceTypeParserTests extends ESTestCase {
 
         String deviceType = deviceTypeParser.findDeviceType(userAgent, os, null);
 
-        assertThat(deviceType, is("Mobile"));
+        assertThat(deviceType, is("Phone"));
     }
 
     @SuppressWarnings("unchecked")
@@ -169,9 +169,7 @@ public class DeviceTypeParserTests extends ESTestCase {
             VersionedName userAgent = new VersionedName(testDevice.get("browser"));
 
             String deviceType = deviceTypeParser.findDeviceType(userAgent, os, null);
-            if (deviceType.equals("Mobile")) {
-                String name = "wow";
-            }
+
             assertThat(deviceType, is("Desktop"));
         }
     }
@@ -190,7 +188,7 @@ public class DeviceTypeParserTests extends ESTestCase {
 
             String deviceType = deviceTypeParser.findDeviceType(userAgent, os, null);
 
-            assertThat(deviceType, is("Mobile"));
+            assertThat(deviceType, is("Phone"));
         }
     }
 

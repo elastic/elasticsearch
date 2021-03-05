@@ -88,7 +88,7 @@ public class DeviceTypeParser {
 
         ArrayList<String> extractedDeviceTypes = new ArrayList<>();
 
-        String robot = "Robot", tablet = "Tablet", desktop = "Desktop", mobile = "Mobile";
+        String robot = "Robot", tablet = "Tablet", desktop = "Desktop", phone = "Phone";
 
         for (String patternKey : patternListKeys) {
             String deviceType = null;
@@ -124,8 +124,8 @@ public class DeviceTypeParser {
         if (extractedDeviceTypes.contains(tablet)) {
             return tablet;
         }
-        if (extractedDeviceTypes.contains(mobile)) {
-            return mobile;
+        if (extractedDeviceTypes.contains(phone)) {
+            return phone;
         }
         if (extractedDeviceTypes.contains(desktop)) {
             return desktop;

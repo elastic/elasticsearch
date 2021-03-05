@@ -10,7 +10,6 @@ package org.elasticsearch.search;
 
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -27,8 +26,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class MockSearchService extends SearchService {
     /**
@@ -42,7 +41,7 @@ public class MockSearchService extends SearchService {
 
     private Consumer<SearchContext> onCreateSearchContext = context -> {};
 
-    private BiFunction<SearchShardTask, String, SearchShardTask> onCheckCancelled = (t, s) -> t;
+    private Function<SearchShardTask, SearchShardTask> onCheckCancelled = Function.identity();
 
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
     public static void assertNoInFlightContext() {
@@ -100,13 +99,6 @@ public class MockSearchService extends SearchService {
     }
 
     @Override
-    public DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
-        DefaultSearchContext searchContext = super.createSearchContext(request, timeout);
-        onCreateSearchContext.accept(searchContext);
-        return searchContext;
-    }
-
-    @Override
     protected SearchContext createContext(
         ReaderContext readerContext,
         ShardSearchRequest request,
@@ -118,12 +110,12 @@ public class MockSearchService extends SearchService {
         return searchContext;
     }
 
-    public void setOnCheckCancelled(BiFunction<SearchShardTask, String, SearchShardTask> onCheckCancelled) {
+    public void setOnCheckCancelled(Function<SearchShardTask, SearchShardTask> onCheckCancelled) {
         this.onCheckCancelled = onCheckCancelled;
     }
 
     @Override
-    protected void checkCancelled(SearchShardTask task, String phase) {
-        super.checkCancelled(onCheckCancelled.apply(task, phase), phase);
+    protected void checkCancelled(SearchShardTask task) {
+        super.checkCancelled(onCheckCancelled.apply(task));
     }
 }

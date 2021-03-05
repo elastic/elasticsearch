@@ -444,7 +444,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             1.0f, -1, null);
 
         try (ReaderContext reader = createReaderContext(indexService, indexShard);
-             SearchContext contextWithDefaultTimeout = service.createContext(reader, requestWithDefaultTimeout, null, randomBoolean())) {
+             SearchContext contextWithDefaultTimeout = service.createContext(reader, requestWithDefaultTimeout,
+                 mock(SearchShardTask.class), randomBoolean())) {
             // the search context should inherit the default timeout
             assertThat(contextWithDefaultTimeout.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
         }
@@ -460,7 +461,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             new AliasFilter(null, Strings.EMPTY_ARRAY),
             1.0f, -1, null);
         try (ReaderContext reader = createReaderContext(indexService, indexShard);
-             SearchContext context = service.createContext(reader, requestWithCustomTimeout, null, randomBoolean())) {
+             SearchContext context = service.createContext(reader, requestWithCustomTimeout,
+                 mock(SearchShardTask.class), randomBoolean())) {
             // the search context should inherit the query timeout
             assertThat(context.timeout(), equalTo(TimeValue.timeValueSeconds(seconds)));
         }
@@ -489,20 +491,20 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null);
         try (ReaderContext reader = createReaderContext(indexService, indexShard);
-             SearchContext context = service.createContext(reader, request, null, randomBoolean())) {
+             SearchContext context = service.createContext(reader, request, mock(SearchShardTask.class), randomBoolean())) {
             assertNotNull(context);
         }
 
         searchSourceBuilder.docValueField("unmapped_field");
         try (ReaderContext reader = createReaderContext(indexService, indexShard);
-            SearchContext context = service.createContext(reader, request, null, randomBoolean())) {
+            SearchContext context = service.createContext(reader, request, mock(SearchShardTask.class), randomBoolean())) {
            assertNotNull(context);
        }
 
         searchSourceBuilder.docValueField("field2");
         try (ReaderContext reader = createReaderContext(indexService, indexShard)) {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> service.createContext(reader, request, null, randomBoolean()));
+                () -> service.createContext(reader, request, mock(SearchShardTask.class), randomBoolean()));
             assertEquals(
                 "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [1] but was [2]. "
                     + "This limit can be set by changing the [index.max_docvalue_fields_search] index level setting.",
@@ -533,13 +535,13 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             indexShard.shardId(), 0, 1, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null);
 
         try(ReaderContext reader = createReaderContext(indexService, indexShard)) {
-            try (SearchContext context = service.createContext(reader, request, null, randomBoolean())) {
+            try (SearchContext context = service.createContext(reader, request, mock(SearchShardTask.class), randomBoolean())) {
                 assertNotNull(context);
             }
             searchSourceBuilder.scriptField("anotherScriptField",
                 new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap()));
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> service.createContext(reader, request, null, randomBoolean()));
+                () -> service.createContext(reader, request, mock(SearchShardTask.class), randomBoolean()));
             assertEquals(
                     "Trying to retrieve too many script_fields. Must be less than or equal to: [" + maxScriptFields + "] but was ["
                             + (maxScriptFields + 1)
@@ -565,7 +567,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             searchRequest, indexShard.shardId(), 0, 1, new AliasFilter(null, Strings.EMPTY_ARRAY),
             1.0f, -1, null);
         try (ReaderContext reader = createReaderContext(indexService, indexShard);
-             SearchContext context = service.createContext(reader, request, null, randomBoolean())) {
+             SearchContext context = service.createContext(reader, request, mock(SearchShardTask.class), randomBoolean())) {
             assertEquals(0, context.scriptFields().fields().size());
         }
     }
@@ -891,7 +893,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
 
         try (ReaderContext readerContext = createReaderContext(indexService, indexService.getShard(0))) {
-            try (SearchContext context = getInstanceFromNode(SearchService.class).createContext(readerContext, shardRequest, null, true)) {
+            try (SearchContext context = getInstanceFromNode(SearchService.class).createContext(readerContext, shardRequest,
+                mock(SearchShardTask.class), true)) {
                 check.accept(context.aggregations().factories().context());
             }
         }
@@ -980,7 +983,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         };
         try (ReaderContext reader = createReaderContext(indexService, indexService.getShard(shardId.id()))) {
             NullPointerException e = expectThrows(NullPointerException.class,
-                () -> service.createContext(reader, request, null, randomBoolean()));
+                () -> service.createContext(reader, request, mock(SearchShardTask.class), randomBoolean()));
             assertEquals("expected", e.getMessage());
         }
         // Needs to busily assert because Engine#refreshNeeded can increase the refCount.
@@ -1300,14 +1303,10 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             .get()
             .getScrollId();
         searchContextCreated.set(false);
-        service.setOnCheckCancelled((t, s) -> {
-            if (s.equals("fetch")) {
-                SearchShardTask task = mock(SearchShardTask.class);
-                when(task.isCancelled()).thenReturn(true);
-                return task;
-            } else {
-                return t;
-            }
+        service.setOnCheckCancelled(t -> {
+            SearchShardTask task = mock(SearchShardTask.class);
+            when(task.isCancelled()).thenReturn(true);
+            return task;
         });
         CountDownLatch latch = new CountDownLatch(1);
         client().searchScroll(new SearchScrollRequest(scrollId), new ActionListener<>() {

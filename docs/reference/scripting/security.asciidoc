@@ -29,7 +29,7 @@ Instead, pass it in as a named parameter:
 
 [source,js]
 ----------------------
-  "source": "doc['my_field'] * multiplier",
+  "source": "doc['my_field'] * params.multiplier",
   "params": {
     "multiplier": 2
   }
@@ -39,13 +39,19 @@ Instead, pass it in as a named parameter:
 The first version has to be recompiled every time the multiplier changes.  The
 second version is only compiled once.
 
-IMPORTANT: If you compile too many unique scripts within a small amount of
-time, {es} rejects the new dynamic scripts with a
-`circuit_breaking_exception` error. For most contexts, you can compile up
-to 75 scripts per 5 minutes by default. For ingest contexts, the default
-script compilation rate is unlimited. You can change these settings
-dynamically by setting `script.context.$CONTEXT.max_compilations_rate`,
-such as `script.context.field.max_compilations_rate=100/10m`.
+IMPORTANT: If you compile too many unique scripts within a short time, {es}
+rejects the new dynamic scripts with a `circuit_breaking_exception` error.
+
+For most contexts, you can compile up to 75 scripts per 5 minutes by default.
+For ingest contexts, the default script compilation rate is unlimited. You
+can change these settings dynamically by setting
+`script.context.$CONTEXT.max_compilations_rate`. For example, the following
+setting limits script compilation to 100 scripts every 10 minutes:
+
+[source,js]
+----
+`script.context.field.max_compilations_rate=100/10m`
+----
 
 [discrete]
 === Do not run as root

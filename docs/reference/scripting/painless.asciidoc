@@ -11,8 +11,9 @@ core principles:
 
 * **Safety**: Ensuring the security of your cluster is of utmost importance. To
 that end, Painless uses a fine-grained allowlist with a granularity down to the
-members of a class. Anything that is not part of the allowlist simply does not
-execute. See the {painless}/painless-api-reference.html[Painless API Reference]
+members of a class. Anything that is not part of the allowlist results in a
+compilation error. See the
+{painless}/painless-api-reference.html[Painless API Reference]
 for a complete list of available classes, methods, and fields per script
 context.
 * **Performance**: Painless compiles directly into JVM bytecode to take

@@ -4,8 +4,8 @@
 [partintro]
 --
 With scripting, you can evaluate custom expressions in {es}. For example, you
-could use a script to return fields as part of a search request or
-evaluate a custom score for a query.
+can use a script to return a computed value as a field or evaluate a custom
+ score for a query.
 
 The default scripting language is <<modules-scripting-painless,Painless>>.
 Additional `lang` plugins enable you to run scripts written in other languages.
@@ -31,8 +31,6 @@ All scripts are cached by default so that they only need to be recompiled
 when updates occur. By default, scripts do not have a time-based expiration.
 You can change this behavior by using the `script.cache.expire` setting.
 Use the `script.cache.max_size` setting to configure the size of the cache.
-For most contexts, the default cache size is `100`. For ingest contexts, the
-default cache size is `200`.
 
 NOTE: The size of scripts is limited to 65,535 bytes. This can be
 changed by setting `script.max_size_in_bytes` setting to increase that soft

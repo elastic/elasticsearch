@@ -23,7 +23,9 @@ type). Use the <<field-access-operator, field access operator>> or
 <<method-call-operator, method call operator>> on a primitive type value to
 force evaluation as its corresponding reference type value.
 
-The following primitive types are available:
+The following primitive types are available. The corresponding reference type
+is listed in parentheses. For example, `Byte` is the reference type for the
+`byte` primitive type:
 
 [[available-primitive-types]]
 .**Available primitive types**

@@ -624,7 +624,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
-    private void checkCancelled(SearchShardTask task, String phase) {
+    protected void checkCancelled(SearchShardTask task, String phase) {
         // check cancellation as early as possible, as it avoids opening up a Lucene reader on FrozenEngine
         if (task.isCancelled()) {
             logger.trace("task cancelled before executing {} phase", phase);
@@ -759,10 +759,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         });
     }
 
-    final SearchContext createContext(ReaderContext readerContext,
-                                      ShardSearchRequest request,
-                                      SearchShardTask task,
-                                      boolean includeAggregations) throws IOException {
+    protected SearchContext createContext(ReaderContext readerContext,
+                                          ShardSearchRequest request,
+                                          SearchShardTask task,
+                                          boolean includeAggregations) throws IOException {
         final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout);
         try {
             if (request.scroll() != null) {

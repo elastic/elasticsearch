@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -26,6 +27,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class MockSearchService extends SearchService {
@@ -39,6 +41,8 @@ public class MockSearchService extends SearchService {
     private Consumer<ReaderContext> onPutContext = context -> {};
 
     private Consumer<SearchContext> onCreateSearchContext = context -> {};
+
+    private BiConsumer<SearchShardTask, String> onCheckCancelled = (t, s) -> {};
 
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
     public static void assertNoInFlightContext() {
@@ -100,5 +104,22 @@ public class MockSearchService extends SearchService {
         DefaultSearchContext searchContext = super.createSearchContext(request, timeout);
         onCreateSearchContext.accept(searchContext);
         return searchContext;
+    }
+
+    @Override
+    protected SearchContext createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTask task, boolean includeAggregations) throws IOException {
+        SearchContext searchContext = super.createContext(readerContext, request, task, includeAggregations);
+        onCreateSearchContext.accept(searchContext);
+        return searchContext;
+    }
+
+    public void setOnCheckCancelled(BiConsumer<SearchShardTask, String> onCheckCancelled) {
+        this.onCheckCancelled = onCheckCancelled;
+    }
+
+    @Override
+    protected void checkCancelled(SearchShardTask task, String phase) {
+        onCheckCancelled.accept(task, phase);
+        super.checkCancelled(task, phase);
     }
 }

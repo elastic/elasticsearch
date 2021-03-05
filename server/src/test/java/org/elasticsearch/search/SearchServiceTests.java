@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -1176,7 +1177,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertTrue(searchService.freeReaderContext(future.actionGet()));
     }
 
-    public void testCancelEarly() throws Exception {
+    public void testCancelQueryPhaseEarly() throws Exception {
         createIndex("index");
         final MockSearchService service = (MockSearchService) getInstanceFromNode(SearchService.class);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -1273,6 +1274,54 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             }
         });
         latch4.await();
+    }
+
+    public void testCancelFetchPhaseEarly() throws Exception {
+        final MockSearchService service = (MockSearchService) getInstanceFromNode(SearchService.class);
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+
+        AtomicBoolean searchContextCreated = new AtomicBoolean(false);
+        service.setOnCreateSearchContext(c -> searchContextCreated.set(true));
+
+        // Test fetch phase is cancelled early
+        String scrollId =
+                client().search(searchRequest.allowPartialSearchResults(false).scroll(TimeValue.timeValueMinutes(10))).get().getScrollId();
+
+        client().searchScroll(new SearchScrollRequest(scrollId)).get();
+        assertThat(searchContextCreated.get(), is(true));
+
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+        clearScrollRequest.addScrollId(scrollId);
+        client().clearScroll(clearScrollRequest);
+
+        scrollId =
+                client().search(searchRequest.allowPartialSearchResults(false).scroll(TimeValue.timeValueMinutes(10))).get().getScrollId();
+        searchContextCreated.set(false);
+        service.setOnCheckCancelled((t, s) -> {throw new TaskCancelledException("cancelled");});
+        CountDownLatch latch = new CountDownLatch(1);
+        client().searchScroll(new SearchScrollRequest(scrollId), new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse searchResponse) {
+                try {
+                    fail("Search not cancelled early");
+                } finally {
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Throwable cancelledExc = e.getCause().getCause();
+                assertThat(cancelledExc, is(instanceOf(TaskCancelledException.class)));
+                assertThat(cancelledExc.getMessage(), is("cancelled"));
+                latch.countDown();
+            }
+        });
+        latch.await();
+        assertThat(searchContextCreated.get(), is(false));
+
+        clearScrollRequest.setScrollIds(singletonList(scrollId));
+        client().clearScroll(clearScrollRequest);
     }
 
     private ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {

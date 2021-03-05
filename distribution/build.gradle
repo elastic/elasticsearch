@@ -175,11 +175,9 @@ def buildDefaultLog4jConfigTaskProvider = tasks.register("buildDefaultLog4jConfi
 
 Closure writeLog4jProperties = {
   def file = file('src/config/log4j2.properties')
-  println "file.absolutePath = ${file.absolutePath}"
   String mainLog4jProperties = file.getText('UTF-8')
   it.log4jFile.setText(mainLog4jProperties, 'UTF-8')
   for (String moduleLog4jProperties : it.contents.reverse()) {
-    println "moduleLog4jProperties = $moduleLog4jProperties"
     it.log4jFile.append(moduleLog4jProperties, 'UTF-8')
   }
 }

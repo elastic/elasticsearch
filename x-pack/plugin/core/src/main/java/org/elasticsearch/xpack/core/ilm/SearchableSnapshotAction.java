@@ -246,7 +246,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(waitForGreenRestoredIndexKey,
             copyMetadataKey, ClusterHealthStatus.GREEN, getRestoredIndexPrefix(waitForGreenRestoredIndexKey));
         CopyExecutionStateStep copyMetadataStep = new CopyExecutionStateStep(copyMetadataKey, copyLifecyclePolicySettingKey,
-            getRestoredIndexPrefix(copyMetadataKey), nextStepKey);
+            (index, state) -> getRestoredIndexPrefix(copyMetadataKey) + index.getName(), nextStepKey);
         CopySettingsStep copySettingsStep = new CopySettingsStep(copyLifecyclePolicySettingKey, dataStreamCheckBranchingKey,
             getRestoredIndexPrefix(copyLifecyclePolicySettingKey), LifecycleSettings.LIFECYCLE_NAME);
         BranchingStep isDataStreamBranchingStep = new BranchingStep(dataStreamCheckBranchingKey, swapAliasesKey, replaceDataStreamIndexKey,
@@ -256,7 +256,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                 return indexAbstraction.getParentDataStream() != null;
             });
         ReplaceDataStreamBackingIndexStep replaceDataStreamBackingIndex = new ReplaceDataStreamBackingIndexStep(replaceDataStreamIndexKey,
-            deleteIndexKey, getRestoredIndexPrefix(replaceDataStreamIndexKey));
+            deleteIndexKey, (index, state) -> getRestoredIndexPrefix(replaceDataStreamIndexKey) + index.getName());
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, null, client);
         // sending this step to null as the restored index (which will after this step essentially be the source index) was sent to the next
         // key after we restored the lifecycle execution state

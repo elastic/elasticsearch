@@ -22,6 +22,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
@@ -37,9 +38,12 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getSnapshotState;
@@ -48,10 +52,15 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ShrinkActionIT extends ESRestTestCase {
     private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
+    private static final String SHRINK_INDEX_NAME = "shrink_index_name";
 
     private String policy;
     private String index;
@@ -69,17 +78,19 @@ public class ShrinkActionIT extends ESRestTestCase {
         int numShards = 4;
         int divisor = randomFrom(2, 4);
         int expectedFinalShards = numShards / divisor;
-        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
-        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+        createIndexWithSettings(client(), index, alias, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards, null));
         updatePolicy(client(), index, policy);
-        assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
+
+        String shrunkenIndexName = getShrinkIndexName(index);
+        assertBusy(() -> assertTrue(indexExists(shrunkenIndexName)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue(aliasExists(shrunkenIndexName, index)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndexName),
+            equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
         assertBusy(() -> {
-            Map<String, Object> settings = getOnlyIndexSettings(client(), shrunkenIndex);
-            assertThat(settings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
+            Map<String, Object> settings = getOnlyIndexSettings(client(), shrunkenIndexName);
+            assertThat(settings.get(SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
         });
@@ -88,25 +99,24 @@ public class ShrinkActionIT extends ESRestTestCase {
 
     public void testShrinkSameShards() throws Exception {
         int numberOfShards = randomFrom(1, 2);
-        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
-        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+        createIndexWithSettings(client(), index, alias, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(numberOfShards, null));
         updatePolicy(client(), index, policy);
+        String shrunkenIndex = getShrinkIndexName(index);
         assertBusy(() -> {
             assertTrue(indexExists(index));
             assertFalse(indexExists(shrunkenIndex));
             assertFalse(aliasExists(shrunkenIndex, index));
             Map<String, Object> settings = getOnlyIndexSettings(client(), index);
             assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
-            assertThat(settings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(numberOfShards)));
+            assertThat(settings.get(SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(numberOfShards)));
             assertNull(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
             assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
         });
     }
 
     public void testShrinkDuringSnapshot() throws Exception {
-        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
         // Create the repository before taking the snapshot.
         Request request = new Request("PUT", "/_snapshot/repo");
         request.setJsonEntity(Strings
@@ -124,7 +134,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(1, null), TimeValue.timeValueMillis(0));
         // create index without policy
         createIndexWithSettings(client(), index, alias, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             // required so the shrink doesn't wait on SetSingleNodeAllocateStep
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", "javaRestTest-0"));
@@ -137,13 +147,14 @@ public class ShrinkActionIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
         // add policy and expect it to trigger shrink immediately (while snapshot in progress)
         updatePolicy(client(), index, policy);
+        String shrunkenIndex = getShrinkIndexName(index);
         // assert that index was shrunk and original index was deleted
         assertBusy(() -> {
             assertTrue(indexExists(shrunkenIndex));
             assertTrue(aliasExists(shrunkenIndex, index));
             Map<String, Object> settings = getOnlyIndexSettings(client(), shrunkenIndex);
             assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
-            assertThat(settings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(1)));
+            assertThat(settings.get(SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(1)));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
         }, 2, TimeUnit.MINUTES);
@@ -157,7 +168,6 @@ public class ShrinkActionIT extends ESRestTestCase {
         int numShards = 2;
         int expectedFinalShards = 1;
         String originalIndex = index + "-000001";
-        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex;
 
         // add a policy
         Map<String, LifecycleAction> hotActions = Map.of(
@@ -187,20 +197,20 @@ public class ShrinkActionIT extends ESRestTestCase {
         createIndexWithSettings(client(), originalIndex, alias, Settings.builder(), true);
         index(client(), originalIndex, "_id", "foo", "bar");
 
+        String shrunkenIndex = getShrinkIndexName(originalIndex);
         assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(client(), shrunkenIndex);
-            assertThat(settings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
+            assertThat(settings.get(SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
         });
     }
 
     public void testSetSingleNodeAllocationRetriesUntilItSucceeds() throws Exception {
         int numShards = 2;
         int expectedFinalShards = 1;
-        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
         createIndexWithSettings(client(), index, alias, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(SETTING_NUMBER_OF_SHARDS, numShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER));
 
@@ -251,6 +261,7 @@ public class ShrinkActionIT extends ESRestTestCase {
             }
         }, 30, TimeUnit.SECONDS));
 
+        String shrunkenIndex = getShrinkIndexName(index);
         Request resetAllocationForIndex = new Request("PUT", "/" + index + "/_settings");
         resetAllocationForIndex.setJsonEntity("{\n" +
             "  \"settings\": {\n" +
@@ -264,39 +275,145 @@ public class ShrinkActionIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
     }
 
-    public void testRetryFailedShrinkAction() throws Exception {
+    public void testAutomaticRetryFailedShrinkAction() throws Exception {
         int numShards = 4;
         int divisor = randomFrom(2, 4);
         int expectedFinalShards = numShards / divisor;
-        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
-        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+        createIndexWithSettings(client(), index, alias, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(numShards + randomIntBetween(1, numShards), null));
         updatePolicy(client(), index, policy);
         assertBusy(() -> {
             String failedStep = getFailedStepForIndex(index);
             assertThat(failedStep, equalTo(ShrinkStep.NAME));
-        }, 30, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
 
         // update policy to be correct
         createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards, null));
         updatePolicy(client(), index, policy);
 
-        // retry step
-        Request retryRequest = new Request("POST", index + "/_ilm/retry");
-        assertOK(client().performRequest(retryRequest));
-
         // assert corrected policy is picked up and index is shrunken
+        String shrunkenIndex = getShrinkIndexName(index);
         assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(client(), shrunkenIndex);
-            assertThat(settings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
+            assertThat(settings.get(SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
         });
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
+    }
+
+    public void testShrinkStepMovesForwardIfShrunkIndexIsCreatedBetweenRetries() throws Exception {
+        int numShards = 4;
+        int expectedFinalShards = 1;
+        createIndexWithSettings(client(), index, alias, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(numShards + randomIntBetween(1, numShards), null));
+        updatePolicy(client(), index, policy);
+        assertBusy(() -> {
+            String failedStep = getFailedStepForIndex(index);
+            assertThat(failedStep, equalTo(ShrinkStep.NAME));
+        }, 60, TimeUnit.SECONDS);
+
+        String shrinkIndexName = getShrinkIndexName(index);
+        Request shrinkIndexRequest = new Request("POST", index + "/_shrink/" + shrinkIndexName);
+        shrinkIndexRequest.setEntity(new StringEntity(
+            "{\"settings\": {\n" +
+                "      \"" + SETTING_NUMBER_OF_SHARDS + "\": 1,\n" +
+                "      \"" + SETTING_NUMBER_OF_REPLICAS + "\": 0,\n" +
+                "      \"" + LifecycleSettings.LIFECYCLE_NAME + "\": \"" + policy + "\",\n" +
+                "      \"" + IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id" + "\": null\n" +
+                "   \n}\n" +
+                "\n}", ContentType.APPLICATION_JSON));
+        client().performRequest(shrinkIndexRequest);
+
+        // assert manually shrunk index is picked up and policy completes successfully
+        String shrunkenIndex = getShrinkIndexName(index);
+        assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(client(), shrunkenIndex);
+            assertThat(settings.get(SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
+            assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
+            assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
+        });
+        expectThrows(ResponseException.class, () -> indexDocument(client(), index));
+    }
+
+    public void testWaitInShrunkShardsAllocatedExceedsThreshold() throws Exception {
+        int numShards = 4;
+        int expectedFinalShards = 1;
+        createIndexWithSettings(client(), index, alias, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1s")
+        );
+
+        createPolicy(client(), policy, null, new Phase("warm", TimeValue.ZERO,
+            Map.of(MigrateAction.NAME, new MigrateAction(false), ShrinkAction.NAME,
+                new ShrinkAction(numShards + randomIntBetween(1, numShards), null))), null, null, null
+        );
+        updatePolicy(client(), index, policy);
+
+        // ILM will retry the shrink step because the number of shards to shrink to is gt the current number of shards
+        assertBusy(() -> {
+            Map<String, Object> explainIndex = explainIndex(client(), index);
+            Integer retryCount = (Integer) explainIndex.get(FAILED_STEP_RETRY_COUNT_FIELD);
+            assertThat(retryCount, notNullValue());
+            assertThat(retryCount, greaterThanOrEqualTo(1));
+        }, 30, TimeUnit.SECONDS);
+
+        String firstAttemptShrinkIndexName = getShrinkIndexName(index);
+
+        // we're manually shrinking the index but configuring a very high number of replicas and waiting for all active shards
+        // this will make ths shrunk index unable to allocate successfully, so ILM will wait in the `shrunk-shards-allocated` step
+        Request shrinkIndexRequest = new Request("POST", index + "/_shrink/" + firstAttemptShrinkIndexName);
+        shrinkIndexRequest.setEntity(new StringEntity(
+            "{\"settings\": {\n" +
+                "      \"" + SETTING_NUMBER_OF_SHARDS + "\": 1,\n" +
+                "      \"" + SETTING_NUMBER_OF_REPLICAS + "\": 349,\n" +
+                "      \"index.write.wait_for_active_shards\": \"all\",\n" +
+                "      \"" + LifecycleSettings.LIFECYCLE_NAME + "\": \"" + policy + "\",\n" +
+                "      \"" + IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id" + "\": null\n" +
+                "   \n}\n" +
+                "\n}", ContentType.APPLICATION_JSON));
+        client().performRequest(shrinkIndexRequest);
+
+        // wait until the threshold is passed and a new shrink index name is generated
+        assertBusy(() -> {
+            Map<String, Object> explainIndexResponse = explainIndex(client(), index);
+            String secondCycleShrinkIndexName = (String) explainIndexResponse.get(SHRINK_INDEX_NAME);
+            assertThat(secondCycleShrinkIndexName, notNullValue());
+            // ILM generated another shrink index name
+            assertThat(secondCycleShrinkIndexName, not(equalTo(firstAttemptShrinkIndexName)));
+        }, 60, TimeUnit.SECONDS);
+
+        // the index we first attempted to shrink to must be deleted as we went back to the `cleanup-shrink-index` step
+        assertThat(indexExists(firstAttemptShrinkIndexName), is(false));
+
+        // ILM will again stop in the `shrink` step as the number of target shards in the shrink action is still configured to a
+        // number higher than the index's current number of shards
+        assertBusy(() -> {
+            Map<String, Object> explainIndex = explainIndex(client(), index);
+            Integer retryCount = (Integer) explainIndex.get(FAILED_STEP_RETRY_COUNT_FIELD);
+            assertThat(retryCount, notNullValue());
+            assertThat(retryCount, greaterThanOrEqualTo(1));
+        }, 30, TimeUnit.SECONDS);
+
+        // update policy to be correct and allow the index to shrink successfully
+        createPolicy(client(), policy, null, new Phase("warm", TimeValue.ZERO,
+                Map.of(MigrateAction.NAME, new MigrateAction(false), ShrinkAction.NAME, new ShrinkAction(expectedFinalShards, null))),
+            null, null, null);
+        updatePolicy(client(), index, policy);
+
+        // assert corrected policy is picked up and index is shrunken
+        String shrunkenIndex = getShrinkIndexName(index);
+        assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
     }
 
     @Nullable
@@ -307,5 +424,24 @@ public class ShrinkActionIT extends ESRestTestCase {
         }
 
         return (String) indexResponse.get("failed_step");
+    }
+
+    private String getShrinkIndexName(String originalIndex) throws InterruptedException, IOException {
+        String[] shrunkenIndexName = new String[1];
+        waitUntil(() -> {
+            try {
+                Map<String, Object> explainIndexResponse = explainIndex(client(), originalIndex);
+                if (explainIndexResponse == null) {
+                    return false;
+                }
+                shrunkenIndexName[0] = (String) explainIndexResponse.get(SHRINK_INDEX_NAME);
+                return shrunkenIndexName[0] != null;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS);
+        assert shrunkenIndexName != null : "lifecycle execution state must contain the target shrink index name for policy [" + policy +
+            "] and originalIndex [" + originalIndex + "]. state is: " + explainIndex(client(), originalIndex);
+        return shrunkenIndexName[0];
     }
 }

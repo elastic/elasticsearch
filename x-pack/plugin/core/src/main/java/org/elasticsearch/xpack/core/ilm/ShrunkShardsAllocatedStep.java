@@ -6,8 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -25,9 +28,16 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
     public static final String NAME = "shrunk-shards-allocated";
     private String shrunkIndexPrefix;
 
-    public ShrunkShardsAllocatedStep(StepKey key, StepKey nextStepKey, String shrunkIndexPrefix) {
+    private static final Logger logger = LogManager.getLogger(ShrunkShardsAllocatedStep.class);
+
+    public ShrunkShardsAllocatedStep(StepKey key, StepKey nextStepKey, String shrunkenIndexPrefix) {
         super(key, nextStepKey);
-        this.shrunkIndexPrefix = shrunkIndexPrefix;
+        this.shrunkIndexPrefix = shrunkenIndexPrefix;
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 
     String getShrunkIndexPrefix() {
@@ -36,14 +46,34 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
+        IndexMetadata indexMetadata = clusterState.metadata().index(index);
+        if (indexMetadata == null) {
+            // Index must have been since deleted, ignore it
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            return new Result(false, null);
+        }
+
+        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        if (lifecycleState.getLifecycleDate() == null) {
+            throw new IllegalStateException("source index [" + indexMetadata.getIndex().getName() +
+                "] is missing lifecycle date");
+        }
+
+        String shrunkenIndexName = lifecycleState.getShrinkIndexName();
+        if (shrunkenIndexName == null) {
+            // this is for BWC reasons for polices that are in the middle of executing the shrink action when the update to generated
+            // names happens
+            shrunkenIndexName = shrunkIndexPrefix + index;
+        }
+
         // We only want to make progress if all shards of the shrunk index are
         // active
-        boolean indexExists = clusterState.metadata().index(shrunkIndexPrefix + index.getName()) != null;
+        boolean indexExists = clusterState.metadata().index(shrunkenIndexName) != null;
         if (indexExists == false) {
             return new Result(false, new Info(false, -1, false));
         }
-        boolean allShardsActive = ActiveShardCount.ALL.enoughShardsActive(clusterState, shrunkIndexPrefix + index.getName());
-        int numShrunkIndexShards = clusterState.metadata().index(shrunkIndexPrefix + index.getName()).getNumberOfShards();
+        boolean allShardsActive = ActiveShardCount.ALL.enoughShardsActive(clusterState, shrunkenIndexName);
+        int numShrunkIndexShards = clusterState.metadata().index(shrunkenIndexName).getNumberOfShards();
         if (allShardsActive) {
             return new Result(true, null);
         } else {

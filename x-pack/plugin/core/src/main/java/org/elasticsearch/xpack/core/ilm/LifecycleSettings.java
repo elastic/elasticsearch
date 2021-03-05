@@ -20,6 +20,7 @@ public class LifecycleSettings {
     public static final String LIFECYCLE_INDEXING_COMPLETE = "index.lifecycle.indexing_complete";
     public static final String LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
     public static final String LIFECYCLE_PARSE_ORIGINATION_DATE = "index.lifecycle.parse_origination_date";
+    public static final String LIFECYCLE_STEP_WAIT_TIME_THRESHOLD = "index.lifecycle.step.wait_time_threshold";
     public static final String LIFECYCLE_HISTORY_INDEX_ENABLED = "indices.lifecycle.history_index_enabled";
     public static final String LIFECYCLE_STEP_MASTER_TIMEOUT = "indices.lifecycle.step.master_timeout";
 
@@ -47,6 +48,13 @@ public class LifecycleSettings {
     public static final Setting<TimeValue> LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING =
         Setting.positiveTimeSetting(LIFECYCLE_STEP_MASTER_TIMEOUT, TimeValue.timeValueSeconds(30), Setting.Property.Dynamic,
             Setting.Property.NodeScope);
+    // This setting configures how much time since step_time should ILM wait for a condition to be met. After the threshold wait time is
+    // breached/surpassed ILM will likely stop waiting and go to the next step.
+    // Also see {@link org.elasticsearch.xpack.core.ilm.ClusterStateWaitUntilThresholdStep}
+    public static final Setting<TimeValue> LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING =
+        Setting.positiveTimeSetting(LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, TimeValue.timeValueHours(12), Setting.Property.Dynamic,
+            Setting.Property.IndexScope);
+
 
     public static final Setting<Boolean> SLM_HISTORY_INDEX_ENABLED_SETTING = Setting.boolSetting(SLM_HISTORY_INDEX_ENABLED, true,
         Setting.Property.NodeScope);

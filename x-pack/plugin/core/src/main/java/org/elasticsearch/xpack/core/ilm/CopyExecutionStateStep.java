@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
 
 import java.util.Objects;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
@@ -30,17 +31,23 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
 
     private static final Logger logger = LogManager.getLogger(CopyExecutionStateStep.class);
 
-    private final String targetIndexPrefix;
+    private final BiFunction<Index, ClusterState, String> targetIndexNameSupplier;
     private final StepKey targetNextStepKey;
 
-    public CopyExecutionStateStep(StepKey key, StepKey nextStepKey, String targetIndexPrefix, StepKey targetNextStepKey) {
+    public CopyExecutionStateStep(StepKey key, StepKey nextStepKey, BiFunction<Index, ClusterState, String> targetIndexNameSupplier,
+                                  StepKey targetNextStepKey) {
         super(key, nextStepKey);
-        this.targetIndexPrefix = targetIndexPrefix;
+        this.targetIndexNameSupplier = targetIndexNameSupplier;
         this.targetNextStepKey = targetNextStepKey;
     }
 
-    String getTargetIndexPrefix() {
-        return targetIndexPrefix;
+    @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    BiFunction<Index, ClusterState, String> getTargetIndexNameSupplier() {
+        return targetIndexNameSupplier;
     }
 
     StepKey getTargetNextStepKey() {
@@ -58,7 +65,7 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         // get source index
         String indexName = indexMetadata.getIndex().getName();
         // get target index
-        String targetIndexName = targetIndexPrefix + indexName;
+        String targetIndexName = targetIndexNameSupplier.apply(index, clusterState);
         IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);
 
         if (targetIndexMetadata == null) {
@@ -82,6 +89,7 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         relevantTargetCustomData.setSnapshotRepository(lifecycleState.getSnapshotRepository());
         relevantTargetCustomData.setSnapshotName(lifecycleState.getSnapshotName());
         relevantTargetCustomData.setSnapshotIndexName(lifecycleState.getSnapshotIndexName());
+        relevantTargetCustomData.setShrinkIndexName(lifecycleState.getShrinkIndexName());
 
         Metadata.Builder newMetadata = Metadata.builder(clusterState.getMetadata())
             .put(IndexMetadata.builder(targetIndexMetadata)
@@ -98,16 +106,13 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (super.equals(o) == false) {
-            return false;
-        }
         CopyExecutionStateStep that = (CopyExecutionStateStep) o;
-        return Objects.equals(targetIndexPrefix, that.targetIndexPrefix) &&
+        return super.equals(o) && Objects.equals(targetIndexNameSupplier, that.targetIndexNameSupplier) &&
             Objects.equals(targetNextStepKey, that.targetNextStepKey);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), targetIndexPrefix, targetNextStepKey);
+        return Objects.hash(super.hashCode(), targetIndexNameSupplier, targetNextStepKey);
     }
 }

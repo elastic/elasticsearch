@@ -94,7 +94,7 @@ public class ParseField {
 
     /**
      * Creates a new field with current name and deprecatedNames, but overrides forRestApiVersion
-     * @param forRestApiVersion - a boolean function indicating if a field is for the given RestApiVersion
+     * @param forRestApiVersion - a boolean function indicating for what version a deprecated name is available
      */
     public ParseField forRestApiVersion(Function<RestApiVersion, Boolean> forRestApiVersion) {
         return new ParseField(this.name, forRestApiVersion, this.deprecatedNames,
@@ -102,7 +102,7 @@ public class ParseField {
     }
 
     /**
-     * @return a function indicating for which RestApiVersion a field is declared for
+     * @return a function indicating for which RestApiVersion a deprecated name is declared for
      */
     public Function<RestApiVersion, Boolean> getForRestApiVersion() {
         return forRestApiVersion;
@@ -158,7 +158,7 @@ public class ParseField {
         }
         boolean isCompatibleDeprecation = RestApiVersion.minimumSupported().matches(forRestApiVersion) &&
             RestApiVersion.current().matches(forRestApiVersion) == false;
-//
+
         DeprecationHandler deprecationHandlerInstance = deprecationHandler != null ?
             deprecationHandler.getInstance(isCompatibleDeprecation) : null;
         // Now try to match against one of the deprecated names. Note that if

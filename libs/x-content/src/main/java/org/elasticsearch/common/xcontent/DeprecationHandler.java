@@ -97,6 +97,12 @@ public interface DeprecationHandler {
      */
     void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName);
 
+    /**
+     * Returns a variant of the deprecation handler that emits compatible logs or deprecation logs
+     * if a deprecation handler does not support compatible logging then returns the same instance.
+     * @param compatibleWarnings a flag indicating which handler to return
+     * @return a variant of the current deprecation handler
+     */
     default DeprecationHandler getInstance(boolean compatibleWarnings) {
         return this;
     }

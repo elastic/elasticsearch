@@ -7,9 +7,12 @@
  */
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
@@ -71,21 +74,74 @@ public class ParseFieldTests extends ESTestCase {
         assertThat(parseField.getAllNamesIncludedDeprecated(), arrayContainingInAnyOrder("more_like_this", "mlt"));
     }
 
-    public void testCompatibleField() {
+    class TestDeprecationHandler implements DeprecationHandler {
+
+        public boolean compatibleWarningsUsed = false;
+
+        @Override
+        public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
+        }
+
+        @Override
+        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
+        }
+
+        @Override
+        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
+        }
+
+        @Override
+        public DeprecationHandler getInstance(boolean compatibleWarnings) {
+            this.compatibleWarningsUsed = compatibleWarnings;
+            return this;
+        }
+    }
+
+    public void testCompatibleLoggerIsUsed() {
+        {
+            // a field deprecated in previous version and now available under old name only in compatible api
+            // emitting compatible logs
+            ParseField field = new ParseField("new_name", "old_name")
+                .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported()));
+
+            TestDeprecationHandler  testDeprecationHandler = new TestDeprecationHandler();
+
+            assertTrue(field.match("old_name", testDeprecationHandler));
+            assertThat(testDeprecationHandler.compatibleWarningsUsed , is(true));
+        }
+
+        {
+            //a regular newly deprecated field. Emitting deprecation logs instead of compatible logs
+            ParseField field = new ParseField("new_name", "old_name");
+
+            TestDeprecationHandler  testDeprecationHandler = new TestDeprecationHandler();
+
+            assertTrue(field.match("old_name", testDeprecationHandler));
+            assertThat(testDeprecationHandler.compatibleWarningsUsed , is(false));
+        }
+
+    }
+
+    public void testCompatibleWarnings() {
         ParseField field = new ParseField("new_name", "old_name")
-            .withRestApiCompatibilityVersions(RestApiCompatibleVersion.V_7);
+            .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported()));
 
         assertTrue(field.match("new_name", LoggingDeprecationHandler.INSTANCE));
+        ensureNoWarnings();
         assertTrue(field.match("old_name", LoggingDeprecationHandler.INSTANCE));
         assertWarnings("Deprecated field [old_name] used, expected [new_name] instead");
 
         ParseField allDepField = new ParseField("dep", "old_name")
             .withAllDeprecated()
-            .withRestApiCompatibilityVersions(RestApiCompatibleVersion.V_7);
+            .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported()));
 
         assertTrue(allDepField.match("dep", LoggingDeprecationHandler.INSTANCE));
         assertWarnings("Deprecated field [dep] used, this field is unused and will be removed entirely");
         assertTrue(allDepField.match("old_name", LoggingDeprecationHandler.INSTANCE));
         assertWarnings("Deprecated field [old_name] used, this field is unused and will be removed entirely");
+
+        ParseField regularField = new ParseField("new_name");
+        assertTrue(regularField.match("new_name", LoggingDeprecationHandler.INSTANCE));
+        ensureNoWarnings();
     }
 }

@@ -9,10 +9,10 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 public class LoggingDeprecationHandler implements DeprecationHandler {
     /**
      * The logger to which to send deprecation messages.
-     *
+     * <p>
      * This uses ParseField's logger because that is the logger that
      * we have been using for many releases for deprecated fields.
      * Changing that will require some research to make super duper
@@ -36,45 +36,45 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParseField.class);
 
     public static final String COMPATIBLE_API_WARNING_PREFIX = "";
-    public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler(( message, params) ->
-        deprecationLogger.deprecate(DeprecationCategory.API,"deprecated_field", message, params));
+    public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler((message, params, field_name) ->
+        deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_field_" + field_name, message, params));
 
 
-    public static final LoggingDeprecationHandler COMPATIBLE_REST_API_INSTANCE = new LoggingDeprecationHandler((message, params) ->
-        deprecationLogger.compatibleApiWarning("deprecated_field", message, params));
+    public static final LoggingDeprecationHandler COMPATIBLE_REST_API_INSTANCE =
+        new LoggingDeprecationHandler((message, params, field_name) ->
+        deprecationLogger.compatibleApiWarning("deprecated_field_" + field_name, message, params));
 
 
-    private BiConsumer<String, Object[]> loggingFunction;
+    private TriConsumer<String, Object[], String> loggingFunction;
 
-    private LoggingDeprecationHandler() {
-        // two instances only
-    }
-    private LoggingDeprecationHandler(BiConsumer<String,Object[]> loggingFunction) {
+    protected LoggingDeprecationHandler(TriConsumer<String, Object[], String> loggingFunction) {
         // two instances only
         this.loggingFunction = loggingFunction;
     }
+
     @Override
     public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
         String prefix = parserLocation(parserName, location);
-        loggingFunction.accept("{}Deprecated field [{}] used, expected [{}] instead", new Object[]{prefix, usedName, modernName});
+        loggingFunction.apply("{}Deprecated field [{}] used, expected [{}] instead", new Object[]{prefix, usedName, modernName}, usedName);
     }
 
     @Override
     public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
         String prefix = parserLocation(parserName, location);
-        loggingFunction.accept("{}Deprecated field [{}] used, replaced by [{}]", new Object[] {prefix, usedName, replacedWith});
+        loggingFunction.apply("{}Deprecated field [{}] used, replaced by [{}]", new Object[]{prefix, usedName, replacedWith}, usedName);
     }
 
     @Override
     public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
         String prefix = parserLocation(parserName, location);
-        loggingFunction.accept("{}Deprecated field [{}] used, this field is unused and will be removed entirely",
-            new Object[]{prefix, usedName});
+        loggingFunction.apply("{}Deprecated field [{}] used, this field is unused and will be removed entirely",
+            new Object[]{prefix, usedName}, usedName);
     }
 
     private String parserLocation(String parserName, Supplier<XContentLocation> location) {
         return parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
     }
+
     @Override
     public DeprecationHandler getInstance(boolean compatibleWarnings) {
         if (compatibleWarnings) {

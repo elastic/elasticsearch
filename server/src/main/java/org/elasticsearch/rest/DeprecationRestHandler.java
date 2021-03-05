@@ -32,6 +32,9 @@ public class DeprecationRestHandler implements RestHandler {
      * @param handler The rest handler to deprecate (it's possible that the handler is reused with a different name!)
      * @param deprecationMessage The message to warn users with when they use the {@code handler}
      * @param deprecationLogger The deprecation logger
+     * @param compatibleVersionWarning set to false so that a deprecation warning will be issued for the handled request,
+     *                                 set to true to that a compatibility api warning will be issue for the handled request
+     *
      * @throws NullPointerException if any parameter except {@code deprecationMessage} is {@code null}
      * @throws IllegalArgumentException if {@code deprecationMessage} is not a valid header
      */
@@ -41,10 +44,6 @@ public class DeprecationRestHandler implements RestHandler {
         this.deprecationMessage = requireValidHeader(deprecationMessage);
         this.deprecationLogger = Objects.requireNonNull(deprecationLogger);
         this.compatibleVersionWarning = compatibleVersionWarning;
-    }
-
-    public DeprecationRestHandler(RestHandler handler, String deprecationMessage, DeprecationLogger deprecationLogger) {
-        this(handler, deprecationMessage, deprecationLogger, false);
     }
 
     /**

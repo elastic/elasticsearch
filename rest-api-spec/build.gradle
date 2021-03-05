@@ -15,15 +15,15 @@ restResources {
 
 artifacts {
   restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
-  restTests(new File(projectDir, "src/main/resources/rest-api-spec/test"))
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
 testClusters.all {
   module ':modules:mapper-extras'
 }
 
-tasks.named("test").configure {enabled = false }
-tasks.named("jarHell").configure {enabled = false }
+tasks.named("test").configure { enabled = false }
+tasks.named("jarHell").configure { enabled = false }
 
 tasks.named("yamlRestCompatTest").configure {
   onlyIf {

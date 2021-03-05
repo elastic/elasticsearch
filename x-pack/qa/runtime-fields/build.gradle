@@ -17,7 +17,7 @@ subprojects {
 
     restResources {
       restApi {
-        includeXpack 'async_search', 'graph', '*_point_in_time'
+        include 'async_search', 'graph', '*_point_in_time'
       }
       restTests {
         includeCore '*'

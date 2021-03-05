@@ -47,22 +47,18 @@ import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
 public class CopyRestApiTask extends DefaultTask {
     private static final String REST_API_PREFIX = "rest-api-spec/api";
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
-    private final ListProperty<String> includeCore;
-    private final ListProperty<String> includeXpack;
+    private final ListProperty<String> include;
     private final DirectoryProperty outputResourceDir;
     private final DirectoryProperty additionalYamlTestsDir;
 
     private File sourceResourceDir;
     private boolean skipHasRestTestCheck;
-    private FileCollection coreConfig;
-    private FileCollection xpackConfig;
+    private FileCollection config;
     private FileCollection additionalConfig;
-    private Function<FileCollection, FileTree> coreConfigToFileTree = FileCollection::getAsFileTree;
-    private Function<FileCollection, FileTree> xpackConfigToFileTree = FileCollection::getAsFileTree;
+    private Function<FileCollection, FileTree> configToFileTree = FileCollection::getAsFileTree;
     private Function<FileCollection, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
 
-    private final PatternFilterable corePatternSet;
-    private final PatternFilterable xpackPatternSet;
+    private final PatternFilterable patternSet;
     private final ProjectLayout projectLayout;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
@@ -75,25 +71,18 @@ public class CopyRestApiTask extends DefaultTask {
         ArchiveOperations archiveOperations,
         ObjectFactory objectFactory
     ) {
-        this.includeCore = objectFactory.listProperty(String.class);
-        this.includeXpack = objectFactory.listProperty(String.class);
+        this.include = objectFactory.listProperty(String.class);
         this.outputResourceDir = objectFactory.directoryProperty();
         this.additionalYamlTestsDir = objectFactory.directoryProperty();
-        this.corePatternSet = patternSetFactory.create();
-        this.xpackPatternSet = patternSetFactory.create();
+        this.patternSet = patternSetFactory.create();
         this.projectLayout = projectLayout;
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
     }
 
     @Input
-    public ListProperty<String> getIncludeCore() {
-        return includeCore;
-    }
-
-    @Input
-    public ListProperty<String> getIncludeXpack() {
-        return includeXpack;
+    public ListProperty<String> getInclude() {
+        return include;
     }
 
     @Input
@@ -105,29 +94,22 @@ public class CopyRestApiTask extends DefaultTask {
     @InputFiles
     public FileTree getInputDir() {
         FileTree coreFileTree = null;
-        FileTree xpackFileTree = null;
-        if (includeXpack.get().isEmpty() == false) {
-            xpackPatternSet.setIncludes(includeXpack.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-            xpackFileTree = xpackConfigToFileTree.apply(xpackConfig).matching(xpackPatternSet);
-        }
         boolean projectHasYamlRestTests = skipHasRestTestCheck || projectHasYamlRestTests();
-        if (includeCore.get().isEmpty() == false || projectHasYamlRestTests) {
+        if (include.get().isEmpty() == false || projectHasYamlRestTests) {
             if (BuildParams.isInternal()) {
-                corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-                coreFileTree = coreConfigToFileTree.apply(coreConfig).matching(corePatternSet); // directory on disk
+                patternSet.setIncludes(include.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
+                coreFileTree = configToFileTree.apply(config).matching(patternSet); // directory on disk
             } else {
-                coreFileTree = coreConfig.getAsFileTree(); // jar file
+                coreFileTree = config.getAsFileTree(); // jar file
             }
         }
 
         FileCollection fileCollection = additionalConfig == null
-            ? projectLayout.files(coreFileTree, xpackFileTree)
-            : projectLayout.files(coreFileTree, xpackFileTree, additionalConfigToFileTree.apply(additionalConfig));
+            ? coreFileTree
+            : projectLayout.files(coreFileTree, additionalConfigToFileTree.apply(additionalConfig));
 
         // if project has rest tests or the includes are explicitly configured execute the task, else NO-SOURCE due to the null input
-        return projectHasYamlRestTests || includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false
-            ? fileCollection.getAsFileTree()
-            : null;
+        return projectHasYamlRestTests || include.get().isEmpty() == false ? fileCollection.getAsFileTree() : null;
     }
 
     @OutputDirectory
@@ -152,9 +134,9 @@ public class CopyRestApiTask extends DefaultTask {
         if (BuildParams.isInternal()) {
             getLogger().debug("Rest specs for project [{}] will be copied to the test resources.", projectPath);
             fileSystemOperations.copy(c -> {
-                c.from(coreConfigToFileTree.apply(coreConfig));
+                c.from(configToFileTree.apply(config));
                 c.into(restSpecOutputDir);
-                c.include(corePatternSet.getIncludes());
+                c.include(patternSet.getIncludes());
             });
         } else {
             getLogger().debug(
@@ -163,24 +145,13 @@ public class CopyRestApiTask extends DefaultTask {
                 VersionProperties.getElasticsearch()
             );
             fileSystemOperations.copy(c -> {
-                c.from(archiveOperations.zipTree(coreConfig.getSingleFile())); // jar file
+                c.from(archiveOperations.zipTree(config.getSingleFile())); // jar file
                 c.into(outputResourceDir);
-                if (includeCore.get().isEmpty()) {
+                if (include.get().isEmpty()) {
                     c.include(REST_API_PREFIX + "/**");
                 } else {
-                    c.include(
-                        includeCore.get().stream().map(prefix -> REST_API_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
-                    );
+                    c.include(include.get().stream().map(prefix -> REST_API_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList()));
                 }
-            });
-        }
-        // only copy x-pack specs if explicitly instructed
-        if (includeXpack.get().isEmpty() == false) {
-            getLogger().debug("X-pack rest specs for project [{}] will be copied to the test resources.", projectPath);
-            fileSystemOperations.copy(c -> {
-                c.from(xpackConfigToFileTree.apply(xpackConfig));
-                c.into(restSpecOutputDir);
-                c.include(xpackPatternSet.getIncludes());
             });
         }
 
@@ -222,24 +193,16 @@ public class CopyRestApiTask extends DefaultTask {
         this.skipHasRestTestCheck = skipHasRestTestCheck;
     }
 
-    public void setCoreConfig(FileCollection coreConfig) {
-        this.coreConfig = coreConfig;
-    }
-
-    public void setXpackConfig(FileCollection xpackConfig) {
-        this.xpackConfig = xpackConfig;
+    public void setConfig(FileCollection config) {
+        this.config = config;
     }
 
     public void setAdditionalConfig(FileCollection additionalConfig) {
         this.additionalConfig = additionalConfig;
     }
 
-    public void setCoreConfigToFileTree(Function<FileCollection, FileTree> coreConfigToFileTree) {
-        this.coreConfigToFileTree = coreConfigToFileTree;
-    }
-
-    public void setXpackConfigToFileTree(Function<FileCollection, FileTree> xpackConfigToFileTree) {
-        this.xpackConfigToFileTree = xpackConfigToFileTree;
+    public void setConfigToFileTree(Function<FileCollection, FileTree> configToFileTree) {
+        this.configToFileTree = configToFileTree;
     }
 
     public void setAdditionalConfigToFileTree(Function<FileCollection, FileTree> additionalConfigToFileTree) {
@@ -247,13 +210,7 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     @Internal
-    public FileCollection getCoreConfig() {
-        return coreConfig;
+    public FileCollection getConfig() {
+        return config;
     }
-
-    @Internal
-    public FileCollection getXpackConfig() {
-        return xpackConfig;
-    }
-
 }

@@ -11,7 +11,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeXpack 'security', 'async_search', 'indices', 'open_point_in_time', 'close_point_in_time'
+    include 'security', 'async_search', 'indices', 'open_point_in_time', 'close_point_in_time'
   }
 }
 

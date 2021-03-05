@@ -77,9 +77,8 @@ the repository without restoring it first>>.
 The snapshot process is incremental: {es} compares the files that make up the
 index or data stream against the files that already exist in the repository,
 and copies to the repository only those files that were created or changed
-since the last snapshot. Snapshots are compact since they re-use any files
-copied to the repository by earlier snapshots, so you can take snapshots
-frequently.
+since the last snapshot. Snapshots are very space-efficient since they re-use
+any files copied to the repository by earlier snapshots.
 
 Snapshotting does not interfere with ongoing indexing or searching operations.
 A snapshot captures a view of each shard at some point in time between the

@@ -115,10 +115,11 @@ Filters used to create buckets.
 ====
 `<filter>`::
 (Required, <<query-dsl,Query DSL object>>)
-Query used to filter documents. The key is the filter name. At least one filter
-is required. The total number of filters cannot exceed the
+Query used to filter documents. The key is the filter name.
++
+At least one filter is required. The total number of filters cannot exceed the
 <<indices-query-bool-max-clause-count,`indices.query.bool.max_clause_count`>>
-setting. See <<adjacency-matrix-agg-filter-limits>>
+setting. See <<adjacency-matrix-agg-filter-limits>>.
 ====
 
 `separator`::
@@ -129,10 +130,12 @@ Separator used to concatenate filter names. Defaults to `&`.
 ==== Response body
 
 `key`::
+(string)
 Filters for the bucket. If the bucket uses multiple filters, filter names are
 concatenated using a `separator`.
 
 `document_count`::
+(integer)
 Number of documents matching the bucket's filters.
 
 [[adjacency-matrix-agg-usage]]

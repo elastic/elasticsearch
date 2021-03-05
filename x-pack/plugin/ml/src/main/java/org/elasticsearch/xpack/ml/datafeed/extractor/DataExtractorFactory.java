@@ -39,8 +39,8 @@ public interface DataExtractorFactory {
                        NamedXContentRegistry xContentRegistry,
                        DatafeedTimingStatsReporter timingStatsReporter,
                        ActionListener<DataExtractorFactory> listener) {
-        boolean hasAggs = datafeed.hasAggregations();
-        boolean isComposite = hasAggs && datafeed.hasCompositeAgg(xContentRegistry);
+        final boolean hasAggs = datafeed.hasAggregations();
+        final boolean isComposite = hasAggs && datafeed.hasCompositeAgg(xContentRegistry);
         ActionListener<DataExtractorFactory> factoryHandler = ActionListener.wrap(
             factory -> listener.onResponse(datafeed.getChunkingConfig().isEnabled()
                 ? new ChunkedDataExtractorFactory(client, datafeed, job, xContentRegistry, factory, timingStatsReporter) : factory)
@@ -49,20 +49,21 @@ public interface DataExtractorFactory {
 
         ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(
             response -> {
-                if (response.getJobs().isEmpty() == false && datafeed.hasAggregations() == false) {
+                final boolean hasRollup = response.getJobs().isEmpty() == false;
+                if (hasRollup && hasAggs == false) {
                     listener.onFailure(new IllegalArgumentException("Aggregations are required when using Rollup indices"));
                     return;
                 }
-                if (datafeed.hasAggregations() == false) {
+                if (hasAggs == false) {
                     ScrollDataExtractorFactory.create(client, datafeed, job, xContentRegistry, timingStatsReporter, factoryHandler);
                     return;
                 }
                 if (isComposite) {
                     String[] indices = datafeed.getIndices().toArray(new String[0]);
                     IndicesOptions indicesOptions = datafeed.getIndicesOptions();
-                    AggregatedSearchRequestBuilder aggregatedSearchRequestBuilder = response.getJobs().isEmpty() ?
-                        AggregationDataExtractorFactory.requestBuilder(client, indices, indicesOptions) :
-                        RollupDataExtractorFactory.requestBuilder(client, indices, indicesOptions);
+                    AggregatedSearchRequestBuilder aggregatedSearchRequestBuilder = hasRollup ?
+                        RollupDataExtractorFactory.requestBuilder(client, indices, indicesOptions) :
+                        AggregationDataExtractorFactory.requestBuilder(client, indices, indicesOptions);
                     factoryHandler.onResponse(
                         new CompositeAggregationDataExtractorFactory(
                             client,
@@ -76,12 +77,12 @@ public interface DataExtractorFactory {
                     return;
                 }
 
-                if (response.getJobs().isEmpty()) { // This means no rollup indexes are in the config
-                    factoryHandler.onResponse(
-                        new AggregationDataExtractorFactory(client, datafeed, job, xContentRegistry, timingStatsReporter));
-                } else {
+                if (hasRollup) {
                     RollupDataExtractorFactory.create(
                         client, datafeed, job, response.getJobs(), xContentRegistry, timingStatsReporter, factoryHandler);
+                } else {
+                    factoryHandler.onResponse(
+                        new AggregationDataExtractorFactory(client, datafeed, job, xContentRegistry, timingStatsReporter));
                 }
             },
             e -> {

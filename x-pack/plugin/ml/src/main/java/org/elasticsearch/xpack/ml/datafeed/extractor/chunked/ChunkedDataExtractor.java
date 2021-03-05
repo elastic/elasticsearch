@@ -265,9 +265,9 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     private class ScrolledDataSummary implements DataSummary {
 
-        private long earliestTime;
-        private long latestTime;
-        private long totalHits;
+        private final long earliestTime;
+        private final long latestTime;
+        private final long totalHits;
 
         private ScrolledDataSummary(long earliestTime, long latestTime, long totalHits) {
             this.earliestTime = earliestTime;
@@ -309,7 +309,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
     }
 
-    private class AggregatedDataSummary implements DataSummary {
+    private static class AggregatedDataSummary implements DataSummary {
 
         private final double earliestTime;
         private final double latestTime;

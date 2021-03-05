@@ -86,7 +86,9 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         dataDescription.setTimeFormat(DataDescription.EPOCH);
 
         Detector detector = new Detector.Builder("metric", "value").build();
-        analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector)).build();
+        analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector))
+            .setBucketSpan(TimeValue.timeValueSeconds(1))
+            .build();
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndDataIsValid() throws IOException {
@@ -198,6 +200,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         AnalysisConfig.Builder builder =
                 new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));
         builder.setLatency(TimeValue.timeValueSeconds(2));
+        builder.setBucketSpan(TimeValue.timeValueSeconds(1));
         analysisConfig = builder.build();
 
         StringBuilder input = new StringBuilder();
@@ -221,6 +224,44 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         expectedRecords.add(new String[] { "5", "5.0", "" });
         expectedRecords.add(new String[] { "3", "3.0", "" });
         expectedRecords.add(new String[] { "4", "4.0", "" });
+        assertWrittenRecordsEqualTo(expectedRecords);
+
+        verify(dataCountsReporter, times(1)).reportOutOfOrderRecord(2);
+        verify(dataCountsReporter, never()).reportLatestTimeIncrementalStats(anyLong());
+        verify(dataCountsReporter).finishReporting();
+    }
+
+    public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsOutOfOrderWithinBucketSpan() throws Exception {
+        AnalysisConfig.Builder builder =
+            new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));
+        builder.setBucketSpan(TimeValue.timeValueSeconds(10));
+        analysisConfig = builder.build();
+
+        StringBuilder input = new StringBuilder();
+        input.append("time,metric,value\n");
+        input.append("4,foo,4.0\n");
+        input.append("5,foo,5.0\n");
+        input.append("3,foo,3.0\n");
+        input.append("4,bar,4.0\n");
+        input.append("2,bar,2.0\n");
+        input.append("12,bar,12.0\n");
+        input.append("2,bar,2.0\n");
+        input.append("\0");
+        InputStream inputStream = createInputStream(input.toString());
+        CsvDataToProcessWriter writer = createWriter();
+        writer.writeHeader();
+        writer.write(inputStream, null, null, (r, e) -> {});
+        verify(dataCountsReporter, times(1)).startNewIncrementalCount();
+
+        List<String[]> expectedRecords = new ArrayList<>();
+        // The final field is the control field
+        expectedRecords.add(new String[] { "time", "value", "." });
+        expectedRecords.add(new String[] { "4", "4.0", "" });
+        expectedRecords.add(new String[] { "5", "5.0", "" });
+        expectedRecords.add(new String[] { "3", "3.0", "" });
+        expectedRecords.add(new String[] { "4", "4.0", "" });
+        expectedRecords.add(new String[] { "2", "2.0", "" });
+        expectedRecords.add(new String[] { "12", "12.0", "" });
         assertWrittenRecordsEqualTo(expectedRecords);
 
         verify(dataCountsReporter, times(1)).reportOutOfOrderRecord(2);

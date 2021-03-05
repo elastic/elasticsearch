@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * An implementation that extracts data from elasticsearch using search with composite aggregations on a client.
@@ -45,7 +44,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(CompositeAggregationDataExtractor.class);
 
-    private final AtomicReference<Map<String, Object>> afterKey = new AtomicReference<>(null);
+    private volatile Map<String, Object> afterKey = null;
     private final CompositeAggregationBuilder compositeAggregationBuilder;
     private final Client client;
     private final CompositeAggregationDataExtractorContext context;
@@ -61,7 +60,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         DatafeedTimingStatsReporter timingStatsReporter,
         AggregatedSearchRequestBuilder requestBuilder
     ) {
-        this.compositeAggregationBuilder = compositeAggregationBuilder;
+        this.compositeAggregationBuilder = Objects.requireNonNull(compositeAggregationBuilder);
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(dataExtractorContext);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
@@ -101,7 +100,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         if (aggs == null) {
             LOGGER.trace(() -> new ParameterizedMessage("[{}] extraction finished", context.jobId));
             hasNext = false;
-            afterKey.set(null);
+            afterKey = null;
             return Optional.empty();
         }
         return Optional.of(processAggs(aggs));
@@ -127,8 +126,8 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         if (context.runtimeMappings.isEmpty() == false) {
             searchSourceBuilder.runtimeMappings(context.runtimeMappings);
         }
-        if (afterKey.get() != null) {
-            compositeAggregationBuilder.aggregateAfter(afterKey.get());
+        if (afterKey != null) {
+            compositeAggregationBuilder.aggregateAfter(afterKey);
         }
         searchSourceBuilder.aggregation(compositeAggregationBuilder);
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = requestBuilder.build(searchSourceBuilder);
@@ -143,7 +142,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         if (compositeAgg == null || compositeAgg.getBuckets().isEmpty()) {
             return null;
         }
-        afterKey.set(compositeAgg.afterKey());
+        afterKey = compositeAgg.afterKey();
 
         return aggregations;
     }

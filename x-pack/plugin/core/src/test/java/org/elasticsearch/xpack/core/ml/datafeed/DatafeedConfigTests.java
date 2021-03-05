@@ -675,61 +675,57 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertThat(e.getMessage(), containsString("Date histogram must have nested max aggregation for time_field [max_time]"));
     }
 
-    public void testValidateCompositeAggValueSources() {
+    public void testValidateCompositeAggValueSources_MustHaveExactlyOneDateValue() {
+        CompositeAggregationBuilder aggregationBuilder = AggregationBuilders.composite(
+            "buckets",
+            Arrays.asList(new TermsValuesSourceBuilder("foo").field("bar"))
+        );
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> DatafeedConfig.Builder.validateCompositeAggregationSources(aggregationBuilder));
+        assertThat(ex.getMessage(), containsString("must have exactly one date_histogram source"));
 
-        { // must have exactly one date value source
-            CompositeAggregationBuilder aggregationBuilder = AggregationBuilders.composite(
-                "buckets",
-                Arrays.asList(new TermsValuesSourceBuilder("foo").field("bar"))
-            );
-            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
-                () -> DatafeedConfig.Builder.validateCompositeAggregationSources(aggregationBuilder));
-            assertThat(ex.getMessage(), containsString("must have exactly one date_histogram source"));
+        CompositeAggregationBuilder aggregationBuilderWithMoreDateHisto = AggregationBuilders.composite(
+            "buckets",
+            Arrays.asList(
+                new TermsValuesSourceBuilder("foo").field("bar"),
+                new DateHistogramValuesSourceBuilder("date1").field("time").fixedInterval(DateHistogramInterval.days(1)),
+                new DateHistogramValuesSourceBuilder("date2").field("time").fixedInterval(DateHistogramInterval.days(1))
+            )
+        );
+        ex = expectThrows(ElasticsearchStatusException.class,
+            () -> DatafeedConfig.Builder.validateCompositeAggregationSources(aggregationBuilderWithMoreDateHisto));
+        assertThat(ex.getMessage(), containsString("must have exactly one date_histogram source"));
+    }
+    public void testValidateCompositeAggValueSources_DateHistoWithMissingBucket() {
+        CompositeAggregationBuilder aggregationBuilder = AggregationBuilders.composite(
+            "buckets",
+            Arrays.asList(
+                new TermsValuesSourceBuilder("foo").field("bar"),
+                new DateHistogramValuesSourceBuilder("date1")
+                    .field("time")
+                    .fixedInterval(DateHistogramInterval.days(1))
+                    .missingBucket(true)
+            )
+        );
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> DatafeedConfig.Builder.validateCompositeAggregationSources(aggregationBuilder));
+        assertThat(ex.getMessage(), containsString("does not support missing_buckets"));
+    }
 
-            CompositeAggregationBuilder aggregationBuilderWithMoreDateHisto = AggregationBuilders.composite(
-                "buckets",
-                Arrays.asList(
-                    new TermsValuesSourceBuilder("foo").field("bar"),
-                    new DateHistogramValuesSourceBuilder("date1").field("time").fixedInterval(DateHistogramInterval.days(1)),
-                    new DateHistogramValuesSourceBuilder("date2").field("time").fixedInterval(DateHistogramInterval.days(1))
-                )
-            );
-            ex = expectThrows(ElasticsearchStatusException.class,
-                () -> DatafeedConfig.Builder.validateCompositeAggregationSources(aggregationBuilderWithMoreDateHisto));
-            assertThat(ex.getMessage(), containsString("must have exactly one date_histogram source"));
-        }
-
-        { // date histo with missing bucket
-            CompositeAggregationBuilder aggregationBuilder = AggregationBuilders.composite(
-                "buckets",
-                Arrays.asList(
-                    new TermsValuesSourceBuilder("foo").field("bar"),
-                    new DateHistogramValuesSourceBuilder("date1")
-                        .field("time")
-                        .fixedInterval(DateHistogramInterval.days(1))
-                        .missingBucket(true)
-                )
-            );
-            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
-                () -> DatafeedConfig.Builder.validateCompositeAggregationSources(aggregationBuilder));
-            assertThat(ex.getMessage(), containsString("does not support missing_buckets"));
-        }
-
-        { // date histo ordered descended
-            CompositeAggregationBuilder aggregationBuilder = AggregationBuilders.composite(
-                "buckets",
-                Arrays.asList(
-                    new TermsValuesSourceBuilder("foo").field("bar"),
-                    new DateHistogramValuesSourceBuilder("date1")
-                        .field("time")
-                        .fixedInterval(DateHistogramInterval.days(1))
-                        .order("desc")
-                )
-            );
-            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
-                () -> DatafeedConfig.Builder.validateCompositeAggregationSources(aggregationBuilder));
-            assertThat(ex.getMessage(), containsString("must be sorted in ascending order"));
-        }
+    public void testValidateCompositeAggValueSources_DateHistoBadOrder() {
+        CompositeAggregationBuilder aggregationBuilder = AggregationBuilders.composite(
+            "buckets",
+            Arrays.asList(
+                new TermsValuesSourceBuilder("foo").field("bar"),
+                new DateHistogramValuesSourceBuilder("date1")
+                    .field("time")
+                    .fixedInterval(DateHistogramInterval.days(1))
+                    .order("desc")
+            )
+        );
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> DatafeedConfig.Builder.validateCompositeAggregationSources(aggregationBuilder));
+        assertThat(ex.getMessage(), containsString("must be sorted in ascending order"));
     }
 
     public void testValidateAggregations_GivenMulitpleHistogramAggs() {

@@ -160,7 +160,7 @@ class AggregationToJsonProcessor {
             MultiBucketsAggregation bucketAgg = bucketAggregations.get(0);
             if (bucketAgg instanceof Histogram) {
                 processDateHistogram((Histogram) bucketAgg);
-            } else if (bucketAgg instanceof CompositeAggregation && compositeAggDateValueSourceName != null) {
+            } else if (bucketAgg instanceof CompositeAggregation) {
                 // This indicates that our composite agg contains our date histogram bucketing via one of its sources
                 processCompositeAgg((CompositeAggregation) bucketAgg);
             } else {
@@ -236,12 +236,14 @@ class AggregationToJsonProcessor {
                 + "] but does not contain date_histogram value source");
         }
 
-        // the date_histogram value source should order the buckets in ascending order
-        // So, skip forward until we are within the start time
+        // Composite aggs have multiple items in the bucket. It is possible that within the current
+        // date_histogram interval, there are still unprocessed terms, so we shouldn't skip forward past those buckets
+        // Instead, we skip according to the `max(timeField)` agg.
         boolean checkBucketTime = true;
         for (CompositeAggregation.Bucket bucket : agg.getBuckets()) {
             if (checkBucketTime) {
-                long bucketTime = toHistogramKeyToEpoch(bucket.getKey().get(compositeAggDateValueSourceName));
+
+                long bucketTime = getTimeFieldValue(bucket.getAggregations().get(timeField));
                 if (bucketTime < startTime) {
                     LOGGER.debug(() -> new ParameterizedMessage("Skipping bucket at [{}], startTime is [{}]", bucketTime, startTime));
                     continue;
@@ -294,13 +296,15 @@ class AggregationToJsonProcessor {
         }
     }
 
-    private void processTimeField(Aggregation agg) {
+    private long getTimeFieldValue(Aggregation agg) {
         if (agg instanceof Max == false) {
             throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_MISSING_MAX_AGGREGATION_FOR_TIME_FIELD, timeField));
         }
+        return (long) ((Max) agg).value();
+    }
 
-        long timestamp = (long) ((Max) agg).value();
-        keyValuePairs.put(timeField, timestamp);
+    private void processTimeField(Aggregation agg) {
+        keyValuePairs.put(timeField, getTimeFieldValue(agg));
     }
 
     boolean bucketAggContainsRequiredAgg(MultiBucketsAggregation aggregation) {

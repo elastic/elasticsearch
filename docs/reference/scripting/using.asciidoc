@@ -237,12 +237,19 @@ When you assign a primitive type to another variable, that variable gets a
 *copy* of the contents of the original primitive type. For example, declare a
 variable `a` and assign it a value, and then set `b` equal to `a`.
 
-[source,painless]
+[source,console]
 ----
-int a = 123;
-int b = a;
-a = 456;
-return b;
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": """
+        int a = 123;
+        int b = a;
+        a = 456;
+        return b;
+    """
+  }
+}
 ----
 
 Even if you declare a new value for `a`, returning `b` results in a value of
@@ -255,6 +262,7 @@ Because of this relationship, we can say that `b` is a _reference_ to `a`.
   "result" : "123"
 }
 ----
+// TEST[continued]
 
 [discrete]
 ===== How to use reference types
@@ -263,42 +271,10 @@ type? That's where you can leverage the magic of reference types! You can have
 multiple reference type values that point to the _same_ instance, which means
 you don't have to modify the instance itself.
 
-Let's use a `String` as an example. Strings are immutable, so they don't change
-in place. However, we can reference the value of a string and create a new
-object that updates the referenced value without changing the underlying object.
-
-For example, the following request creates a `String` object named `s`. The
-value of `s` starts the same as `a`, which is `abc`. However, the value of `s`
-appends a new value of `ghi`, resulting in a new string of `abcghi`. If we
-return the value of `a`, it remains unchanged as `abc`.
-
-[source,console]
-----
-POST /_scripts/painless/_execute
-{
-  "script": {
-    "source": """
-        void update(String s) {
-          s += "ghi";
-          }
-        String a = "abc";
-        update(a);
-        return a;
-    """
-  }
-}
-----
-
-[source,console-result]
-----
-{
-  "result" : "abc"
-}
-----
-
-Similarly, you can update a reference type within your script. The following
-request creates two new `ArrayList` objects named `first` and `last`. The script
-creates another object named `current`, which references the `first` object.
+To illustrate the magic of reference types, we'll update a reference type
+within a script. The following request creates two new `ArrayList` objects
+named `first` and `last`. The script creates another object named `current`,
+which references the `first` object.
 
 The `for` loop iterates through every number from `0` to `99` and adds a
 condition that if an integer equals `5`, change the reference of `current` to
@@ -335,6 +311,7 @@ reference of `current`.
   "result" : "[6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99]"
 }
 ----
+// TEST[continued]
 
 [[script-type-dynamic]]
 ==== Dynamic types

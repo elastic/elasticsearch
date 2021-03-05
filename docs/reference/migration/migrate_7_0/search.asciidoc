@@ -308,11 +308,14 @@ Lucene 8 introduced more constraints on similarities, in particular:
 
 [discrete]
 ==== Change of scoring for fields that omit norms
-Before, if a field was indexed without norms, `BM25` similarity assumed a document
-length to be `0`, and acted as if its `b` parameter is equal to `0`.
+Before, if a field was indexed without norms,
+<<index-modules-similarity, similarity modules>> dropped the document length
+from the calculation. For the `BM25` similarity this was equivalent to
+setting `b=0`.
 
-Currently, if a field is indexed without norms, `BM25` similarity assumes a document
-length to be `1`, and uses the default or provided value of `b` to calculate scores.
+Currently, if a field is indexed without norms, similarity modules assume
+the document length to be `1`. For the `BM25` similarity, this means using
+the default or provided value of `b` to calculate scores.
 
 [discrete]
 ==== Weights in Function Score must be positive

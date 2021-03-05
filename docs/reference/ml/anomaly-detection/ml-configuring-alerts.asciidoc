@@ -51,10 +51,10 @@ anomaly with an `anomaly_score` of 75 or higher triggers the alert.
 
 You can select whether you want the alert to include interim results. Interim 
 results are created by the {anomaly-job} before a bucket is finalized. These 
-results might disappear after the bucket is fully processed. Allow including 
+results might disappear after the bucket is fully processed. Include 
 interim results if you want to be notified earlier about a potential anomaly 
-even if it might be a false positive. Disallow them if you want to get notified 
-only about anomalies of fully processed buckets. 
+even if it might be a false positive. If you want to get notified 
+only about anomalies of fully processed buckets, do not include interim results.
 
 You can also test the configured conditions against your existing data and check 
 the sample results by providing a valid interval for your data. The generated 

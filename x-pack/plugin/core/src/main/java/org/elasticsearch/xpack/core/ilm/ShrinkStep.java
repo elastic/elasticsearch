@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.client.Client;
@@ -22,6 +24,8 @@ import java.util.Objects;
  */
 public class ShrinkStep extends AsyncActionStep {
     public static final String NAME = "shrink";
+    private static final Logger logger = LogManager.getLogger(ShrinkStep.class);
+
 
     private Integer numberOfShards;
     private ByteSizeValue maxPrimaryShardSize;
@@ -33,6 +37,11 @@ public class ShrinkStep extends AsyncActionStep {
         this.numberOfShards = numberOfShards;
         this.maxPrimaryShardSize = maxPrimaryShardSize;
         this.shrunkIndexPrefix = shrunkIndexPrefix;
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 
     public Integer getNumberOfShards() {
@@ -55,6 +64,21 @@ public class ShrinkStep extends AsyncActionStep {
                 "] is missing lifecycle date");
         }
 
+        String shrunkenIndexName = lifecycleState.getShrinkIndexName();
+        if (shrunkenIndexName == null) {
+            // this is for BWC reasons for polices that are in the middle of executing the shrink action when the update to generated
+            // names happens
+            shrunkenIndexName = shrunkIndexPrefix + indexMetadata.getIndex().getName();
+        }
+
+        if (currentState.metadata().index(shrunkenIndexName) != null) {
+            logger.warn("skipping [{}] step for index [{}] as part of policy [{}] as the shrunk index [{}] already exists",
+                ShrinkStep.NAME, indexMetadata.getIndex().getName(),
+                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()), shrunkenIndexName);
+            listener.onResponse(true);
+            return;
+        }
+
         String lifecycle = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
 
         Settings.Builder builder = Settings.builder();
@@ -67,7 +91,6 @@ public class ShrinkStep extends AsyncActionStep {
         }
         Settings relevantTargetSettings = builder.build();
 
-        String shrunkenIndexName = shrunkIndexPrefix + indexMetadata.getIndex().getName();
         ResizeRequest resizeRequest = new ResizeRequest(shrunkenIndexName, indexMetadata.getIndex().getName())
             .masterNodeTimeout(getMasterTimeout(currentState));
         resizeRequest.setMaxPrimaryShardSize(maxPrimaryShardSize);

@@ -110,9 +110,6 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                             policyStepsRegistry, false);
                     }
                 } else {
-                    // set here to make sure that the clusterProcessed knows to execute the
-                    // correct step if it an async action
-                    nextStepKey = currentStep.getNextStepKey();
                     // cluster state wait step so evaluate the
                     // condition, if the condition is met move to the
                     // next step, if its not met return the current
@@ -125,8 +122,13 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     try {
                         result = ((ClusterStateWaitStep) currentStep).isConditionMet(index, state);
                     } catch (Exception exception) {
+                        nextStepKey = currentStep.getNextStepKey();
                         return moveToErrorStep(state, currentStep.getKey(), exception);
                     }
+                    // some steps can decide to change the next step to execute after waiting for some time for the condition
+                    // to be met (eg. {@link LifecycleSettings#LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING}, so it's important we
+                    // re-evaluate what the next step is after we evaluate the condition
+                    nextStepKey = currentStep.getNextStepKey();
                     if (result.isComplete()) {
                         logger.trace("[{}] cluster state step condition met successfully ({}) [{}], moving to next step {}",
                             index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(), nextStepKey);

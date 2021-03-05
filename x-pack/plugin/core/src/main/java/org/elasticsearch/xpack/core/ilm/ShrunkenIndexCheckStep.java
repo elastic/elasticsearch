@@ -20,6 +20,8 @@ import org.elasticsearch.index.Index;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
+
 /**
  * Verifies that an index was created through a shrink operation, rather than created some other way.
  * Also checks the name of the index to ensure it aligns with what is expected from an index shrunken via a previous step.
@@ -32,6 +34,11 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
     public ShrunkenIndexCheckStep(StepKey key, StepKey nextStepKey, String shrunkIndexPrefix) {
         super(key, nextStepKey);
         this.shrunkIndexPrefix = shrunkIndexPrefix;
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 
     String getShrunkIndexPrefix() {
@@ -51,7 +58,16 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
         if (Strings.isNullOrEmpty(shrunkenIndexSource)) {
             throw new IllegalStateException("step[" + NAME + "] is checking an un-shrunken index[" + index.getName() + "]");
         }
-        boolean isConditionMet = index.getName().equals(shrunkIndexPrefix + shrunkenIndexSource) &&
+
+        LifecycleExecutionState lifecycleState = fromIndexMetadata(idxMeta);
+        String targetIndexName = lifecycleState.getShrinkIndexName();
+        if (targetIndexName == null) {
+            // this is for BWC reasons for polices that are in the middle of executing the shrink action when the update to generated
+            // names happens
+            targetIndexName = shrunkIndexPrefix + shrunkenIndexSource;
+        }
+
+        boolean isConditionMet = index.getName().equals(targetIndexName) &&
                 clusterState.metadata().index(shrunkenIndexSource) == null;
         if (isConditionMet) {
             return new Result(true, null);

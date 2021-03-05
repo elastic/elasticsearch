@@ -52,6 +52,7 @@ setting limits script compilation to 100 scripts every 10 minutes:
 ----
 `script.context.field.max_compilations_rate=100/10m`
 ----
+// NOTCONSOLE
 
 [discrete]
 === Do not run as root

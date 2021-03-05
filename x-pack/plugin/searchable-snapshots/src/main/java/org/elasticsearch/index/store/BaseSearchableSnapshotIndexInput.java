@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUti
 public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInput {
 
     protected final Logger logger;
+    protected final String name;
     protected final SearchableSnapshotDirectory directory;
     protected final BlobContainer blobContainer;
     protected final FileInfo fileInfo;
@@ -38,8 +39,10 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     protected final long offset;
     protected final long length;
 
-    /** Range of bytes that should be cached in the blob cache for the current index input **/
-    protected final ByteRange blobCacheByteRange;
+    /**
+     * Range of bytes that should be cached in the blob cache for the current index input's header.
+     */
+    protected final ByteRange headerBlobCacheByteRange;
 
     // the following are only mutable so they can be adjusted after cloning/slicing
     protected volatile boolean isClone;
@@ -47,7 +50,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
 
     public BaseSearchableSnapshotIndexInput(
         Logger logger,
-        String resourceDesc,
+        String name,
         SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
@@ -56,7 +59,8 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         long length,
         ByteRange blobCacheByteRange
     ) {
-        super(resourceDesc, context);
+        super(name, context);
+        this.name = Objects.requireNonNull(name);
         this.logger = Objects.requireNonNull(logger);
         this.directory = Objects.requireNonNull(directory);
         this.blobContainer = Objects.requireNonNull(directory.blobContainer());
@@ -64,7 +68,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         this.context = Objects.requireNonNull(context);
         assert fileInfo.metadata().hashEqualsContents() == false
             : "this method should only be used with blobs that are NOT stored in metadata's hash field " + "(fileInfo: " + fileInfo + ')';
-        this.blobCacheByteRange = Objects.requireNonNull(blobCacheByteRange);
+        this.headerBlobCacheByteRange = Objects.requireNonNull(blobCacheByteRange);
         this.stats = Objects.requireNonNull(stats);
         this.offset = offset;
         this.length = length;
@@ -75,6 +79,13 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     @Override
     public final long length() {
         return length;
+    }
+
+    protected long getAbsolutePosition() {
+        final long position = getFilePointer() + this.offset;
+        assert position >= 0L : "absolute position is negative: " + position;
+        assert position <= fileInfo.length() : position + " vs " + fileInfo.length();
+        return position;
     }
 
     @Override
@@ -107,7 +118,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         if (remaining > CodecUtil.footerLength()) {
             return false;
         }
-        final long position = getFilePointer() + this.offset;
+        final long position = getAbsolutePosition();
         final long checksumPosition = fileInfo.length() - CodecUtil.footerLength();
         if (position < checksumPosition) {
             return false;
@@ -130,6 +141,13 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
             assert b.remaining() == (success ? 0L : remaining) : b.remaining() + " remaining bytes but success is " + success;
         }
         return success;
+    }
+
+    protected ByteRange maybeReadFromBlobCache(long position, int length) {
+        if (headerBlobCacheByteRange.contains(position, position + length)) {
+            return headerBlobCacheByteRange;
+        }
+        return ByteRange.EMPTY;
     }
 
     /**

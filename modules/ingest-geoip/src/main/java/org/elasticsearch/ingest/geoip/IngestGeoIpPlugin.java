@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -60,7 +61,8 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
     static String[] DEFAULT_DATABASE_FILENAMES = new String[]{"GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"};
 
-    private final SetOnce<LocalDatabases> localDatabases = new SetOnce<>();
+    private final SetOnce<IngestService> ingestService = new SetOnce<>();
+    private final SetOnce<DatabaseRegistry> databaseRegistry = new SetOnce<>();
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -75,11 +77,13 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        final long cacheSize = CACHE_SIZE.get(parameters.env.settings());
-        final GeoIpCache cache = new GeoIpCache(cacheSize);
-        LocalDatabases localDatabases = new LocalDatabases(parameters.env, cache);
-        this.localDatabases.set(localDatabases);
-        return Collections.singletonMap(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(localDatabases));
+        ingestService.set(parameters.ingestService);
+
+        long cacheSize = CACHE_SIZE.get(parameters.env.settings());
+        GeoIpCache geoIpCache = new GeoIpCache(cacheSize);
+        DatabaseRegistry registry = new DatabaseRegistry(parameters.env, parameters.client, geoIpCache, parameters.genericExecutor);
+        databaseRegistry.set(registry);
+        return Map.of(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry));
     }
 
     @Override
@@ -95,16 +99,16 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
                                                IndexNameExpressionResolver indexNameExpressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         try {
-            localDatabases.get().initialize(resourceWatcherService);
+            databaseRegistry.get().initialize(resourceWatcherService, ingestService.get());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
-                }
+        }
         return List.of();
     }
 
     @Override
     public void close() throws IOException {
-        localDatabases.get().close();
+        databaseRegistry.get().close();
     }
 
     @Override

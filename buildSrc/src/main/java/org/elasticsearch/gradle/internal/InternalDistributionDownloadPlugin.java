@@ -147,10 +147,6 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
             ? ""
             : "-" + architecture.toString().toLowerCase();
 
-        if (distribution.getFlavor() == ElasticsearchDistribution.Flavor.OSS) {
-            projectName += "oss-";
-        }
-
         if (distribution.getBundledJdk() == false) {
             projectName += "no-jdk-";
         }

@@ -21,15 +21,15 @@ import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -46,10 +46,10 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
         SchemaValidatorsConfig config = new SchemaValidatorsConfig();
         JsonSchemaFactory factory = initializeSchemaFactory();
 
-        Path p = getDataPath(Paths.get(getSchemaLocation(), getJsonSchemaFileName()).toString());
+        Path p = getDataPath(PathUtils.get(getSchemaLocation(), getJsonSchemaFileName()).toString());
         logger.debug("loading schema from: [{}]", p);
 
-        JsonSchema jsonSchema = factory.getSchema(mapper.readTree(p.toFile()), config);
+        JsonSchema jsonSchema = factory.getSchema(mapper.readTree(Files.newInputStream(p)), config);
 
         // ensure the schema meets certain criteria like not empty, strictness
         assertTrue("found empty schema", jsonSchema.getValidators().size() > 0);
@@ -103,9 +103,9 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
     private JsonSchemaFactory initializeSchemaFactory() {
         JsonSchemaFactory factory = JsonSchemaFactory.builder(JsonSchemaFactory.getInstance(getSchemaVersion())).uriFetcher(uri -> {
             String fileName = uri.toString().substring(uri.getScheme().length() + 1);
-            Path path = getDataPath(Paths.get(getSchemaLocation(), fileName).toString());
+            Path path = getDataPath(PathUtils.get(getSchemaLocation(), fileName).toString());
             logger.debug("loading sub-schema [{}] from: [{}]", uri, path);
-            return new FileInputStream(path.toString());
+            return Files.newInputStream(path);
         }, "file").build();
 
         return factory;

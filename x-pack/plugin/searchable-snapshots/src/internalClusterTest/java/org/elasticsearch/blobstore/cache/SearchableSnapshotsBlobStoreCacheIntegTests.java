@@ -9,7 +9,6 @@ package org.elasticsearch.blobstore.cache;
 
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
@@ -22,7 +21,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -33,10 +31,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexingStats;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.InternalTestCluster;
@@ -49,30 +45,24 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
-import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
-import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX_SHARD_SNAPSHOT_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.DATA_TIERS_CACHE_INDEX_PREFERENCE;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
@@ -116,6 +106,11 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
     }
 
     @Override
+    protected int numberOfShards() {
+        return 1;
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(cacheSettings).build();
     }
@@ -154,17 +149,13 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         final SnapshotId snapshot = createSnapshot(repositoryName, "test-snapshot", List.of(indexName)).snapshotId();
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        // extract the list of blobs per shard from the snapshot directory on disk
-        final Map<String, BlobStoreIndexShardSnapshot> blobsInSnapshot = blobsInSnapshot(repositoryLocation, snapshot.getUUID());
-        assertThat("Failed to load all shard snapshot metadata files", blobsInSnapshot.size(), equalTo(numberOfShards.numPrimaries));
-
         expectThrows(
             IndexNotFoundException.class,
             ".snapshot-blob-cache system index should not be created yet",
             () -> systemClient().admin().indices().prepareGetIndex().addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
         );
 
-        Storage storage = randomFrom(Storage.values());
+        final Storage storage = randomFrom(Storage.values());
         logger.info(
             "--> mount snapshot [{}] as an index for the first time [storage={}, max length={}]",
             snapshot,
@@ -209,7 +200,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
         logger.info("--> verifying cached documents in system index [{}]", SNAPSHOT_BLOB_CACHE_INDEX);
         if (numberOfDocs > 0) {
-            assertCachedBlobsInSystemIndex(repositoryName, blobsInSnapshot);
+            ensureYellow(SNAPSHOT_BLOB_CACHE_INDEX);
+            refreshSystemIndex();
 
             logger.info("--> verifying system index [{}] data tiers preference", SNAPSHOT_BLOB_CACHE_INDEX);
             assertThat(
@@ -242,7 +234,14 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         assertHitCount(client().prepareSearch(restoredIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
         assertAcked(client().admin().indices().prepareDelete(restoredIndex));
 
-        storage = randomFrom(Storage.values());
+        assertBusy(() -> {
+            refreshSystemIndex();
+            assertThat(
+                systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0).get().getHits().getTotalHits().value,
+                greaterThan(0L)
+            );
+        });
+
         logger.info("--> mount snapshot [{}] as an index for the second time [storage={}]", snapshot, storage);
         final String restoredAgainIndex = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         mountSnapshot(
@@ -259,22 +258,19 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         );
         ensureGreen(restoredAgainIndex);
 
-        logger.info("--> verifying cached documents (after second mount) in system index [{}]", SNAPSHOT_BLOB_CACHE_INDEX);
-        if (numberOfDocs > 0) {
-            assertCachedBlobsInSystemIndex(repositoryName, blobsInSnapshot);
-        }
-
         logger.info("--> verifying shards of [{}] were started without using the blob store more than necessary", restoredAgainIndex);
         for (final SearchableSnapshotShardStats shardStats : client().execute(
             SearchableSnapshotsStatsAction.INSTANCE,
             new SearchableSnapshotsStatsRequest()
         ).actionGet().getStats()) {
             for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
-                // we read the header of each file contained within the .cfs file, which could be anywhere
-                final boolean mayReadMoreThanHeader = indexInputStats.getFileExt().equals("cfs");
-                if (mayReadMoreThanHeader == false) {
-                    assertThat(Strings.toString(indexInputStats), indexInputStats.getBlobStoreBytesRequested().getCount(), equalTo(0L));
-                }
+                assertThat(
+                    Strings.toString(indexInputStats),
+                    indexInputStats.getBlobStoreBytesRequested().getCount(),
+                    storage == Storage.SHARED_CACHE ? equalTo(0L)
+                        : indexInputStats.getFileExt().equals("cfs") ? greaterThanOrEqualTo(0L)
+                        : equalTo(0L)
+                );
             }
         }
 
@@ -312,22 +308,19 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         });
         ensureGreen(restoredAgainIndex);
 
-        logger.info("--> verifying cached documents (after restart) in system index [{}]", SNAPSHOT_BLOB_CACHE_INDEX);
-        if (numberOfDocs > 0) {
-            assertCachedBlobsInSystemIndex(repositoryName, blobsInSnapshot);
-        }
-
         logger.info("--> shards of [{}] should start without downloading bytes from the blob store", restoredAgainIndex);
         for (final SearchableSnapshotShardStats shardStats : client().execute(
             SearchableSnapshotsStatsAction.INSTANCE,
             new SearchableSnapshotsStatsRequest()
         ).actionGet().getStats()) {
             for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
-                // we read the header of each file contained within the .cfs file, which could be anywhere
-                final boolean mayReadMoreThanHeader = indexInputStats.getFileExt().equals("cfs");
-                if (mayReadMoreThanHeader == false) {
-                    assertThat(Strings.toString(indexInputStats), indexInputStats.getBlobStoreBytesRequested().getCount(), equalTo(0L));
-                }
+                assertThat(
+                    Strings.toString(indexInputStats),
+                    indexInputStats.getBlobStoreBytesRequested().getCount(),
+                    storage == Storage.SHARED_CACHE ? equalTo(0L)
+                        : indexInputStats.getFileExt().equals("cfs") ? greaterThanOrEqualTo(0L)
+                        : equalTo(0L)
+                );
             }
         }
 
@@ -369,61 +362,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         } catch (IndexNotFoundException indexNotFoundException) {
             throw new AssertionError("unexpected", indexNotFoundException);
         }
-    }
-
-    /**
-     * Reads a repository location on disk and extracts the list of blobs for each shards
-     */
-    private Map<String, BlobStoreIndexShardSnapshot> blobsInSnapshot(Path repositoryLocation, String snapshotId) throws IOException {
-        final Map<String, BlobStoreIndexShardSnapshot> blobsPerShard = new HashMap<>();
-        forEachFileRecursively(repositoryLocation.resolve("indices"), ((file, basicFileAttributes) -> {
-            final String fileName = file.getFileName().toString();
-            if (fileName.equals(BlobStoreRepository.SNAPSHOT_FORMAT.blobName(snapshotId))) {
-                blobsPerShard.put(
-                    String.join(
-                        "/",
-                        snapshotId,
-                        file.getParent().getParent().getFileName().toString(),
-                        file.getParent().getFileName().toString()
-                    ),
-                    INDEX_SHARD_SNAPSHOT_FORMAT.deserialize(fileName, xContentRegistry(), Streams.readFully(Files.newInputStream(file)))
-                );
-            }
-        }));
-        return Map.copyOf(blobsPerShard);
-    }
-
-    private void assertCachedBlobsInSystemIndex(final String repositoryName, final Map<String, BlobStoreIndexShardSnapshot> blobsInSnapshot)
-        throws Exception {
-        final BlobStoreCacheService blobCacheService = internalCluster().getDataNodeInstance(BlobStoreCacheService.class);
-        assertBusy(() -> {
-            refreshSystemIndex();
-
-            long numberOfCachedBlobs = 0L;
-            for (Map.Entry<String, BlobStoreIndexShardSnapshot> blob : blobsInSnapshot.entrySet()) {
-                for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : blob.getValue().indexFiles()) {
-                    if (fileInfo.name().startsWith("__") == false) {
-                        continue;
-                    }
-
-                    final String fileName = fileInfo.physicalName();
-                    final long length = fileInfo.length();
-                    final ByteRange expectedByteRange = blobCacheService.computeBlobCacheByteRange(fileName, length, blobCacheMaxLength);
-                    final String path = String.join("/", repositoryName, blob.getKey(), fileName, "@" + expectedByteRange.start());
-
-                    final GetResponse getResponse = systemClient().prepareGet(SNAPSHOT_BLOB_CACHE_INDEX, path).get();
-                    assertThat("Expected cached blob [" + path + "] for blob [" + fileInfo + "]", getResponse.isExists(), is(true));
-                    final CachedBlob cachedBlob = CachedBlob.fromSource(getResponse.getSourceAsMap());
-                    assertThat(cachedBlob.from(), equalTo(expectedByteRange.start()));
-                    assertThat(cachedBlob.to(), equalTo(expectedByteRange.end()));
-                    assertThat((long) cachedBlob.length(), equalTo(expectedByteRange.length()));
-                    numberOfCachedBlobs += 1;
-                }
-            }
-
-            refreshSystemIndex();
-            assertHitCount(systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0).get(), numberOfCachedBlobs);
-        });
     }
 
     /**

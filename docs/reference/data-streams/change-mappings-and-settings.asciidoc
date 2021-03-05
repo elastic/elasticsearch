@@ -35,7 +35,7 @@ PUT /_ilm/policy/my-data-stream-policy
       "hot": {
         "actions": {
           "rollover": {
-            "max_size": "25GB"
+            "max_primary_shard_size": "25GB"
           }
         }
       },

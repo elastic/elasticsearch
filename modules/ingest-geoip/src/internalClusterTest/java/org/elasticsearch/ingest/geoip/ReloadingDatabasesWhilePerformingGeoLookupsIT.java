@@ -48,6 +48,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
      * This failure can be avoided by ensuring that a database is only closed when no
      * geoip processor instance is using the related {@link DatabaseReaderLazyLoader} instance
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69980")
     public void test() throws Exception {
         Path geoIpTmpDir = createTempDir();
         DatabaseRegistry databaseRegistry = createDatabaseRegistry(geoIpTmpDir);

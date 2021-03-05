@@ -18,6 +18,7 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -43,18 +44,19 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -945,22 +947,26 @@ public class NumberFieldMapper extends FieldMapper {
         private final NumberType type;
         private final boolean coerce;
         private final Number nullValue;
+        private final NumberMapperScript script;
 
         public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean isStored,
-                               boolean hasDocValues, boolean coerce, Number nullValue, Map<String, String> meta) {
+                               boolean hasDocValues, boolean coerce, Number nullValue, Map<String, String> meta,
+                               ScriptParams.CompiledScriptParameter<NumberMapperScript> script) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
             this.nullValue = nullValue;
+            this.script = script == null ? null : script.compiledScript;
         }
 
         NumberFieldType(String name, Builder builder) {
             this(name, builder.type, builder.indexed.getValue(), builder.stored.getValue(), builder.hasDocValues.getValue(),
-                builder.coerce.getValue().value(), builder.nullValue.getValue(), builder.meta.getValue());
+                builder.coerce.getValue().value(), builder.nullValue.getValue(), builder.meta.getValue(),
+                builder.script.get());
         }
 
         public NumberFieldType(String name, NumberType type) {
-            this(name, type, true, false, true, true, null, Collections.emptyMap());
+            this(name, type, true, false, true, true, null, null, null);
         }
 
         @Override
@@ -1017,6 +1023,28 @@ public class NumberFieldMapper extends FieldMapper {
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            if (this.script != null) {
+                // values don't live in source - either pull from dv, or re-calculate
+                if (hasDocValues()) {
+                    return new DocValueFetcher(DocValueFormat.RAW, context.getForField(this));
+                }
+                return new ValueFetcher() {
+                    LeafReaderContext ctx;
+
+                    @Override
+                    public void setNextReader(LeafReaderContext context) {
+                        this.ctx = context;
+                    }
+
+                    @Override
+                    public List<Object> fetchValues(SourceLookup lookup) {
+                        List<Object> values = new ArrayList<>();
+                        script.executeAndIndex(context.lookup(), ctx, lookup.docId(), values::add);
+                        values.sort(Comparator.comparingLong(a -> (Long) a));
+                        return values;
+                    }
+                };
             }
 
             return new SourceValueFetcher(name(), context, nullValue) {
@@ -1159,7 +1187,12 @@ public class NumberFieldMapper extends FieldMapper {
         if (this.script == null) {
             return null;
         }
-        return c -> this.script.compiledScript.executeAndIndex(c, this::indexValue);
+        return c -> this.script.compiledScript.executeAndIndex(
+            c.searchLookup,
+            c.leafReaderContext,
+            0,
+            v -> this.indexValue(c.pc, v)
+        );
     }
 
     @Override
@@ -1168,7 +1201,7 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     private interface NumberMapperScript {
-        void executeAndIndex(IndexTimeScriptContext context, BiConsumer<ParseContext, Number> emitter);
+        void executeAndIndex(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Number> emitter);
     }
 
     private static class LongMapperScript implements NumberMapperScript {
@@ -1184,13 +1217,14 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void executeAndIndex(IndexTimeScriptContext scriptContext, BiConsumer<ParseContext, Number> emitter) {
+        public void executeAndIndex(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Number> emitter) {
             LongFieldScript s = scriptFactory
-                .newFactory(fieldName, scriptParams, scriptContext.searchLookup)
-                .newInstance(scriptContext.leafReaderContext);
-            s.runForDoc(0);
-            for (long v : s.values()) {
-                emitter.accept(scriptContext.pc, v);
+                .newFactory(fieldName, scriptParams, lookup)
+                .newInstance(ctx);
+            s.runForDoc(doc);
+            long[] vs = s.values();
+            for (int i = 0; i < s.count(); i++) {
+                emitter.accept(vs[i]);
             }
         }
     }
@@ -1208,13 +1242,14 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void executeAndIndex(IndexTimeScriptContext scriptContext, BiConsumer<ParseContext, Number> emitter) {
+        public void executeAndIndex(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Number> emitter) {
             DoubleFieldScript s = scriptFactory
-                .newFactory(fieldName, scriptParams, scriptContext.searchLookup)
-                .newInstance(scriptContext.leafReaderContext);
-            s.runForDoc(0);
-            for (double v : s.values()) {
-                emitter.accept(scriptContext.pc, v);
+                .newFactory(fieldName, scriptParams, lookup)
+                .newInstance(ctx);
+            s.runForDoc(doc);
+            double[] vs = s.values();
+            for (int i = 0; i < s.count(); i++) {
+                emitter.accept(vs[i]);
             }
         }
     }

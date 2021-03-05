@@ -303,13 +303,13 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testRequireDocValuesOnLongs() {
         doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG));
         doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG,
-            true, false, false, false, null, Collections.emptyMap()));
+            true, false, false, false, null, Collections.emptyMap(), null));
     }
 
     public void testRequireDocValuesOnDoubles() {
         doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE));
         doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE,
-            true, false, false, false, null, Collections.emptyMap()));
+            true, false, false, false, null, Collections.emptyMap(), null));
     }
 
     public void testRequireDocValuesOnBools() {

@@ -80,7 +80,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         AggregationContext context
     ) {
         MappedFieldType ft
-            = new NumberFieldMapper.NumberFieldType(fieldName, numType, indexed, false, true, false, null, Collections.emptyMap());
+            = new NumberFieldMapper.NumberFieldType(fieldName, numType, indexed, false, true, false, null, Collections.emptyMap(), null);
         return ValuesSourceConfig.resolveFieldOnly(ft, context);
     }
 

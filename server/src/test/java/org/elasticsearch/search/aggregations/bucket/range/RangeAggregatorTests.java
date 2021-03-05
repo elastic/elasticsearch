@@ -132,6 +132,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 true,
                 false,
                 null,
+                null,
                 null
             )
         );
@@ -224,6 +225,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             false,
             true,
             false,
+            null,
             null,
             null
         );
@@ -415,6 +417,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             randomBoolean(),
             true,
             false,
+            null,
             null,
             null
         );

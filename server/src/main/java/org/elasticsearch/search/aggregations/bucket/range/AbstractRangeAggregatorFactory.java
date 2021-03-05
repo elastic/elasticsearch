@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -17,13 +15,11 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourceAggregatorFactory {
@@ -33,54 +29,6 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     private final boolean keyed;
     private final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey;
     private final RangeAggregatorSupplier aggregatorSupplier;
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(AbstractRangeAggregatorFactory.class);
-
-    public static void registerAggregators(
-        ValuesSourceRegistry.Builder builder,
-        ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey
-    ) {
-        builder.register(
-            registryKey,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE),
-            RangeAggregator::build,
-            true
-        );
-
-        builder.register(
-            registryKey,
-            CoreValuesSourceType.BOOLEAN,
-            (
-                String name,
-                AggregatorFactories factories,
-                ValuesSourceConfig valuesSourceConfig,
-                InternalRange.Factory<?, ?> rangeFactory,
-                Range[] ranges,
-                boolean keyed,
-                AggregationContext context,
-                Aggregator parent,
-                CardinalityUpperBound cardinality,
-                Map<String, Object> metadata) -> {
-                DEPRECATION_LOGGER.deprecate(
-                    DeprecationCategory.AGGREGATIONS,
-                    "Range-boolean",
-                    "Running Range or DateRange aggregations on [boolean] fields is deprecated"
-                );
-                return RangeAggregator.build(
-                    name,
-                    factories,
-                    valuesSourceConfig,
-                    rangeFactory,
-                    ranges,
-                    keyed,
-                    context,
-                    parent,
-                    cardinality,
-                    metadata
-                );
-            },
-            true
-        );
-    }
 
     public AbstractRangeAggregatorFactory(String name,
                                           ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey,

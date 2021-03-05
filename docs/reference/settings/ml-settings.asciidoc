@@ -89,9 +89,9 @@ users. The minimum value is `5`; the maximum value is `200`. Defaults to `30`.
 value that can be set for any job on this node. If you try to create a job with
 a `model_memory_limit` property value that is greater than this setting value,
 an error occurs. Existing jobs are not affected when you update this setting.
+If this setting is `0` or unset, the maximum `model_memory_limit` value is `1gb`.
 For more information about the `model_memory_limit` property, see
-<<put-analysislimits>>.
-//TBD: Default?
+<<put-analysislimits>>. Defaults to `0`.
 
 [[xpack.ml.max_open_jobs]]
 `xpack.ml.max_open_jobs`::

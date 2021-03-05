@@ -178,6 +178,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // are not mmaping them as queries that leverage positions are more costly and the decoding of postings
                 // tends to be less a bottleneck.
                 case "doc":
+                //loadStoredFields need to decompress the data,When the number of segments is less but the concurrency is very more,
+                //The Threads wait for nio FileChannel lock
+                case "fdt":
                     return true;
                 // Other files are either less performance-sensitive (e.g. stored field index, norms metadata)
                 // or are large and have a random access pattern and mmap leads to page cache trashing

@@ -36,20 +36,16 @@ public final class SharedCacheConfiguration {
         final float smallRegionShare = SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.get(settings);
         final float tinyRegionShare = SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE.get(settings);
         this.numLargeRegions = Math.round(Math.toIntExact(cacheSize / largeRegionSize) * (1 - smallRegionShare - tinyRegionShare));
-        this.numSmallRegions = Math.round(Math.toIntExact(cacheSize / smallRegionSize) * smallRegionShare);
-        this.numTinyRegions = Math.round(Math.toIntExact(cacheSize / tinyRegionSize) * tinyRegionShare);
+        this.numSmallRegions = Math.max(Math.round(Math.toIntExact(cacheSize / smallRegionSize) * smallRegionShare), 1);
+        this.numTinyRegions = Math.max(Math.round(Math.toIntExact(cacheSize / tinyRegionSize) * tinyRegionShare), 1);
 
-        if (smallRegionSize > largeRegionSize || tinyRegionSize > smallRegionSize) {
-            throw new IllegalArgumentException("region sizes are not consistent");
-        }
-        if (cacheSize > 0 && numLargeRegions == 0) {
-            throw new IllegalArgumentException("No large regions available for the given settings");
-        }
-        if (numLargeRegions > 0 && numTinyRegions == 0) {
-            throw new IllegalArgumentException("No tiny regions available for the given settings");
-        }
-        if (numLargeRegions > 0 && numSmallRegions == 0) {
-            throw new IllegalArgumentException("No small regions available for the given settings");
+        if (cacheSize > 0) {
+            if (smallRegionSize > largeRegionSize || tinyRegionSize > smallRegionSize) {
+                throw new IllegalArgumentException("region sizes are not consistent");
+            }
+            if (numLargeRegions == 0) {
+                throw new IllegalArgumentException("No large regions available for the given settings");
+            }
         }
     }
 

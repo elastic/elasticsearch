@@ -100,8 +100,8 @@ public class HttpStats implements Writeable, ToXContentFragment {
             builder.field(Fields.CLIENT_OPENED_TIME_MILLIS, clientStats.openedTimeMillis);
             builder.field(Fields.CLIENT_CLOSED_TIME_MILLIS, clientStats.closedTimeMillis);
             builder.field(Fields.CLIENT_LAST_REQUEST_TIME_MILLIS, clientStats.lastRequestTimeMillis);
-            builder.field(Fields.CLIENT_REQUEST_COUNT, clientStats.requestCount);
-            builder.field(Fields.CLIENT_REQUEST_SIZE_BYTES, clientStats.requestSizeBytes);
+            builder.field(Fields.CLIENT_REQUEST_COUNT, clientStats.requestCount.longValue());
+            builder.field(Fields.CLIENT_REQUEST_SIZE_BYTES, clientStats.requestSizeBytes.longValue());
             builder.endObject();
         }
         builder.endArray();

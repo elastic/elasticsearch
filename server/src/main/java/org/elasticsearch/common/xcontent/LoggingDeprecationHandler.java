@@ -35,7 +35,6 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
      */
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParseField.class);
 
-    public static final String COMPATIBLE_API_WARNING_PREFIX = "";
     public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler((message, params, field_name) ->
         deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_field_" + field_name, message, params));
 

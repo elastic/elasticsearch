@@ -113,7 +113,7 @@ public class FrozenCacheService implements Releasable {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        final int numRegions = sharedBytes.sharedCacheConfiguration.numRegions();
+        final int numRegions = sharedBytes.sharedCacheConfiguration.numLargeRegions();
         final int numTinyRegions = sharedBytes.sharedCacheConfiguration.numTinyRegions();
         final int numSmallRegions = sharedBytes.sharedCacheConfiguration.numSmallRegions();
         keyMapping = new ConcurrentHashMap<>();

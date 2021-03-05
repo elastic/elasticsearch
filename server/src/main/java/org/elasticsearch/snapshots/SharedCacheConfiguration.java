@@ -70,7 +70,7 @@ public final class SharedCacheConfiguration {
         return physicalOffset;
     }
 
-    public int numRegions() {
+    public int numLargeRegions() {
         return numLargeRegions;
     }
 

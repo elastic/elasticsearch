@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -37,7 +36,6 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     private final long minDocCount;
     private final DoubleBounds extendedBounds;
     private final DoubleBounds hardBounds;
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(HistogramAggregationBuilder.class);
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(HistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, RangeHistogramAggregator::new, true);

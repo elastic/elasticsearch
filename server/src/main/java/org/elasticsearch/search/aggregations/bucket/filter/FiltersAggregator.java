@@ -135,8 +135,28 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        if (canUseFilterByFilter(parent, factories, otherBucketKey)) {
-            return buildFilterByFilter(name, factories, filters, keyed, otherBucketKey, context, parent, cardinality, metadata);
+        if (canUseFilterByFilter(parent, otherBucketKey)) {
+            FilterByFilter filterByFilter = buildFilterByFilter(
+                name,
+                factories,
+                filters,
+                keyed,
+                otherBucketKey,
+                context,
+                parent,
+                cardinality,
+                metadata
+            );
+            if (false == filterByFilter.scoreMode().needsScores()) {
+                /*
+                 * Filter by filter won't produce the correct results if the
+                 * sub-aggregators need scores because we're not careful with how
+                 * we merge filters. Right now we have to build the whole
+                 * aggregation in order to know if it'll need scores or not.
+                 */
+                // TODO make filter by filter produce the correct result or skip this in canUseFilterbyFilter
+                return filterByFilter;
+            }
         }
         return new FiltersAggregator.Compatible(
             name,
@@ -155,8 +175,8 @@ public abstract class FiltersAggregator extends BucketsAggregator {
      * Can this aggregation be executed using the {@link FilterByFilter}? That
      * aggregator is much faster than the fallback {@link Compatible} aggregator.
      */
-    public static boolean canUseFilterByFilter(Aggregator parent, AggregatorFactories factories, String otherBucketKey) {
-        return parent == null && factories.countAggregators() == 0 && otherBucketKey == null;
+    public static boolean canUseFilterByFilter(Aggregator parent, String otherBucketKey) {
+        return parent == null && otherBucketKey == null;
     }
 
     /**
@@ -165,6 +185,10 @@ public abstract class FiltersAggregator extends BucketsAggregator {
      * collect filter by filter if there isn't a parent, there aren't children,
      * and we don't collect "other" buckets. Collecting {@link FilterByFilter}
      * is generally going to be much faster than the {@link Compatible} aggregator.
+     * <p>
+     * <strong>Important:</strong> This doesn't properly handle sub-aggregators
+     * that need scores so callers must check {@code #scoreMode()} and not use
+     * this collector if it need scores.
      */
     public static FilterByFilter buildFilterByFilter(
         String name,
@@ -177,7 +201,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        if (false == canUseFilterByFilter(parent, factories, otherBucketKey)) {
+        if (false == canUseFilterByFilter(parent, otherBucketKey)) {
             throw new IllegalStateException("Can't execute filter-by-filter");
         }
         List<QueryToFilterAdapter<?>> filtersWithTopLevel = new ArrayList<>(filters.size());
@@ -186,6 +210,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         }
         return new FiltersAggregator.FilterByFilter(
             name,
+            factories,
             filtersWithTopLevel,
             keyed,
             context,
@@ -274,9 +299,12 @@ public abstract class FiltersAggregator extends BucketsAggregator {
          * field.
          */
         private int segmentsWithDocCountField;
+        private int segmentsCollected;
+        private int segmentsCounted;
 
         private FilterByFilter(
             String name,
+            AggregatorFactories factories,
             List<QueryToFilterAdapter<?>> filters,
             boolean keyed,
             AggregationContext context,
@@ -284,7 +312,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata
         ) throws IOException {
-            super(name, AggregatorFactories.EMPTY, filters, keyed, null, context, parent, cardinality, metadata);
+            super(name, factories, filters, keyed, null, context, parent, cardinality, metadata);
             this.profiling = context.profiling();
         }
 
@@ -294,6 +322,8 @@ public abstract class FiltersAggregator extends BucketsAggregator {
          */
         @SuppressWarnings("resource") // We're not in change of anything Closeable
         public long estimateCost(long maxCost) throws IOException {
+            assert scoreMode().needsScores() == false;
+            // TODO if we have children we should use a different cost estimate
             this.maxCost = maxCost;
             if (estimatedCost != -1) {
                 return estimatedCost;
@@ -303,7 +333,9 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             for (LeafReaderContext ctx : searcher().getIndexReader().leaves()) {
                 CheckedSupplier<Boolean, IOException> canUseMetadata = canUseMetadata(ctx);
                 for (QueryToFilterAdapter<?> filter : filters()) {
-                    estimatedCost += filter.estimateCountCost(ctx, canUseMetadata);
+                    estimatedCost += subAggregators().length > 0
+                        ? filter.estimateCollectCost(ctx)
+                        : filter.estimateCountCost(ctx, canUseMetadata);
                     if (estimatedCost < 0) {
                         // We've overflowed so we cap out and stop counting.
                         estimatedCost = Long.MAX_VALUE;
@@ -344,21 +376,87 @@ public abstract class FiltersAggregator extends BucketsAggregator {
          */
         @Override
         protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+            assert scoreMode().needsScores() == false;
+            if (filters().size() == 0) {
+                return LeafBucketCollector.NO_OP_COLLECTOR;
+            }
             Bits live = ctx.reader().getLiveDocs();
-            Counter counter = new Counter(docCountProvider);
             if (false == docCountProvider.alwaysOne()) {
                 segmentsWithDocCountField++;
             }
-            for (int filterOrd = 0; filterOrd < filters().size(); filterOrd++) {
-                incrementBucketDocCount(filterOrd, filters().get(filterOrd).count(ctx, counter, live));
+            if (subAggregators.length == 0) {
+                // TOOD we'd be better off if we could do sub.isNoop() or something.
+                /*
+                 * Without sub.isNoop we always end up in the `collectXXX` modes even if
+                 * the sub-aggregators opt out of traditional collection.
+                 */
+                collectCount(ctx, live);
+            } else {
+                collectSubs(ctx, live, sub);
             }
             // Throwing this exception is how we communicate to the collection mechanism that we don't need the segment.
             throw new CollectionTerminatedException();
         }
 
+        /**
+         * Gather a count of the number of documents that match each filter
+         * without sending any documents to a sub-aggregator. This yields
+         * the correct response when there aren't any sub-aggregators or they
+         * all opt out of needing any sort of collection.
+         */
+        private void collectCount(LeafReaderContext ctx, Bits live) throws IOException {
+            Counter counter = new Counter(docCountProvider);
+            for (int filterOrd = 0; filterOrd < filters().size(); filterOrd++) {
+                incrementBucketDocCount(filterOrd, filters().get(filterOrd).count(ctx, counter, live));
+            }
+        }
+
+        /**
+         * Collect all documents that match all filters and send them to
+         * the sub-aggregators. This method is only required when there are
+         * sub-aggregators that haven't opted out of being collected.
+         * <p>
+         * This collects each filter one at a time, resetting the
+         * sub-aggregators between each filter as though they were hitting
+         * a fresh segment.
+         * <p>
+         * It's <strong>very</strong> tempting to try and collect the
+         * filters into blocks of matches and then reply the whole block
+         * into ascending order without the resetting. That'd probably
+         * work better if the disk was very, very slow and we didn't have
+         * any kind of disk caching. But with disk caching its about twice
+         * as fast to collect each filter one by one like this. And it uses
+         * less memory because there isn't a need to buffer a block of matches.
+         * And its a hell of a lot less code.
+         */
+        private void collectSubs(LeafReaderContext ctx, Bits live, LeafBucketCollector sub) throws IOException {
+            class MatchCollector implements LeafCollector {
+                LeafBucketCollector subCollector = sub;
+                int filterOrd;
+
+                @Override
+                public void collect(int docId) throws IOException {
+                    collectBucket(subCollector, docId, filterOrd);
+                }
+
+                @Override
+                public void setScorer(Scorable scorer) throws IOException {
+                }
+            }
+            MatchCollector collector = new MatchCollector();
+            filters().get(0).collect(ctx, collector, live);
+            for (int filterOrd = 1; filterOrd < filters().size(); filterOrd++) {
+                collector.subCollector = collectableSubAggregators.getLeafCollector(ctx);
+                collector.filterOrd = filterOrd;
+                filters().get(filterOrd).collect(ctx, collector, live);
+            }
+        }
+
         @Override
         public void collectDebugInfo(BiConsumer<String, Object> add) {
             super.collectDebugInfo(add);
+            add.accept("segments_counted", segmentsCounted);
+            add.accept("segments_collected", segmentsCollected);
             add.accept("segments_with_deleted_docs", segmentsWithDeletedDocs);
             add.accept("segments_with_doc_count_field", segmentsWithDocCountField);
             if (estimatedCost != -1) {

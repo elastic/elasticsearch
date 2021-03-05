@@ -18,8 +18,9 @@ These are indicators of high CPU utilization:
 
 - monitoring reports high utilization
 - high load averages
-- frequesnt or long Java garbage collection (GC) cycles
+- frequent or long Java garbage collection (GC) cycles
 - every GC cycle takes CPU time
+- having 20 or more shards per GB of heap
 
 [discrete]
 === Look for high CPU consuming threads

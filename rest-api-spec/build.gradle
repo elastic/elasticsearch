@@ -13,6 +13,10 @@ restResources {
   }
 }
 
+// REST API specifications are published under the Apache 2.0 License
+ext.projectLicenses = ['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0']
+ext.licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+
 artifacts {
   restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))

@@ -73,7 +73,7 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<IndexTemplateConfig> getLegacyTemplateConfigs() {
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_9_0)) {
+        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_10_0)) {
             return Collections.emptyList();
         } else if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_7_0)) {
             return Collections.singletonList(
@@ -110,12 +110,10 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     }
 
     public static boolean validate(ClusterState state) {
-        final Stream<String> watcherHistoryTemplateIds;
-        if (state.nodes().getMinNodeVersion().onOrAfter(Version.V_7_9_0)){
-            watcherHistoryTemplateIds = state.getMetadata().templatesV2().keySet().stream();
-        } else {
-            watcherHistoryTemplateIds = Arrays.stream(state.getMetadata().getTemplates().keys().toArray(String.class));
-        }
+        // A .watch-history should exist, whether it is a legacy or composable index template
+        // that doesn't matter when deciding to start watcher.
+        final Stream<String> watcherHistoryTemplateIds = Stream.concat(state.getMetadata().templatesV2().keySet().stream(),
+            Arrays.stream(state.getMetadata().getTemplates().keys().toArray(String.class)));
         return watcherHistoryTemplateIds.filter(s -> s.startsWith(".watch-history-"))
             .map(s -> Integer.valueOf(s.substring(s.lastIndexOf('-') + 1)))
             .anyMatch(version -> version >= 9);

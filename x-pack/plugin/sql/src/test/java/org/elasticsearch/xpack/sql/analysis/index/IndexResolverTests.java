@@ -122,10 +122,10 @@ public class IndexResolverTests extends ESTestCase {
 
     public void testMetaFieldsAreIgnored() throws Exception {
         Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
-        addFieldCaps(fieldCaps, "_version", "_version", false, false);
-        addFieldCaps(fieldCaps, "_meta_field", "integer", true, true);
-        addFieldCaps(fieldCaps, "_size", "integer", true, true);
-        addFieldCaps(fieldCaps, "_doc_count", "long", false, false);
+        addFieldCaps(fieldCaps, "_version", "_version", true, false, false);
+        addFieldCaps(fieldCaps, "_not_meta_field", "integer", false, true, true);
+        addFieldCaps(fieldCaps, "_size", "integer", true, true, true);
+        addFieldCaps(fieldCaps, "_doc_count", "long", true, false, false);
         addFieldCaps(fieldCaps, "text", "keyword", true, true);
 
         String wildcard = "*";
@@ -137,7 +137,7 @@ public class IndexResolverTests extends ESTestCase {
         assertNull(esIndex.mapping().get("_version"));
         assertNull(esIndex.mapping().get("_size"));
         assertNull(esIndex.mapping().get("_doc_count"));
-        assertEquals(INTEGER, esIndex.mapping().get("_meta_field").getDataType());
+        assertEquals(INTEGER, esIndex.mapping().get("_not_meta_field").getDataType());
         assertEquals(KEYWORD, esIndex.mapping().get("text").getDataType());
     }
 
@@ -427,10 +427,23 @@ public class IndexResolverTests extends ESTestCase {
         }
     }
 
-    private void addFieldCaps(Map<String, Map<String, FieldCapabilities>> fieldCaps, String name, String type, boolean isSearchable,
-            boolean isAggregatable) {
+    private void addFieldCaps(Map<String, Map<String, FieldCapabilities>> fieldCaps,
+                              String name,
+                              String type,
+                              boolean isSearchable,
+                              boolean isAggregatable) {
+        addFieldCaps(fieldCaps, name, type, false, isSearchable, isAggregatable);
+    }
+
+    private void addFieldCaps(Map<String, Map<String, FieldCapabilities>> fieldCaps,
+                                      String name,
+                                      String type,
+                                      boolean isMetadataField,
+                                      boolean isSearchable,
+                                      boolean isAggregatable) {
         Map<String, FieldCapabilities> cap = new HashMap<>();
-        cap.put(type, new FieldCapabilities(name, type, false, isSearchable, isAggregatable, null, null, null, Collections.emptyMap()));
+        cap.put(type, new FieldCapabilities(name, type, isMetadataField,
+            isSearchable, isAggregatable, null, null, null, Collections.emptyMap()));
         fieldCaps.put(name, cap);
     }
 

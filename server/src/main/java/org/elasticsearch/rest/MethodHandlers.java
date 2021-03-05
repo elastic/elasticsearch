@@ -24,7 +24,12 @@ final class MethodHandlers {
 
     MethodHandlers(String path) {
         this.path = path;
-        this.methodHandlers = new HashMap<>(4);
+
+        // by setting the loadFactor to 1, these maps are resized only when they *must* be, and the vast majority of these
+        // maps contain only 1 or 2 entries anyway, so most of these maps are never resized at all and waste only 1 or 0
+        // array references, while those few that contain 3 or 4 elements will have been resized just once and will still
+        // waste only 1 or 0 array references
+        this.methodHandlers = new HashMap<>(2, 1);
     }
 
     /**
@@ -33,7 +38,9 @@ final class MethodHandlers {
      */
     MethodHandlers addMethod(RestRequest.Method method, RestApiVersion version, RestHandler handler) {
         RestHandler existing = methodHandlers
-            .computeIfAbsent(method, k -> new HashMap<>())
+            // same sizing notes as 'methodHandlers' above, except that having a size here that's more than 1 is vanishingly
+            // rare, so an initialCapacity of 1 with a loadFactor of 1 is perfect
+            .computeIfAbsent(method, k -> new HashMap<>(1, 1))
             .putIfAbsent(version, handler);
         if (existing != null) {
             throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);

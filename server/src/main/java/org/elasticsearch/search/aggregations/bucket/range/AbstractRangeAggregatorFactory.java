@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -31,6 +33,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     private final boolean keyed;
     private final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey;
     private final RangeAggregatorSupplier aggregatorSupplier;
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(AbstractRangeAggregatorFactory.class);
 
     public static void registerAggregators(
         ValuesSourceRegistry.Builder builder,
@@ -38,9 +41,45 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     ) {
         builder.register(
             registryKey,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE),
             RangeAggregator::build,
-                true);
+            true
+        );
+        
+        builder.register(
+            registryKey,
+            CoreValuesSourceType.BOOLEAN,
+            (
+                String name,
+                AggregatorFactories factories,
+                ValuesSourceConfig valuesSourceConfig,
+                InternalRange.Factory<?, ?> rangeFactory,
+                Range[] ranges,
+                boolean keyed,
+                AggregationContext context,
+                Aggregator parent,
+                CardinalityUpperBound cardinality,
+                Map<String, Object> metadata) -> {
+                DEPRECATION_LOGGER.deprecate(
+                    DeprecationCategory.AGGREGATIONS,
+                    "histogram-boolean",
+                    "Running Histogram aggregations on [boolean] fields is deprecated"
+                );
+                return RangeAggregator.build(
+                    name,
+                    factories,
+                    valuesSourceConfig,
+                    rangeFactory,
+                    ranges,
+                    keyed,
+                    context,
+                    parent,
+                    cardinality,
+                    metadata
+                );
+            },
+            true
+        );
     }
 
     public AbstractRangeAggregatorFactory(String name,

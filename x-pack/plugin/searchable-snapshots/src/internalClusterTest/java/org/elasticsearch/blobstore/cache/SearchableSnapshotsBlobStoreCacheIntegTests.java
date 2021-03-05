@@ -57,6 +57,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -119,7 +120,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
     public void testBlobStoreCache() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName);
+        final boolean useSoftDeletes = randomBoolean();
+        createIndex(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), useSoftDeletes).build());
 
         final NumShards numberOfShards = getNumShards(indexName);
 
@@ -261,20 +263,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         ensureGreen(restoredAgainIndex);
 
         logger.info("--> verifying shards of [{}] were started without using the blob store more than necessary", restoredAgainIndex);
-        for (final SearchableSnapshotShardStats shardStats : client().execute(
-            SearchableSnapshotsStatsAction.INSTANCE,
-            new SearchableSnapshotsStatsRequest()
-        ).actionGet().getStats()) {
-            for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
-                assertThat(
-                    Strings.toString(indexInputStats),
-                    indexInputStats.getBlobStoreBytesRequested().getCount(),
-                    storage == Storage.SHARED_CACHE ? equalTo(0L)
-                        : indexInputStats.getFileExt().equals("cfs") ? greaterThanOrEqualTo(0L)
-                        : equalTo(0L)
-                );
-            }
-        }
+        checkNoBlobStoreAccess(useSoftDeletes, storage);
 
         logger.info("--> verifying number of documents in index [{}]", restoredAgainIndex);
         assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
@@ -311,20 +300,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         ensureGreen(restoredAgainIndex);
 
         logger.info("--> shards of [{}] should start without downloading bytes from the blob store", restoredAgainIndex);
-        for (final SearchableSnapshotShardStats shardStats : client().execute(
-            SearchableSnapshotsStatsAction.INSTANCE,
-            new SearchableSnapshotsStatsRequest()
-        ).actionGet().getStats()) {
-            for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
-                assertThat(
-                    Strings.toString(indexInputStats),
-                    indexInputStats.getBlobStoreBytesRequested().getCount(),
-                    storage == Storage.SHARED_CACHE ? equalTo(0L)
-                        : indexInputStats.getFileExt().equals("cfs") ? greaterThanOrEqualTo(0L)
-                        : equalTo(0L)
-                );
-            }
-        }
+        checkNoBlobStoreAccess(useSoftDeletes, storage);
 
         logger.info("--> verifying that no cached blobs were indexed in system index [{}] after restart", SNAPSHOT_BLOB_CACHE_INDEX);
         assertHitCount(
@@ -347,6 +323,26 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
         // TODO also test when the index is frozen
         // TODO also test when prewarming is enabled
+    }
+
+    private void checkNoBlobStoreAccess(boolean useSoftDeletes, Storage storage) {
+        for (final SearchableSnapshotShardStats shardStats : client().execute(
+            SearchableSnapshotsStatsAction.INSTANCE,
+            new SearchableSnapshotsStatsRequest()
+        ).actionGet().getStats()) {
+            for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
+                if (useSoftDeletes == false && indexInputStats.getFileExt().equals("liv")) {
+                    continue;
+                }
+                assertThat(
+                    Strings.toString(indexInputStats),
+                    indexInputStats.getBlobStoreBytesRequested().getCount(),
+                    storage == Storage.SHARED_CACHE ? equalTo(0L)
+                        : indexInputStats.getFileExt().equals("cfs") ? greaterThanOrEqualTo(0L)
+                        : equalTo(0L)
+                );
+            }
+        }
     }
 
     /**

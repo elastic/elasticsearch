@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
-public class TransformWarningsTests extends ESTestCase {
+public class TransformConfigLinterTests extends ESTestCase {
 
     public void testGetWarnings_Pivot_WithScriptBasedRuntimeFields() {
         PivotConfig pivotConfig =
@@ -44,10 +44,10 @@ public class TransformWarningsTests extends ESTestCase {
                 null);
         Function function = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT);
         SourceConfig sourceConfig = SourceConfigTests.randomSourceConfig();
-        assertThat(TransformWarnings.getWarnings(function, sourceConfig, null), is(empty()));
+        assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, null), is(empty()));
 
         SyncConfig syncConfig = TimeSyncConfigTests.randomTimeSyncConfig();
-        assertThat(TransformWarnings.getWarnings(function, sourceConfig, syncConfig), is(empty()));
+        assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig), is(empty()));
 
         Map<String, Object> runtimeMappings = new HashMap<>() {{
             put("rt-field-A", singletonMap("type", "keyword"));
@@ -56,11 +56,11 @@ public class TransformWarningsTests extends ESTestCase {
         }};
         sourceConfig =
             new SourceConfig(generateRandomStringArray(10, 10, false, false), QueryConfigTests.randomQueryConfig(), runtimeMappings);
-        assertThat(TransformWarnings.getWarnings(function, sourceConfig, syncConfig), is(empty()));
+        assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig), is(empty()));
 
         syncConfig = new TimeSyncConfig("rt-field-B", null);
         assertThat(
-            TransformWarnings.getWarnings(function, sourceConfig, syncConfig),
+            TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig),
             contains("sync time field is a script-based runtime field, this transform might run slowly, please check your configuration."));
     }
 
@@ -68,7 +68,7 @@ public class TransformWarningsTests extends ESTestCase {
         LatestConfig latestConfig = new LatestConfig(singletonList("rt-field-B"), "field-T");
         Function function = new Latest(latestConfig);
         SourceConfig sourceConfig = SourceConfigTests.randomSourceConfig();
-        assertThat(TransformWarnings.getWarnings(function, sourceConfig, null), is(empty()));
+        assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, null), is(empty()));
 
         SyncConfig syncConfig = new TimeSyncConfig("rt-field-C", null);
 
@@ -81,7 +81,7 @@ public class TransformWarningsTests extends ESTestCase {
             new SourceConfig(generateRandomStringArray(10, 10, false, false), QueryConfigTests.randomQueryConfig(), runtimeMappings);
 
         assertThat(
-            TransformWarnings.getWarnings(function, sourceConfig, syncConfig),
+            TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig),
             contains(
                 "all the group-by fields are script-based runtime fields, "
                     + "this transform might run slowly, please check your configuration.",
@@ -98,7 +98,7 @@ public class TransformWarningsTests extends ESTestCase {
         SourceConfig sourceConfig = SourceConfigTests.randomSourceConfig();
         SyncConfig syncConfig = TimeSyncConfigTests.randomTimeSyncConfig();
         assertThat(
-            TransformWarnings.getWarnings(function, sourceConfig, syncConfig),
+            TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig),
             contains("could not find any optimizations for continuous execution, "
                 + "this transform might run slowly, please check your configuration."));
     }

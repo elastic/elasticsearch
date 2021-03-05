@@ -174,7 +174,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
                 Clock.systemUTC()
             );
 
-            List<String> warnings = TransformWarnings.getWarnings(function, source, syncConfig);
+            List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
             warnings.forEach(HeaderWarning::addWarning);
             listener.onResponse(new PreviewTransformAction.Response(docs, generatedDestIndexSettings));
         }, listener::onFailure);
@@ -193,7 +193,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
                             transformId,
                             Clock.systemUTC()
                         );
-                        List<String> warnings = TransformWarnings.getWarnings(function, source, syncConfig);
+                        List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
                         warnings.forEach(HeaderWarning::addWarning);
                         listener.onResponse(new PreviewTransformAction.Response(docs, generatedDestIndexSettings));
                     } else {

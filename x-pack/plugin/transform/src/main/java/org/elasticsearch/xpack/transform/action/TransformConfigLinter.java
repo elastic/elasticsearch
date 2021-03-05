@@ -16,7 +16,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-class TransformWarnings {
+final class TransformConfigLinter {
 
     static List<String> getWarnings(Function function, SourceConfig sourceConfig, SyncConfig syncConfig) {
         if (syncConfig == null) {
@@ -45,5 +45,5 @@ class TransformWarnings {
         return warnings;
     }
 
-    private TransformWarnings() {}
+    private TransformConfigLinter() {}
 }

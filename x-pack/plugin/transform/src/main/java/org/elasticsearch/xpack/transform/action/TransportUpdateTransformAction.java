@@ -330,7 +330,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         // <3> Return to the listener
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
             auditor.info(config.getId(), "Updated transform.");
-            List<String> warnings = TransformWarnings.getWarnings(function, config.getSource(), config.getSyncConfig());
+            List<String> warnings = TransformConfigLinter.getWarnings(function, config.getSource(), config.getSyncConfig());
             for (String warning : warnings) {
                 logger.warn(new ParameterizedMessage("[{}] {}", config.getId(), warning));
                 auditor.warning(config.getId(), warning);

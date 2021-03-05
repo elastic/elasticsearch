@@ -6,15 +6,15 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.admin.indices.shrink;
+package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.ActionType;
 
-public class PrepareReindexTargetAction extends ActionType<ResizeResponse> {
+public class PrepareReindexTargetAction extends ActionType<CreateIndexResponse> {
     public static final PrepareReindexTargetAction INSTANCE = new PrepareReindexTargetAction();
     public static final String NAME = "indices:admin/prepare_clone";
 
     private PrepareReindexTargetAction() {
-        super(NAME, ResizeResponse::new);
+        super(NAME, CreateIndexResponse::new);
     }
 }

@@ -122,7 +122,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
         @Override
         ResizeType getResizeType() {
-            return ResizeType.PREPARE_CLONE;
+            return null;
         }
     }
 

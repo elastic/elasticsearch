@@ -1,5 +1,5 @@
 {
-  "indices.prepare_clone": {
+  "indices.prepare_reindex_target": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-prepare-clone-index.html",
       "description": "Prepare and Clones an index"
@@ -13,7 +13,7 @@
     "url": {
       "paths": [
         {
-          "path": "/{index}/_prepare_clone/{target}",
+          "path": "/{index}/_prepare_reindex_target/{target}",
           "methods": [
             "PUT",
             "POST"

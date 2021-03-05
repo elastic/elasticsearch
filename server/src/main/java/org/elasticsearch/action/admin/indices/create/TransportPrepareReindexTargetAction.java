@@ -6,13 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.admin.indices.shrink;
+package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,13 +28,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Locale;
 import java.util.Objects;
 
 /**
  * Main class to initiate PrepareReIndexTargetAction for cloning index into a new index
  */
-public class TransportPrepareReindexTargetAction extends TransportMasterNodeAction<ResizeRequest, ResizeResponse> {
+public class TransportPrepareReindexTargetAction extends TransportMasterNodeAction<PrepareReindexRequest, CreateIndexResponse> {
 
     private final MetadataCreateIndexService createIndexService;
 
@@ -51,8 +49,8 @@ public class TransportPrepareReindexTargetAction extends TransportMasterNodeActi
                                                ClusterService clusterService, ThreadPool threadPool,
                                                MetadataCreateIndexService createIndexService, ActionFilters actionFilters,
                                                IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(actionName, transportService, clusterService, threadPool, actionFilters, ResizeRequest::new, indexNameExpressionResolver,
-            ResizeResponse::new, ThreadPool.Names.SAME);
+        super(actionName, transportService, clusterService, threadPool, actionFilters,
+            PrepareReindexRequest::new, indexNameExpressionResolver, CreateIndexResponse::new, ThreadPool.Names.SAME);
         this.createIndexService = createIndexService;
     }
 
@@ -61,8 +59,8 @@ public class TransportPrepareReindexTargetAction extends TransportMasterNodeActi
     }
 
     @Override
-    protected void masterOperation(Task task, ResizeRequest request, ClusterState state,
-                                   ActionListener<ResizeResponse> listener) throws Exception {
+    protected void masterOperation(Task task, PrepareReindexRequest request, ClusterState state,
+                                   ActionListener<CreateIndexResponse> listener) throws Exception {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             listener.onFailure(validationException);
@@ -74,11 +72,11 @@ public class TransportPrepareReindexTargetAction extends TransportMasterNodeActi
                 response.isShardsAcknowledged(), reindexRequest.index())));
     }
 
-    static CreateIndexClusterStateUpdateRequest prepareReindexRequest(final ResizeRequest resizeRequest,
+    static CreateIndexClusterStateUpdateRequest prepareReindexRequest(final PrepareReindexRequest createIndexRequest,
                                                                       final ClusterState state) {
-        final String sourceIndexName = resizeRequest.getSourceIndex();
-        final String targetIndexName = resizeRequest.getTargetIndexRequest().index();
-        final CreateIndexRequest targetIndex = resizeRequest.getTargetIndexRequest();
+        final String sourceIndexName = createIndexRequest.getSourceIndex();
+        final String targetIndexName = createIndexRequest.getTargetIndexRequest().index();
+        final CreateIndexRequest targetIndex = createIndexRequest.getTargetIndexRequest();
         final IndexMetadata sourceIndexMetadata = state.metadata().index(sourceIndexName);
         if (sourceIndexMetadata == null) {
             throw new IndexNotFoundException(sourceIndexName);
@@ -96,25 +94,21 @@ public class TransportPrepareReindexTargetAction extends TransportMasterNodeActi
             Objects.requireNonNull(IndexMetadata.selectCloneShard(i, sourceIndexMetadata, numShards));
         }
 
-        String cause = ResizeType.PREPARE_CLONE.name().toLowerCase(Locale.ROOT) + "_index";
-        targetIndex.cause(cause);
         Settings.Builder settingsBuilder = Settings.builder().put(targetIndexSettings);
         settingsBuilder.put("index.number_of_shards", numShards);
         targetIndex.settings(settingsBuilder);
 
-        return new CreateIndexClusterStateUpdateRequest(cause, targetIndex.index(), targetIndexName)
+        return new CreateIndexClusterStateUpdateRequest("prepare_reindex_target", targetIndex.index(), targetIndexName)
             .ackTimeout(targetIndex.timeout())
             .masterNodeTimeout(targetIndex.masterNodeTimeout())
             .settings(targetIndex.settings())
             .aliases(targetIndex.aliases())
             .waitForActiveShards(targetIndex.waitForActiveShards())
-            .recoverFrom(sourceIndexMetadata.getIndex())
-            .resizeType(ResizeType.PREPARE_CLONE)
-            .copySettings(resizeRequest.getCopySettings() == null ? false : resizeRequest.getCopySettings());
+            .recoverFrom(sourceIndexMetadata.getIndex());
     }
 
     @Override
-    protected ClusterBlockException checkBlock(ResizeRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PrepareReindexRequest request, ClusterState state) {
         return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getSourceIndex());
     }
 }

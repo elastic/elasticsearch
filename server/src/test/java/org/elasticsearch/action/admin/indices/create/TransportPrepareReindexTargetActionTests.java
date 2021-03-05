@@ -6,13 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.admin.indices.shrink;
+package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
@@ -79,18 +77,18 @@ public class TransportPrepareReindexTargetActionTests extends ESTestCase {
             Settings.builder().put("index.blocks.write", true).build());
         expectThrows(IndexNotFoundException.class, () ->
             TransportPrepareReindexTargetAction.prepareReindexRequest(
-                new ResizeRequest("target", "not_source"), state));
+                new PrepareReindexRequest("target", "not_source"), state));
         assertThat(
             expectThrows(ResourceAlreadyExistsException.class, () ->
                 TransportPrepareReindexTargetAction.prepareReindexRequest(
-                    new ResizeRequest("source", "source"), state))
+                    new PrepareReindexRequest("source", "source"), state))
                 .getMessage(), equalTo("index already present"));
     }
 
     public void testFailToCloneIndex() throws Exception {
         ClusterState state = createClusterWithIndexAndSettings("source", randomIntBetween(2, 42),
             randomIntBetween(0, 10), Settings.builder().put("index.blocks.write", true).build());
-        ResizeRequest prepareAndCloneIndexRequest = new ResizeRequest("target", "source");
+        PrepareReindexRequest prepareAndCloneIndexRequest = new PrepareReindexRequest("target", "source");
         TransportPrepareReindexTargetAction mockInstance =  getMockInstance();
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
@@ -102,9 +100,9 @@ public class TransportPrepareReindexTargetActionTests extends ESTestCase {
             return null;
         }).when(mockInstance.getCreateIndexService()).createIndex(any(), any());
 
-        PlainActionFuture<ResizeResponse> future = new PlainActionFuture<>();
+        PlainActionFuture<CreateIndexResponse> future = new PlainActionFuture<>();
         mockInstance.masterOperation(mock(Task.class), prepareAndCloneIndexRequest, state, future);
-        ResizeResponse response = future.actionGet();
+        CreateIndexResponse response = future.actionGet();
         assertFalse(response.isAcknowledged());
         assertFalse(response.isShardsAcknowledged());
     }
@@ -113,7 +111,7 @@ public class TransportPrepareReindexTargetActionTests extends ESTestCase {
         ClusterState state =
             createClusterWithIndexAndSettings("source", randomIntBetween(2, 42), randomIntBetween(0, 10),
             Settings.builder().put("index.blocks.write", true).build());
-        ResizeRequest prepareAndCloneIndexRequest = new ResizeRequest("target", "source");
+        PrepareReindexRequest prepareAndCloneIndexRequest = new PrepareReindexRequest("target", "source");
         TransportPrepareReindexTargetAction mockInstance =  getMockInstance();
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
@@ -125,9 +123,9 @@ public class TransportPrepareReindexTargetActionTests extends ESTestCase {
             return null;
         }).when(mockInstance.getCreateIndexService()).createIndex(any(), any());
 
-        PlainActionFuture<ResizeResponse> future = new PlainActionFuture<>();
+        PlainActionFuture<CreateIndexResponse> future = new PlainActionFuture<>();
         mockInstance.masterOperation(mock(Task.class), prepareAndCloneIndexRequest, state, future);
-        ResizeResponse response = future.actionGet();
+        CreateIndexResponse response = future.actionGet();
         assertTrue(response.isAcknowledged());
         assertFalse(response.isShardsAcknowledged());
     }
@@ -136,7 +134,7 @@ public class TransportPrepareReindexTargetActionTests extends ESTestCase {
         ClusterState state =
             createClusterWithIndexAndSettings("source", randomIntBetween(2, 42), randomIntBetween(0, 10),
             Settings.builder().put("index.blocks.write", true).build());
-        ResizeRequest prepareAndCloneIndexRequest = new ResizeRequest("target", "source");
+        PrepareReindexRequest prepareAndCloneIndexRequest = new PrepareReindexRequest("target", "source");
         TransportPrepareReindexTargetAction mockInstance =  getMockInstance();
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
@@ -149,9 +147,9 @@ public class TransportPrepareReindexTargetActionTests extends ESTestCase {
             return null;
         }).when(mockInstance.getCreateIndexService()).createIndex(any(), any());
 
-        PlainActionFuture<ResizeResponse> future = new PlainActionFuture<>();
+        PlainActionFuture<CreateIndexResponse> future = new PlainActionFuture<>();
         mockInstance.masterOperation(mock(Task.class), prepareAndCloneIndexRequest, state, future);
-        ResizeResponse response = future.actionGet();
+        CreateIndexResponse response = future.actionGet();
         assertTrue(response.isAcknowledged());
         assertTrue(response.isShardsAcknowledged());
     }

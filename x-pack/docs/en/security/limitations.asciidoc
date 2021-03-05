@@ -103,14 +103,14 @@ If you used an API key to submit the request, only that key can retrieve the res
 This logic also has a few limitations:
 
 * Two different realms can have the same name on different nodes. This is not a
-recommended way to configure realms, therefore resource sharing check
+recommended way to configure realms, therefore the resource sharing check
 does not attempt to detect this inconsistency.
-* Realms can be renamed. This can cause inconsistency for resource sharing check
+* Realms can be renamed. This can cause inconsistency for the resource sharing check
 when you submit an async search or scroll then rename the realm and try to retrieve the results.
 Hence, changing realm names should be handled with care since it can cause complications for more than
 just the resource sharing check.
 * The username is dynamically computed for realms backed by certain external authentication
-providers. For example, the username can be derived from part of the DN in a LDAP realm.
+providers. For example, the username can be derived from part of the DN in an LDAP realm.
 It is in theory possible that two distinct users from the external system get
 mapped to the same username. Our recommendation is to avoid this situation in the first place.
-Hence resource sharing check does not account for this potential discrepancy.
+Hence, the resource sharing check does not account for this potential discrepancy.

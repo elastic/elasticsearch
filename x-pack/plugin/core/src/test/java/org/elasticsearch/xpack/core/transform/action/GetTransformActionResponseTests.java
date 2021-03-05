@@ -25,6 +25,15 @@ import java.util.Map;
 
 public class GetTransformActionResponseTests extends AbstractWireSerializingTransformTestCase<Response> {
 
+    public static Response randomTransformResponse() {
+        List<TransformConfig> configs = new ArrayList<>();
+        for (int i = 0; i < randomInt(10); ++i) {
+            configs.add(TransformConfigTests.randomTransformConfig());
+        }
+
+        return new Response(configs, randomNonNegativeLong());
+    }
+
     public void testInvalidTransforms() throws IOException {
         List<TransformConfig> transforms = new ArrayList<>();
 
@@ -76,12 +85,7 @@ public class GetTransformActionResponseTests extends AbstractWireSerializingTran
 
     @Override
     protected Response createTestInstance() {
-        List<TransformConfig> configs = new ArrayList<>();
-        for (int i = 0; i < randomInt(10); ++i) {
-            configs.add(TransformConfigTests.randomTransformConfig());
-        }
-
-        return new Response(configs, randomNonNegativeLong());
+        return randomTransformResponse();
     }
 
     @Override

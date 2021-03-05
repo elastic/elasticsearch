@@ -94,24 +94,23 @@ group membership.
 
 [discrete]
 [[same-user-check]]
-=== Same user check
+=== User and API key same ownership check
 
-The result of <<async-search,async search>> and <<scroll-api,scroll>> can be retrieved later
-by the same user who submits the initial request. The same user check is done by comparing
-the username, authentication realm type and, for realms other than file or native, realm name.
-Two API keys are never considered as the same user regardless of their privileges.
+The result of <<async-search,async search>> and <<scroll-api,scroll>> requests can be retrieved later
+by the same user or API key that submitted the initial request. The user verification involves comparing
+the username, authentication realm type, and (for realms other than file or native) realm name.
+If you used an API key to submit the request, only that key can retrieve the results.
 This logic also has a few limitations:
 
-* Two different realms can have the same name on different nodes. We do not
-recommend configuring realms in this inconsistent way. As such the same user check
+* Two different realms can have the same name on different nodes. This is not a
+recommended way to configure realms, therefore the same user check
 does not attempt to detect this inconsistency.
-* The same realm can also be renamed. This can cause inconsistency for same user check
-when submitting async search/scroll before the rename and retrieving the result after the rename.
-. Hence changing realm names should be handled with care
+* Realms can be renamed. This can cause inconsistency for the same user check
+when you submit an async search or scroll then rename the realm and try to retrieve the results.
+Hence, changing realm names should be handled with care
 since it can cause complications for more than just same user check.
-* The username is computed on the fly for realms backed by certain external authentication
+* The username is dynamically computed for realms backed by certain external authentication
 providers. For example, the username can be derived from part of the DN in a LDAP realm.
 It is in theory possible that two distinct users from the external system get
 mapped to the same username. Our recommendation is to avoid this situation in the first place.
 Hence the same user check does not account for this potential discrepancy.
-

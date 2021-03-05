@@ -137,8 +137,7 @@ public class Authentication implements ToXContentObject {
     }
 
     /**
-     * Check whether this authentication object is owned by the same user as the given authentication object.
-     * The owners are considered to be the same if:
+Checks whether the user or API key of the passed in authentication can access the resources owned by the user or API key of this authentication.
      *   * The authentications are for the same API key (same API key ID)
      *   * They are the same username from the same realm
      *      - For file/native/kerberos realm, same realm means the same realm type

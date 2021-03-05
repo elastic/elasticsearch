@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
@@ -19,6 +21,7 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -32,6 +35,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+@Seed("94E9FBDD2E636DE7:1821691D7FEC43C7")
 public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
@@ -355,5 +359,50 @@ public class DateFieldMapperTests extends MapperTestCase {
         } else {
             assertThat(up, equalTo(0L));
         }
+    }
+
+    public void testExtractMillis() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> b.startObject("field").field("type", "date").endObject()));
+        assertFetch(mapperService, "field", randomLongBetween(0, Long.MAX_VALUE), null);
+        assertFetch(mapperService, "field", randomLongBetween(0, Long.MAX_VALUE), "epoch_millis");
+        assertFetch(mapperService, "field", randomLongBetween(0, Long.MAX_VALUE), "iso8601");
+
+        // The max date iso8601 can parse. It'll format much larger dates.
+        long maxIsoDate = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("9999-12-12T23:59:59.999Z");
+        assertFetch(
+            mapperService,
+            "field",
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomLongBetween(0, maxIsoDate)),
+            "iso8601"
+        );
+
+        assertFetch(mapperService, "field", randomIs8601Nanos(maxIsoDate), null);
+        assertFetch(mapperService, "field", randomIs8601Nanos(maxIsoDate), "strict_date_optional_time_nanos");
+        assertFetch(mapperService, "field", randomDecimalNanos(maxIsoDate), null);
+        assertFetch(mapperService, "field", new BigDecimal(randomDecimalNanos(maxIsoDate)), null);
+    }
+
+    public void testExtractNanos() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> b.startObject("field").field("type", "date_nanos").endObject()));
+        long maxMillis = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+        assertFetch(mapperService, "field", randomLongBetween(0, maxMillis), null);
+        assertFetch(mapperService, "field", randomLongBetween(0, maxMillis), "epoch_millis");
+        assertFetch(mapperService, "field", randomLongBetween(0, maxMillis), "iso8601");
+        assertFetch(mapperService, "field", randomIs8601Nanos(maxMillis), null);
+        assertFetch(mapperService, "field", randomIs8601Nanos(maxMillis), "strict_date_optional_time_nanos");
+        assertFetch(mapperService, "field", randomDecimalNanos(maxMillis), null);
+        assertFetch(mapperService, "field", new BigDecimal(randomDecimalNanos(maxMillis)), null);
+        long maxMillisDoubleKeepsPrecision = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("1970-04-15T05:59:59.999Z");
+        assertFetch(mapperService, "field", new BigDecimal(randomDecimalNanos(maxMillisDoubleKeepsPrecision)), "strict_date_optional_time_nanos");
+    }
+
+    private String randomIs8601Nanos(long maxMillis) {
+        String date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomLongBetween(0, maxMillis));
+        date = date.substring(0, date.length() - 1);  // Strip off trailing "Z"
+        return date + String.format("%06d", between(0, 999999)) + "Z";  // Add nanos and the "Z"
+    }
+
+    private String randomDecimalNanos(long maxMillis) {
+        return Long.toString(randomLongBetween(0, maxMillis)) + "." + between(0, 999999);
     }
 }

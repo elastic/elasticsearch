@@ -11,7 +11,6 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -306,14 +305,10 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             if (randomBoolean()) {
                 retentionLeases = indexShard.getRetentionLeases();
             } else {
-                final Tuple<Boolean, RetentionLeases> tuple = indexShard.getRetentionLeases(false);
-                assertFalse(tuple.v1());
-                retentionLeases = tuple.v2();
+                retentionLeases = indexShard.getRetentionLeases(false);
             }
         } else {
-            final Tuple<Boolean, RetentionLeases> tuple = indexShard.getRetentionLeases(true);
-            assertTrue(tuple.v1());
-            retentionLeases = tuple.v2();
+            retentionLeases = indexShard.getRetentionLeases(true);
         }
         assertRetentionLeases(
                 retentionLeases,

@@ -752,14 +752,10 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             if (randomBoolean()) {
                 retentionLeases = replicationTracker.getRetentionLeases();
             } else {
-                final Tuple<Boolean, RetentionLeases> tuple = replicationTracker.getRetentionLeases(false);
-                assertFalse(tuple.v1());
-                retentionLeases = tuple.v2();
+                retentionLeases = replicationTracker.getRetentionLeases(false);
             }
         } else {
-            final Tuple<Boolean, RetentionLeases> tuple = replicationTracker.getRetentionLeases(true);
-            assertTrue(tuple.v1());
-            retentionLeases = tuple.v2();
+            retentionLeases = replicationTracker.getRetentionLeases(true);
         }
         assertThat(retentionLeases.primaryTerm(), equalTo(primaryTerm));
         assertThat(retentionLeases.version(), equalTo(version));

@@ -573,15 +573,17 @@ public class ConstructingObjectParserTests extends ESTestCase {
             // The declaration is only available for lookup when parser has compatibility set
             PARSER.declareInt(constructorArg(),
                 new ParseField("new_name", "old_name")
-                    .withRestApiVersions(RestApiVersion.minimumSupported()));
+                    .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported())));
 
             // declare `new_name` to be parsed when compatibility is NOT used
             PARSER.declareInt(constructorArg(),
-                new ParseField("new_name").withRestApiVersions(RestApiVersion.current()));
+                new ParseField("new_name")
+                    .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.current())));
 
             // declare `old_name` to throw exception when compatibility is NOT used
             PARSER.declareInt((r,s) -> failWithException(),
-                new ParseField("old_name").withRestApiVersions(RestApiVersion.current()));
+                new ParseField("old_name")
+                    .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.current())));
         }
         private int intField;
 
@@ -649,11 +651,12 @@ public class ConstructingObjectParserTests extends ESTestCase {
             // The deprecation shoudl be done manually
             PARSER.declareInt(logWarningDoNothing("old_name"),
                 new ParseField("old_name")
-                    .withRestApiVersions(RestApiVersion.minimumSupported()));
+                    .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported())));
 
             // declare `old_name` to throw exception when compatibility is NOT used
             PARSER.declareInt((r,s) -> failWithException(),
-                new ParseField("old_name").withRestApiVersions(RestApiVersion.current()));
+                new ParseField("old_name")
+                    .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.current())));
         }
 
         private final String secondField;

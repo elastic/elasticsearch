@@ -145,6 +145,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
         // setup:
         BytesReference bytes;

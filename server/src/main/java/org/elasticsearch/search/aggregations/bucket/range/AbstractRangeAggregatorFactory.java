@@ -45,7 +45,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
             RangeAggregator::build,
             true
         );
-        
+
         builder.register(
             registryKey,
             CoreValuesSourceType.BOOLEAN,
@@ -62,8 +62,8 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                 Map<String, Object> metadata) -> {
                 DEPRECATION_LOGGER.deprecate(
                     DeprecationCategory.AGGREGATIONS,
-                    "histogram-boolean",
-                    "Running Histogram aggregations on [boolean] fields is deprecated"
+                    "Range-boolean",
+                    "Running Range or DateRange aggregations on [boolean] fields is deprecated"
                 );
                 return RangeAggregator.build(
                     name,

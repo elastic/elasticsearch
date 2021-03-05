@@ -585,6 +585,12 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 } else {
                     throw e;
                 }
+            } else if (e.getCause() instanceof IllegalArgumentException) {
+                // Thrown when the terms agg runs as a filters agg
+                assertThat(
+                    e.getCause().getMessage(),
+                    equalTo("Invalid aggregation order path [inner_terms>avg]. Can't sort by a descendant of a [sterms] aggregation [avg]")
+                );
             } else {
                 throw e;
             }

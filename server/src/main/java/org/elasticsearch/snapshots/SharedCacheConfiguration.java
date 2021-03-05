@@ -17,6 +17,18 @@ import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_
 import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE;
 import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE;
 
+/**
+ * Configuration for the shared cache. The shared cache is made up of 3 sizes of pages and are used as the separate cache regions of a
+ * cached file.
+ * A file's regions start and index 0 with an optional header region that can be either {@link RegionType#SMALL} or
+ * {@link RegionType#TINY}, depending on the requested header cache size.
+ * After (starting from either index 0 or 1 depending on whether or not there is a header region) that come as many
+ * {@link RegionType#LARGE} regions as necessary to cache all bytes up to the start of the optional footer region.
+ * The last region of the file is then optionally {@link RegionType#TINY} if a separate footer cache region that fits it was requested.
+ *
+ * The shared cache file itself contains the configured number of each page type and is split into 3 sections. First come the
+ * {@link RegionType#LARGE} pages, then the {@link RegionType#SMALL} and then the {@link RegionType#TINY} pages.
+ */
 public final class SharedCacheConfiguration {
 
     private final long tinyRegionSize;
@@ -53,18 +65,21 @@ public final class SharedCacheConfiguration {
         return tinyRegionSize * numTinyRegions + smallRegionSize * numSmallRegions + largeRegionSize * numLargeRegions;
     }
 
-    public long getPhysicalOffset(long chunkPosition) {
+    /**
+     * Physical offset in the shared file by page number.
+     */
+    public long getPhysicalOffset(long pageNum) {
         long physicalOffset;
-        if (chunkPosition > numLargeRegions + numSmallRegions) {
+        if (pageNum > numLargeRegions + numSmallRegions) {
             physicalOffset = numLargeRegions * largeRegionSize + numSmallRegions * smallRegionSize
-                    + (chunkPosition - numSmallRegions - numLargeRegions) * tinyRegionSize;
+                    + (pageNum - numSmallRegions - numLargeRegions) * tinyRegionSize;
             assert physicalOffset <= numLargeRegions * largeRegionSize + numSmallRegions * smallRegionSize
                     + numTinyRegions * tinyRegionSize;
-        } else if (chunkPosition > numLargeRegions) {
-            physicalOffset = numLargeRegions * largeRegionSize + (chunkPosition - numLargeRegions) * smallRegionSize;
+        } else if (pageNum > numLargeRegions) {
+            physicalOffset = numLargeRegions * largeRegionSize + (pageNum - numLargeRegions) * smallRegionSize;
             assert physicalOffset <= numLargeRegions * largeRegionSize + numSmallRegions * smallRegionSize;
         } else {
-            physicalOffset = chunkPosition * largeRegionSize;
+            physicalOffset = pageNum * largeRegionSize;
             assert physicalOffset <= numLargeRegions * largeRegionSize;
         }
         return physicalOffset;
@@ -82,7 +97,7 @@ public final class SharedCacheConfiguration {
         return numSmallRegions;
     }
 
-    public long regionSize(int pageNum) {
+    public long regionSizeBySharedPageNumber(int pageNum) {
         if (pageNum >= numLargeRegions) {
             if (pageNum >= numLargeRegions + numSmallRegions) {
                 return tinyRegionSize;
@@ -137,26 +152,13 @@ public final class SharedCacheConfiguration {
         return RegionType.LARGE;
     }
 
-    public long regionSize(int region, long fileSize, long cacheHeaderLength, long footerCacheLength) {
-        switch (regionType(region, fileSize, cacheHeaderLength, footerCacheLength)) {
-            case TINY:
-                return tinyRegionSize;
-            case SMALL:
-                return smallRegionSize;
-            default:
-                return largeRegionSize;
-        }
-    }
-
     // get the region of a file of the given size that the given position belongs to
     public int getRegion(long position, long fileSize, long cacheHeaderLength, long cacheFooterLength) {
         if (position < cacheHeaderLength || fileSize <= cacheHeaderLength) {
             return 0;
         }
         assert cacheFooterLength == 0 || cacheFooterLength == tinyRegionSize;
-        assert cacheHeaderLength == 0
-                || cacheHeaderLength == tinyRegionSize
-                || cacheHeaderLength == smallRegionSize;
+        assert cacheHeaderLength == 0 || cacheHeaderLength == tinyRegionSize || cacheHeaderLength == smallRegionSize;
         final long positionAfterHeader = position - cacheHeaderLength;
         final int numberOfLargeRegions = largeRegions(fileSize, cacheHeaderLength, cacheFooterLength);
         final int largeRegionIndex = Math.toIntExact(positionAfterHeader / largeRegionSize)
@@ -173,17 +175,29 @@ public final class SharedCacheConfiguration {
         return lastLargeRegionIndex + (inFooter ? 1 : 0);
     }
 
-    // get the relative position from the start footerCacheLength of its region for the given position in a file of given size
-    public long getRegionRelativePosition(long position, long fileSize, long cacheHeaderLength, long footerCacheLength) {
-        final int region = getRegion(position, fileSize, cacheHeaderLength, footerCacheLength);
+    /**
+     * Get the relative position of the given absolute file position in its region.
+     *
+     * @param position           position in the file
+     * @param fileSize           size of the file
+     * @param cachedHeaderLength length of the header region if the header is to be cached separately or 0 if the header
+     *                           is not separately cached
+     * @param footerCacheLength  length of the footer region if it is separately cached or 0 of not
+     * @return relative position in region
+     */
+    public long getRegionRelativePosition(long position, long fileSize, long cachedHeaderLength, long footerCacheLength) {
+        final int region = getRegion(position, fileSize, cachedHeaderLength, footerCacheLength);
         if (region == 0) {
             return position;
         }
-        return position - getRegionStart(region, fileSize, cacheHeaderLength, footerCacheLength);
+        return position - getRegionStart(region, fileSize, cachedHeaderLength, footerCacheLength);
     }
 
-    public RegionType sharedRegionType(int sharedBytesPos) {
-        final long rsize = regionSize(sharedBytesPos);
+    /**
+     * Type of the shared page by shared page number.
+     */
+    public RegionType sharedRegionType(int pageNum) {
+        final long rsize = regionSizeBySharedPageNumber(pageNum);
         if (rsize == smallRegionSize) {
             return RegionType.SMALL;
         } else if (rsize == largeRegionSize) {
@@ -193,8 +207,19 @@ public final class SharedCacheConfiguration {
         return RegionType.TINY;
     }
 
+    /**
+     * Compute the size of the given region of a file.
+     *
+     * @param fileLength         size of file overall
+     * @param region             index of the file region
+     * @param cachedHeaderLength length of the header region if the header is to be cached separately or 0 if the header
+     *                           is not separately cached
+     * @param footerCacheLength  length of the footer region if it is separately cached or 0 of not
+     *
+     * @return size of the file region
+     */
     public long getRegionSize(long fileLength, int region, long cachedHeaderLength, long footerCacheLength) {
-        final long currentRegionSize = regionSize(region, fileLength, cachedHeaderLength, footerCacheLength);
+        final long currentRegionSize = regionMaxSize(region, fileLength, cachedHeaderLength, footerCacheLength);
         assert fileLength > 0;
         final int maxRegion = getRegion(fileLength, fileLength, cachedHeaderLength, footerCacheLength);
         assert region >= 0 && region <= maxRegion : region + " - " + maxRegion;
@@ -214,11 +239,29 @@ public final class SharedCacheConfiguration {
         return effectiveRegionSize;
     }
 
+    // maximum size that the given region may have
+    private long regionMaxSize(int region, long fileSize, long cacheHeaderLength, long footerCacheLength) {
+        switch (regionType(region, fileSize, cacheHeaderLength, footerCacheLength)) {
+            case TINY:
+                return tinyRegionSize;
+            case SMALL:
+                return smallRegionSize;
+            default:
+                return largeRegionSize;
+        }
+    }
+
+    /**
+     * Size of the first region to use for a file that has a header to be separately cached of the given size.
+     */
     public long effectiveHeaderCacheRange(long headerCacheRequested) {
         return headerCacheRequested > smallRegionSize || headerCacheRequested == 0 ? 0 :
                 (headerCacheRequested > tinyRegionSize ? smallRegionSize : tinyRegionSize);
     }
 
+    /**
+     * Size of the last region to use for a file that has a footer to be separately cached of the given size.
+     */
     public long effectiveFooterCacheRange(long footerCacheRequested) {
         return footerCacheRequested > 0 && footerCacheRequested <= tinyRegionSize ? tinyRegionSize : 0;
     }

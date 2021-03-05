@@ -37,6 +37,9 @@ import java.util.Set;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
+/**
+ * Test case for validating {@link ToXContent} objects against a json schema.
+ */
 public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> extends ESTestCase {
 
     public final void testSchema() throws IOException {
@@ -98,7 +101,7 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
     /**
      * Loader for the schema factory.
      *
-     * Adding a loader to be able to load sub schema's stored in extra files.
+     * Uses the ootb factory but replaces the loader for sub schema's stored on the file system.
      */
     private JsonSchemaFactory initializeSchemaFactory() {
         JsonSchemaFactory factory = JsonSchemaFactory.builder(JsonSchemaFactory.getInstance(getSchemaVersion())).uriFetcher(uri -> {
@@ -112,13 +115,17 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
     }
 
     /**
-     * Enforce that the schema as well as all sub schemas define all properties
+     * Enforce that the schema as well as all sub schemas define all properties.
      *
      * This uses an implementation detail of the schema validation library: If
-     * strict validation is turned on (`"additionalProperties": false`)
+     * strict validation is turned on (`"additionalProperties": false`), the schema
+     * validator injects an instance of AdditionalPropertiesValidator.
      *
-     * The schema validator injects an instance of AdditionalPropertiesValidator if thats set,
-     * if AdditionalPropertiesValidator is absent the test fails
+     * The check loops through the validator tree and checks for instances of
+     * AdditionalPropertiesValidator. If it is absent at expected places the test fails.
+     *
+     * Note: we might not catch all places, but at least it works for nested objects and
+     * array items.
      */
     private void assertSchemaStrictness(Collection<JsonValidator> validatorSet, String path) {
         boolean additionalPropertiesValidatorFound = false;

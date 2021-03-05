@@ -310,13 +310,13 @@ POST /_scripts/painless/_execute
 {
   "script": {
     "source": """
-        List first = new ArrayList(); // memory address 2800
-        List last = new ArrayList();  // memory address 5500
-        List current = first; // current refers to address 2800
+        List first = new ArrayList();
+        List last = new ArrayList();
+        List current = first;
         for (int i = 0; i < 100; i++) {
           current.add(i);
           if (i == 5) {
-            current = last; // current refers to address 5500
+            current = last;
             }
         }
         return last;

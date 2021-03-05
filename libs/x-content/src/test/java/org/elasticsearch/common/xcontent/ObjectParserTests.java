@@ -9,8 +9,8 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -1018,15 +1018,17 @@ public class ObjectParserTests extends ESTestCase {
             // The declaration is only available for lookup when parser has compatibility set
             PARSER.declareInt(StructWithCompatibleFields::setIntField,
                 new ParseField("new_name", "old_name")
-                    .withRestApiVersions(RestApiVersion.minimumSupported()));
+                    .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported())));
 
             // declare `new_name` to be parsed when compatibility is NOT used
             PARSER.declareInt(StructWithCompatibleFields::setIntField,
-                new ParseField("new_name").withRestApiVersions(RestApiVersion.current()));
+                new ParseField("new_name")
+                    .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.current())));
 
             // declare `old_name` to throw exception when compatibility is NOT used
             PARSER.declareInt((r,s) -> failWithException(),
-                new ParseField("old_name").withRestApiVersions(RestApiVersion.current()));
+                new ParseField("old_name")
+                    .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.current())));
         }
 
         private static void failWithException() {
@@ -1063,7 +1065,6 @@ public class ObjectParserTests extends ESTestCase {
             assertEquals(1, o.intField);
         }
         {
-
             // old_name is allowed to be parsed with compatibility, but results in deprecation
             XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"old_name\": 1}",
                 RestApiVersion.minimumSupported());
@@ -1073,5 +1074,42 @@ public class ObjectParserTests extends ESTestCase {
                 "Deprecated field [old_name] used, expected [new_name] instead");
 
         }
+    }
+    public static class StructWithOnOrAfterField {
+        // real usage would have exact version like RestApiVersion.V_7 (equal to current version) instead of minimumSupported
+
+        static final ObjectParser<StructWithOnOrAfterField, Void> PARSER =
+            new ObjectParser<>("struct_with_on_or_after_field", StructWithOnOrAfterField::new);
+        static {
+
+            // in real usage you would use a real version like RestApiVersion.V_8 and expect it to parse for version V_9, V_10 etc
+            PARSER.declareInt(StructWithOnOrAfterField::setIntField,
+                new ParseField("new_name")
+                    .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.minimumSupported())));
+
+        }
+
+        private int intField;
+
+        private  void setIntField(int intField) {
+            this.intField = intField;
+        }
+    }
+
+    public void testFieldsForVersionsOnOrAfter() throws IOException {
+        // this test needs to verify that a field declared in version N will be available in version N+1
+        // to do this, we assume a version N is minimum (so that the test passes for future releases) and the N+1 is current()
+
+        // new name is accessed in "current" version - lets assume the current is minimumSupported
+        XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"new_name\": 1}",
+            RestApiVersion.minimumSupported());
+        StructWithOnOrAfterField o1 = StructWithOnOrAfterField.PARSER.parse(parser, null);
+        assertEquals(1, o1.intField);
+
+        // new name is accessed in "future" version - lets assume the future is currentVersion (minimumSupported+1)
+        XContentParser futureParser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"new_name\": 1}",
+            RestApiVersion.current());
+        StructWithOnOrAfterField o2 = StructWithOnOrAfterField.PARSER.parse(futureParser, null);
+        assertEquals(1, o2.intField);
     }
 }

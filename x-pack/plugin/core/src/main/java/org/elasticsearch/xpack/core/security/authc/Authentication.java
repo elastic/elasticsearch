@@ -137,13 +137,15 @@ public class Authentication implements ToXContentObject {
     }
 
     /**
-Checks whether the user or API key of the passed in authentication can access the resources owned by the user or API key of this authentication.
-     *   * The authentications are for the same API key (same API key ID)
-     *   * They are the same username from the same realm
+     * Checks whether the user or API key of the passed in authentication can access the resources owned by the user
+     * or API key of this authentication. The rules are as follows:
+     *   * True if the authentications are for the same API key (same API key ID)
+     *   * True if they are the same username from the same realm
      *      - For file/native/kerberos realm, same realm means the same realm type
      *      - For all other realms, same realm means same realm type plus same realm name
-     *   * An user and its API key are NOT considered as the same owner
-     *   * An user and its token are treated as the same owner
+     *   * An user and its API key cannot access each other's resources
+     *   * An user and its token can access each other's resources
+     *   * Two API keys are never able to access each other's resources regardless of their ownership.
      *
      *  This check is a best effort and it does not account for certain static and external changes.
      *  See also <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/security-limitations.html">
@@ -151,7 +153,7 @@ Checks whether the user or API key of the passed in authentication can access th
      * @param other
      * @return
      */
-    public boolean sameOwnerAs(Authentication other) {
+    public boolean canAccessResourcesOf(Authentication other) {
         if (AuthenticationType.API_KEY == getAuthenticationType() && AuthenticationType.API_KEY == other.getAuthenticationType()) {
             final boolean sameKeyId = getMetadata().get(API_KEY_ID_KEY).equals(other.getMetadata().get(API_KEY_ID_KEY));
             if (sameKeyId && Assertions.ENABLED) {

@@ -140,7 +140,7 @@ set to `false`.
 The get async search API retrieves the results of a previously submitted
 async search request given its id. If the {es} {security-features} are enabled,
 the access to the results of a specific async search is restricted to
-<<same-user-check,the user or API Key that submitted it>>
+<<can-access-resources-check,the user or API Key that submitted it>>.
 
 [source,console,id=get-async-search-date-histogram-example]
 --------------------------------------------------

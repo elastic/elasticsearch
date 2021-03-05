@@ -93,13 +93,13 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     private void assertSameOwner(Authentication authentication0, Authentication authentication1) {
-        assertTrue(authentication0.sameOwnerAs(authentication1));
-        assertTrue(authentication1.sameOwnerAs(authentication0));
+        assertTrue(authentication0.canAccessResourcesOf(authentication1));
+        assertTrue(authentication1.canAccessResourcesOf(authentication0));
     }
 
     private void assertNotTheSameOwner(Authentication authentication0, Authentication authentication1) {
-        assertFalse(authentication0.sameOwnerAs(authentication1));
-        assertFalse(authentication1.sameOwnerAs(authentication0));
+        assertFalse(authentication0.canAccessResourcesOf(authentication1));
+        assertFalse(authentication1.canAccessResourcesOf(authentication0));
     }
 
     private User randomUser() {

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.ml.extractor.ProcessedField;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -99,13 +100,13 @@ public class ExtractedFieldsDetector {
     }
 
     private Set<String> getIncludedFields(Set<FieldSelection> fieldSelection, Set<String> requiredFieldsForProcessors) {
+        validateFieldsRequireForProcessors(requiredFieldsForProcessors);
         Set<String> fields = new TreeSet<>();
         // filter metadata field
         fieldCapabilitiesResponse.get().keySet().stream()
-            .filter(Predicate.not(fieldCapabilitiesResponse::isMetadataField))
+            .filter(f -> fieldCapabilitiesResponse.isMetadataField(f) == false
+                && IGNORE_FIELDS.contains(f) == false)
             .forEach(fields::add);
-        validateFieldsRequireForProcessors(requiredFieldsForProcessors);
-        fields.removeAll(IGNORE_FIELDS);
         removeFieldsUnderResultsField(fields);
         removeObjects(fields);
         applySourceFiltering(fields);
@@ -141,9 +142,14 @@ public class ExtractedFieldsDetector {
         if (fieldsForProcessor.size() < processorFields.size()) {
             throw ExceptionsHelper.badRequestException("fields for feature_processors must not be objects");
         }
-        fieldsForProcessor.removeAll(IGNORE_FIELDS);
-        if (fieldsForProcessor.size() < processorFields.size()) {
-            throw ExceptionsHelper.badRequestException("the following fields cannot be used in feature_processors {}", IGNORE_FIELDS);
+        Collection<String> errorFields = new ArrayList<>();
+        for (String fieldName : fieldsForProcessor) {
+            if (fieldCapabilitiesResponse.isMetadataField(fieldName) || IGNORE_FIELDS.contains(fieldName)) {
+                errorFields.add(fieldName);
+            }
+        }
+        if (errorFields.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException("the following fields cannot be used in feature_processors {}", errorFields);
         }
         List<String> fieldsMissingInMapping = processorFields.stream()
             .filter(f -> fieldCapabilitiesResponse.get().containsKey(f) == false)
@@ -303,7 +309,7 @@ public class ExtractedFieldsDetector {
         while (fieldsIterator.hasNext()) {
             String field = fieldsIterator.next();
             if (includes.contains(field)) {
-                if (IGNORE_FIELDS.contains(field)) {
+                if (fieldCapabilitiesResponse.isMetadataField(field) || IGNORE_FIELDS.contains(field)) {
                     throw ExceptionsHelper.badRequestException("field [{}] cannot be analyzed", field);
                 }
                 if (excludes.contains(field)) {

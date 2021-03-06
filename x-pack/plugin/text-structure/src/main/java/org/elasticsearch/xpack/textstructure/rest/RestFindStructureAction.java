@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.textstructure.rest;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -30,24 +31,16 @@ public class RestFindStructureAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        return Collections.singletonList(new ReplacedRoute(POST, BASE_PATH + "find_structure", POST, "/_ml/find_file_structure"));
-    }
-
-    @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
-        return Collections.singletonList(
+        return org.elasticsearch.common.collect.List.of(
+            Route.builder(POST, BASE_PATH + "find_structure").replaces(POST, "/_ml/find_file_structure", RestApiVersion.V_7).build(),
             // There is no way to indicate multiple replaced routes to point to the same new route
             // So adding a deprecated route here to handle that scenario
-            new DeprecatedRoute(
-                POST,
-                "/_xpack/ml/find_file_structure",
-                "[POST /_xpack/ml/find_file_structure] is deprecated! Use [POST /_text_structure/find_structure instead."
-            )
+            Route.builder(POST, "/_xpack/ml/find_file_structure")
+                .deprecated(
+                    "[POST /_xpack/ml/find_file_structure] is deprecated! Use [POST /_text_structure/find_structure instead.",
+                    RestApiVersion.V_7
+                )
+                .build()
         );
     }
 

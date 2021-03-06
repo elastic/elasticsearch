@@ -25,7 +25,8 @@ public class RestPostDataFrameAnalyticsUpdateAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return org.elasticsearch.common.collect.List.of(
-            new Route(POST, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}/_update"));
+            new Route(POST, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}/_update")
+        );
     }
 
     @Override

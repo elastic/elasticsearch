@@ -8,14 +8,13 @@
 package org.elasticsearch.xpack.searchablesnapshots.rest;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.searchablesnapshots.action.RepositoryStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.RepositoryStatsRequest;
 
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -34,20 +33,17 @@ public class RestRepositoryStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public List<RestHandler.Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
-        return Collections.singletonList(
-            new DeprecatedRoute(
-                GET,
-                ENDPOINT,
-                '['
-                    + ENDPOINT
-                    + "] is deprecated, use the Repositories Metering API [/_nodes/{nodeId}/_repositories_metering] in the future."
-            )
+    public List<Route> routes() {
+        return org.elasticsearch.common.collect.List.of(
+            Route.builder(GET, ENDPOINT)
+                .deprecated(
+                    "["
+                        + ENDPOINT
+                        + "] is deprecated, use the Repositories Metering API "
+                        + "[/_nodes/{nodeId}/_repositories_metering] in the future.",
+                    RestApiVersion.V_7
+                )
+                .build()
         );
     }
 

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.rest.calendar;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -29,21 +29,15 @@ public class RestGetCalendarsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(GET, BASE_PATH + "calendars/{" + Calendar.ID + "}",
-                GET, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}"),
-            new ReplacedRoute(GET, BASE_PATH + "calendars/",
-                GET, PRE_V7_BASE_PATH + "calendars/"),
-            new ReplacedRoute(POST, BASE_PATH + "calendars/{" + Calendar.ID + "}",
-                POST, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}"),
-            new ReplacedRoute(POST, BASE_PATH + "calendars/",
-                POST, PRE_V7_BASE_PATH + "calendars/")
+            Route.builder(GET, BASE_PATH + "calendars/{" + Calendar.ID + "}")
+                .replaces(GET, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}", RestApiVersion.V_7).build(),
+            Route.builder(GET, BASE_PATH + "calendars/")
+                .replaces(GET, PRE_V7_BASE_PATH + "calendars/", RestApiVersion.V_7).build(),
+            Route.builder(POST, BASE_PATH + "calendars/{" + Calendar.ID + "}")
+                .replaces(POST, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}", RestApiVersion.V_7).build(),
+            Route.builder(POST, BASE_PATH + "calendars/")
+                .replaces(POST, PRE_V7_BASE_PATH + "calendars/", RestApiVersion.V_7).build()
         );
     }
 

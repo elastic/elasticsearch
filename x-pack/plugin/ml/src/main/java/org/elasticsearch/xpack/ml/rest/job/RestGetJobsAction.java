@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -31,17 +32,11 @@ public class RestGetJobsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}",
-                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}"),
-            new ReplacedRoute(GET, BASE_PATH + "anomaly_detectors",
-                GET, PRE_V7_BASE_PATH + "anomaly_detectors")
+            Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}")
+                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}", RestApiVersion.V_7).build(),
+            Route.builder(GET, BASE_PATH + "anomaly_detectors")
+                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors", RestApiVersion.V_7).build()
         );
     }
 

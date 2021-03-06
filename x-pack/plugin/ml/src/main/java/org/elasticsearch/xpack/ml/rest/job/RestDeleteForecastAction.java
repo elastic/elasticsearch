@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -27,17 +28,10 @@ public class RestDeleteForecastAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return org.elasticsearch.common.collect.List.of(
-            new Route(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/"));
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
-        return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID +
-                "}/_forecast/{" + Forecast.FORECAST_ID + "}",
-                DELETE, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID +
-                "}/_forecast/{" + Forecast.FORECAST_ID + "}")
+            new Route(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/"),
+            Route.builder(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/{" + Forecast.FORECAST_ID + "}")
+                .replaces(DELETE, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/{" + Forecast.FORECAST_ID + "}",
+                    RestApiVersion.V_7).build()
         );
     }
 

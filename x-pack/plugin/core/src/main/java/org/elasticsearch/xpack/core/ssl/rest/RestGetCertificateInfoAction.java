@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ssl.rest;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -17,10 +18,8 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction.Response;
 
-import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
@@ -31,12 +30,10 @@ public class RestGetCertificateInfoAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        return singletonList(new ReplacedRoute(GET, "/_ssl/certificates", GET, "/_xpack/ssl/certificates"));
+        return org.elasticsearch.common.collect.List.of(
+            Route.builder(GET, "/_ssl/certificates")
+                .replaces(GET, "/_xpack/ssl/certificates", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

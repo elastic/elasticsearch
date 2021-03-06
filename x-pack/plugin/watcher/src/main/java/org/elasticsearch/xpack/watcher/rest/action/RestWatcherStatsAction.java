@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.Strings;
@@ -23,7 +24,6 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -33,14 +33,12 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
 
     @Override
     public List<Route> routes() {
-        return emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
-            new ReplacedRoute(GET, "/_watcher/stats", GET, URI_BASE + "/watcher/stats"),
-            new ReplacedRoute(GET, "/_watcher/stats/{metric}", GET, URI_BASE + "/watcher/stats/{metric}")));
+            Route.builder(GET, "/_watcher/stats")
+                .replaces(GET, URI_BASE + "/watcher/stats", RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_watcher/stats/{metric}")
+                .replaces(GET, URI_BASE + "/watcher/stats/{metric}", RestApiVersion.V_7).build()
+        ));
     }
 
     @Override

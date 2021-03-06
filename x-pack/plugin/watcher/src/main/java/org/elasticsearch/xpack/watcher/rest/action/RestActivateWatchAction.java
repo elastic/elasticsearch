@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -35,14 +35,12 @@ public class RestActivateWatchAction extends WatcherRestHandler {
 
     @Override
     public List<Route> routes() {
-            return emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
-            new ReplacedRoute(POST, "/_watcher/watch/{id}/_activate", POST, URI_BASE + "/watcher/watch/{id}/_activate"),
-            new ReplacedRoute(PUT, "/_watcher/watch/{id}/_activate", PUT, URI_BASE + "/watcher/watch/{id}/_activate")));
+            Route.builder(POST, "/_watcher/watch/{id}/_activate")
+                .replaces(POST, URI_BASE + "/watcher/watch/{id}/_activate", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_watcher/watch/{id}/_activate")
+                .replaces(PUT, URI_BASE + "/watcher/watch/{id}/_activate", RestApiVersion.V_7).build()
+        ));
     }
 
     @Override
@@ -68,18 +66,12 @@ public class RestActivateWatchAction extends WatcherRestHandler {
 
         @Override
         public List<Route> routes() {
-            return emptyList();
-        }
-
-        @Override
-        public List<ReplacedRoute> replacedRoutes() {
             return unmodifiableList(asList(
-                new ReplacedRoute(
-                    POST, "/_watcher/watch/{id}/_deactivate",
-                    POST, URI_BASE + "/watcher/watch/{id}/_deactivate"),
-                new ReplacedRoute(
-                    PUT, "/_watcher/watch/{id}/_deactivate",
-                    PUT, URI_BASE + "/watcher/watch/{id}/_deactivate")));
+                Route.builder(POST, "/_watcher/watch/{id}/_deactivate")
+                    .replaces(POST, URI_BASE + "/watcher/watch/{id}/_deactivate", RestApiVersion.V_7).build(),
+                Route.builder(PUT, "/_watcher/watch/{id}/_deactivate")
+                    .replaces(PUT, URI_BASE + "/watcher/watch/{id}/_deactivate", RestApiVersion.V_7).build()
+            ));
         }
 
         @Override

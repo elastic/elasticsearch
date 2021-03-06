@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -29,17 +30,11 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}",
-                GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}"),
-            new ReplacedRoute(GET, BASE_PATH + "datafeeds",
-                GET, PRE_V7_BASE_PATH + "datafeeds")
+            Route.builder(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}")
+                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}", RestApiVersion.V_7).build(),
+            Route.builder(GET, BASE_PATH + "datafeeds")
+                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds", RestApiVersion.V_7).build()
         );
     }
 

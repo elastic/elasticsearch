@@ -7,15 +7,13 @@
 
 package org.elasticsearch.license;
 
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -25,15 +23,13 @@ public class RestPutLicenseAction extends XPackRestHandler {
 
     @Override
     public List<Route> routes() {
-        return emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        return unmodifiableList(asList(
+        return org.elasticsearch.common.collect.List.of(
             // TODO: remove POST endpoint?
-            new ReplacedRoute(POST, "/_license", POST, URI_BASE + "/license"),
-            new ReplacedRoute(PUT, "/_license", PUT, URI_BASE + "/license")));
+            Route.builder(POST, "/_license")
+                .replaces(POST, URI_BASE + "/license", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_license")
+                .replaces(PUT, URI_BASE + "/license", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

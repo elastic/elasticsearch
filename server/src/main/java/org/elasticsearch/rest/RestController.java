@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
@@ -92,7 +93,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
-        registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", (request, channel, clnt) ->
+        registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico",
+            (request, channel, clnt) ->
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE)));
     }
 
@@ -100,56 +102,56 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request.
      *
      * @param method GET, POST, etc.
-     * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
+     * @param path Path to handle (e.g. "/{index}/{type}/_bulk")
      * @param handler The handler to actually execute
      * @param deprecationMessage The message to log and send as a header in the response
      */
-    protected void registerAsDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler, String deprecationMessage) {
+    protected void registerAsDeprecatedHandler(RestRequest.Method method, String path,
+                                               RestHandler handler, String deprecationMessage) {
         assert (handler instanceof DeprecationRestHandler) == false;
-
         registerHandler(method, path, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger));
     }
 
     /**
      * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request, or when provided
-     * with {@code deprecatedMethod} and {@code deprecatedPath}. Expected usage:
+     * with {@code replacedMethod} and {@code replacedPath}. Expected usage:
      * <pre><code>
      * // remove deprecation in next major release
-     * controller.registerWithDeprecatedHandler(POST, "/_forcemerge", this,
-     *                                          POST, "/_optimize", deprecationLogger);
-     * controller.registerWithDeprecatedHandler(POST, "/{index}/_forcemerge", this,
-     *                                          POST, "/{index}/_optimize", deprecationLogger);
+     * controller.registerAsDeprecatedHandler(POST, "/_forcemerge", RestApiVersion.V_8, someHandler,
+     *                                        POST, "/_optimize", RestApiVersion.V_7);
+     * controller.registerAsDeprecatedHandler(POST, "/{index}/_forcemerge", RestApiVersion.V_8, someHandler,
+     *                                        POST, "/{index}/_optimize", RestApiVersion.V_7);
      * </code></pre>
      * <p>
      * The registered REST handler ({@code method} with {@code path}) is a normal REST handler that is not deprecated and it is
-     * replacing the deprecated REST handler ({@code deprecatedMethod} with {@code deprecatedPath}) that is using the <em>same</em>
+     * replacing the deprecated REST handler ({@code replacedMethod} with {@code replacedPath}) that is using the <em>same</em>
      * {@code handler}.
      * <p>
      * Deprecated REST handlers without a direct replacement should be deprecated directly using {@link #registerAsDeprecatedHandler}
      * and a specific message.
      *
      * @param method GET, POST, etc.
-     * @param path Path to handle (e.g., "/_forcemerge")
+     * @param path Path to handle (e.g. "/_forcemerge")
      * @param handler The handler to actually execute
-     * @param deprecatedMethod GET, POST, etc.
-     * @param deprecatedPath <em>Deprecated</em> path to handle (e.g., "/_optimize")
+     * @param replacedMethod GET, POST, etc.
+     * @param replacedPath <em>Replaced</em> path to handle (e.g. "/_optimize")
      */
-    protected void registerWithDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler,
-                                              RestRequest.Method deprecatedMethod, String deprecatedPath) {
-        // e.g., [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
-        final String deprecationMessage =
-            "[" + deprecatedMethod.name() + " " + deprecatedPath + "] is deprecated! Use [" + method.name() + " " + path + "] instead.";
+    protected void registerAsReplacedHandler(RestRequest.Method method, String path, RestHandler handler,
+                                             RestRequest.Method replacedMethod, String replacedPath) {
+        // e.g. [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
+        final String replacedMessage =
+            "[" + replacedMethod.name() + " " + replacedPath + "] is deprecated! Use [" + method.name() + " " + path + "] instead.";
 
         registerHandler(method, path, handler);
-        registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage);
+        registerAsDeprecatedHandler(replacedMethod, replacedPath, handler, replacedMessage);
     }
 
     /**
      * Registers a REST handler to be executed when one of the provided methods and path match the request.
      *
-     * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
-     * @param handler The handler to actually execute
      * @param method GET, POST, etc.
+     * @param path Path to handle (e.g. "/{index}/{type}/_bulk")
+     * @param handler The handler to actually execute
      */
     protected void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
         if (handler instanceof BaseRestHandler) {
@@ -159,20 +161,29 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
-        handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),
-            (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method));
+        handlers.insertOrUpdate(path,
+            new MethodHandlers(path).addMethod(method, maybeWrappedHandler),
+            (mHandlers, newMHandler) -> mHandlers.addMethod(method, maybeWrappedHandler));
+    }
+
+    public void registerHandler(final Route route, final RestHandler handler) {
+        if (route.isReplacement()) {
+            Route replaced = route.getReplacedRoute();
+            registerAsReplacedHandler(route.getMethod(), route.getPath(), handler, replaced.getMethod(), replaced.getPath());
+        } else if (route.isDeprecated()) {
+            registerAsDeprecatedHandler(route.getMethod(), route.getPath(), handler, route.getDeprecationMessage());
+        } else {
+            // it's just a normal route
+            registerHandler(route.getMethod(), route.getPath(), handler);
+        }
     }
 
     /**
      * Registers a REST handler with the controller. The REST handler declares the {@code method}
      * and {@code path} combinations.
      */
-    public void registerHandler(final RestHandler restHandler) {
-        restHandler.routes().forEach(route -> registerHandler(route.getMethod(), route.getPath(), restHandler));
-        restHandler.deprecatedRoutes().forEach(route ->
-            registerAsDeprecatedHandler(route.getMethod(), route.getPath(), restHandler, route.getDeprecationMessage()));
-        restHandler.replacedRoutes().forEach(route -> registerWithDeprecatedHandler(route.getMethod(), route.getPath(),
-            restHandler, route.getDeprecatedMethod(), route.getDeprecatedPath()));
+    public void registerHandler(final RestHandler handler) {
+        handler.routes().forEach(route -> registerHandler(route, handler));
     }
 
     @Override
@@ -312,7 +323,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // we consume the error_trace parameter first to ensure that it is always consumed
         if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
             channel.sendResponse(
-                    BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled."));
+                BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled."));
             return;
         }
 
@@ -333,9 +344,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     handler = handlers.getHandler(requestMethod);
                 }
                 if (handler == null) {
-                  if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
-                      return;
-                  }
+                    if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
+                        return;
+                    }
                 } else {
                     dispatchRequest(request, channel, handler);
                     return;

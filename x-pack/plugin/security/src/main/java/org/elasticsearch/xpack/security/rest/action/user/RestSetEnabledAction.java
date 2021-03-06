@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -20,8 +21,6 @@ import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -39,22 +38,16 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
-            new ReplacedRoute(POST, "/_security/user/{username}/_enable",
-                POST, "/_xpack/security/user/{username}/_enable"),
-            new ReplacedRoute(PUT, "/_security/user/{username}/_enable",
-                PUT, "/_xpack/security/user/{username}/_enable"),
-            new ReplacedRoute(POST, "/_security/user/{username}/_disable",
-                POST, "/_xpack/security/user/{username}/_disable"),
-            new ReplacedRoute(PUT, "/_security/user/{username}/_disable",
-                PUT, "/_xpack/security/user/{username}/_disable")
-        ));
+        return org.elasticsearch.common.collect.List.of(
+            Route.builder(POST, "/_security/user/{username}/_enable")
+                .replaces(POST, "/_xpack/security/user/{username}/_enable", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_security/user/{username}/_enable")
+                .replaces(PUT, "/_xpack/security/user/{username}/_enable", RestApiVersion.V_7).build(),
+            Route.builder(POST, "/_security/user/{username}/_disable")
+                .replaces(POST, "/_xpack/security/user/{username}/_disable", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_security/user/{username}/_disable")
+                .replaces(PUT, "/_xpack/security/user/{username}/_disable", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

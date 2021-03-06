@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheKey;
+import org.elasticsearch.snapshots.SharedCacheConfiguration;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.CacheFileRegion;
@@ -24,9 +26,7 @@ import java.nio.file.Path;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE;
 import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE;
 
 public class FrozenCacheServiceTests extends ESTestCase {
 
@@ -35,9 +35,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
             .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
-            .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), "50b")
             .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.getKey(), 0.2f)
-            .put(SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), "10b")
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
@@ -95,9 +93,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
             .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
-            .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), "50b")
             .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.getKey(), 0.2f)
-            .put(SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), "10b")
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
@@ -140,9 +136,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
             .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
-            .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), "50b")
             .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.getKey(), 0.2f)
-            .put(SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), "10b")
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
@@ -195,12 +189,11 @@ public class FrozenCacheServiceTests extends ESTestCase {
     }
 
     public void testAutoEvictionMixedSmallAndLargeRegions() throws IOException {
+        final ByteSizeValue largeRegionSize = ByteSizeValue.ofBytes(SharedCacheConfiguration.SMALL_REGION_SIZE * 2);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
-            .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
-            .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), "22b")
-            .put(SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), "10b")
+            .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(SharedCacheConfiguration.SMALL_REGION_SIZE * 10))
+            .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), largeRegionSize)
             .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.getKey(), 0.2f)
             .put("path.home", createTempDir())
             .build();
@@ -209,35 +202,36 @@ public class FrozenCacheServiceTests extends ESTestCase {
         for (Path path : environment.dataFiles()) {
             Files.createDirectories(path);
         }
-        final long cacheHeaderRange = 22L;
+        final long cacheHeaderRange = SharedCacheConfiguration.TINY_REGION_SIZE;
         final long footerCacheRange = 0L;
         try (FrozenCacheService cacheService = new FrozenCacheService(environment, taskQueue.getThreadPool())) {
             final CacheKey cacheKey = generateCacheKey();
             assertEquals(4, cacheService.freeLargeRegionCount());
-            assertEquals(4, cacheService.freeSmallRegionCount());
-            final CacheFileRegion region0 = cacheService.get(cacheKey, 449, 0, cacheHeaderRange, footerCacheRange);
+            assertEquals(2, cacheService.freeSmallRegionCount());
+            final long fileSize = 4 * largeRegionSize.getBytes();
+            final CacheFileRegion region0 = cacheService.get(cacheKey, fileSize, 0, cacheHeaderRange, footerCacheRange);
             assertEquals(cacheHeaderRange, region0.tracker.getLength());
             assertEquals(4, cacheService.freeLargeRegionCount());
-            assertEquals(3, cacheService.freeSmallRegionCount());
-            final CacheFileRegion region1 = cacheService.get(cacheKey, 449, 1, cacheHeaderRange, footerCacheRange);
-            assertEquals(100L, region1.tracker.getLength());
+            assertEquals(2, cacheService.freeSmallRegionCount());
+            final CacheFileRegion region1 = cacheService.get(cacheKey, fileSize, 1, cacheHeaderRange, footerCacheRange);
+            assertEquals(largeRegionSize.getBytes(), region1.tracker.getLength());
             assertEquals(3, cacheService.freeLargeRegionCount());
-            assertEquals(3, cacheService.freeSmallRegionCount());
-            final CacheFileRegion region2 = cacheService.get(cacheKey, 449, 2, cacheHeaderRange, footerCacheRange);
-            assertEquals(100L, region2.tracker.getLength());
+            assertEquals(2, cacheService.freeSmallRegionCount());
+            final CacheFileRegion region2 = cacheService.get(cacheKey, fileSize, 2, cacheHeaderRange, footerCacheRange);
+            assertEquals(largeRegionSize.getBytes(), region2.tracker.getLength());
             assertEquals(2, cacheService.freeLargeRegionCount());
-            assertEquals(3, cacheService.freeSmallRegionCount());
-            final CacheFileRegion region3 = cacheService.get(cacheKey, 449, 3, cacheHeaderRange, footerCacheRange);
-            assertEquals(100L, region3.tracker.getLength());
+            assertEquals(2, cacheService.freeSmallRegionCount());
+            final CacheFileRegion region3 = cacheService.get(cacheKey, fileSize, 3, cacheHeaderRange, footerCacheRange);
+            assertEquals(largeRegionSize.getBytes(), region3.tracker.getLength());
             assertEquals(1, cacheService.freeLargeRegionCount());
-            assertEquals(3, cacheService.freeSmallRegionCount());
+            assertEquals(2, cacheService.freeSmallRegionCount());
             assertFalse(region0.isEvicted());
             assertFalse(region1.isEvicted());
             assertFalse(region2.isEvicted());
             assertFalse(region3.isEvicted());
 
-            final CacheFileRegion region4 = cacheService.get(cacheKey, 449, 4, cacheHeaderRange, footerCacheRange);
-            assertEquals(100L, region4.tracker.getLength());
+            final CacheFileRegion region4 = cacheService.get(cacheKey, fileSize, 4, cacheHeaderRange, footerCacheRange);
+            assertEquals(largeRegionSize.getBytes() - SharedCacheConfiguration.TINY_REGION_SIZE, region4.tracker.getLength());
             // acquire region 5 which should evict region 1 (oldest large region)
             final CacheFileRegion region5 = cacheService.get(cacheKey, 449, 5, cacheHeaderRange, footerCacheRange);
             assertEquals(27L, region5.tracker.getLength());
@@ -280,8 +274,6 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
             .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
-            .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), "50b")
-            .put(SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), "10b")
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
@@ -313,8 +305,6 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
             .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
-            .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), "50b")
-            .put(SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), "10b")
             .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.getKey(), 0.2f)
             .put("path.home", createTempDir())
             .build();
@@ -399,8 +389,6 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "2000b")
             .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
-            .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), "50b")
-            .put(SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), "10b")
             .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.getKey(), 0.2f)
             .put("path.home", createTempDir())
             .build();

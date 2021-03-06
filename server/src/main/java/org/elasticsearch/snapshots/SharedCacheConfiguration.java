@@ -9,12 +9,11 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE;
 import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE;
 import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE;
 
 /**
@@ -31,8 +30,9 @@ import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_TINY_R
  */
 public final class SharedCacheConfiguration {
 
-    private final long tinyRegionSize;
-    private final long smallRegionSize;
+    public static final long TINY_REGION_SIZE = ByteSizeValue.ofKb(1).getBytes();
+    public static final long SMALL_REGION_SIZE = ByteSizeValue.ofKb(64).getBytes();
+
     private final long largeRegionSize;
 
     private final int numLargeRegions;
@@ -42,27 +42,20 @@ public final class SharedCacheConfiguration {
     public SharedCacheConfiguration(Settings settings) {
         long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
         // TODO: just forcing defaults for conflicting cache- and page sizes seems wrong
-        this.largeRegionSize = Math.min(SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes(), cacheSize / 4 + 4);
-        this.smallRegionSize = Math.min(SNAPSHOT_CACHE_SMALL_REGION_SIZE.get(settings).getBytes(), largeRegionSize / 2);
-        this.tinyRegionSize = Math.min(SNAPSHOT_CACHE_TINY_REGION_SIZE.get(settings).getBytes(), smallRegionSize  / 2);
+        this.largeRegionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
         final float smallRegionShare = SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.get(settings);
         final float tinyRegionShare = SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE.get(settings);
         this.numLargeRegions = Math.round(Math.toIntExact(cacheSize / largeRegionSize) * (1 - smallRegionShare - tinyRegionShare));
-        this.numSmallRegions = Math.max(Math.round(Math.toIntExact(cacheSize / smallRegionSize) * smallRegionShare), 1);
-        this.numTinyRegions = Math.max(Math.round(Math.toIntExact(cacheSize / tinyRegionSize) * tinyRegionShare), 1);
+        this.numSmallRegions = Math.max(Math.round(Math.toIntExact(cacheSize / SMALL_REGION_SIZE) * smallRegionShare), 1);
+        this.numTinyRegions = Math.max(Math.round(Math.toIntExact(cacheSize / TINY_REGION_SIZE) * tinyRegionShare), 1);
 
-        if (cacheSize > 0) {
-            if (smallRegionSize > largeRegionSize || tinyRegionSize > smallRegionSize) {
-                throw new IllegalArgumentException("region sizes are not consistent");
-            }
-            if (numLargeRegions == 0) {
-                throw new IllegalArgumentException("No large regions available for the given settings");
-            }
+        if (cacheSize > 0 && numLargeRegions == 0) {
+            throw new IllegalArgumentException("No large regions available for the given settings");
         }
     }
 
     public long totalSize() {
-        return tinyRegionSize * numTinyRegions + smallRegionSize * numSmallRegions + largeRegionSize * numLargeRegions;
+        return TINY_REGION_SIZE * numTinyRegions + SMALL_REGION_SIZE * numSmallRegions + largeRegionSize * numLargeRegions;
     }
 
     /**
@@ -71,13 +64,13 @@ public final class SharedCacheConfiguration {
     public long getPhysicalOffset(long pageNum) {
         long physicalOffset;
         if (pageNum > numLargeRegions + numSmallRegions) {
-            physicalOffset = numLargeRegions * largeRegionSize + numSmallRegions * smallRegionSize
-                    + (pageNum - numSmallRegions - numLargeRegions) * tinyRegionSize;
-            assert physicalOffset <= numLargeRegions * largeRegionSize + numSmallRegions * smallRegionSize
-                    + numTinyRegions * tinyRegionSize;
+            physicalOffset = numLargeRegions * largeRegionSize + numSmallRegions * SMALL_REGION_SIZE
+                    + (pageNum - numSmallRegions - numLargeRegions) * TINY_REGION_SIZE;
+            assert physicalOffset <= numLargeRegions * largeRegionSize + numSmallRegions * SMALL_REGION_SIZE
+                    + numTinyRegions * TINY_REGION_SIZE;
         } else if (pageNum > numLargeRegions) {
-            physicalOffset = numLargeRegions * largeRegionSize + (pageNum - numLargeRegions) * smallRegionSize;
-            assert physicalOffset <= numLargeRegions * largeRegionSize + numSmallRegions * smallRegionSize;
+            physicalOffset = numLargeRegions * largeRegionSize + (pageNum - numLargeRegions) * SMALL_REGION_SIZE;
+            assert physicalOffset <= numLargeRegions * largeRegionSize + numSmallRegions * SMALL_REGION_SIZE;
         } else {
             physicalOffset = pageNum * largeRegionSize;
             assert physicalOffset <= numLargeRegions * largeRegionSize;
@@ -100,9 +93,9 @@ public final class SharedCacheConfiguration {
     public long regionSizeBySharedPageNumber(int pageNum) {
         if (pageNum >= numLargeRegions) {
             if (pageNum >= numLargeRegions + numSmallRegions) {
-                return tinyRegionSize;
+                return TINY_REGION_SIZE;
             }
-            return smallRegionSize;
+            return SMALL_REGION_SIZE;
         }
         return largeRegionSize;
     }
@@ -139,10 +132,10 @@ public final class SharedCacheConfiguration {
 
     public RegionType regionType(int region, long fileSize, long cacheHeaderLength, long footerCacheLength) {
         if (region == 0 && cacheHeaderLength > 0) {
-            if (cacheHeaderLength <= tinyRegionSize) {
+            if (cacheHeaderLength <= TINY_REGION_SIZE) {
                 return RegionType.TINY;
             }
-            if (cacheHeaderLength <= smallRegionSize) {
+            if (cacheHeaderLength <= SMALL_REGION_SIZE) {
                 return RegionType.SMALL;
             }
         }
@@ -157,8 +150,8 @@ public final class SharedCacheConfiguration {
         if (position < cacheHeaderLength || fileSize <= cacheHeaderLength) {
             return 0;
         }
-        assert cacheFooterLength == 0 || cacheFooterLength == tinyRegionSize;
-        assert cacheHeaderLength == 0 || cacheHeaderLength == tinyRegionSize || cacheHeaderLength == smallRegionSize;
+        assert cacheFooterLength == 0 || cacheFooterLength == TINY_REGION_SIZE;
+        assert cacheHeaderLength == 0 || cacheHeaderLength == TINY_REGION_SIZE || cacheHeaderLength == SMALL_REGION_SIZE;
         final long positionAfterHeader = position - cacheHeaderLength;
         final int numberOfLargeRegions = largeRegions(fileSize, cacheHeaderLength, cacheFooterLength);
         final int largeRegionIndex = Math.toIntExact(positionAfterHeader / largeRegionSize)
@@ -198,12 +191,12 @@ public final class SharedCacheConfiguration {
      */
     public RegionType sharedRegionType(int pageNum) {
         final long rsize = regionSizeBySharedPageNumber(pageNum);
-        if (rsize == smallRegionSize) {
+        if (rsize == SMALL_REGION_SIZE) {
             return RegionType.SMALL;
         } else if (rsize == largeRegionSize) {
             return RegionType.LARGE;
         }
-        assert rsize == tinyRegionSize;
+        assert rsize == TINY_REGION_SIZE;
         return RegionType.TINY;
     }
 
@@ -243,9 +236,9 @@ public final class SharedCacheConfiguration {
     private long regionMaxSize(int region, long fileSize, long cacheHeaderLength, long footerCacheLength) {
         switch (regionType(region, fileSize, cacheHeaderLength, footerCacheLength)) {
             case TINY:
-                return tinyRegionSize;
+                return TINY_REGION_SIZE;
             case SMALL:
-                return smallRegionSize;
+                return SMALL_REGION_SIZE;
             default:
                 return largeRegionSize;
         }
@@ -255,15 +248,15 @@ public final class SharedCacheConfiguration {
      * Size of the first region to use for a file that has a header to be separately cached of the given size.
      */
     public long effectiveHeaderCacheRange(long headerCacheRequested) {
-        return headerCacheRequested > smallRegionSize || headerCacheRequested == 0 ? 0 :
-                (headerCacheRequested > tinyRegionSize ? smallRegionSize : tinyRegionSize);
+        return headerCacheRequested > SMALL_REGION_SIZE || headerCacheRequested == 0 ? 0 :
+                (headerCacheRequested > TINY_REGION_SIZE ? SMALL_REGION_SIZE : TINY_REGION_SIZE);
     }
 
     /**
      * Size of the last region to use for a file that has a footer to be separately cached of the given size.
      */
     public long effectiveFooterCacheRange(long footerCacheRequested) {
-        return footerCacheRequested > 0 && footerCacheRequested <= tinyRegionSize ? tinyRegionSize : 0;
+        return footerCacheRequested > 0 && footerCacheRequested <= TINY_REGION_SIZE ? TINY_REGION_SIZE : 0;
     }
 
     // Number of large regions used when caching a file of the given length

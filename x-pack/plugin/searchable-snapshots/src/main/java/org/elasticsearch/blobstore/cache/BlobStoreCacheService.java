@@ -230,6 +230,7 @@ public class BlobStoreCacheService {
      *
      * @return the header {@link ByteRange}
      */
+    // TODO : ending region
     public ByteRange computeBlobCacheByteRange(String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
         final String fileExtension = IndexFileNames.getExtension(fileName);
         assert fileExtension == null || METADATA_FILES_EXTENSIONS.contains(fileExtension) || OTHER_FILES_EXTENSIONS.contains(fileExtension)

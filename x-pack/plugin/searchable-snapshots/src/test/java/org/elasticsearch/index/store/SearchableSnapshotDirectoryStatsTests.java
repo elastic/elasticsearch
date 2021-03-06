@@ -33,6 +33,7 @@ import org.elasticsearch.index.store.cache.TestUtils.NoopBlobStoreCacheService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SharedCacheConfiguration;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
@@ -570,7 +571,8 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             defaultCacheService(),
             createFrozenCacheService(
                 ByteSizeValue.ofMb(10),
-                new ByteSizeValue(randomLongBetween(MAX_FILE_LENGTH, MAX_FILE_LENGTH * 2), ByteSizeUnit.BYTES)
+                new ByteSizeValue(randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE * 1024,
+                        SharedCacheConfiguration.SMALL_REGION_SIZE * 8 * 1024), ByteSizeUnit.BYTES)
             ),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)

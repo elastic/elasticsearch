@@ -144,6 +144,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public static final Setting<ByteSizeValue> SHARED_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "range_size",
         ByteSizeValue.ofMb(16),                                 // default
+        ByteSizeValue.ofBytes(SharedCacheConfiguration.SMALL_REGION_SIZE),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Setting.Property.NodeScope
     );
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
@@ -176,18 +178,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             new ByteSizeValue(128, ByteSizeUnit.KB),                // default
             MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
             MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
-            Setting.Property.NodeScope
-    );
-
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SMALL_REGION_SIZE = Setting.byteSizeSetting(
-            SHARED_CACHE_SETTINGS_PREFIX + "small_region_size",
-            FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING,
-            Setting.Property.NodeScope
-    );
-
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_TINY_REGION_SIZE = Setting.byteSizeSetting(
-            SHARED_CACHE_SETTINGS_PREFIX + "tiny_region_size",
-            new ByteSizeValue(DEFAULT_CACHED_BLOB_SIZE, ByteSizeUnit.BYTES),
             Setting.Property.NodeScope
     );
 

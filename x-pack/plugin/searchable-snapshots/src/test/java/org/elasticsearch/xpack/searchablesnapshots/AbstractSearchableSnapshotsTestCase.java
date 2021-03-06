@@ -155,8 +155,6 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         final ByteSizeValue cacheRangeSize = randomFrozenCacheRangeSize();
         cacheSettings.put(SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), cacheRangeSize)
             .put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes() * 4))
-            .put(SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes() / 2))
-            .put(SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes() / 4))
             .put(SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.getKey(), 0.125f)
             .put(SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE.getKey(), 0.125f);
         return new FrozenCacheService(newEnvironment(cacheSettings.build()), threadPool);
@@ -182,9 +180,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             newEnvironment(
                 Settings.builder()
                     .put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                    .put(SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes() * 4))
-                    .put(SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes() * 2))
-                    .put(SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE.getKey(), cacheRangeSize)
+                    .put(SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes()))
                     .build()
             ),
             threadPool

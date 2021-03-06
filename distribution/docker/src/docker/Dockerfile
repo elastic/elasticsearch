@@ -372,8 +372,8 @@ LABEL name="Elasticsearch" \\
 <% if (docker_base == 'ubi') { %>
 RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
 <% } else if (docker_base == 'iron_bank') { %>
-RUN mkdir /licenses
-COPY LICENSE /licenses/LICENSE
+RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
+COPY LICENSE /licenses/LICENSE.addendum
 <% } %>
 
 USER elasticsearch:root

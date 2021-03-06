@@ -440,7 +440,7 @@ public class ShrinkActionIT extends ESRestTestCase {
                 return false;
             }
         }, 30, TimeUnit.SECONDS);
-        assert shrunkenIndexName != null : "lifecycle execution state must contain the target shrink index name for policy [" + policy +
+        assert shrunkenIndexName[0] != null : "lifecycle execution state must contain the target shrink index name for policy [" + policy +
             "] and originalIndex [" + originalIndex + "]. state is: " + explainIndex(client(), originalIndex);
         return shrunkenIndexName[0];
     }

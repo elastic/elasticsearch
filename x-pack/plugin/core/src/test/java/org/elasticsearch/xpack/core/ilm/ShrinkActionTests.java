@@ -203,6 +203,8 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
         assertTrue(steps.get(7) instanceof ClusterStateWaitUntilThresholdStep);
         assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(7)).getStepToExecute(), is(instanceOf(CheckShrinkReadyStep.class)));
+        // assert in case the threshold is breached we go back to the "cleanup shrunk index" step
+        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(7)).getNextKeyOnThreshold(), is(expectedFifthKey));
         assertThat(steps.get(7).getKey(), equalTo(expectedEighthKey));
         assertThat(steps.get(7).getNextStepKey(), equalTo(expectedNinthKey));
 
@@ -215,6 +217,8 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertThat(steps.get(9).getKey(), equalTo(expectedTenthKey));
         assertThat(steps.get(9).getNextStepKey(), equalTo(expectedEleventhKey));
         assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(9)).getStepToExecute(), is(instanceOf(ShrunkShardsAllocatedStep.class)));
+        // assert in case the threshold is breached we go back to the "cleanup shrunk index" step
+        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(9)).getNextKeyOnThreshold(), is(expectedFifthKey));
 
         assertTrue(steps.get(10) instanceof CopyExecutionStateStep);
         assertThat(steps.get(10).getKey(), equalTo(expectedEleventhKey));

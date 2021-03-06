@@ -112,7 +112,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     public void testCachedBytesReadsAndWrites() throws Exception {
         // a cache service with a low range size but enough space to not evict the cache file
-        final ByteSizeValue rangeSize = new ByteSizeValue(randomLongBetween(MAX_FILE_LENGTH, MAX_FILE_LENGTH * 2), ByteSizeUnit.BYTES);
+        final ByteSizeValue rangeSize = new ByteSizeValue(SharedCacheConfiguration.SMALL_REGION_SIZE + 1);
         final ByteSizeValue cacheSize = new ByteSizeValue(10, ByteSizeUnit.MB);
 
         executeTestCaseWithCache(cacheSize, rangeSize, (fileName, fileContent, directory) -> {
@@ -571,8 +571,10 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             defaultCacheService(),
             createFrozenCacheService(
                 ByteSizeValue.ofMb(10),
-                new ByteSizeValue(randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE * 1024,
-                        SharedCacheConfiguration.SMALL_REGION_SIZE * 8 * 1024), ByteSizeUnit.BYTES)
+                new ByteSizeValue(
+                    randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE * 2, SharedCacheConfiguration.SMALL_REGION_SIZE * 8),
+                    ByteSizeUnit.BYTES
+                )
             ),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)

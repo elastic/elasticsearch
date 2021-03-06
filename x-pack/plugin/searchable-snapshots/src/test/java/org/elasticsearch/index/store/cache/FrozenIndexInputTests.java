@@ -24,6 +24,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SharedCacheConfiguration;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
@@ -63,11 +64,11 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             rangeSize = SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.get(Settings.EMPTY);
         } else if (randomBoolean()) {
             rangeSize = new ByteSizeValue(
-                randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), ByteSizeValue.ofKb(8L).getBytes())
+                randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE + 1, SharedCacheConfiguration.SMALL_REGION_SIZE * 2)
             );
         } else {
             rangeSize = new ByteSizeValue(
-                randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), ByteSizeValue.ofMb(64L).getBytes())
+                randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE + 1, ByteSizeValue.ofMb(64L).getBytes())
             );
         }
 
@@ -75,7 +76,9 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         if (rarely()) {
             regionSize = SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY);
         } else if (randomBoolean()) {
-            regionSize = new ByteSizeValue(randomLongBetween(ByteSizeValue.ofKb(1L).getBytes(), ByteSizeValue.ofKb(8L).getBytes()));
+            regionSize = ByteSizeValue.ofBytes(
+                randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE + 1, SharedCacheConfiguration.SMALL_REGION_SIZE * 2)
+            );
         } else {
             regionSize = new ByteSizeValue(randomLongBetween(ByteSizeValue.ofKb(1L).getBytes(), ByteSizeValue.ofMb(64L).getBytes()));
         }

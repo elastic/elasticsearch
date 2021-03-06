@@ -40,6 +40,7 @@ import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SharedCacheConfiguration;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -202,19 +203,12 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         return new ByteSizeValue(randomNonNegativeLong());
     }
 
-    protected static ByteSizeValue randomFrozenCacheSize() {
-        return new ByteSizeValue(randomLongBetween(0, 10_000_000));
-    }
-
     /**
      * @return a random {@link ByteSizeValue} that can be used to set {@link CacheService#SNAPSHOT_CACHE_RANGE_SIZE_SETTING}
      */
     protected static ByteSizeValue randomCacheRangeSize() {
         return new ByteSizeValue(
-            randomLongBetween(
-                CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes() / 4,
-                CacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes() / 4
-            )
+            randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE + 1, SharedCacheConfiguration.SMALL_REGION_SIZE * 2)
         );
     }
 

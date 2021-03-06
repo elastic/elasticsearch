@@ -41,19 +41,24 @@ public final class SharedCacheConfiguration {
 
     public SharedCacheConfiguration(Settings settings) {
         long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
-        // TODO: just forcing defaults for conflicting cache- and page sizes seems wrong
         this.largeRegionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
-        if (largeRegionSize <= SMALL_REGION_SIZE) {
-            throw new IllegalArgumentException("Large region size must be larger than small region size");
-        }
-        final float smallRegionShare = SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.get(settings);
-        final float tinyRegionShare = SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE.get(settings);
-        this.numLargeRegions = Math.round(Math.toIntExact(cacheSize / largeRegionSize) * (1 - smallRegionShare - tinyRegionShare));
-        this.numSmallRegions = Math.max(Math.round(Math.toIntExact(cacheSize / SMALL_REGION_SIZE) * smallRegionShare), 1);
-        this.numTinyRegions = Math.max(Math.round(Math.toIntExact(cacheSize / TINY_REGION_SIZE) * tinyRegionShare), 1);
-
-        if (cacheSize > 0 && numLargeRegions == 0) {
-            throw new IllegalArgumentException("No large regions available for the given settings");
+        if (cacheSize > 0) {
+            // TODO: just forcing defaults for conflicting cache- and page sizes seems wrong
+            if (largeRegionSize <= SMALL_REGION_SIZE) {
+                throw new IllegalArgumentException("Large region size must be larger than small region size");
+            }
+            final float smallRegionShare = SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.get(settings);
+            final float tinyRegionShare = SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE.get(settings);
+            this.numLargeRegions = Math.round(Math.toIntExact(cacheSize / largeRegionSize) * (1 - smallRegionShare - tinyRegionShare));
+            this.numSmallRegions = Math.max(Math.round(Math.toIntExact(cacheSize / SMALL_REGION_SIZE) * smallRegionShare), 1);
+            this.numTinyRegions = Math.max(Math.round(Math.toIntExact(cacheSize / TINY_REGION_SIZE) * tinyRegionShare), 1);
+            if (numLargeRegions == 0) {
+                throw new IllegalArgumentException("No large regions available for the given settings");
+            }
+        } else {
+            numLargeRegions = 0;
+            numSmallRegions = 0;
+            numTinyRegions = 0;
         }
     }
 

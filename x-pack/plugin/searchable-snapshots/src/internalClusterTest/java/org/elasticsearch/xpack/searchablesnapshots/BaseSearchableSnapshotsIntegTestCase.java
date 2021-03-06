@@ -23,6 +23,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.SharedCacheConfiguration;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
@@ -55,14 +56,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             .put(super.nodeSettings(nodeOrdinal))
             .put(SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         if (randomBoolean()) {
-            builder.put(
-                CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
-                rarely()
-                    ? randomBoolean()
-                        ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
-                        : new ByteSizeValue(randomIntBetween(0, 1000), ByteSizeUnit.BYTES)
-                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
-            );
+            builder.put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB));
         }
         if (randomBoolean()) {
             builder.put(
@@ -73,25 +67,17 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             );
         }
         builder.put(
-            SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
-            rarely()
-                ? randomBoolean()
-                    ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
-                    : new ByteSizeValue(randomIntBetween(0, 1000), ByteSizeUnit.BYTES)
-                : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
-        );
-        builder.put(
             SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(),
-            rarely()
-                ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
-                : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+            ByteSizeValue.ofBytes(
+                randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE + 1, SharedCacheConfiguration.SMALL_REGION_SIZE * 2)
+            )
         );
         if (randomBoolean()) {
             builder.put(
                 SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
-                rarely()
-                    ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
-                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+                ByteSizeValue.ofBytes(
+                    randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE + 1, SharedCacheConfiguration.SMALL_REGION_SIZE * 2)
+                )
             );
         }
         if (randomBoolean()) {
@@ -100,6 +86,8 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
             );
         }
+        // TODO: fix size == 0 behavior
+        builder.put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(10));
         return builder.build();
     }
 

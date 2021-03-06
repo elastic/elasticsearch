@@ -283,9 +283,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
     public void testAliasReplicatedOnShrink() throws Exception {
         final String indexName = "shrink-alias-test";
-        final String shrunkenIndexName = "shrink-" + indexName;
         final String policyName = "shrink-test-policy";
-
         final int numberOfAliases = randomIntBetween(0, 4);
 
         if ("leader".equals(targetCluster)) {
@@ -332,6 +330,9 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // Wait for the setting to get replicated
             assertBusy(() -> assertThat(getIndexSetting(client(), indexName, "index.lifecycle.indexing_complete"), equalTo("true")));
 
+            assertBusy(() -> assertThat(getShrinkIndexName(indexName) , notNullValue()), 30, TimeUnit.SECONDS);
+            String shrunkenIndexName = getShrinkIndexName(indexName);
+
             // Wait for the index to continue with its lifecycle and be shrunk
             assertBusy(() -> assertTrue(indexExists(shrunkenIndexName)));
 
@@ -350,7 +351,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
     public void testUnfollowInjectedBeforeShrink() throws Exception {
         final String indexName = "shrink-test";
-        final String shrunkenIndexName = "shrink-" + indexName;
         final String policyName = "shrink-test-policy";
 
         if ("leader".equals(targetCluster)) {
@@ -387,6 +387,9 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // moves through the unfollow and shrink actions so fast that the
             // index often disappears between assertBusy checks
 
+            assertBusy(() -> assertThat(getShrinkIndexName(indexName) , notNullValue()), 30, TimeUnit.SECONDS);
+            String shrunkenIndexName = getShrinkIndexName(indexName);
+
             // Wait for the index to continue with its lifecycle and be shrunk
             assertBusy(() -> assertTrue(indexExists(shrunkenIndexName)));
 
@@ -397,8 +400,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
     public void testCannotShrinkLeaderIndex() throws Exception {
         String indexName = "shrink-leader-test";
-        String shrunkenIndexName = "shrink-" + indexName;
-
         String policyName = "shrink-leader-test-policy";
         if ("leader".equals(targetCluster)) {
             // Set up the policy and index, but don't attach the policy yet,
@@ -455,6 +456,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     .build()
                 );
 
+                assertBusy(() -> assertThat(getShrinkIndexName(indexName) , notNullValue()), 30, TimeUnit.SECONDS);
+                String shrunkenIndexName = getShrinkIndexName(indexName);
                 assertBusy(() -> {
                     // The shrunken index should now be created on the leader...
                     Response shrunkenIndexExistsResponse = leaderClient.performRequest(new Request("HEAD", "/" + shrunkenIndexName));
@@ -801,5 +804,40 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         Map<String, Object> snapResponse = ((List<Map<String, Object>>) repoResponse.get("snapshots")).get(0);
         assertThat(snapResponse.get("snapshot"), equalTo(snapshot));
         return (String) snapResponse.get("state");
+    }
+
+    private static String getShrinkIndexName(String originalIndex) throws InterruptedException, IOException {
+        String[] shrunkenIndexName = new String[1];
+        waitUntil(() -> {
+            try {
+                Map<String, Object> explainIndexResponse = explainIndex(client(), originalIndex, false, false);
+                if (explainIndexResponse == null) {
+                    return false;
+                }
+                shrunkenIndexName[0] = (String) explainIndexResponse.get("shrink_index_name");
+                return shrunkenIndexName[0] != null;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS);
+        assert shrunkenIndexName[0] != null : "lifecycle execution state must contain the target shrink index name for index [" +
+             originalIndex + "]. state is: " + explainIndex(client(), originalIndex, false, false);
+        return shrunkenIndexName[0];
+    }
+
+    private static Map<String, Object> explainIndex(RestClient client, String index, boolean onlyErrors,
+                                                           boolean onlyManaged) throws IOException {
+        Request explainRequest = new Request("GET", index + "/_ilm/explain");
+        explainRequest.addParameter("only_errors", Boolean.toString(onlyErrors));
+        explainRequest.addParameter("only_managed", Boolean.toString(onlyManaged));
+        Response response = client.performRequest(explainRequest);
+        Map<String, Object> responseMap;
+        try (InputStream is = response.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+
+        @SuppressWarnings("unchecked") Map<String, Map<String, Object>> indexResponse =
+            ((Map<String, Map<String, Object>>) responseMap.get("indices"));
+        return indexResponse.get(index);
     }
 }

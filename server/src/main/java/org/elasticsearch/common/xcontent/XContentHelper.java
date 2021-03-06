@@ -65,10 +65,9 @@ public class XContentHelper {
             }
             return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
         } else {
-            if (bytes instanceof BytesArray) {
-                final BytesArray array = (BytesArray) bytes;
+            if (bytes.hasArray()) {
                 return xContentType.xContent().createParser(
-                        xContentRegistry, deprecationHandler, array.array(), array.offset(), array.length());
+                        xContentRegistry, deprecationHandler, bytes.array(), bytes.arrayOffset(), bytes.length());
             }
             return xContentType.xContent().createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
         }
@@ -101,11 +100,10 @@ public class XContentHelper {
                 }
                 input = compressedStreamInput;
                 contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
-            } else if (bytes instanceof BytesArray) {
-                final BytesArray arr = (BytesArray) bytes;
-                final byte[] raw = arr.array();
-                final int offset = arr.offset();
-                final int length = arr.length();
+            } else if (bytes.hasArray()) {
+                final byte[] raw = bytes.array();
+                final int offset = bytes.arrayOffset();
+                final int length = bytes.length();
                 contentType = xContentType != null ? xContentType : XContentFactory.xContentType(raw, offset, length);
                 return new Tuple<>(Objects.requireNonNull(contentType),
                         convertToMap(XContentFactory.xContent(contentType), raw, offset, length, ordered));
@@ -201,10 +199,9 @@ public class XContentHelper {
         }
 
         // It is safe to use EMPTY here because this never uses namedObject
-        if (bytes instanceof BytesArray) {
-            final BytesArray array = (BytesArray) bytes;
+        if (bytes.hasArray()) {
             try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
-                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, array.array(), array.offset(), array.length())) {
+                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.array(), bytes.arrayOffset(), bytes.length())) {
                 return toJsonString(prettyPrint, parser);
             }
         } else {
@@ -411,9 +408,8 @@ public class XContentHelper {
      */
     @Deprecated
     public static XContentType xContentType(BytesReference bytes) {
-        if (bytes instanceof BytesArray) {
-            final BytesArray array = (BytesArray) bytes;
-            return XContentFactory.xContentType(array.array(), array.offset(), array.length());
+        if (bytes.hasArray()) {
+            return XContentFactory.xContentType(bytes.array(), bytes.arrayOffset(), bytes.length());
         }
         try {
             final InputStream inputStream = bytes.streamInput();

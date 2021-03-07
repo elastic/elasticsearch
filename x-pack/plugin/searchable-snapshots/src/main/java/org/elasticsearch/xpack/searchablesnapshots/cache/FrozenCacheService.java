@@ -748,7 +748,7 @@ public class FrozenCacheService implements Releasable {
             this.cacheKey = cacheKey;
             this.fileSize = fileSize;
             this.footerCacheLength = sharedBytes.sharedCacheConfiguration.effectiveFooterCacheRange(sliceFooterByteRange.length());
-            this.headerCacheLength = sharedBytes.sharedCacheConfiguration.effectiveHeaderCacheRange(cacheRange.length());
+            this.headerCacheLength = SharedCacheConfiguration.effectiveHeaderCacheRange(cacheRange.length());
         }
 
         public long getLength() {

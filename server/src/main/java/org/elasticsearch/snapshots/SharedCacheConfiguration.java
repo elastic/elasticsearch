@@ -255,7 +255,7 @@ public final class SharedCacheConfiguration {
     /**
      * Size of the first region to use for a file that has a header to be separately cached of the given size.
      */
-    public long effectiveHeaderCacheRange(long headerCacheRequested) {
+    public static long effectiveHeaderCacheRange(long headerCacheRequested) {
         return headerCacheRequested > SMALL_REGION_SIZE || headerCacheRequested == 0 ? 0 :
                 (headerCacheRequested > TINY_REGION_SIZE ? SMALL_REGION_SIZE : TINY_REGION_SIZE);
     }

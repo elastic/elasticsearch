@@ -387,7 +387,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // moves through the unfollow and shrink actions so fast that the
             // index often disappears between assertBusy checks
 
-            assertBusy(() -> assertThat(getShrinkIndexName(client(), indexName) , notNullValue()), 30, TimeUnit.SECONDS);
+            assertBusy(() -> assertThat(getShrinkIndexName(client(), indexName) , notNullValue()), 1, TimeUnit.MINUTES);
             String shrunkenIndexName = getShrinkIndexName(client(), indexName);
 
             // Wait for the index to continue with its lifecycle and be shrunk
@@ -653,20 +653,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                         builder.endObject();
                     }
                     builder.endObject();
-
-                    // Sometimes throw in an extraneous unfollow just to check it doesn't break anything
-                    if (randomBoolean()) {
-                        builder.startObject("cold");
-                        {
-                            builder.startObject("actions");
-                            {
-                                builder.startObject("unfollow");
-                                builder.endObject();
-                            }
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
                 }
                 builder.endObject();
             }

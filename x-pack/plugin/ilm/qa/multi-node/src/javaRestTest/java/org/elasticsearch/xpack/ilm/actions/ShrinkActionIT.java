@@ -51,6 +51,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.waitAndGetShrinkIndexName;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -83,7 +84,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards, null));
         updatePolicy(client(), index, policy);
 
-        String shrunkenIndexName = getShrinkIndexName(index);
+        String shrunkenIndexName = waitAndGetShrinkIndexName(client(), index);
         assertBusy(() -> assertTrue(indexExists(shrunkenIndexName)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertTrue(aliasExists(shrunkenIndexName, index)));
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndexName),
@@ -103,16 +104,15 @@ public class ShrinkActionIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(numberOfShards, null));
         updatePolicy(client(), index, policy);
-        String shrunkenIndex = getShrinkIndexName(index);
         assertBusy(() -> {
             assertTrue(indexExists(index));
-            assertFalse(indexExists(shrunkenIndex));
-            assertFalse(aliasExists(shrunkenIndex, index));
             Map<String, Object> settings = getOnlyIndexSettings(client(), index);
             assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
             assertThat(settings.get(SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(numberOfShards)));
             assertNull(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
             assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
+            // the shrink action was effectively skipped so there must not be any `shrink_index_name` in the ILM state
+            assertThat(explainIndex(client(), index).get("shrink_index_name"), nullValue());
         });
     }
 
@@ -147,7 +147,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
         // add policy and expect it to trigger shrink immediately (while snapshot in progress)
         updatePolicy(client(), index, policy);
-        String shrunkenIndex = getShrinkIndexName(index);
+        String shrunkenIndex = waitAndGetShrinkIndexName(client(), index);
         // assert that index was shrunk and original index was deleted
         assertBusy(() -> {
             assertTrue(indexExists(shrunkenIndex));
@@ -197,7 +197,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         createIndexWithSettings(client(), originalIndex, alias, Settings.builder(), true);
         index(client(), originalIndex, "_id", "foo", "bar");
 
-        String shrunkenIndex = getShrinkIndexName(originalIndex);
+        String shrunkenIndex = waitAndGetShrinkIndexName(client(), originalIndex);
         assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
         assertBusy(() -> {
@@ -261,7 +261,7 @@ public class ShrinkActionIT extends ESRestTestCase {
             }
         }, 30, TimeUnit.SECONDS));
 
-        String shrunkenIndex = getShrinkIndexName(index);
+        String shrunkenIndex = waitAndGetShrinkIndexName(client(), index);
         Request resetAllocationForIndex = new Request("PUT", "/" + index + "/_settings");
         resetAllocationForIndex.setJsonEntity("{\n" +
             "  \"settings\": {\n" +
@@ -293,7 +293,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         updatePolicy(client(), index, policy);
 
         // assert corrected policy is picked up and index is shrunken
-        String shrunkenIndex = getShrinkIndexName(index);
+        String shrunkenIndex = waitAndGetShrinkIndexName(client(), index);
         assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
@@ -318,7 +318,7 @@ public class ShrinkActionIT extends ESRestTestCase {
             assertThat(failedStep, equalTo(ShrinkStep.NAME));
         }, 60, TimeUnit.SECONDS);
 
-        String shrinkIndexName = getShrinkIndexName(index);
+        String shrinkIndexName = waitAndGetShrinkIndexName(client(), index);
         Request shrinkIndexRequest = new Request("POST", index + "/_shrink/" + shrinkIndexName);
         shrinkIndexRequest.setEntity(new StringEntity(
             "{\"settings\": {\n" +
@@ -331,7 +331,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         client().performRequest(shrinkIndexRequest);
 
         // assert manually shrunk index is picked up and policy completes successfully
-        String shrunkenIndex = getShrinkIndexName(index);
+        String shrunkenIndex = waitAndGetShrinkIndexName(client(), index);
         assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
@@ -366,7 +366,7 @@ public class ShrinkActionIT extends ESRestTestCase {
             assertThat(retryCount, greaterThanOrEqualTo(1));
         }, 30, TimeUnit.SECONDS);
 
-        String firstAttemptShrinkIndexName = getShrinkIndexName(index);
+        String firstAttemptShrinkIndexName = waitAndGetShrinkIndexName(client(), index);
 
         // we're manually shrinking the index but configuring a very high number of replicas and waiting for all active shards
         // this will make ths shrunk index unable to allocate successfully, so ILM will wait in the `shrunk-shards-allocated` step
@@ -410,7 +410,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         updatePolicy(client(), index, policy);
 
         // assert corrected policy is picked up and index is shrunken
-        String shrunkenIndex = getShrinkIndexName(index);
+        String shrunkenIndex = waitAndGetShrinkIndexName(client(), index);
         assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
@@ -424,24 +424,5 @@ public class ShrinkActionIT extends ESRestTestCase {
         }
 
         return (String) indexResponse.get("failed_step");
-    }
-
-    private String getShrinkIndexName(String originalIndex) throws InterruptedException, IOException {
-        String[] shrunkenIndexName = new String[1];
-        waitUntil(() -> {
-            try {
-                Map<String, Object> explainIndexResponse = explainIndex(client(), originalIndex);
-                if (explainIndexResponse == null) {
-                    return false;
-                }
-                shrunkenIndexName[0] = (String) explainIndexResponse.get(SHRINK_INDEX_NAME);
-                return shrunkenIndexName[0] != null;
-            } catch (IOException e) {
-                return false;
-            }
-        }, 30, TimeUnit.SECONDS);
-        assert shrunkenIndexName[0] != null : "lifecycle execution state must contain the target shrink index name for policy [" + policy +
-            "] and originalIndex [" + originalIndex + "]. state is: " + explainIndex(client(), originalIndex);
-        return shrunkenIndexName[0];
     }
 }

@@ -42,11 +42,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.waitUntil;
 import static org.elasticsearch.test.rest.ESRestTestCase.assertOK;
 import static org.elasticsearch.test.rest.ESRestTestCase.ensureHealth;
 import static org.hamcrest.Matchers.anyOf;
@@ -331,5 +333,23 @@ public final class TimeSeriesRestDriver {
         Map<String, Object> snapResponse = ((List<Map<String, Object>>) repoResponse.get("snapshots")).get(0);
         assertThat(snapResponse.get("snapshot"), equalTo(snapshot));
         return (String) snapResponse.get("state");
+    }
+
+    @Nullable
+    public static String waitAndGetShrinkIndexName(RestClient client, String originalIndex) throws InterruptedException, IOException {
+        String[] shrunkenIndexName = new String[1];
+        waitUntil(() -> {
+            try {
+                Map<String, Object> explainIndexResponse = explainIndex(client, originalIndex);
+                if (explainIndexResponse == null) {
+                    return false;
+                }
+                shrunkenIndexName[0] = (String) explainIndexResponse.get("shrink_index_name");
+                return shrunkenIndexName[0] != null;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS);
+        return shrunkenIndexName[0];
     }
 }

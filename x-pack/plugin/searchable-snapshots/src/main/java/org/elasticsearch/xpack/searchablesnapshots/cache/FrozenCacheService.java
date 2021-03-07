@@ -833,10 +833,11 @@ public class FrozenCacheService implements Releasable {
 
         @Nullable
         public StepListener<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
+            assert rangeToRead.length() > 0 : "read range must not be empty";
             StepListener<Integer> stepListener = null;
             final long start = rangeToRead.start();
             final int lastRegion = sharedBytes.sharedCacheConfiguration.getRegion(
-                rangeToRead.end(),
+                rangeToRead.end() - 1,
                 fileSize,
                 headerCacheLength,
                 footerCacheLength

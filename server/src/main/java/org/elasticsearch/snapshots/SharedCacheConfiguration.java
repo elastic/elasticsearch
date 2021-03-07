@@ -147,7 +147,7 @@ public final class SharedCacheConfiguration {
                 return RegionType.SMALL;
             }
         }
-        if (footerCacheLength > 0 && region == getRegion(fileSize, fileSize, cacheHeaderLength, footerCacheLength)) {
+        if (footerCacheLength > 0 && region == getRegion(fileSize - 1, fileSize, cacheHeaderLength, footerCacheLength)) {
             return RegionType.TINY;
         }
         return RegionType.LARGE;
@@ -155,7 +155,9 @@ public final class SharedCacheConfiguration {
 
     // get the region of a file of the given size that the given position belongs to
     public int getRegion(long position, long fileSize, long cacheHeaderLength, long cacheFooterLength) {
-        if (position < cacheHeaderLength || fileSize <= cacheHeaderLength) {
+        assert fileSize > 0 : "zero length file has no cache regions";
+        assert position < fileSize : "Position index must be less than file size but saw [" + position + "][" + fileSize + "]";
+        if (position < cacheHeaderLength) {
             return 0;
         }
         assert cacheFooterLength == 0 || cacheFooterLength == TINY_REGION_SIZE;
@@ -222,14 +224,12 @@ public final class SharedCacheConfiguration {
     public long getRegionSize(long fileLength, int region, long cachedHeaderLength, long footerCacheLength) {
         final long currentRegionSize = regionMaxSize(region, fileLength, cachedHeaderLength, footerCacheLength);
         assert fileLength > 0;
-        final int maxRegion = getRegion(fileLength, fileLength, cachedHeaderLength, footerCacheLength);
+        final int maxRegion = getRegion(fileLength - 1, fileLength, cachedHeaderLength, footerCacheLength);
         assert region >= 0 && region <= maxRegion : region + " - " + maxRegion;
         final long effectiveRegionSize;
         final long regionStart = getRegionStart(region, fileLength, cachedHeaderLength, footerCacheLength);
         if (region == maxRegion && regionStart + currentRegionSize != fileLength) {
-            final long relativePos = getRegionRelativePosition(fileLength, fileLength, cachedHeaderLength, footerCacheLength);
-            assert relativePos != 0L;
-            effectiveRegionSize = relativePos;
+            effectiveRegionSize = fileLength - regionStart;
         } else if (region > 0 && footerCacheLength > 0 && region == maxRegion - 1) {
             effectiveRegionSize = (fileLength - footerCacheLength) - regionStart;
         } else {

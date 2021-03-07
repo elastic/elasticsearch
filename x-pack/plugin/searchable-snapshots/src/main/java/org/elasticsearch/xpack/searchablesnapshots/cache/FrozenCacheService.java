@@ -615,6 +615,11 @@ public class FrozenCacheService implements Releasable {
             final Executor executor
         ) {
             final StepListener<Integer> listener = new StepListener<>();
+            if (rangeToRead.length() == 0) {
+                // TODO: getting here makes no sense in the current codebase, do we want to always write out the full write range or not?
+                listener.onResponse(0);
+                return listener;
+            }
             Releasable decrementRef = null;
             try {
                 ensureOpen();
@@ -625,13 +630,11 @@ public class FrozenCacheService implements Releasable {
                 listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
                 final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
                 listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
-                final ActionListener<Void> rangeListener = rangeListener(rangeToRead, reader, listener, fileChannel);
-                if (rangeToRead.length() == 0L) {
-                    // nothing to read, skip
-                    rangeListener.onResponse(null);
-                    return listener;
-                }
-                final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(rangeToWrite, rangeToRead, rangeListener);
+                final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
+                    rangeToWrite,
+                    rangeToRead,
+                    rangeListener(rangeToRead, reader, listener, fileChannel)
+                );
 
                 for (SparseFileTracker.Gap gap : gaps) {
                     executor.execute(new AbstractRunnable() {

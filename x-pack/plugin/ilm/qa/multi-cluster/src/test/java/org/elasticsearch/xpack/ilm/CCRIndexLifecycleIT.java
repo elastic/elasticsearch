@@ -330,8 +330,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // Wait for the setting to get replicated
             assertBusy(() -> assertThat(getIndexSetting(client(), indexName, "index.lifecycle.indexing_complete"), equalTo("true")));
 
-            assertBusy(() -> assertThat(getShrinkIndexName(indexName) , notNullValue()), 30, TimeUnit.SECONDS);
-            String shrunkenIndexName = getShrinkIndexName(indexName);
+            assertBusy(() -> assertThat(getShrinkIndexName(client(), indexName) , notNullValue()), 30, TimeUnit.SECONDS);
+            String shrunkenIndexName = getShrinkIndexName(client(), indexName);
 
             // Wait for the index to continue with its lifecycle and be shrunk
             assertBusy(() -> assertTrue(indexExists(shrunkenIndexName)));
@@ -387,8 +387,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // moves through the unfollow and shrink actions so fast that the
             // index often disappears between assertBusy checks
 
-            assertBusy(() -> assertThat(getShrinkIndexName(indexName) , notNullValue()), 30, TimeUnit.SECONDS);
-            String shrunkenIndexName = getShrinkIndexName(indexName);
+            assertBusy(() -> assertThat(getShrinkIndexName(client(), indexName) , notNullValue()), 30, TimeUnit.SECONDS);
+            String shrunkenIndexName = getShrinkIndexName(client(), indexName);
 
             // Wait for the index to continue with its lifecycle and be shrunk
             assertBusy(() -> assertTrue(indexExists(shrunkenIndexName)));
@@ -456,8 +456,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     .build()
                 );
 
-                assertBusy(() -> assertThat(getShrinkIndexName(indexName) , notNullValue()), 30, TimeUnit.SECONDS);
-                String shrunkenIndexName = getShrinkIndexName(indexName);
+                assertBusy(() -> assertThat(getShrinkIndexName(leaderClient, indexName) , notNullValue()), 30, TimeUnit.SECONDS);
+                String shrunkenIndexName = getShrinkIndexName(leaderClient, indexName);
                 assertBusy(() -> {
                     // The shrunken index should now be created on the leader...
                     Response shrunkenIndexExistsResponse = leaderClient.performRequest(new Request("HEAD", "/" + shrunkenIndexName));
@@ -806,11 +806,11 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         return (String) snapResponse.get("state");
     }
 
-    private static String getShrinkIndexName(String originalIndex) throws InterruptedException, IOException {
+    private static String getShrinkIndexName(RestClient client, String originalIndex) throws InterruptedException, IOException {
         String[] shrunkenIndexName = new String[1];
         waitUntil(() -> {
             try {
-                Map<String, Object> explainIndexResponse = explainIndex(client(), originalIndex, false, false);
+                Map<String, Object> explainIndexResponse = explainIndex(client, originalIndex);
                 if (explainIndexResponse == null) {
                     return false;
                 }
@@ -821,15 +821,14 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             }
         }, 30, TimeUnit.SECONDS);
         assert shrunkenIndexName[0] != null : "lifecycle execution state must contain the target shrink index name for index [" +
-             originalIndex + "]. state is: " + explainIndex(client(), originalIndex, false, false);
+             originalIndex + "]. state is: " + explainIndex(client, originalIndex);
         return shrunkenIndexName[0];
     }
 
-    private static Map<String, Object> explainIndex(RestClient client, String index, boolean onlyErrors,
-                                                           boolean onlyManaged) throws IOException {
+    private static Map<String, Object> explainIndex(RestClient client, String index) throws IOException {
         Request explainRequest = new Request("GET", index + "/_ilm/explain");
-        explainRequest.addParameter("only_errors", Boolean.toString(onlyErrors));
-        explainRequest.addParameter("only_managed", Boolean.toString(onlyManaged));
+        explainRequest.addParameter("only_errors", Boolean.toString(false));
+        explainRequest.addParameter("only_managed", Boolean.toString(false));
         Response response = client.performRequest(explainRequest);
         Map<String, Object> responseMap;
         try (InputStream is = response.getEntity().getContent()) {

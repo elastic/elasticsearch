@@ -166,27 +166,34 @@ public final class SharedCacheConfiguration {
 
     // get the region of a file of the given size that the given position belongs to
     public int getRegion(long position, long fileSize, long cacheHeaderLength, long cacheFooterLength) {
-        assert fileSize > 0 : "zero length file has no cache regions";
-        assert position < fileSize : "Position index must be less than file size but saw [" + position + "][" + fileSize + "]";
+        assert assertRegionParameters(fileSize, position, cacheHeaderLength, cacheFooterLength);
+
+        // position is within the separately cached header region's length so its the first region
         if (position < cacheHeaderLength) {
             return 0;
         }
-        assert cacheFooterLength == 0 || cacheFooterLength == TINY_REGION_SIZE;
-        assert cacheHeaderLength == 0 || cacheHeaderLength == TINY_REGION_SIZE || cacheHeaderLength == SMALL_REGION_SIZE;
-        final long positionAfterHeader = position - cacheHeaderLength;
-        final int numberOfLargeRegions = largeRegions(fileSize, cacheHeaderLength, cacheFooterLength);
-        final int largeRegionIndex = Math.toIntExact(positionAfterHeader / largeRegionSize)
-                - (positionAfterHeader > 0 && positionAfterHeader % largeRegionSize == 0 ? 1 : 0);
 
-        boolean inFooter = cacheFooterLength > 0 && fileSize - position <= cacheFooterLength;
-        if (largeRegionIndex == numberOfLargeRegions && inFooter) {
-            return numberOfLargeRegions + (cacheHeaderLength > 0 ? 1 : 0);
+        // the position is not inside a separately cached header region so its either inside the footer region or inside a large region
+
+        // first determine the number of large regions in this file
+        final int largeRegions = largeRegions(fileSize, cacheHeaderLength, cacheFooterLength);
+        final int headerRegions = cacheHeaderLength > 0 ? 1 : 0;
+        if (fileSize - position < cacheFooterLength) {
+            // N large regions and one or no header regions
+            return largeRegions + headerRegions;
         }
 
-        final int lastLargeRegionIndex = largeRegionIndex + (cacheHeaderLength > 0 ? 1 : 0);
+        // we are in a large region, the number of full large regions from the end of the header region plus the header region number
+        // is the region index
+        return Math.toIntExact((position - cacheHeaderLength) / largeRegionSize) + headerRegions;
+    }
 
-        // add one if we are in the footer region
-        return lastLargeRegionIndex + (inFooter ? 1 : 0);
+    private static boolean assertRegionParameters(long fileSize, long position, long cacheHeaderLength, long cacheFooterLength) {
+        assert fileSize > 0 : "zero length file has no cache regions";
+        assert position < fileSize : "Position index must be less than file size but saw [" + position + "][" + fileSize + "]";
+        assert cacheFooterLength == 0 || cacheFooterLength == TINY_REGION_SIZE;
+        assert cacheHeaderLength == 0 || cacheHeaderLength == TINY_REGION_SIZE || cacheHeaderLength == SMALL_REGION_SIZE;
+        return true;
     }
 
     /**

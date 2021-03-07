@@ -13,6 +13,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.snapshots.SharedCacheConfiguration;
@@ -103,7 +104,7 @@ public class SharedBytes extends AbstractRefCounted {
                 boolean success = false;
                 incRef();
                 try {
-                    newIO = new IO(p);
+                    newIO = new SingleIO(p);
                     success = true;
                 } finally {
                     if (success == false) {
@@ -120,12 +121,19 @@ public class SharedBytes extends AbstractRefCounted {
         return sharedCacheConfiguration.getPhysicalOffset(chunkPosition);
     }
 
-    public final class IO extends AbstractRefCounted {
+    public interface IO extends RefCounted {
+
+        int read(ByteBuffer dst, long position) throws IOException;
+
+        int write(ByteBuffer src, long position) throws IOException;
+    }
+
+    private final class SingleIO extends AbstractRefCounted implements IO {
 
         private final int sharedBytesPos;
         private final long pageStart;
 
-        private IO(final int sharedBytesPos) {
+        private SingleIO(final int sharedBytesPos) {
             super("shared-bytes-io");
             this.sharedBytesPos = sharedBytesPos;
             pageStart = getPhysicalOffset(sharedBytesPos);

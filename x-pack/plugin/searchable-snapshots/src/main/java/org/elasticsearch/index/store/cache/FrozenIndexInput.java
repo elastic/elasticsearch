@@ -237,12 +237,10 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                                 BytesRef current;
                                 while ((current = iterator.next()) != null) {
                                     final ByteBuffer byteBuffer = ByteBuffer.wrap(current.bytes, current.offset, current.length);
-                                    while (byteBuffer.remaining() > 0) {
-                                        final long bytesWritten = positionalWrite(channel, writePosition, byteBuffer);
-                                        bytesCopied += bytesWritten;
-                                        writePosition += bytesWritten;
-                                        progressUpdater.accept(bytesCopied);
-                                    }
+                                    positionalWrite(channel, writePosition, byteBuffer);
+                                    bytesCopied += current.length;
+                                    writePosition += current.length;
+                                    progressUpdater.accept(bytesCopied);
                                 }
                                 long channelTo = channelPos + len;
                                 assert writePosition == channelTo : writePosition + " vs " + channelTo;
@@ -481,9 +479,9 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         return ByteRange.EMPTY;
     }
 
-    private static int positionalWrite(SharedBytes.IO fc, long start, ByteBuffer byteBuffer) throws IOException {
+    private static void positionalWrite(SharedBytes.IO fc, long start, ByteBuffer byteBuffer) throws IOException {
         assert assertCurrentThreadMayWriteCacheFile();
-        return fc.write(byteBuffer, start);
+        fc.write(byteBuffer, start);
     }
 
     /**

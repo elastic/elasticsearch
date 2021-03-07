@@ -125,7 +125,13 @@ public class SharedBytes extends AbstractRefCounted {
 
         int read(ByteBuffer dst, long position) throws IOException;
 
-        int write(ByteBuffer src, long position) throws IOException;
+        /**
+         * Writes the contents of the given buffer to the requested position
+         *
+         * @param src      byte buffer to write
+         * @param position position to write to
+         */
+        void write(ByteBuffer src, long position) throws IOException;
     }
 
     private final class SingleIO extends AbstractRefCounted implements IO {
@@ -146,9 +152,9 @@ public class SharedBytes extends AbstractRefCounted {
         }
 
         @SuppressForbidden(reason = "Use positional writes on purpose")
-        public int write(ByteBuffer src, long position) throws IOException {
+        public void write(ByteBuffer src, long position) throws IOException {
             checkOffsets(position, src.remaining());
-            return fileChannel.write(src, position);
+            fileChannel.write(src, position);
         }
 
         private void checkOffsets(long position, long length) {

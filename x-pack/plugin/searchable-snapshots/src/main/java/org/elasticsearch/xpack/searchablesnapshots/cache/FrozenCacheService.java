@@ -911,6 +911,16 @@ public class FrozenCacheService implements Releasable {
 
     @FunctionalInterface
     public interface RangeMissingHandler {
+        /**
+         * Fills given shared bytes channel instance with the requested number of bytes at the given {@code channelPos}.
+         *
+         * @param channel         channel to write bytes to be cached to
+         * @param channelPos      position of {@code channel} to write to
+         * @param relativePos     starting position in the blob backing this instance to read the bytes to cache from
+         * @param length          number of bytes to read and cache
+         * @param progressUpdater progress updater that is called with the number of bytes already written to the cache channel by the
+         *                        implementation during cache writes
+         */
         void fillCacheRange(SharedBytes.IO channel, long channelPos, long relativePos, long length, Consumer<Long> progressUpdater)
             throws IOException;
     }

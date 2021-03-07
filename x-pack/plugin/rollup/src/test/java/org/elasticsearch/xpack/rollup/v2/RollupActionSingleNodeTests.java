@@ -92,6 +92,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "date_1", "type=date",
                 "numeric_1", "type=double",
                 "numeric_2", "type=float",
+                "numeric_nonaggregatable", "type=double,doc_values=false",
                 "categorical_1", "type=keyword").get();
     }
 
@@ -257,6 +258,21 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
+    }
+
+    public void testValidationCheck() throws IOException {
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
+            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            // use integers to ensure that avg is comparable between rollup and original
+            .field("numeric_nonaggregatable", randomInt())
+            .endObject();
+        RollupActionConfig config = new RollupActionConfig(
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
+            Collections.singletonList(new MetricConfig("numeric_nonaggregatable", Collections.singletonList("avg"))));
+        bulkIndex(sourceSupplier);
+        Exception e = expectThrows(Exception.class, () -> rollup(config));
+        assertThat(e.getMessage(), containsString("The field [numeric_nonaggregatable] must be aggregatable"));
     }
 
     private RollupActionDateHistogramGroupConfig randomRollupActionDateHistogramGroupConfig(String field) {

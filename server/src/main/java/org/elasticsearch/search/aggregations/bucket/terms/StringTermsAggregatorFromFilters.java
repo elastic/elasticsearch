@@ -68,7 +68,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         if (false == valuesSourceConfig.alignesWithSearchIndex()) {
             return null;
         }
-        if (false == FiltersAggregator.canUseFilterByFilter(parent, factories, null)) {
+        if (false == FiltersAggregator.canUseFilterByFilter(parent, null)) {
             return null;
         }
         List<QueryToFilterAdapter<?>> filters = new ArrayList<>();
@@ -112,7 +112,16 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
             bucketCountThresholds,
             terms
         );
-        return adapted.delegate() == null ? null : adapted;
+        if (adapted.scoreMode().needsScores()) {                /*
+             * Filter by filter won't produce the correct results if the
+             * sub-aggregators need scores because we're not careful with how
+             * we merge filters. Right now we have to build the whole
+             * aggregation in order to know if it'll need scores or not.
+             */
+            // TODO make filter by filter produce the correct result or skip this in canUseFilterbyFilter
+            return null;
+        }
+        return adapted;
     }
 
     private final boolean showTermDocCountError;

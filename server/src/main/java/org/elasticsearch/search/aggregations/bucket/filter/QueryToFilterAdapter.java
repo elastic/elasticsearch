@@ -17,6 +17,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -216,12 +217,31 @@ public class QueryToFilterAdapter<Q extends Query> {
      * Estimate the cost of calling {@code #count} in a leaf.
      */
     long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {
+        return estimateCollectCost(ctx);
+    }
+
+    /**
+     * Collect all documents that match this filter in this leaf.
+     */
+    void collect(LeafReaderContext ctx, LeafCollector collector, Bits live) throws IOException {
+        BulkScorer scorer = bulkScorer(ctx, () -> {});
+        if (scorer == null) {
+            // No hits in this segment.
+            return;
+        }
+        scorer.score(collector, live);
+    }
+
+    /**
+     * Estimate the cost of calling {@code #count} in a leaf.
+     */
+    long estimateCollectCost(LeafReaderContext ctx) throws IOException {
         BulkScorer scorer = bulkScorer(ctx, () -> scorersPreparedWhileEstimatingCost++);
         if (scorer == null) {
             // There aren't any matches for this filter in this leaf
             return 0;
         }
-        return scorer.cost();   // TODO in another PR (please) change this to ScorerSupplier.cost
+        return scorer.cost(); // TODO change this to ScorerSupplier.cost
     }
 
     /**

@@ -766,9 +766,10 @@ public class FrozenCacheService implements Releasable {
             final RangeMissingHandler writer,
             final Executor executor
         ) {
+            assert rangeToWrite.length() > 0 : "should not try to populate and read empty range";
             StepListener<Integer> stepListener = null;
             final int lastRegion = sharedBytes.sharedCacheConfiguration.getRegion(
-                rangeToWrite.end(),
+                rangeToWrite.end() - 1,
                 fileSize,
                 headerCacheLength,
                 footerCacheLength
@@ -782,6 +783,8 @@ public class FrozenCacheService implements Releasable {
                 final int region = i;
                 final ByteRange subRangeToWrite = mapSubRangeToRegion(rangeToWrite, region, fileSize, headerCacheLength, footerCacheLength);
                 final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region, fileSize, headerCacheLength, footerCacheLength);
+                assert subRangeToRead.length() > 0 || subRangeToWrite.length() > 0
+                    : "Either read or write region must be non-empty but saw [" + subRangeToRead + "][" + subRangeToWrite + "]";
                 final CacheFileRegion fileRegion = get(cacheKey, fileSize, region, headerCacheLength, footerCacheLength);
                 final StepListener<Integer> lis = fileRegion.populateAndRead(
                     subRangeToWrite,

@@ -62,8 +62,6 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
             return clusterState;
         }
-        // get source index
-        String indexName = indexMetadata.getIndex().getName();
         // get target index
         String targetIndexName = targetIndexNameSupplier.apply(index, clusterState);
         IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);

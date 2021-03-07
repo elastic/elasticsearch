@@ -350,6 +350,7 @@ public final class TimeSeriesRestDriver {
                 return false;
             }
         }, 30, TimeUnit.SECONDS);
+        logger.info("--> original index name is [{}], shrunken index name is [{}]", originalIndex, shrunkenIndexName[0]);
         return shrunkenIndexName[0];
     }
 }

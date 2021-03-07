@@ -762,6 +762,17 @@ public class FrozenCacheService implements Releasable {
             return cacheKey;
         }
 
+        /**
+         * Populate frozen cache with the requested {@code rangeToWrite} end resolve given {@link RangeAvailableHandler} with the requested
+         * {@code rangeToRead}.
+         *
+         * @param rangeToWrite range to populate cache with
+         * @param rangeToRead  range to pass to {@code reader} once available
+         * @param reader       reader to consumer read bytes
+         * @param writer       writer that populates cache with requested {@code rangeToWrite}
+         * @param executor     executor to run IO operations on
+         * @return             listener that resolves with the number of bytes read
+         */
         public StepListener<Integer> populateAndRead(
             final ByteRange rangeToWrite,
             final ByteRange rangeToRead,

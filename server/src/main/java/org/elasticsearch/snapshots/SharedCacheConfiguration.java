@@ -271,15 +271,21 @@ public final class SharedCacheConfiguration {
         return footerCacheRequested > 0 && footerCacheRequested <= TINY_REGION_SIZE ? TINY_REGION_SIZE : 0;
     }
 
-    // Number of large regions used when caching a file of the given length
+    // calculates the number of large regions required to cache a file
     private int largeRegions(long fileLength, long cacheHeaderLength, long cacheFooterLength) {
+
+        // large regions are only used to cache the body bytes that are not covered by the optional separate header and footer regions
         final long bodyLength = fileLength - cacheHeaderLength - cacheFooterLength;
-        final int largeRegions = Math.toIntExact(bodyLength / largeRegionSize);
-        if (largeRegions == 0 && fileLength <= cacheFooterLength + cacheFooterLength) {
+        if (bodyLength <= 0) {
+            // We do not have any large pages because header and footer cover the full file
             return 0;
         }
-        final long remainder = bodyLength % largeRegionSize;
-        return remainder == 0 ? largeRegions : largeRegions + 1;
+
+        // number of full large regions that are needed for the body bytes
+        final int fullLargeRegions = Math.toIntExact(bodyLength / largeRegionSize);
+        // large regions either align exactly and all of them are fully used or we need to add another partially used one for the remainder
+        // of the body bytes
+        return fullLargeRegions + (bodyLength % largeRegionSize == 0 ? 0 : 1);
     }
 
     public enum RegionType {

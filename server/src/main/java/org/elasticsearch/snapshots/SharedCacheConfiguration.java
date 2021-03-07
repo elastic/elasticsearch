@@ -108,34 +108,45 @@ public final class SharedCacheConfiguration {
         return largeRegionSize;
     }
 
-    // get the number of bytes between the beginning of a file of the given size and the start of the given region
+    /**
+     * Computes the offset in the file at which the given region starts.
+     *
+     * @param region            region index
+     * @param fileSize          size of the fill overall
+     * @param cachedHeaderSize  number of bytes that should be cached to a separate header region
+     * @param footerCacheLength number of bytes that should be cached to a separate footer regino
+     * @return                  offset at which the requested region starts
+     */
     public long getRegionStart(int region, long fileSize, long cachedHeaderSize, long footerCacheLength) {
         if (region == 0) {
+            // first region starts at the beginning of the file
             return 0L;
         }
+        // since we are not in the first page the region starts at least at the size of the separately cached header page
+        final boolean hasHeaderPage = cachedHeaderSize > 0;
+        if (hasHeaderPage && region == 1) {
+            return cachedHeaderSize;
+        }
+
+        // if the region is not the first region it can either be a large region or the separate footer cache page
         final int largeRegions = largeRegions(fileSize, cachedHeaderSize, footerCacheLength);
-        final long headerPageSize;
-        final int largeRegionIndex; // index relative to the first large region
-        if (cachedHeaderSize > 0) {
-            largeRegionIndex = region - 1; // we have a cached header region
-            headerPageSize = cachedHeaderSize;
-        } else {
-            largeRegionIndex = region;
-            headerPageSize = 0L;
+        // The number of large regions determines the highest region index at which a large region starts.
+        // If there is a header page then its simply equal to the number of large regions, otherwise we must deduct one to go from count to
+        // region index
+        final int largeRegionMaxIndex = hasHeaderPage ? largeRegions : largeRegions - 1;
+        if (region <= largeRegionMaxIndex) {
+            return cachedHeaderSize + (region - (hasHeaderPage ? 1 : 0)) * largeRegionSize;
         }
 
-        if (largeRegionIndex < largeRegions) {
-            // this is a large region so we can compute its starting offset as header page length + large regions
-            return (long) largeRegionIndex * largeRegionSize + headerPageSize;
-        }
+        // the given region is the last region in the file but not a large region, it must be the footer cache region
+        assert region == endingRegion(fileSize, cachedHeaderSize, footerCacheLength);
+        assert footerCacheLength > 0;
+        return fileSize - footerCacheLength;
+    }
 
-        // last page can be either a complete or partial large page depending on whether or not we have a separate footer cache page
-        final long largePagesAndHeader = largeRegions * largeRegionSize + headerPageSize;
-        if (footerCacheLength > 0 && largePagesAndHeader > fileSize) {
-            // this is the last page and we have a footer so it's just the footer cache length from the file's end here
-            return fileSize - footerCacheLength;
-        }
-        return largePagesAndHeader;
+    // returns the index of the last region in the file
+    private int endingRegion(long fileSize, long cachedHeaderSize, long footerCacheLength) {
+        return getRegion(fileSize - 1, fileSize, cachedHeaderSize, footerCacheLength);
     }
 
     public RegionType regionType(int region, long fileSize, long cacheHeaderLength, long footerCacheLength) {
@@ -147,7 +158,7 @@ public final class SharedCacheConfiguration {
                 return RegionType.SMALL;
             }
         }
-        if (footerCacheLength > 0 && region == getRegion(fileSize - 1, fileSize, cacheHeaderLength, footerCacheLength)) {
+        if (footerCacheLength > 0 && region == endingRegion(fileSize, cacheHeaderLength, footerCacheLength)) {
             return RegionType.TINY;
         }
         return RegionType.LARGE;
@@ -189,10 +200,9 @@ public final class SharedCacheConfiguration {
      * @return relative position in region
      */
     public long getRegionRelativePosition(long position, long fileSize, long cachedHeaderLength, long footerCacheLength) {
+        // find this file region the position belongs to
         final int region = getRegion(position, fileSize, cachedHeaderLength, footerCacheLength);
-        if (region == 0) {
-            return position;
-        }
+        // relative position is the distance from the region start
         return position - getRegionStart(region, fileSize, cachedHeaderLength, footerCacheLength);
     }
 
@@ -222,33 +232,20 @@ public final class SharedCacheConfiguration {
      * @return size of the file region
      */
     public long getRegionSize(long fileLength, int region, long cachedHeaderLength, long footerCacheLength) {
-        final long currentRegionSize = regionMaxSize(region, fileLength, cachedHeaderLength, footerCacheLength);
-        assert fileLength > 0;
-        final int maxRegion = getRegion(fileLength - 1, fileLength, cachedHeaderLength, footerCacheLength);
-        assert region >= 0 && region <= maxRegion : region + " - " + maxRegion;
-        final long effectiveRegionSize;
-        final long regionStart = getRegionStart(region, fileLength, cachedHeaderLength, footerCacheLength);
-        if (region == maxRegion && regionStart + currentRegionSize != fileLength) {
-            effectiveRegionSize = fileLength - regionStart;
-        } else if (region > 0 && footerCacheLength > 0 && region == maxRegion - 1) {
-            effectiveRegionSize = (fileLength - footerCacheLength) - regionStart;
+        final int maxRegion = endingRegion(fileLength, cachedHeaderLength, footerCacheLength);
+        if (region < maxRegion) {
+            // this is not the last region so the distance between the start of this region and the next region is the size of this region
+            return getRegionStart(region + 1, fileLength, cachedHeaderLength, footerCacheLength) -
+                    getRegionStart(region, fileLength, cachedHeaderLength, footerCacheLength);
         } else {
-            effectiveRegionSize = currentRegionSize;
-        }
-        assert regionStart + effectiveRegionSize <= fileLength;
-        assert effectiveRegionSize > 0;
-        return effectiveRegionSize;
-    }
-
-    // maximum size that the given region may have
-    private long regionMaxSize(int region, long fileSize, long cacheHeaderLength, long footerCacheLength) {
-        switch (regionType(region, fileSize, cacheHeaderLength, footerCacheLength)) {
-            case TINY:
-                return TINY_REGION_SIZE;
-            case SMALL:
-                return SMALL_REGION_SIZE;
-            default:
-                return largeRegionSize;
+            // this is the last region in the file
+            if (region == 0) {
+                // if the file only has a single region then the size of the file is the region size
+                return fileLength;
+            } else {
+                // the distance from the start of this region to the end of this file is the size of the region
+                return fileLength - getRegionStart(region, fileLength, cachedHeaderLength, footerCacheLength);
+            }
         }
     }
 

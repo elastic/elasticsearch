@@ -167,7 +167,12 @@ public class FrozenCacheService implements Releasable {
         if (footerCacheLength > 0 && fileLength - regionStart <= footerCacheLength) {
             regionEnd = fileLength;
         } else {
-            regionEnd = sharedBytes.sharedCacheConfiguration.getRegionStart(region + 1, fileLength, headerCacheLength, footerCacheLength);
+            regionEnd = regionStart + sharedBytes.sharedCacheConfiguration.getRegionSize(
+                fileLength,
+                region,
+                headerCacheLength,
+                footerCacheLength
+            );
         }
         final ByteRange regionRange = ByteRange.of(regionStart, regionEnd);
         if (range.hasOverlap(regionRange) == false) {

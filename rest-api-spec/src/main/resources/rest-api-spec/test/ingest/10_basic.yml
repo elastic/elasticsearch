@@ -156,8 +156,8 @@
 ---
 "Test Get Summarized Pipelines":
   - skip:
-      version: " - 7.99.99"
-      reason:  "change to appropriate 7.x release after backport"
+      version: " - 7.12.99"
+      reason:  "summary option added in 7.13"
 
   - do:
       ingest.put_pipeline:

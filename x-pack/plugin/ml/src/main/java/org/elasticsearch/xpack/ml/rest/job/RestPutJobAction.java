@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -25,7 +24,7 @@ public class RestPutJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
+        return List.of(
             new Route(PUT, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}")
         );
     }

@@ -14,7 +14,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -24,7 +23,7 @@ public class RestValidateDetectorAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
+        return List.of(
             new Route(POST, BASE_PATH + "anomaly_detectors/_validate/detector")
         );
     }

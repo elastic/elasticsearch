@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -25,7 +24,7 @@ public class RestPostJobUpdateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
+        return List.of(
             new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_update")
         );
     }

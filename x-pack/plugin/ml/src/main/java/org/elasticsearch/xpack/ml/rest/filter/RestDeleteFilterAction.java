@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction.Request;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
@@ -24,7 +23,7 @@ public class RestDeleteFilterAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
+        return List.of(
             new Route(DELETE, BASE_PATH + "filters/{" + Request.FILTER_ID.getPreferredName() + "}")
         );
     }

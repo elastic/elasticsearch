@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -25,7 +24,7 @@ public class RestUpdateFilterAction extends BaseRestHandler {
 
    @Override
     public List<Route> routes() {
-        return Collections.singletonList(
+        return List.of(
             new Route(POST, BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}/_update")
         );
     }

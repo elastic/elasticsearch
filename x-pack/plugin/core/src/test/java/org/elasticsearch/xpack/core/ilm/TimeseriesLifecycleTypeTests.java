@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -713,7 +714,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.ZERO, Collections.emptyMap());
             Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.ZERO, Collections.emptyMap());
 
-            validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
+            assertFalse(Strings.hasText(validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase,
+                warmPhase, coldPhase, frozenPhase, deletePhase))));
         }
 
         {
@@ -737,7 +739,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             if (randomBoolean()) {
                 phases.add(deletePhase);
             }
-            validateMonotonicallyIncreasingPhaseTimings(phases);
+            assertFalse(Strings.hasText(validateMonotonicallyIncreasingPhaseTimings(phases)));
         }
 
         {
@@ -757,17 +759,17 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
         {
             Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
-            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(3), Collections.emptyMap());
             Phase coldPhase = new Phase(COLD_PHASE, null, Collections.emptyMap());
             Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
-            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueHours(36), Collections.emptyMap());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
 
             String err =
                 validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
 
             assertThat(err,
-                containsString("phases [delete,frozen] configure a [min_age] value less " +
-                    "than the [min_age] of [2d] for the [warm] phase, configuration: {frozen=1d, delete=1.5d}"));
+                containsString("phases [frozen,delete] configure a [min_age] value less " +
+                    "than the [min_age] of [3d] for the [warm] phase, configuration: {frozen=1d, delete=2d}"));
         }
     }
 

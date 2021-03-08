@@ -159,19 +159,17 @@ public class ParseField {
         boolean isCompatibleDeprecation = RestApiVersion.minimumSupported().matches(forRestApiVersion) &&
             RestApiVersion.current().matches(forRestApiVersion) == false;
 
-        DeprecationHandler deprecationHandlerInstance = deprecationHandler != null ?
-            deprecationHandler.getInstance(isCompatibleDeprecation) : null;
         // Now try to match against one of the deprecated names. Note that if
         // the parse field is entirely deprecated (allReplacedWith != null) all
         // fields will be in the deprecatedNames array
         for (String depName : deprecatedNames) {
             if (fieldName.equals(depName)) {
                 if (fullyDeprecated) {
-                    deprecationHandlerInstance.usedDeprecatedField(parserName, location, fieldName);
+                    deprecationHandler.usedDeprecatedField(parserName, location, fieldName, isCompatibleDeprecation);
                 } else if (allReplacedWith == null) {
-                    deprecationHandlerInstance.usedDeprecatedName(parserName, location, fieldName, name);
+                    deprecationHandler.usedDeprecatedName(parserName, location, fieldName, name, isCompatibleDeprecation);
                 } else {
-                    deprecationHandlerInstance.usedDeprecatedField(parserName, location, fieldName, allReplacedWith);
+                    deprecationHandler.usedDeprecatedField(parserName, location, fieldName, allReplacedWith, isCompatibleDeprecation);
                 }
                 return true;
             }

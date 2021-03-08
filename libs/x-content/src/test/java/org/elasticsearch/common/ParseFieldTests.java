@@ -91,9 +91,22 @@ public class ParseFieldTests extends ESTestCase {
         }
 
         @Override
-        public DeprecationHandler getInstance(boolean compatibleWarnings) {
-            this.compatibleWarningsUsed = compatibleWarnings;
-            return this;
+        public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName,
+                                       boolean isCompatibleDeprecation) {
+            this.compatibleWarningsUsed = isCompatibleDeprecation;
+        }
+
+        @Override
+        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith,
+                                        boolean isCompatibleDeprecation) {
+            this.compatibleWarningsUsed = isCompatibleDeprecation;
+
+        }
+
+        @Override
+        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName,
+                                        boolean isCompatibleDeprecation) {
+            this.compatibleWarningsUsed = isCompatibleDeprecation;
         }
     }
 

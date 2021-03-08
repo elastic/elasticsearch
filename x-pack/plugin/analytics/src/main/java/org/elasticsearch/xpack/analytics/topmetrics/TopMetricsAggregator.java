@@ -118,7 +118,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        assert sub == LeafBucketCollector.NO_OP_COLLECTOR : "Expected noop but was " + sub.toString();
+        assert sub.isNoop() : "Expected noop but was " + sub.toString();
 
         BucketedSort.Leaf leafSort = sort.forLeaf(ctx);
 

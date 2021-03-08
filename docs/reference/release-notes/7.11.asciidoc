@@ -24,7 +24,7 @@ Features/Data streams::
 * Don't mark backing indices of overlapping data streams as conflicts {es-pull}69625[#69625]
 
 Features/ILM+SLM::
-* Fix Bug in Multiple Repo SLM Retention {es-pull}70047[#70047] (issue: {es-issue}70029[#70029])
+* Fix bug in multiple repo SLM retention {es-pull}70047[#70047] (issue: {es-issue}70029[#70029])
 
 Features/Indices APIs::
 * Require master node for watcher template {es-pull}69147[#69147] (issue: {es-issue}66837[#66837])

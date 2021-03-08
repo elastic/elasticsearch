@@ -242,8 +242,6 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 .put("xpack.security.transport.ssl.verification_mode", "none")
                 .build();
             try (MockTransportService serviceC = buildService("TS_C", version0, settings)) {
-                serviceC.acceptIncomingRequests();
-
                 HashMap<String, String> attributes = new HashMap<>();
                 attributes.put("server_name", sniIp);
                 DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,
@@ -289,8 +287,6 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 .put("xpack.security.transport.ssl.verification_mode", "none")
                 .build();
             try (MockTransportService serviceC = buildService("TS_C", version0, settings)) {
-                serviceC.acceptIncomingRequests();
-
                 HashMap<String, String> attributes = new HashMap<>();
                 attributes.put("server_name", sniIp);
                 DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,

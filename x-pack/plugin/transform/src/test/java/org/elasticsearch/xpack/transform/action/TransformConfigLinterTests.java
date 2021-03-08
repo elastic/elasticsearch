@@ -49,7 +49,7 @@ public class TransformConfigLinterTests extends ESTestCase {
         SyncConfig syncConfig = TimeSyncConfigTests.randomTimeSyncConfig();
         assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig), is(empty()));
 
-        Map<String, Object> runtimeMappings = new HashMap<>() {{
+        Map<String, Object> runtimeMappings = new HashMap<String, Object>() {{
             put("rt-field-A", singletonMap("type", "keyword"));
             put("rt-field-B", singletonMap("script", "some script"));
             put("rt-field-C", singletonMap("script", "some other script"));
@@ -72,7 +72,7 @@ public class TransformConfigLinterTests extends ESTestCase {
 
         SyncConfig syncConfig = new TimeSyncConfig("rt-field-C", null);
 
-        Map<String, Object> runtimeMappings = new HashMap<>() {{
+        Map<String, Object> runtimeMappings = new HashMap<String, Object>() {{
             put("rt-field-A", singletonMap("type", "keyword"));
             put("rt-field-B", singletonMap("script", "some script"));
             put("rt-field-C", singletonMap("script", "some other script"));

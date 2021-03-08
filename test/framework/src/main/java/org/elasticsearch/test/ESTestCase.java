@@ -45,7 +45,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.io.PathUtils;
@@ -1335,10 +1334,9 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final XContentParser createParser(NamedXContentRegistry namedXContentRegistry, XContent xContent,
                                                 BytesReference data) throws IOException {
-        if (data instanceof BytesArray) {
-            final BytesArray array = (BytesArray) data;
+        if (data.hasArray()) {
             return xContent.createParser(
-                    namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, array.array(), array.offset(), array.length());
+                    namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, data.array(), data.arrayOffset(), data.length());
         }
         return xContent.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, data.streamInput());
     }

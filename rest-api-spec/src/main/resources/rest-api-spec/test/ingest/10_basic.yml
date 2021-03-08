@@ -152,3 +152,35 @@
             "processors": [],
             "invalid_field" : {}
           }
+
+---
+"Test Get Summarized Pipelines":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "change to appropriate 7.x release after backport"
+
+  - do:
+      ingest.put_pipeline:
+        id: "first_pipeline"
+        body:  >
+          {
+            "description": "first",
+            "processors": []
+          }
+  - do:
+      ingest.put_pipeline:
+        id: "second_pipeline"
+        body:  >
+          {
+            "description": "second",
+            "processors": []
+          }
+
+  - do:
+      ingest.get_pipeline:
+        summary: true
+
+  - is_true:  first_pipeline
+  - is_false: first_pipeline.description
+  - is_true:  second_pipeline
+  - is_false: second_pipeline.description

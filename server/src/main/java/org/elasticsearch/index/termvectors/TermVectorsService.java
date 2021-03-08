@@ -323,7 +323,6 @@ public class TermVectorsService  {
                                                 XContentType xContentType, String routing) {
         MapperService mapperService = indexShard.mapperService();
         DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate();
-        // TODO:?
         ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(
                 new SourceToParse(index, "_id_for_tv_api", doc, xContentType, routing, Map.of()));
         if (docMapper.getMapping() != null) {

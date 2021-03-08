@@ -93,7 +93,6 @@ tasks.named("yamlRestCompatTest").configure {
     'cat.shards/10_basic/Test cat shards using wildcards',
     'cat.snapshots/10_basic/Help',
     'cat.snapshots/10_basic/Test cat snapshots output',
-    'cluster.stats/10_basic/get cluster stats stats without runtime fields',
     'cat.tasks/10_basic/Test cat tasks output',
     'cat.tasks/10_basic/Test cat tasks output with X-Opaque-Id',
     'cat.templates/10_basic/Column headers',

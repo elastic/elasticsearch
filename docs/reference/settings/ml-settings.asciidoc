@@ -98,11 +98,14 @@ general best practice is to not use swap on {es} nodes.
 
 `xpack.ml.max_model_memory_limit`::
 (<<cluster-update-settings,Dynamic>>) The maximum `model_memory_limit` property
-value that can be set for any job on this node. If you try to create a job with
-a `model_memory_limit` property value that is greater than this setting value,
-an error occurs. Existing jobs are not affected when you update this setting.
-If this setting is `0` or unset, the maximum `model_memory_limit` value is `1gb`.
-For more information about the `model_memory_limit` property, see
+value that can be set for any {ml} jobs in this cluster. If you try to create a
+job with a `model_memory_limit` property value that is greater than this setting
+value, an error occurs. Existing jobs are not affected when you update this
+setting. If this setting is `0` or unset, there is no maximum
+`model_memory_limit` value. If there are no nodes that meet the memory
+requirements for a job, this lack of a maximum memory limit means it's possible
+to create jobs that cannot be assigned to any available nodes. For more
+information about the `model_memory_limit` property, see
 <<put-analysislimits,`analysis_limits`>>. Defaults to `0`.
 
 [[xpack.ml.max_open_jobs]]

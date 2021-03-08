@@ -11,7 +11,7 @@ package org.elasticsearch.packaging.test;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.DockerRun;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ProcessInfo;
@@ -34,13 +34,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.util.Distribution.Packaging;
 import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
 import static org.elasticsearch.packaging.util.Docker.chownWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.Docker.getImageLabels;
-import static org.elasticsearch.packaging.util.Docker.getImageName;
 import static org.elasticsearch.packaging.util.Docker.getJson;
 import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
@@ -56,6 +56,7 @@ import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
@@ -566,7 +567,7 @@ public class DockerTests extends PackagingTestCase {
         // expected group.
         final Shell localSh = new Shell();
         final String findResults = localSh.run(
-            "docker run --rm --tty " + getImageName(distribution) + " bash -c ' touch data/test && find . \\! -group 0 ' "
+            "docker run --rm --tty " + DockerRun.getImageName(distribution) + " bash -c ' touch data/test && find . \\! -group 0 ' "
         ).stdout;
 
         assertThat("Found some files whose GID != 0", findResults, is(emptyString()));
@@ -780,7 +781,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the UBI images has the correct license information in the correct place.
      */
     public void test200UbiImagesHaveLicenseDirectory() {
-        assumeTrue(distribution.packaging == Distribution.Packaging.DOCKER_UBI);
+        assumeTrue(distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_UBI_FROM_CONTEXT);
 
         final String[] files = sh.run("find /licenses -type f").stdout.split("\n");
         assertThat(files, arrayContaining("/licenses/LICENSE"));
@@ -795,7 +796,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the UBI image has the expected labels
      */
     public void test210UbiLabels() throws Exception {
-        assumeTrue(distribution.packaging == Distribution.Packaging.DOCKER_UBI);
+        assumeTrue(distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_UBI_FROM_CONTEXT);
 
         final Map<String, String> labels = getImageLabels(distribution);
 
@@ -814,5 +815,31 @@ public class DockerTests extends PackagingTestCase {
         });
 
         dynamicLabels.forEach(key -> assertThat(labels, hasKey(key)));
+    }
+
+    /**
+     * Check that the UBI images has the correct license information in the correct place.
+     */
+    public void test300IronBankImagesHaveLicenseDirectory() {
+        assumeTrue(distribution.packaging == Packaging.DOCKER_IRON_BANK_FROM_CONTEXT);
+
+        final String[] files = sh.run("find /licenses -type f").stdout.split("\n");
+        assertThat(files, arrayContaining("/licenses/LICENSE", "/licenses/LICENSE.addendum"));
+
+        // Image doesn't contain `diff`
+        final String ubiLicense = sh.run("cat /licenses/LICENSE").stdout;
+        final String distroLicense = sh.run("cat /usr/share/elasticsearch/LICENSE.txt").stdout;
+        assertThat(ubiLicense, equalTo(distroLicense));
+    }
+
+    /**
+     * Check that the Iron Bank image doesn't define extra labels
+     */
+    public void test310IronBankImageHasNoLabels() throws Exception {
+        assumeTrue(distribution.packaging == Packaging.DOCKER_IRON_BANK_FROM_CONTEXT);
+
+        final Map<String, String> labels = getImageLabels(distribution);
+
+        assertThat(labels, is(anEmptyMap()));
     }
 }

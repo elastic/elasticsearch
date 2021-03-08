@@ -113,7 +113,10 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
                 break;
 
             case DOCKER:
+            case DOCKER_CONTEXT:
             case DOCKER_UBI:
+            case DOCKER_UBI_CONTEXT:
+            case DOCKER_IRON_BANK:
                 projectPath += ":docker:";
                 projectPath += distributionProjectName(distribution);
                 break;
@@ -153,24 +156,28 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
 
         switch (distribution.getType()) {
             case ARCHIVE:
-                projectName += platform.toString() + archString + (platform == ElasticsearchDistribution.Platform.WINDOWS
+                return projectName + platform.toString() + archString + (platform == ElasticsearchDistribution.Platform.WINDOWS
                     ? "-zip"
                     : "-tar");
-                break;
 
             case DOCKER:
-                projectName += "docker" + archString + "-export";
-                break;
+                return projectName + "docker" + archString + "-export";
+
+            case DOCKER_CONTEXT:
+                return projectName + "docker" + archString + "-from-context-export";
 
             case DOCKER_UBI:
-                projectName += "ubi-docker" + archString + "-export";
-                break;
+                return projectName + "ubi-docker" + archString + "-export";
+
+            case DOCKER_UBI_CONTEXT:
+                return projectName + "ubi-docker" + archString + "-from-context-export";
+
+            case DOCKER_IRON_BANK:
+                return projectName + "ironbank-docker" + archString + "-from-context-export";
 
             default:
-                projectName += distribution.getType();
-                break;
+                return projectName + distribution.getType();
         }
-        return projectName;
     }
 
     private static class ProjectBasedDistributionDependency implements DistributionDependency {

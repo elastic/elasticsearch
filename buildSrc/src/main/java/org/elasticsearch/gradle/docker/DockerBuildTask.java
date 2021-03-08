@@ -15,6 +15,7 @@ import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
@@ -42,6 +43,7 @@ public class DockerBuildTask extends DefaultTask {
     private boolean pull = true;
     private boolean noCache = true;
     private String[] baseImages;
+    private MapProperty<String, String> buildArgs = getProject().getObjects().mapProperty(String.class, String.class);
 
     @Inject
     public DockerBuildTask(WorkerExecutor workerExecutor) {
@@ -57,7 +59,8 @@ public class DockerBuildTask extends DefaultTask {
             params.getTags().set(Arrays.asList(tags));
             params.getPull().set(pull);
             params.getNoCache().set(noCache);
-            params.getBaseImages().set(baseImages);
+            params.getBaseImages().set(Arrays.asList(baseImages));
+            params.getBuildArgs().set(buildArgs);
         });
     }
 
@@ -103,6 +106,16 @@ public class DockerBuildTask extends DefaultTask {
         this.baseImages = baseImages;
     }
 
+    @Input
+    public MapProperty<String, String> getBuildArgs() {
+        return buildArgs;
+    }
+
+    public void setBuildArgs(MapProperty<String, String> buildArgs) {
+        this.buildArgs = buildArgs;
+    }
+
+
     @OutputFile
     public RegularFileProperty getMarkerFile() {
         return markerFile;
@@ -147,9 +160,7 @@ public class DockerBuildTask extends DefaultTask {
             final Parameters parameters = getParameters();
 
             if (parameters.getPull().get()) {
-                for (String baseImage : parameters.getBaseImages().get()) {
-                    pullBaseImage(baseImage);
-                }
+                parameters.getBaseImages().get().forEach(this::pullBaseImage);
             }
 
             LoggedExec.exec(execOperations, spec -> {
@@ -162,6 +173,8 @@ public class DockerBuildTask extends DefaultTask {
                 }
 
                 parameters.getTags().get().forEach(tag -> spec.args("--tag", tag));
+
+                parameters.getBuildArgs().get().forEach((k, v) -> spec.args("--build-arg", k + "=" + v));
             });
 
             try {
@@ -183,6 +196,8 @@ public class DockerBuildTask extends DefaultTask {
 
         Property<Boolean> getNoCache();
 
-        Property<String[]> getBaseImages();
+        ListProperty<String> getBaseImages();
+
+        MapProperty<String, String> getBuildArgs();
     }
 }

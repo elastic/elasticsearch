@@ -129,7 +129,39 @@ public class DockerRun {
         return String.join(" ", cmd);
     }
 
-    static String getImageName(Distribution distribution) {
-        return distribution.flavor.name + (distribution.packaging == Distribution.Packaging.DOCKER_UBI ? "-ubi8" : "") + ":test";
+    /**
+     * Derives a Docker image name from the supplied distribution.
+     * @param distribution the distribution to use
+     * @return an image name
+     */
+    public static String getImageName(Distribution distribution) {
+        String suffix;
+
+        switch (distribution.packaging) {
+            case DOCKER:
+                suffix = "";
+                break;
+
+            case DOCKER_FROM_CONTEXT:
+                suffix = "-from-context";
+                break;
+
+            case DOCKER_UBI:
+                suffix = "-ubi8";
+                break;
+
+            case DOCKER_UBI_FROM_CONTEXT:
+                suffix = "-ubi-from-context";
+                break;
+
+            case DOCKER_IRON_BANK_FROM_CONTEXT:
+                suffix = "-ironbank-from-context";
+                break;
+
+            default:
+                throw new IllegalStateException("Unexpected distribution packaging type: " + distribution.packaging);
+        }
+
+        return distribution.flavor.name + suffix + ":test";
     }
 }

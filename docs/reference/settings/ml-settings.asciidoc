@@ -172,7 +172,7 @@ cluster scaling. If you set it to the maximum possible size of future {ml} nodes
 when a {ml} job is assigned to a lazy node it can check (and fail quickly) when
 scaling cannot support the size of the job. When the {operator-feature} is
 enabled, this setting can be updated only by operator users. Defaults to `0b`,
-which means this value is ignored. 
+which means it will be assumed that automatic cluster scaling can add arbitrarily large nodes to the cluster. 
 
 `xpack.ml.persist_results_max_retries`::
 (<<cluster-update-settings,Dynamic>>) The maximum number of times to retry bulk

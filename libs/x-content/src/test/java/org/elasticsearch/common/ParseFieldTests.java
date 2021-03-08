@@ -79,32 +79,32 @@ public class ParseFieldTests extends ESTestCase {
         public boolean compatibleWarningsUsed = false;
 
         @Override
-        public void logRenamedField(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
+        public void logRenamedField(String parserName, Supplier<XContentLocation> location, String oldName, String currentName) {
         }
 
         @Override
-        public void logReplacedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
+        public void logReplacedField(String parserName, Supplier<XContentLocation> location, String oldName, String replacedName) {
         }
 
         @Override
-        public void logRemovedField(String parserName, Supplier<XContentLocation> location, String usedName) {
+        public void logRemovedField(String parserName, Supplier<XContentLocation> location, String removedName) {
         }
 
         @Override
-        public void logRenamedField(String parserName, Supplier<XContentLocation> location, String usedName, String modernName,
+        public void logRenamedField(String parserName, Supplier<XContentLocation> location, String oldName, String currentName,
                                     boolean isCompatibleDeprecation) {
             this.compatibleWarningsUsed = isCompatibleDeprecation;
         }
 
         @Override
-        public void logReplacedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith,
+        public void logReplacedField(String parserName, Supplier<XContentLocation> location, String oldName, String replacedName,
                                      boolean isCompatibleDeprecation) {
             this.compatibleWarningsUsed = isCompatibleDeprecation;
 
         }
 
         @Override
-        public void logRemovedField(String parserName, Supplier<XContentLocation> location, String usedName,
+        public void logRemovedField(String parserName, Supplier<XContentLocation> location, String removedName,
                                     boolean isCompatibleDeprecation) {
             this.compatibleWarningsUsed = isCompatibleDeprecation;
         }

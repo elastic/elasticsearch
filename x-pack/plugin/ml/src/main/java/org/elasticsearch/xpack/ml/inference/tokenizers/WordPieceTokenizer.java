@@ -1,9 +1,9 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
-
 package org.elasticsearch.xpack.ml.inference.tokenizers;
 
 import java.util.ArrayList;
@@ -19,38 +19,63 @@ import java.util.Map;
  */
 public class WordPieceTokenizer {
 
-    public static final String DEFAULT_UNKNOWN_TOKEN = "[UNK]";
-    public static final int DEFAULT_MAX_INPUT_CHARS_PER_WORD = 100;
-
     private static final String CONTINUATION = "##";
 
     private final Map<String, Integer> vocab;
     private final String unknownToken;
     private final int maxInputCharsPerWord;
 
-    public WordPieceTokenizer(Map<String, Integer> vocab) {
-        this(vocab, DEFAULT_UNKNOWN_TOKEN, DEFAULT_MAX_INPUT_CHARS_PER_WORD);
+    public static class TokenAndId {
+        private final String token;
+        private final int id;
+
+        TokenAndId(String token, int id) {
+            this.token = token;
+            this.id = id;
+        }
+
+        public int getId() {
+            return id;
+        }
+
+        public String getToken() {
+            return token;
+        }
     }
 
+    /**
+     *
+     * @param vocab The token vocabulary
+     * @param unknownToken If not found in the vocabulary
+     * @param maxInputCharsPerWord Inputs tokens longer than this are 'unknown'
+     */
     public WordPieceTokenizer(Map<String, Integer> vocab, String unknownToken, int maxInputCharsPerWord) {
         this.vocab = vocab;
         this.unknownToken = unknownToken;
         this.maxInputCharsPerWord = maxInputCharsPerWord;
     }
 
-    public List<String> tokenize(String text) {
+    /**
+     * Wordpiece tokenize the input text.
+     *
+     * @param text A single token or whitespace separated tokens.
+     *             Input should have been normalized by the {@link BasicTokenizer}.
+     * @return List of tokens
+     */
+    public List<TokenAndId> tokenize(String text) {
         String[] tokens = BasicTokenizer.whiteSpaceTokenize(text);
 
-        List<String> output = new ArrayList<>(tokens.length);
+        List<TokenAndId> output = new ArrayList<>();
         for (String token : tokens) {
             if (token.length() > maxInputCharsPerWord) {
-                output.add(unknownToken);
+                assert vocab.containsKey(unknownToken);
+                output.add(new TokenAndId(unknownToken, vocab.get(unknownToken)));
                 continue;
             }
 
             boolean isBad = false;
             int start = 0;
-            List<String> subTokens = new ArrayList<>();
+            List<TokenAndId> subTokens = new ArrayList<>();
             int length = token.length();
             while (start < length) {
                 int end = length;
@@ -77,13 +102,14 @@ public class WordPieceTokenizer {
                     isBad = true;
                     break;
                 }
-                subTokens.add(currentValidSubStr);
+
+                subTokens.add(new TokenAndId(currentValidSubStr, vocab.get(currentValidSubStr)));
 
                 start = end;
             }
 
             if (isBad) {
-                output.add(unknownToken);
+                output.add(new TokenAndId(unknownToken, vocab.get(unknownToken)));
             } else  {
                 output.addAll(subTokens);
             }

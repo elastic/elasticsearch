@@ -1,9 +1,9 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
-
 package org.elasticsearch.xpack.ml.inference.tokenizers;
 
 import joptsimple.internal.Strings;
@@ -56,11 +56,17 @@ public class BasicTokenizer {
         this.neverSplit = Collections.emptySet();
     }
 
+    /**
+     * Tokenize CJK chars defaults to the value of {@code isLowerCase}
+     * when not explicitly set
+     * @param isLowerCase  If true convert the input to lowercase
+     * @param isTokenizeCjkChars Should CJK ideographs be tokenized
+     */
     public BasicTokenizer(boolean isLowerCase, boolean isTokenizeCjkChars) {
         this(isLowerCase, isTokenizeCjkChars, isLowerCase);
     }
 
-    public BasicTokenizer() {
+    BasicTokenizer() {
         this(true, true, true);
     }
 

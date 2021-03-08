@@ -71,8 +71,8 @@ These files are mostly written by Lucene and contain a compact representation
 of all the data in each index or data stream in a form that is designed to be
 searched efficiently. This means that when you restore an index or data stream
 from a snapshot there is no need to rebuild these search-focused data
-structures, and also means that you can use <<searchable-snapshots>> to
-directly search the data in the repository.
+structures. It also means that you can use <<searchable-snapshots>> to directly
+search the data in the repository.
 
 The snapshot process is incremental: {es} compares the files that make up the
 index or data stream against the files that already exist in the repository

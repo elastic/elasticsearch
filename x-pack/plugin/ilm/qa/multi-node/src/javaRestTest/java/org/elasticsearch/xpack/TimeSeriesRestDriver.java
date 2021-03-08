@@ -337,7 +337,7 @@ public final class TimeSeriesRestDriver {
 
     @SuppressWarnings("unchecked")
     @Nullable
-    public static String waitAndGetShrinkIndexName(RestClient client, String originalIndex) throws InterruptedException, IOException {
+    public static String waitAndGetShrinkIndexName(RestClient client, String originalIndex) throws InterruptedException {
         String[] shrunkenIndexName = new String[1];
         waitUntil(() -> {
             try {
@@ -363,7 +363,7 @@ public final class TimeSeriesRestDriver {
                     }
                 }
 
-                logger.info("--> index {}, explain {}", originalIndex, explainIndexResponse);
+                logger.info("--> index {}, explain {}", originalIndex, indexResponse);
                 if (explainIndexResponse == null) {
                     return false;
                 }

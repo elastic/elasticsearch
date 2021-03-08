@@ -30,7 +30,7 @@ Features/Indices APIs::
 * Require master node for watcher template {es-pull}69147[#69147] (issue: {es-issue}66837[#66837])
 
 Features/Ingest::
-* Async Processors and Final Pipelines are Broken {es-pull}69818[#69818] (issue: {es-issue}52339[#52339])
+* Async processors and final pipelines are broken {es-pull}69818[#69818] (issue: {es-issue}52339[#52339])
 * Copy_from on set processor should deep copy non-primitive mutable types {es-pull}69349[#69349] (issue: {es-issue}69348[#69348])
 
 Infra/Plugins::

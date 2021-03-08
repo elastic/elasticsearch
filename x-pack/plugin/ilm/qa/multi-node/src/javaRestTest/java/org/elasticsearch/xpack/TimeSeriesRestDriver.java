@@ -335,12 +335,31 @@ public final class TimeSeriesRestDriver {
         return (String) snapResponse.get("state");
     }
 
+    @SuppressWarnings("unchecked")
     @Nullable
     public static String waitAndGetShrinkIndexName(RestClient client, String originalIndex) throws InterruptedException, IOException {
         String[] shrunkenIndexName = new String[1];
         waitUntil(() -> {
             try {
-                Map<String, Object> explainIndexResponse = explainIndex(client, originalIndex);
+                Request explainRequest = new Request("GET", originalIndex + "/_ilm/explain");
+                explainRequest.addParameter("only_errors", Boolean.toString(false));
+                explainRequest.addParameter("only_managed", Boolean.toString(false));
+                Response response = client.performRequest(explainRequest);
+                Map<String, Object> responseMap;
+                try (InputStream is = response.getEntity().getContent()) {
+                    responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                }
+
+                Map<String, Map<String, Object>> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"));
+                Map<String, Object> explainIndexResponse = null;
+                for (Map.Entry<String, Map<String, Object>> indexToExplainMap : indexResponse.entrySet()) {
+                    // we don't know the exact name of the shrunken index, but we know it starts with the configured prefix
+                    if(indexToExplainMap.getKey().startsWith(ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex)) {
+                        explainIndexResponse = indexToExplainMap.getValue();
+                        break;
+                    }
+                }
+
                 logger.info("--> index {}, explain {}", originalIndex, explainIndexResponse);
                 if (explainIndexResponse == null) {
                     return false;

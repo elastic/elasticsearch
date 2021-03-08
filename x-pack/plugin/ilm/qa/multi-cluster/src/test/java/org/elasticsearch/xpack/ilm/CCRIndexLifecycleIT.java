@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.ccr.ESCCRRestTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 
 import java.io.IOException;
@@ -471,7 +472,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         } else {
             fail("unexpected target cluster [" + targetCluster + "]");
         }
-
     }
 
     public void testILMUnfollowFailsToRemoveRetentionLeases() throws Exception {
@@ -792,11 +792,30 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         return (String) snapResponse.get("state");
     }
 
+    @SuppressWarnings("unchecked")
     private static String getShrinkIndexName(RestClient client, String originalIndex) throws InterruptedException, IOException {
         String[] shrunkenIndexName = new String[1];
         waitUntil(() -> {
             try {
-                Map<String, Object> explainIndexResponse = explainIndex(client, originalIndex);
+                Request explainRequest = new Request("GET", originalIndex + "/_ilm/explain");
+                explainRequest.addParameter("only_errors", Boolean.toString(false));
+                explainRequest.addParameter("only_managed", Boolean.toString(false));
+                Response response = client.performRequest(explainRequest);
+                Map<String, Object> responseMap;
+                try (InputStream is = response.getEntity().getContent()) {
+                    responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                }
+
+                Map<String, Map<String, Object>> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"));
+                Map<String, Object> explainIndexResponse = null;
+                for (Map.Entry<String, Map<String, Object>> indexToExplainMap : indexResponse.entrySet()) {
+                    // we don't know the exact name of the shrunken index, but we know it starts with the configured prefix
+                    if(indexToExplainMap.getKey().startsWith(ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex)) {
+                        explainIndexResponse = indexToExplainMap.getValue();
+                        break;
+                    }
+                }
+
                 LOGGER.info("--> index {}, explain {}", originalIndex, explainIndexResponse);
                 if (explainIndexResponse == null) {
                     return false;
@@ -807,23 +826,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 return false;
             }
         }, 30, TimeUnit.SECONDS);
-        assert shrunkenIndexName[0] != null : "lifecycle execution state must contain the target shrink index name for index [" +
-             originalIndex + "]. state is: " + explainIndex(client, originalIndex);
+        assert shrunkenIndexName[0] != null : "lifecycle execution state must contain the target shrink index name for index ["
+            + originalIndex + "]";
         return shrunkenIndexName[0];
-    }
-
-    private static Map<String, Object> explainIndex(RestClient client, String index) throws IOException {
-        Request explainRequest = new Request("GET", index + "/_ilm/explain");
-        explainRequest.addParameter("only_errors", Boolean.toString(false));
-        explainRequest.addParameter("only_managed", Boolean.toString(false));
-        Response response = client.performRequest(explainRequest);
-        Map<String, Object> responseMap;
-        try (InputStream is = response.getEntity().getContent()) {
-            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
-        }
-
-        @SuppressWarnings("unchecked") Map<String, Map<String, Object>> indexResponse =
-            ((Map<String, Map<String, Object>>) responseMap.get("indices"));
-        return indexResponse.get(index);
     }
 }

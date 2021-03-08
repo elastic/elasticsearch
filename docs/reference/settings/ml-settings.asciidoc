@@ -106,7 +106,7 @@ setting. If this setting is `0` or unset, there is no maximum
 requirements for a job, this lack of a maximum memory limit means it's possible
 to create jobs that cannot be assigned to any available nodes. For more
 information about the `model_memory_limit` property, see
-<<put-analysislimits,`analysis_limits`>>. Defaults to `0`.
+<<ml-put-job,Create {anomaly-jobs}>> or <<put-dfanalytics>>. Defaults to `0`.
 
 [[xpack.ml.max_open_jobs]]
 `xpack.ml.max_open_jobs`::

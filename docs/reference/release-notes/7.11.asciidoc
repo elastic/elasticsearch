@@ -49,7 +49,7 @@ SQL::
 
 Snapshot/Restore::
 * Fix Leaking Listener in `BlobStoreRepository` {es-pull}69110[#69110]
-* Remove Blocking on GENERIC Pool in GET Snapshots {es-pull}69101[#69101] (issue: {es-issue}69099[#69099])
+* Remove blocking on `generic` thread pool in `GET` snapshots {es-pull}69101[#69101] (issue: {es-issue}69099[#69099])
 * URL repos and searchable snapshots don't mix {es-pull}69197[#69197] (issue: {es-issue}68918[#68918])
 
 Transform::

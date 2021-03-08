@@ -115,7 +115,6 @@ public class DockerBuildTask extends DefaultTask {
         this.buildArgs = buildArgs;
     }
 
-
     @OutputFile
     public RegularFileProperty getMarkerFile() {
         return markerFile;

@@ -467,6 +467,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFetchMany() throws IOException {
+        /*
+         * When we have many values doc values will sort and unique them.
+         * Source fetching won't, but we expect that. So we test with
+         * sorted and uniqued values.
+         */
         int count = between(2, 10);
         Set<String> values = new HashSet<>();
         while (values.size() < count) {

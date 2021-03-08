@@ -98,17 +98,18 @@ public interface DeprecationHandler {
      */
     void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName);
 
+    /**
+     * @see DeprecationHandler#usedDeprecatedName(String, Supplier, String, String)
+     * Emits a compatible api warning instead of deprecation warning when isCompatibleDeprecation is true
+     */
     default void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName,
                                     boolean isCompatibleDeprecation) {
         usedDeprecatedName(parserName, location, usedName, modernName);
     }
 
     /**
-     * Called when the provided field name matches the current field but the entire
-     * field has been marked as deprecated and another field should be used
+     * @see DeprecationHandler#usedDeprecatedField(String, Supplier, String, String)
      * Emits a compatible api warning instead of deprecation warning when isCompatibleDeprecation is true
-     * @param usedName the provided field name
-     * @param replacedWith the name of the field that replaced this field
      */
     default void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith,
                                      boolean isCompatibleDeprecation) {
@@ -116,10 +117,8 @@ public interface DeprecationHandler {
     }
 
     /**
-     * Called when the provided field name matches the current field but the entire
-     * field has been marked as deprecated with no replacement
+     * @see DeprecationHandler#usedDeprecatedField(String, Supplier, String)
      * Emits a compatible api warning instead of deprecation warning when isCompatibleDeprecation is true
-     * @param usedName the provided field name
      */
     default void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName,
                                      boolean isCompatibleDeprecation) {

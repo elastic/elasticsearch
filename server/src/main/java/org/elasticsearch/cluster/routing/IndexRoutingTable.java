@@ -57,7 +57,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
     private static final List<Predicate<ShardRouting>> PRIORITY_REMOVE_CLAUSES = List.of(
         ShardRouting::unassigned,
         ShardRouting::initializing,
-        ShardRouting::relocating,
         shardRouting -> true
     );
     private final Index index;

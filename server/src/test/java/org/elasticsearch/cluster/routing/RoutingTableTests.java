@@ -31,7 +31,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.containsString;
@@ -399,7 +398,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     public void testRemoveReplicasInRightOrder() {
-        final List<ShardRoutingState> rightRemoveOrder = List.of(UNASSIGNED, INITIALIZING, RELOCATING, STARTED);
+        final List<ShardRoutingState> rightRemoveOrder = List.of(UNASSIGNED, INITIALIZING, STARTED);
         Index index = new Index("index", "uuid");
         ShardId shardId = new ShardId(index, 0);
         List<ShardRouting> shards = new ArrayList<>();
@@ -407,7 +406,6 @@ public class RoutingTableTests extends ESAllocationTestCase {
         shards.add(TestShardRouting.newShardRouting(shardId, null, false, UNASSIGNED));
         shards.add(TestShardRouting.newShardRouting(shardId, "node2", false, INITIALIZING));
         shards.add(TestShardRouting.newShardRouting(shardId, "node3", false, STARTED));
-        shards.add(TestShardRouting.newShardRouting(shardId, "node4", "node5", false, ShardRoutingState.RELOCATING));
 
         for (int removeReplicaNumber = 0; removeReplicaNumber <= rightRemoveOrder.size(); removeReplicaNumber++) {
             IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(index);

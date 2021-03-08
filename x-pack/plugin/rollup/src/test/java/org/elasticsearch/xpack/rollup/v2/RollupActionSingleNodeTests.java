@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
@@ -73,6 +75,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
@@ -280,7 +283,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
             .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            // use integers to ensure that avg is comparable between rollup and original
+            // Use integers to ensure that avg is comparable between rollup and original
             .field("numeric_1", randomInt())
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
@@ -384,10 +387,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertRollupIndex(config, index, rollupIndex);
     }
 
+    @SuppressWarnings("unchecked")
     private void assertRollupIndex(RollupActionConfig config, String sourceIndex, String rollupIndex) {
-        // TODO(talevy): assert mapping
-        // TODO(talevy): assert settings
-
         final CompositeAggregationBuilder aggregation = buildCompositeAggs("resp", config);
         long numBuckets = 0;
         InternalComposite origResp = client().prepareSearch(sourceIndex).addAggregation(aggregation).get().getAggregations().get("resp");
@@ -404,7 +405,46 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         SearchResponse resp = client().prepareSearch(rollupIndex).setTrackTotalHits(true).get();
         assertThat(resp.getHits().getTotalHits().value, equalTo(numBuckets));
 
-        // assert that temporary index was removed
+        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
+        // Assert rollup metadata are set in index settings
+        assertEquals(indexSettingsResp.getSetting(sourceIndex, "index.uuid"),
+            indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.uuid"));
+        assertEquals(indexSettingsResp.getSetting(sourceIndex, "index.provided_name"),
+            indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.name"));
+
+        // Assert field mappings
+        Map<String, Map<String,Object>> mappings = (Map<String, Map<String, Object>>) indexSettingsResp.getMappings().get(rollupIndex)
+            .getSourceAsMap().get("properties");
+
+        RollupActionDateHistogramGroupConfig dateHistoConfig = config.getGroupConfig().getDateHistogram();
+        assertEquals(DateFieldMapper.CONTENT_TYPE, mappings.get(dateHistoConfig.getField()).get("type"));
+        Map<String, Object> dateTimeMeta = (Map<String, Object>) mappings.get(dateHistoConfig.getField()).get("meta");
+        assertEquals(dateHistoConfig.getTimeZone(), dateTimeMeta.get("time_zone"));
+        assertEquals(dateHistoConfig.getInterval().toString(), dateTimeMeta.get(dateHistoConfig.getIntervalTypeName()));
+
+        for (MetricConfig metricsConfig : config.getMetricsConfig()) {
+            assertEquals("aggregate_metric_double", mappings.get(metricsConfig.getField()).get("type"));
+            // TODO: Break avg into sum + value_count
+            // assertEquals(metricsConfig.getMetrics(), mappings.get(metricsConfig.getField()).get("metrics"));
+        }
+
+        HistogramGroupConfig histoConfig = config.getGroupConfig().getHistogram();
+        if (histoConfig != null) {
+            for (String field: histoConfig.getFields()) {
+                assertTrue((mappings.containsKey(field)));
+                Map<String, Object> meta = (Map<String, Object>) mappings.get(field).get("meta");
+                assertEquals(String.valueOf(histoConfig.getInterval()), meta.get("interval"));
+            }
+        }
+
+        TermsGroupConfig termsConfig = config.getGroupConfig().getTerms();
+        if (termsConfig != null) {
+            for (String field : termsConfig.getFields()) {
+                assertTrue(mappings.containsKey(field));
+            }
+        }
+
+        // Assert that temporary index was removed
         expectThrows(IndexNotFoundException.class,
             () -> client().admin().indices().prepareGetIndex().addIndices(".rolluptmp-" + rollupIndex).get());
     }

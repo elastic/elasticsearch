@@ -106,8 +106,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             .indices(originalIndexName)
             .fields(request.getRollupConfig().getAllFields().toArray(new String[0]));
         fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        // Add the source index name and id to the rollup index metadata. If the original index is a rollup index itself
-        // we will add the name and id of the raw index that we initially rolled up.
+        // Add the source index name and UUID to the rollup index metadata. If the original index is a rollup index itself,
+        // we will add the name and UUID of the raw index that we initially rolled up.
         IndexMetadata originalIndexMetadata = state.getMetadata().index(originalIndexName);
         String sourceIndexName = IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.exists(originalIndexMetadata.getSettings()) ?
             IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.get(originalIndexMetadata.getSettings()) : originalIndexName;
@@ -252,7 +252,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
     private void publishMetadata(RollupActionConfig config, String originalIndexName, String tmpIndexName, String rollupIndexName,
                                  ActionListener<AcknowledgedResponse> listener) {
-        // update Rollup metadata to include this index
+        // Update rollup metadata to include this index
         clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {

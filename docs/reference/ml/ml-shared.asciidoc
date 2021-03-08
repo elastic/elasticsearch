@@ -1153,7 +1153,7 @@ tag::model-id-or-alias[]
 The unique identifier of the trained model or a model alias.
 end::model-id-or-alias[]
 
-tag::model-memory-limit[]
+tag::model-memory-limit-ad[]
 The approximate maximum amount of memory resources that are required for
 analytical processing. Once this limit is approached, data pruning becomes
 more aggressive. Upon exceeding this limit, new entities are not modeled. The
@@ -1174,11 +1174,20 @@ supported byte size units, see <<byte-units>>.
 If you specify a value for the `xpack.ml.max_model_memory_limit` setting, an
 error occurs when you try to create jobs that have `model_memory_limit` values
 greater than that setting value. For more information, see <<ml-settings>>.
-end::model-memory-limit[]
+end::model-memory-limit-ad[]
 
 tag::model-memory-limit-anomaly-jobs[]
 The upper limit for model memory usage, checked on increasing values.
 end::model-memory-limit-anomaly-jobs[]
+
+tag::model-memory-limit-dfa[]
+The approximate maximum amount of memory resources that are permitted for
+analytical processing. The default value for {dfanalytics-jobs} is `1gb`. If
+you specify a value for the `xpack.ml.max_model_memory_limit` setting, an error
+occurs when you try to create jobs that have `model_memory_limit` values greater
+than that setting value. For more information, see
+<<ml-settings>>.
+end::model-memory-limit-dfa[]
 
 tag::model-memory-status[]
 The status of the mathematical models, which can have one of the following

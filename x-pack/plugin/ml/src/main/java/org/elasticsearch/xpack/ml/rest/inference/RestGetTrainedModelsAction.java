@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.rest.inference;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -23,7 +24,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,7 +36,9 @@ import java.util.Set;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
+import static org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig.MODEL_ID;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetTrainedModelsAction extends BaseRestHandler {
 
@@ -44,22 +46,17 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         return List.of(
-            new ReplacedRoute(
-                GET, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
-                GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"),
-            new ReplacedRoute(
-                GET, MachineLearning.BASE_PATH + "trained_models",
-                GET, MachineLearning.BASE_PATH + "inference"));
+            Route.builder(GET, BASE_PATH + "trained_models/{" + MODEL_ID.getPreferredName() + "}")
+                .replaces(GET, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}", RestApiVersion.V_8).build(),
+            Route.builder(GET, BASE_PATH + "trained_models")
+                .replaces(GET, BASE_PATH + "inference", RestApiVersion.V_8).build()
+        );
     }
 
     private static final Map<String, String> DEFAULT_TO_XCONTENT_VALUES =
         Collections.singletonMap(TrainedModelConfig.DECOMPRESS_DEFINITION, Boolean.toString(true));
+
     @Override
     public String getName() {
         return "ml_get_trained_models_action";
@@ -67,7 +64,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String modelId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
+        String modelId = restRequest.param(MODEL_ID.getPreferredName());
         if (Strings.isNullOrEmpty(modelId)) {
             modelId = Metadata.ALL;
         }

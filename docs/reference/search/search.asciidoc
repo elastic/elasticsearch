@@ -29,6 +29,9 @@ GET /my-index-000001/_search
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
 or index alias. For cross-cluster search, see <<cross-cluster-configuring>>.
++
+To search a <<point-in-time-api,point in time (PIT)>> for an index alias, you
+must have the `read` index privilege for the alias's concrete indices.
 
 [[search-search-api-desc]]
 ==== {api-description-title}
@@ -400,6 +403,24 @@ A boost value greater than `1.0` increases the score. A boost value between
 (Optional, float)
 Minimum <<relevance-scores,`_score`>> for matching documents. Documents with a
 lower `_score` are not included in the search results.
+
+`pit`::
+(Optional, object)
+Limits the search to a <<point-in-time-api,point in time (PIT)>>. If you provide
+a `pit`, you cannot specify a `<target>` in the request path.
++
+.Properties of `pit`
+[%collapsible%open]
+====
+`id`::
+(Required*, string)
+ID for the PIT to search. If you provide a `pit` object, this parameter is
+required.
+
+`keep_alive`::
+(Optional, <<time-units,time value>>)
+Period of time used to extend the life of the PIT.
+====
 
 [[request-body-search-query]]
 `query`::

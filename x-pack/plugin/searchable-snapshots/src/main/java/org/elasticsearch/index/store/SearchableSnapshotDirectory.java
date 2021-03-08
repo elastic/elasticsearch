@@ -406,6 +406,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         if (useCache && isExcludedFromCache(name) == false) {
             if (partial) {
                 return new FrozenIndexInput(
+                    name,
                     this,
                     fileInfo,
                     context,
@@ -415,6 +416,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 );
             } else {
                 return new CachedBlobContainerIndexInput(
+                    name,
                     this,
                     fileInfo,
                     context,
@@ -424,7 +426,15 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 );
             }
         } else {
-            return new DirectBlobContainerIndexInput(this, fileInfo, context, inputStats, getUncachedChunkSize(), bufferSize(context));
+            return new DirectBlobContainerIndexInput(
+                name,
+                this,
+                fileInfo,
+                context,
+                inputStats,
+                getUncachedChunkSize(),
+                bufferSize(context)
+            );
         }
     }
 

@@ -62,7 +62,7 @@ public class RestGetOverallBucketsAction extends BaseRestHandler {
                 request.setEnd(restRequest.param(Request.END.getPreferredName()));
             }
             if (restRequest.hasParam(Request.ALLOW_NO_JOBS)) {
-                LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(
+                LoggingDeprecationHandler.INSTANCE.usedRenamedField(
                     null, () -> null, Request.ALLOW_NO_JOBS, Request.ALLOW_NO_MATCH.getPreferredName());
             }
             request.setAllowNoMatch(

@@ -355,7 +355,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    modulesFiles = { oss, platform ->
+    modulesFiles = { platform ->
       copySpec {
         eachFile {
           if (it.relativePath.segments[-2] == 'bin' || ((platform == 'darwin-x86_64' || platform == 'darwin-aarch64') && it.relativePath.segments[-2] == 'MacOS')) {
@@ -366,24 +366,16 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             it.mode = 0644
           }
         }
-        def buildModules
-        if (oss) {
-          buildModules = buildOssModulesTaskProvider
-        } else {
-          buildModules = buildDefaultModulesTaskProvider
-        }
         List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']
         if (platform != null) {
           excludePlatforms.remove(excludePlatforms.indexOf(platform))
         } else {
           excludePlatforms = []
         }
-        from(buildModules) {
+        from(buildDefaultModulesTaskProvider) {
           // geo registers the geo_shape mapper that is overridden by
           // the geo_shape mapper registered in the x-pack-spatial plugin
-          if (oss == false) {
-            exclude "**/geo/**"
-          }
+          exclude "**/geo/**"
 
           for (String excludePlatform : excludePlatforms) {
             exclude "**/platform/${excludePlatform}/**"
@@ -463,11 +455,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         if (project.name == 'integ-test-zip') {
           from buildServerNoticeTaskProvider
         } else {
-          if (oss && jdk) {
-            from buildOssNoticeTaskProvider
-          } else if (oss) {
-            from buildOssNoJdkNoticeTaskProvider
-          } else if (jdk) {
+         if (jdk) {
             from buildDefaultNoticeTaskProvider
           } else {
             from buildDefaultNoJdkNoticeTaskProvider
@@ -656,16 +644,14 @@ subprojects {
   }
 }
 
-['archives:windows-zip', 'archives:oss-windows-zip',
- 'archives:darwin-tar', 'archives:oss-darwin-tar',
- 'archives:darwin-aarch64-tar', 'archives:oss-darwin-aarch64-tar',
- 'archives:linux-aarch64-tar', 'archives:oss-linux-aarch64-tar',
- 'archives:linux-tar', 'archives:oss-linux-tar',
+['archives:windows-zip',
+ 'archives:darwin-tar',
+ 'archives:darwin-aarch64-tar',
+ 'archives:linux-aarch64-tar',
+ 'archives:linux-tar',
  'archives:integ-test-zip',
  'packages:rpm', 'packages:deb',
  'packages:aarch64-rpm', 'packages:aarch64-deb',
- 'packages:oss-rpm', 'packages:oss-deb',
- 'packages:aarch64-oss-rpm', 'packages:aarch64-oss-deb'
 ].forEach { subName ->
   Project subproject = project("${project.path}:${subName}")
   Configuration configuration = configurations.create(subproject.name)

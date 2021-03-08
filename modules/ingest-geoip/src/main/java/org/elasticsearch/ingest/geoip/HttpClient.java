@@ -75,8 +75,8 @@ class HttpClient {
 
     private HttpURLConnection createConnection(String url) throws IOException {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-        conn.setConnectTimeout(5000);
-        conn.setReadTimeout(5000);
+        conn.setConnectTimeout(10000);
+        conn.setReadTimeout(10000);
         conn.setDoOutput(false);
         conn.setInstanceFollowRedirects(false);
         return conn;

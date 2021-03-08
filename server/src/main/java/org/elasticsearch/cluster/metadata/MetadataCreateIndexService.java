@@ -476,8 +476,9 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveAliases(templates), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap())),
-            templates.stream().map(IndexTemplateMetadata::getName).collect(toList()), metadataTransformer);
+                xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())),
+                templates.stream().map(IndexTemplateMetadata::getName).collect(toList()), metadataTransformer);
     }
 
     private ClusterState applyCreateIndexRequestWithV2Template(final ClusterState currentState,
@@ -509,8 +510,9 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName), currentState.metadata(),
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                aliasValidator, xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap())),
-            Collections.singletonList(templateName), metadataTransformer);
+                aliasValidator, xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())),
+                Collections.singletonList(templateName), metadataTransformer);
     }
 
     public static List<Map<String, Object>> collectV2Mappings(final String requestMappings,
@@ -555,8 +557,9 @@ public class MetadataCreateIndexService {
                 currentState.metadata(), aliasValidator, xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap())),
-            List.of(), metadataTransformer);
+                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())),
+                List.of(), metadataTransformer);
     }
 
     /**
@@ -755,9 +758,15 @@ public class MetadataCreateIndexService {
     public static List<AliasMetadata> resolveAndValidateAliases(String index, Set<Alias> aliases,
                                                                 List<Map<String, AliasMetadata>> templateAliases, Metadata metadata,
                                                                 AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
-                                                                SearchExecutionContext searchExecutionContext) {
+                                                                SearchExecutionContext searchExecutionContext,
+                                                                Function<String, String> indexNameExpressionResolver) {
+
+        // Keep a separate set to facilitate searches when processing aliases from the template
+        Set<Alias> resolvedExpressions = new HashSet<>();
         List<AliasMetadata> resolvedAliases = new ArrayList<>();
         for (Alias alias : aliases) {
+            final String resolvedExpression = indexNameExpressionResolver.apply(alias.name());
+            alias = alias.name(resolvedExpression);
             aliasValidator.validateAlias(alias, index, metadata);
             if (Strings.hasLength(alias.filter())) {
                 aliasValidator.validateAliasFilter(alias.name(), alias.filter(), searchExecutionContext, xContentRegistry);
@@ -766,16 +775,19 @@ public class MetadataCreateIndexService {
                 .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex())
                 .isHidden(alias.isHidden()).build();
             resolvedAliases.add(aliasMetadata);
+            resolvedExpressions.add(new Alias(resolvedExpression));
         }
 
         Map<String, AliasMetadata> templatesAliases = new HashMap<>();
         for (Map<String, AliasMetadata> templateAliasConfig : templateAliases) {
             // handle aliases
             for (Map.Entry<String, AliasMetadata> entry : templateAliasConfig.entrySet()) {
-                AliasMetadata aliasMetadata = entry.getValue();
+                String resolvedTemplateExpression = indexNameExpressionResolver.apply(entry.getValue().alias());
+                AliasMetadata aliasMetadata = AliasMetadata.newAliasMetadata(entry.getValue(), resolvedTemplateExpression);
+
                 // if an alias with same name came with the create index request itself,
                 // ignore this one taken from the index template
-                if (aliases.contains(new Alias(aliasMetadata.alias()))) {
+                if (resolvedExpressions.contains(new Alias(aliasMetadata.alias()))) {
                     continue;
                 }
                 // if an alias with same name was already processed, ignore this one
@@ -800,6 +812,7 @@ public class MetadataCreateIndexService {
             }
         }
         return resolvedAliases;
+
     }
 
     /**

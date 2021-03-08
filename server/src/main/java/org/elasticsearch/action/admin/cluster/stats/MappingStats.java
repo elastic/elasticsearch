@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -138,13 +139,19 @@ public final class MappingStats implements ToXContentFragment, Writeable {
 
     MappingStats(StreamInput in) throws IOException {
         fieldTypeStats = Collections.unmodifiableSet(new LinkedHashSet<>(in.readList(IndexFeatureStats::new)));
-        runtimeFieldTypeStats = Collections.unmodifiableSet(new LinkedHashSet<>(in.readList(RuntimeFieldStats::new)));
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            runtimeFieldTypeStats = Collections.unmodifiableSet(new LinkedHashSet<>(in.readList(RuntimeFieldStats::new)));
+        } else {
+            runtimeFieldTypeStats = Collections.emptySet();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(fieldTypeStats);
-        out.writeCollection(runtimeFieldTypeStats);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeCollection(runtimeFieldTypeStats);
+        }
     }
 
     /**

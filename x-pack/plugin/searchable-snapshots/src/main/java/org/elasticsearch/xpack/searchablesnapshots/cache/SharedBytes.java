@@ -117,8 +117,8 @@ public class SharedBytes extends AbstractRefCounted {
         });
     }
 
-    long getPhysicalOffset(long chunkPosition) {
-        return sharedCacheConfiguration.getPhysicalOffset(chunkPosition);
+    long getPhysicalOffset(long sharedPageIndex) {
+        return sharedCacheConfiguration.getPhysicalOffset(sharedPageIndex);
     }
 
     public interface IO extends RefCounted {
@@ -129,38 +129,37 @@ public class SharedBytes extends AbstractRefCounted {
          * Writes the contents of the given buffer to the requested position
          *
          * @param src      byte buffer to write
-         * @param position position to write to
+         * @param position position relative to the start index of this instance to write to
          */
         void write(ByteBuffer src, long position) throws IOException;
     }
 
     private final class SingleIO extends AbstractRefCounted implements IO {
 
-        private final int sharedBytesPos;
+        private final int pageIndex;
         private final long pageStart;
 
-        private SingleIO(final int sharedBytesPos) {
+        private SingleIO(final int pageIndex) {
             super("shared-bytes-io");
-            this.sharedBytesPos = sharedBytesPos;
-            pageStart = getPhysicalOffset(sharedBytesPos);
+            this.pageIndex = pageIndex;
+            pageStart = getPhysicalOffset(pageIndex);
         }
 
         @SuppressForbidden(reason = "Use positional reads on purpose")
         public int read(ByteBuffer dst, long position) throws IOException {
             checkOffsets(position, dst.remaining());
-            return fileChannel.read(dst, position);
+            return fileChannel.read(dst, pageStart + position);
         }
 
         @SuppressForbidden(reason = "Use positional writes on purpose")
         public void write(ByteBuffer src, long position) throws IOException {
             checkOffsets(position, src.remaining());
-            fileChannel.write(src, position);
+            fileChannel.write(src, pageStart + position);
         }
 
         private void checkOffsets(long position, long length) {
-            final long regionSize = sharedCacheConfiguration.regionSizeBySharedPageNumber(sharedBytesPos);
-            long pageEnd = pageStart + regionSize;
-            if (position < pageStart || position > pageEnd || position + length > pageEnd) {
+            final long regionSize = sharedCacheConfiguration.regionSizeBySharedPageIndex(pageIndex);
+            if (position < 0 || position + length > regionSize) {
                 assert false;
                 throw new IllegalArgumentException("bad access");
             }
@@ -168,7 +167,7 @@ public class SharedBytes extends AbstractRefCounted {
 
         @Override
         protected void closeInternal() {
-            ios.remove(sharedBytesPos, this);
+            ios.remove(pageIndex, this);
             SharedBytes.this.decRef();
         }
     }

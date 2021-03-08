@@ -131,9 +131,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseSearchableSnap
 
         final List<String> newNodeNames = internalCluster().startDataOnlyNodes(
             between(1, 3),
-            Settings.builder()
-                .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(randomLongBetween(1, ByteSizeValue.ofMb(10).getBytes())))
-                .build()
+            Settings.builder().put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(randomLongBetween(1, 10))).build()
         );
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();

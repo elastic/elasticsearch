@@ -69,21 +69,23 @@ public final class SharedCacheConfiguration {
     /**
      * Physical offset in the shared file by page number.
      */
-    public long getPhysicalOffset(long pageNum) {
-        long physicalOffset;
-        if (pageNum > numLargeRegions + numSmallRegions) {
-            physicalOffset = numLargeRegions * largeRegionSize + numSmallRegions * SMALL_REGION_SIZE
-                    + (pageNum - numSmallRegions - numLargeRegions) * TINY_REGION_SIZE;
-            assert physicalOffset <= numLargeRegions * largeRegionSize + numSmallRegions * SMALL_REGION_SIZE
-                    + numTinyRegions * TINY_REGION_SIZE;
-        } else if (pageNum > numLargeRegions) {
-            physicalOffset = numLargeRegions * largeRegionSize + (pageNum - numLargeRegions) * SMALL_REGION_SIZE;
-            assert physicalOffset <= numLargeRegions * largeRegionSize + numSmallRegions * SMALL_REGION_SIZE;
-        } else {
-            physicalOffset = pageNum * largeRegionSize;
-            assert physicalOffset <= numLargeRegions * largeRegionSize;
+    public long getPhysicalOffset(long sharedPageIndex) {
+        assert sharedPageIndex < numLargeRegions + numSmallRegions + numTinyRegions;
+        if (sharedPageIndex <= numLargeRegions) {
+            // this page index is either a large region or the first small region, either way there are only large regions before it
+            return sharedPageIndex * largeRegionSize;
         }
-        return physicalOffset;
+        // small regions start at this offset after all the large regions
+        final long largeRegionCombinedSize = numLargeRegions * largeRegionSize;
+        if (sharedPageIndex <= numLargeRegions + numSmallRegions) {
+            // this page index is either a small region or the first tiny region, either way it comes after all large regions and a number
+            // of small regions
+            return largeRegionCombinedSize + (sharedPageIndex - numLargeRegions) * SMALL_REGION_SIZE;
+        }
+        // the page index is larger than the number of large- and small regions combined so its a tiny region physically located after
+        // the large- and small regions combined plus a number of tiny regions
+        return largeRegionCombinedSize + numSmallRegions * SMALL_REGION_SIZE
+            + (sharedPageIndex - numSmallRegions - numLargeRegions) * TINY_REGION_SIZE;
     }
 
     /**
@@ -222,28 +224,11 @@ public final class SharedCacheConfiguration {
     }
 
     /**
-     * Get the relative position of the given absolute file position in its region.
-     *
-     * @param position           position in the file
-     * @param fileSize           size of the file
-     * @param cachedHeaderLength length of the header region if the header is to be cached separately or 0 if the header
-     *                           is not separately cached
-     * @param footerCacheLength  length of the footer region if it is separately cached or 0 of not
-     * @return relative position in region
-     */
-    public long getRegionRelativePosition(long position, long fileSize, long cachedHeaderLength, long footerCacheLength) {
-        // find this file region the position belongs to
-        final int region = getRegion(position, fileSize, cachedHeaderLength, footerCacheLength);
-        // relative position is the distance from the region start
-        return position - getRegionStart(region, fileSize, cachedHeaderLength, footerCacheLength);
-    }
-
-    /**
      * Type of the shared page by shared page index.
      */
-    public RegionType sharedRegionType(int pageIndex) {
-        if (pageIndex >= numLargeRegions) {
-            if (pageIndex >= numLargeRegions + numSmallRegions) {
+    public RegionType sharedRegionType(int sharedPageIndex) {
+        if (sharedPageIndex >= numLargeRegions) {
+            if (sharedPageIndex >= numLargeRegions + numSmallRegions) {
                 return RegionType.TINY;
             }
             return RegionType.SMALL;
@@ -254,8 +239,8 @@ public final class SharedCacheConfiguration {
     /**
      * Size of the shared page by shared page index.
      */
-    public long regionSizeBySharedPageNumber(int pageIndex) {
-        switch (sharedRegionType(pageIndex)) {
+    public long regionSizeBySharedPageIndex(int sharedPageIndex) {
+        switch (sharedRegionType(sharedPageIndex)) {
             case TINY:
                 return TINY_REGION_SIZE;
             case SMALL:

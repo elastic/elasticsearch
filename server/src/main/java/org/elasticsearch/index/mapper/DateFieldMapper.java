@@ -373,6 +373,7 @@ public final class DateFieldMapper extends FieldMapper {
                 @Override
                 public String parseSourceValue(Object value) {
                     String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
+                    // TODO can we emit a warning if we're losing precision here? I'm not sure we can.
                     long timestamp = parse(date);
                     ZonedDateTime dateTime = resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
                     return formatter.format(dateTime);

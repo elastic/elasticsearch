@@ -457,7 +457,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertEquals(fieldType.isSearchable(), fieldType.getTextSearchInfo() != TextSearchInfo.NONE);
     }
 
-    // NOCOMMIT javadoc
+    /**
+     * Assert that fetching a value using {@link MappedFieldType#valueFetcher}
+     * produces the same value as fetching using doc values.
+     */
     protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
         MappedFieldType ft = mapperService.fieldType(field);
         SourceToParse source = source(b -> b.field(ft.name(), value));

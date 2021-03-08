@@ -59,8 +59,7 @@ POST /_scripts/painless/_execute
 We're using the Painless execute API without any URL parameters, which uses
 the `painless_test` context by default. This context optionally makes
 available a `Map` of user-defined parameters, and then returns a value as an
-`Object`. `Map` and `Object` are known as _types_, which we'll discuss more
-later on.
+`Object`.
 
 The `script` is a standard JSON object that defines scripts under most APIs
 in {es}. This object requires `source` to define the script itself. The
@@ -326,15 +325,30 @@ with dynamic capabilites.
 
 [[script-type-dynamic]]
 ==== Dynamic types
-A dynamic type can represent the value of any primitive type or reference type
-using a single type named `def`. A `def` type value mimics the behavior of
-whatever value it represents at runtime. Because a `def` type can mimic
-multiple types, it always represents the last child descendant type value of
-any type value when evaluated. The default value for a newly-declared `def`
-type variable is `null`.
+A dynamic type can represent any value by using a single type named `def`. A
+`def` type value mimics the behavior of whatever value it represents at
+runtime. The underlying value can have different types during script execution,
+which provides flexibility in your script.
+
+For example, the following script includes a `def` type named `abc` that is
+implicitly defined as an `int` with a value of `1`. The second line sets the
+value of `abc` to a string value, which would result in a compilation error if
+`abc` was strictly defined as `int abc`.
+
+[source,painless]
+----
+def abc = 1;
+abc = "a string";
+----
+
+Because a `def` type can mimic multiple types, it always represents
+the last child descendant type value of any type value when evaluated. The
+default value for a newly-declared `def` type variable is `null`.
 
 NOTE: Using the `def` type can have a slight impact on performance. Use only
-primitive types and reference types directly when performance is critical.
+primitive types and reference types directly when performance is critical. If
+you know the type you're referring to, using a concrete type instead of a `def`
+type results in faster script execution.
 
 [discrete]
 ===== How to use dynamic types

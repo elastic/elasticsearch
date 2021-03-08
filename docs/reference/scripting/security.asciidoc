@@ -29,7 +29,7 @@ Instead, pass it in as a named parameter:
 
 [source,js]
 ----------------------
-  "source": "doc['my_field'] * params.multiplier",
+  "source": "doc['my_field'] * params['multiplier']",
   "params": {
     "multiplier": 2
   }

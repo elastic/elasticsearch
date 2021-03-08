@@ -1,3 +1,61 @@
+[[release-notes-7.11.2]]
+== {es} version 7.11.2
+
+coming[7.11.2]
+
+Also see <<breaking-changes-7.11,Breaking changes in 7.11>>.
+
+[[enhancement-7.11.2]]
+[float]
+=== Enhancements
+
+Authorization::
+* Improve shard level request cache efficiency {es-pull}69505[#69505]
+
+[[bug-7.11.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix filter by filter execution with `doc_count` {es-pull}68930[#68930]
+* Revert "Remove aggregation's `postCollect` phase {es-pull}68615[#68615] (issues: {es-issue}64016[#64016], {es-issue}66876[#66876], {es-issue}67839[#67839])
+
+Features/Data streams::
+* Don't mark backing indices of overlapping data streams as conflicts {es-pull}69625[#69625]
+
+Features/ILM+SLM::
+* Fix Bug in Multiple Repo SLM Retention {es-pull}70047[#70047] (issue: {es-issue}70029[#70029])
+
+Features/Indices APIs::
+* Require master node for watcher template {es-pull}69147[#69147] (issue: {es-issue}66837[#66837])
+
+Features/Ingest::
+* Async Processors and Final Pipelines are Broken {es-pull}69818[#69818] (issue: {es-issue}52339[#52339])
+* Copy_from on set processor should deep copy non-primitive mutable types {es-pull}69349[#69349] (issue: {es-issue}69348[#69348])
+
+Infra/Plugins::
+* Allow file read permissions in plugins {es-pull}69643[#69643] (issue: {es-issue}69464[#69464])
+
+Machine Learning::
+* Avoid memory tracker race condition {es-pull}69290[#69290] (issue: {es-issue}69289[#69289])
+* Fix logic for moving .ml-state-write alias from legacy to new {es-pull}69039[#69039] (issue: {es-issue}68925[#68925])
+
+Mapping::
+* Collect multiple paths from XContentMapValues {es-pull}68540[#68540] (issue: {es-issue}68215[#68215])
+
+SQL::
+* Fix the inconsistent behaviour of ISO_WEEK_YEAR() {es-pull}68758[#68758] (issue: {es-issue}67872[#67872])
+* Make `RestSqlQueryAction` thread-safe {es-pull}69895[#69895] (issue: {es-issue}69866[#69866])
+
+Snapshot/Restore::
+* Fix Leaking Listener in `BlobStoreRepository` {es-pull}69110[#69110]
+* Remove Blocking on GENERIC Pool in GET Snapshots {es-pull}69101[#69101] (issue: {es-issue}69099[#69099])
+* URL repos and searchable snapshots don't mix {es-pull}69197[#69197] (issue: {es-issue}68918[#68918])
+
+Transform::
+* Stop transform regardless of transform nodes {es-pull}69419[#69419] (issue: {es-issue}69260[#69260])
+* [Transfrom] prevent concurrent state persistence when indexer gets triggered during shutdown {es-pull}69551[#69551] (issue: {es-issue}67121[#67121])
+
 [[release-notes-7.11.1]]
 == {es} version 7.11.1
 

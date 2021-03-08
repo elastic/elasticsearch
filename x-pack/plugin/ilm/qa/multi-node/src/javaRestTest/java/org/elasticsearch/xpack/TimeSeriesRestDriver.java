@@ -341,7 +341,9 @@ public final class TimeSeriesRestDriver {
         String[] shrunkenIndexName = new String[1];
         waitUntil(() -> {
             try {
-                Request explainRequest = new Request("GET", "*" + originalIndex + "*/_ilm/explain");
+                // we're including here the case where the original index was already deleted and we have to look for the shrunken index
+                Request explainRequest = new Request("GET", ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex + "*," + originalIndex
+                    + "/_ilm/explain");
                 explainRequest.addParameter("only_errors", Boolean.toString(false));
                 explainRequest.addParameter("only_managed", Boolean.toString(false));
                 Response response = client.performRequest(explainRequest);

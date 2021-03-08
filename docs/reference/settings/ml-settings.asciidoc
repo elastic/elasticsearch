@@ -159,7 +159,7 @@ this setting has a value greater than zero and there are no nodes that can
 accept the job, the job stays in the `OPENING` state until a new {ml} node is 
 added to the cluster and the job is assigned to run on that node. When the
 {operator-feature} is enabled, this setting can be updated only by operator
-users. The maximum value is `3`. Defaults to `0`.
+users. Defaults to `0`.
 +
 IMPORTANT: This setting assumes some external process is capable of adding {ml}
 nodes to the cluster. This setting is only useful when used in conjunction with

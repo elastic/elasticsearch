@@ -261,7 +261,6 @@ public class ShrinkActionIT extends ESRestTestCase {
             }
         }, 30, TimeUnit.SECONDS));
 
-        String shrunkenIndex = waitAndGetShrinkIndexName(client(), index);
         Request resetAllocationForIndex = new Request("PUT", "/" + index + "/_settings");
         resetAllocationForIndex.setJsonEntity("{\n" +
             "  \"settings\": {\n" +
@@ -270,6 +269,7 @@ public class ShrinkActionIT extends ESRestTestCase {
             "}");
         client().performRequest(resetAllocationForIndex);
 
+        String shrunkenIndex = waitAndGetShrinkIndexName(client(), index);
         assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
@@ -331,12 +331,11 @@ public class ShrinkActionIT extends ESRestTestCase {
         client().performRequest(shrinkIndexRequest);
 
         // assert manually shrunk index is picked up and policy completes successfully
-        String shrunkenIndex = waitAndGetShrinkIndexName(client(), index);
-        assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
+        assertBusy(() -> assertTrue(indexExists(shrinkIndexName)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue(aliasExists(shrinkIndexName, index)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrinkIndexName), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
         assertBusy(() -> {
-            Map<String, Object> settings = getOnlyIndexSettings(client(), shrunkenIndex);
+            Map<String, Object> settings = getOnlyIndexSettings(client(), shrinkIndexName);
             assertThat(settings.get(SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());

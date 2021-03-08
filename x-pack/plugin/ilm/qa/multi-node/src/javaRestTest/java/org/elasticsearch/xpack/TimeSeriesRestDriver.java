@@ -351,12 +351,15 @@ public final class TimeSeriesRestDriver {
                 }
 
                 Map<String, Map<String, Object>> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"));
-                Map<String, Object> explainIndexResponse = null;
-                for (Map.Entry<String, Map<String, Object>> indexToExplainMap : indexResponse.entrySet()) {
-                    // we don't know the exact name of the shrunken index, but we know it starts with the configured prefix
-                    if(indexToExplainMap.getKey().startsWith(ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex)) {
-                        explainIndexResponse = indexToExplainMap.getValue();
-                        break;
+                Map<String, Object> explainIndexResponse = indexResponse.get(originalIndex);
+                if(explainIndexResponse == null) {
+                    // maybe we swapped the alias from the original index to the shrunken one already
+                    for (Map.Entry<String, Map<String, Object>> indexToExplainMap : indexResponse.entrySet()) {
+                        // we don't know the exact name of the shrunken index, but we know it starts with the configured prefix
+                        if (indexToExplainMap.getKey().startsWith(ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex)) {
+                            explainIndexResponse = indexToExplainMap.getValue();
+                            break;
+                        }
                     }
                 }
 

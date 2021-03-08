@@ -91,7 +91,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         for (PipelineConfiguration pipeline : pipelines) {
-            builder.field(pipeline.getId(), summary ? Map.of() : pipeline.getConfigAsMap());
+            builder.field(pipeline.getId(), summary ? org.elasticsearch.common.collect.Map.of() : pipeline.getConfigAsMap());
         }
         builder.endObject();
         return builder;

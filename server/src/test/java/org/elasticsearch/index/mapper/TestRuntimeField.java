@@ -8,20 +8,22 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.search.Query;
-import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.time.ZoneId;
-import java.util.Collections;
+import java.io.IOException;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
-public class TestRuntimeField extends RuntimeFieldType {
+public class TestRuntimeField implements RuntimeFieldType {
 
     private final String type;
+    private final String name;
+    private final Supplier<MappedFieldType> fieldType;
 
-    public TestRuntimeField(String name, String type) {
-        super(name, Collections.emptyMap(), null);
+    public TestRuntimeField(String name, String type, Supplier<MappedFieldType> fieldType) {
+        this.name = name;
         this.type = type;
+        this.fieldType = fieldType;
     }
 
     @Override
@@ -30,13 +32,20 @@ public class TestRuntimeField extends RuntimeFieldType {
     }
 
     @Override
-    public Query termQuery(Object value, SearchExecutionContext context) {
-        return null;
+    public MappedFieldType asMappedFieldType(Function<String, MappedFieldType> lookup) {
+        return fieldType.get();
     }
 
     @Override
-    protected Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                               ZoneId timeZone, DateMathParser parser, SearchExecutionContext context) {
-        throw new UnsupportedOperationException();
+    public String name() {
+        return name;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(name);
+        builder.field("type", type);
+        builder.endObject();
+        return builder;
     }
 }

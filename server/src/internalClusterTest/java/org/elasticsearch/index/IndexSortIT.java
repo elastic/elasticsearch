@@ -20,6 +20,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IndexSortIT extends ESIntegTestCase {
     private static final XContentBuilder TEST_MAPPING = createTestMapping();
@@ -28,6 +29,9 @@ public class IndexSortIT extends ESIntegTestCase {
         try {
             return jsonBuilder()
                 .startObject()
+                    .startObject("runtime")
+                        .startObject("alias").field("type", "alias").field("path", "numeric").endObject()
+                    .endObject()
                     .startObject("properties")
                         .startObject("date")
                         .field("type", "date")
@@ -79,6 +83,18 @@ public class IndexSortIT extends ESIntegTestCase {
         flushAndRefresh();
         ensureYellow();
         assertSortedSegments("test", indexSort);
+
+        Exception e = expectThrows(Exception.class, () ->
+            prepareCreate("test_with_runtime_sort")
+                .setSettings(Settings.builder()
+                    .put(indexSettings())
+                    .put("index.number_of_shards", "1")
+                    .put("index.number_of_replicas", "1")
+                    .putList("index.sort.field", "alias")
+                )
+                .setMapping(TEST_MAPPING)
+                .get());
+        assertThat(e.getMessage(), equalTo("unknown concrete index sort field: [alias]"));
     }
 
     public void testInvalidIndexSort() {
@@ -91,7 +107,7 @@ public class IndexSortIT extends ESIntegTestCase {
                 .setMapping(TEST_MAPPING)
                 .get()
         );
-        assertThat(exc.getMessage(), containsString("unknown index sort field:[invalid_field]"));
+        assertThat(exc.getMessage(), containsString("unknown concrete index sort field: [invalid_field]"));
 
         exc = expectThrows(IllegalArgumentException.class,
             () -> prepareCreate("test")

@@ -389,6 +389,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mappingLookup().fieldTypes().get(fullName);
     }
 
+    public MappedFieldType concreteFieldType(String field) {
+        return mappingLookup().fieldTypes().getConcrete(field);
+    }
+
     /**
      * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
      * then the fields will be returned with a type prefix.

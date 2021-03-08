@@ -40,6 +40,7 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.elasticsearch.index.mapper.AliasRuntimeField;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -58,6 +59,8 @@ import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.runtimefields.mapper.KeywordScriptFieldType;
 import org.elasticsearch.runtimefields.mapper.LongScriptFieldType;
@@ -321,10 +324,30 @@ public class SearchExecutionContextTests extends ESTestCase {
         );
     }
 
+    public void testAliases() throws IOException {
+        RuntimeFieldType runtime = new AliasRuntimeField("alias", "field");
+        MappedFieldType field = new MockFieldMapper.FakeFieldType("field");
+        SearchExecutionContext sec = createSearchExecutionContext(
+            "uuid",
+            null,
+            createMappingLookup(List.of(field), List.of(runtime)),
+            Map.of());
+        assertEquals("field", sec.getFieldType("alias").name());
+    }
+
+    public void testDetectAliasLoops() {
+        SearchExecutionContext sec = createSearchExecutionContext(
+            new AliasRuntimeField("alias-loop-1", "alias-loop-2"),
+            new AliasRuntimeField("alias-loop-2", "alias-loop-1")
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> sec.getFieldType("alias-loop-1"));
+        assertEquals("Loop in field resolution detected: alias-loop-1->alias-loop-2->alias-loop-1", e.getMessage());
+    }
+
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeFieldType> runtimeFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
-        Map<String, RuntimeFieldType> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(MappedFieldType::name, r -> r));
+        Map<String, RuntimeFieldType> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeFieldType::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
         return new MappingLookup(mapping, mappers, Collections.emptyList(), Collections.emptyList(), null, null, null);
@@ -460,11 +483,22 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static RuntimeFieldType runtimeField(String name, Function<LeafSearchLookup, String> runtimeDocValues) {
-        return runtimeField(name, (leafLookup, docId) -> runtimeDocValues.apply(leafLookup));
+        return new TestRuntimeField(
+            name,
+            "test",
+            () -> withDocValues(name, (leafLookup, docId) -> runtimeDocValues.apply(leafLookup)));
     }
 
     private static RuntimeFieldType runtimeField(String name, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
-        return new TestRuntimeField(name, null) {
+        return new TestRuntimeField(
+            name,
+            "test",
+            () -> withDocValues(name, runtimeDocValues)
+        );
+    }
+
+    private static MappedFieldType withDocValues(String name, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
+        return new MappedFieldType(name, true, false, true, TextSearchInfo.NONE, Collections.emptyMap()) {
             @Override
             public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName,
                                                            Supplier<SearchLookup> searchLookup) {
@@ -551,6 +585,21 @@ public class SearchExecutionContextTests extends ESTestCase {
                         throw new UnsupportedOperationException();
                     }
                 };
+            }
+
+            @Override
+            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String typeName() {
+                return "test";
+            }
+
+            @Override
+            public Query termQuery(Object value, SearchExecutionContext context) {
+                throw new UnsupportedOperationException();
             }
         };
     }

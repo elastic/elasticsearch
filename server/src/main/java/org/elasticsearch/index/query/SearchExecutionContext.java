@@ -61,6 +61,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -331,8 +332,25 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     private MappedFieldType fieldType(String name) {
-        MappedFieldType fieldType = runtimeMappings.get(name);
-        return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
+        GuardedFieldTypeLookup guardedLookup = new GuardedFieldTypeLookup();
+        return guardedLookup.get(name);
+    }
+
+    private class GuardedFieldTypeLookup {
+
+        Set<String> fieldPath = new LinkedHashSet<>();
+
+        MappedFieldType get(String field) {
+            if (fieldPath.contains(field)) {
+                throw new IllegalStateException("Loop in field resolution detected: " + String.join("->", fieldPath) + "->" + field);
+            }
+            fieldPath.add(field);
+            RuntimeFieldType runtimeFieldType = SearchExecutionContext.this.runtimeMappings.get(field);
+            if (runtimeFieldType != null) {
+                return runtimeFieldType.asMappedFieldType(this::get);
+            }
+            return SearchExecutionContext.this.mappingLookup.getFieldType(field);
+        }
     }
 
     public ObjectMapper getObjectMapper(String name) {

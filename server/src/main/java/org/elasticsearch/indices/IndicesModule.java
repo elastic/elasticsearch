@@ -18,6 +18,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.mapper.AliasRuntimeField;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
@@ -145,6 +146,7 @@ public class IndicesModule extends AbstractModule {
         runtimeParsers.put(DateFieldMapper.CONTENT_TYPE, DateScriptFieldType.PARSER);
         runtimeParsers.put(KeywordFieldMapper.CONTENT_TYPE, KeywordScriptFieldType.PARSER);
         runtimeParsers.put(GeoPointFieldMapper.CONTENT_TYPE, GeoPointScriptFieldType.PARSER);
+        runtimeParsers.put(AliasRuntimeField.CONTENT_TYPE, AliasRuntimeField.PARSER);
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             for (Map.Entry<String, RuntimeFieldType.Parser> entry : mapperPlugin.getRuntimeFieldTypes().entrySet()) {

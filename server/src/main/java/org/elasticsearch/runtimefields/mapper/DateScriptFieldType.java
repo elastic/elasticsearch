@@ -52,7 +52,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         private final FieldMapper.Parameter<String> format = FieldMapper.Parameter.stringParam(
             "format",
             true,
-            initializerNotSupported(),
+            RuntimeFieldType.initializerNotSupported(),
             null
         ).setSerializer((b, n, v) -> {
             if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
@@ -65,7 +65,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             true,
             () -> null,
             (n, c, o) -> o == null ? null : LocaleUtils.parse(o.toString()),
-            initializerNotSupported()
+            RuntimeFieldType.initializerNotSupported()
         ).setSerializer((b, n, v) -> {
             if (v != null && false == v.equals(Locale.ROOT)) {
                 b.field(n, v.toString());

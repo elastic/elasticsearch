@@ -14,6 +14,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -24,6 +25,7 @@ import java.util.stream.Stream;
  */
 final class FieldTypeLookup {
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
+    private final Map<String, RuntimeFieldType> runtimeFields = new HashMap<>();
 
     /**
      * A map from field name to all fields whose content has been copied into it
@@ -71,7 +73,7 @@ final class FieldTypeLookup {
 
         for (RuntimeFieldType runtimeFieldType : runtimeFieldTypes) {
             //this will override concrete fields with runtime fields that have the same name
-            fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
+            runtimeFields.put(runtimeFieldType.name(), runtimeFieldType);
         }
 
         this.dynamicKeyLookup = new DynamicKeyFieldTypeLookup(dynamicKeyMappers, aliasToConcreteName);
@@ -81,6 +83,33 @@ final class FieldTypeLookup {
      * Returns the mapped field type for the given field name.
      */
     MappedFieldType get(String field) {
+        GuardedFieldTypeLookup guardedLookup = new GuardedFieldTypeLookup();
+        return guardedLookup.get(field);
+    }
+
+    private class GuardedFieldTypeLookup {
+
+        Set<String> fieldPath = new LinkedHashSet<>();
+
+        MappedFieldType get(String field) {
+            if (fieldPath.contains(field)) {
+                throw new IllegalStateException("Loop in field resolution detected: " + String.join("->", fieldPath) + "->" + field);
+            }
+            fieldPath.add(field);
+            RuntimeFieldType runtimeFieldType = FieldTypeLookup.this.runtimeFields.get(field);
+            if (runtimeFieldType != null) {
+                return runtimeFieldType.asMappedFieldType(this::get);
+            }
+            return getConcrete(field);
+        }
+    }
+
+    /**
+     * Returns the mapped field type for the given field, excluding runtime fields
+     * @param field the field name
+     * @return a mapped field type, or null if the field does not exist
+     */
+    MappedFieldType getConcrete(String field) {
         MappedFieldType fieldType = fullNameToFieldType.get(field);
         if (fieldType != null) {
             return fieldType;
@@ -100,6 +129,11 @@ final class FieldTypeLookup {
             return Collections.singleton(pattern);
         }
         Set<String> fields = new HashSet<>();
+        for (String field : runtimeFields.keySet()) {
+            if (Regex.simpleMatch(pattern, field)) {
+                fields.add(field);
+            }
+        }
         for (String field : fullNameToFieldType.keySet()) {
             if (Regex.simpleMatch(pattern, field)) {
                 fields.add(field);

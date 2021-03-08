@@ -173,7 +173,7 @@ public final class IndexSortConfig {
             FieldSortSpec sortSpec = sortSpecs[i];
             final MappedFieldType ft = fieldTypeLookup.apply(sortSpec.field);
             if (ft == null) {
-                throw new IllegalArgumentException("unknown index sort field:[" + sortSpec.field + "]");
+                throw new IllegalArgumentException("unknown concrete index sort field: [" + sortSpec.field + "]");
             }
             boolean reverse = sortSpec.order == null ? false : (sortSpec.order == SortOrder.DESC);
             MultiValueMode mode = sortSpec.mode;

@@ -54,7 +54,7 @@ Snapshot/Restore::
 
 Transform::
 * Stop transform regardless of transform nodes {es-pull}69419[#69419] (issue: {es-issue}69260[#69260])
-* [Transfrom] prevent concurrent state persistence when indexer gets triggered during shutdown {es-pull}69551[#69551] (issue: {es-issue}67121[#67121])
+* Prevent concurrent state persistence when indexer gets triggered during shutdown {es-pull}69551[#69551] (issue: {es-issue}67121[#67121])
 
 [[release-notes-7.11.1]]
 == {es} version 7.11.1

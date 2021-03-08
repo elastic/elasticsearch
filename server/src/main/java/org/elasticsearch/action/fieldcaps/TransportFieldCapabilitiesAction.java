@@ -59,8 +59,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         // retrieve the initial timestamp in case the action is a cross cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ClusterState clusterState = clusterService.state();
-        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(),
-            request.indices());
+        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices());
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         final String[] concreteIndices;
         if (localIndices == null) {
@@ -77,11 +76,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
         final CountDown completionCounter = new CountDown(totalNumRequest);
         final List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());
-        final ActionListener<FieldCapabilitiesIndexResponse> countDownListener = new ActionListener<>() {
+        final ActionListener<List<FieldCapabilitiesIndexResponse>> countDownListener = new ActionListener<>() {
             @Override
-            public void onResponse(FieldCapabilitiesIndexResponse result) {
-                if (result.canMatch()) {
-                    indexResponses.add(result);
+            public void onResponse(List<FieldCapabilitiesIndexResponse> results) {
+                for (FieldCapabilitiesIndexResponse res : results) {
+                    if (res.canMatch()) {
+                        indexResponses.add(res);
+                    }
                 }
                 countDown();
             }
@@ -104,8 +105,19 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         };
 
         for (String index : concreteIndices) {
-            client.executeLocally(TransportFieldCapabilitiesIndexAction.TYPE, new FieldCapabilitiesIndexRequest(request.fields(),
-                index, localIndices, request.indexFilter(), nowInMillis, request.runtimeFields()), countDownListener);
+            client.executeLocally(TransportFieldCapabilitiesIndexAction.TYPE,
+                new FieldCapabilitiesIndexRequest(
+                    request.fields(),
+                    index,
+                    localIndices,
+                    request.indexFilter(),
+                    nowInMillis, request.runtimeFields()
+                ),
+                ActionListener.wrap(
+                    response -> countDownListener.onResponse(Collections.singletonList(response)),
+                    countDownListener::onFailure
+                )
+            );
         }
 
         // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
@@ -122,12 +134,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             remoteRequest.runtimeFields(request.runtimeFields());
             remoteRequest.indexFilter(request.indexFilter());
             remoteRequest.nowInMillis(nowInMillis);
-            remoteClusterClient.fieldCaps(remoteRequest, ActionListener.wrap(response -> {
-                for (FieldCapabilitiesIndexResponse res : response.getIndexResponses()) {
-                    countDownListener.onResponse(new FieldCapabilitiesIndexResponse(RemoteClusterAware.
-                        buildRemoteIndexName(clusterAlias, res.getIndexName()), res.get(), res.canMatch()));
-                }
-            }, countDownListener::onFailure));
+            remoteClusterClient.fieldCaps(remoteRequest,
+                ActionListener.wrap(response -> countDownListener.onResponse(response.getIndexResponses()), countDownListener::onFailure));
         }
     }
 

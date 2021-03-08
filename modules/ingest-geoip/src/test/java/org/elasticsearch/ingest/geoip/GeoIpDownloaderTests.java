@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -162,6 +163,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
         client.addHandler(IndexAction.INSTANCE, (IndexRequest request, ActionListener<IndexResponse> listener) -> {
             int chunk = chunkIndex.getAndIncrement();
+            assertEquals(OpType.CREATE, request.opType());
             assertEquals("test_" + (chunk + 15), request.id());
             assertEquals(XContentType.SMILE, request.getContentType());
             Map<String, Object> source = request.sourceAsMap();
@@ -323,7 +325,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
         builder.map(Map.of("a", 2));
         builder.endArray();
         builder.close();
-        when(httpClient.getBytes("a.b?key=11111111-1111-1111-1111-111111111111&elastic_geoip_service_tos=agree"))
+        when(httpClient.getBytes("a.b?elastic_geoip_service_tos=agree"))
             .thenReturn(baos.toByteArray());
         Iterator<Map<String, Object>> it = maps.iterator();
         geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool,

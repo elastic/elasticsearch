@@ -10,11 +10,9 @@ import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.VersionProperties
 
 apply plugin: 'war'
-apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
-
-testFixtures.useFixture()
 
 dependencies {
   providedCompile 'javax.enterprise:cdi-api:1.2'
@@ -42,6 +40,11 @@ tasks.named("war").configure {
   archiveFileName = 'example-app.war'
 }
 
+// The wildfly docker image is only available for x86 architectures so disable these tests on arm
+if (Architecture.current() == Architecture.X64) {
+  testFixtures.useFixture()
+}
+
 elasticsearch_distributions {
   docker {
     type = 'docker'
@@ -55,12 +58,9 @@ tasks.named("preProcessFixture").configure {
   dependsOn "war", elasticsearch_distributions.docker
 }
 
-dockerCompose {
-    useComposeFiles = ['docker-compose.yml']
-}
-
 tasks.register("integTest", Test) {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
+  onlyIf { Architecture.current() == Architecture.X64 }
   maxParallelForks = '1'
   include '**/*IT.class'
   systemProperty 'tests.security.manager', 'false'
@@ -68,23 +68,4 @@ tasks.register("integTest", Test) {
 
 tasks.named("check").configure {
   dependsOn "integTest"
-}
-tasks.named("test").configure {enabled = false }
-tasks.named("dependencyLicenses").configure { enabled = false }
-tasks.named("dependenciesInfo") {
-  enabled = false
-}
-
-tasks.named("thirdPartyAudit").configure {
-  enabled = false
-}
-
-tasks.named("testingConventions").configure {
-  naming.clear()
-  // We only have one "special" integration test here to connect to wildfly
-  naming {
-    IT {
-      baseClass 'org.apache.lucene.util.LuceneTestCase'
-    }
-  }
 }

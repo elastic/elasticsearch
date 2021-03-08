@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoBoundingBoxTests;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -150,6 +152,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             docs.add(doc);
             doc.add(new LatLonDocValuesField(FIELD_NAME, latLng[0], latLng[1]));
             doc.add(new SortedSetDocValuesField("t", new BytesRef(t)));
+            doc.add(new Field("t", new BytesRef(t), KeywordFieldMapper.Defaults.FIELD_TYPE));
 
             String hash = hashAsString(latLng[1], latLng[0], precision);
             Map<String, Long> expectedCountPerGeoHash = expectedCountPerTPerGeoHash.get(t);

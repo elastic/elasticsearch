@@ -720,13 +720,8 @@ public class FrozenCacheService implements Releasable {
                 headerCacheLength,
                 footerCacheLength
             );
-
             for (int region = firstRegion; region <= lastRegion; region++) {
                 final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region, fileSize, headerCacheLength, footerCacheLength);
-                if (subRangeToRead.length() == 0) {
-                    // TODO: we still want to write here
-                    continue;
-                }
                 final ByteRange subRangeToWrite = mapSubRangeToRegion(rangeToWrite, region, fileSize, headerCacheLength, footerCacheLength);
                 assert subRangeToRead.length() > 0 || subRangeToWrite.length() > 0
                     : "Either read or write region must be non-empty but saw [" + subRangeToRead + "][" + subRangeToWrite + "]";

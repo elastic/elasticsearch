@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -22,8 +21,9 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.StreamSupport;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -146,57 +146,54 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 return debug ? debugNoMissingAttribute(awarenessAttribute, awarenessAttributes) : Decision.NO;
             }
 
-            // build attr_value -> nodes map
-            ObjectIntHashMap<String> nodesPerAttribute = allocation.routingNodes().nodesPerAttributesCounts(awarenessAttribute);
+            final Set<String> actualAttributeValues = allocation.routingNodes().getAttributeValues(awarenessAttribute);
+            final String currentAttributeValue = node.node().getAttributes().get(awarenessAttribute);
+            assert currentAttributeValue != null : "attribute [" + awarenessAttribute + "] missing on " + node.node();
+            assert actualAttributeValues.contains(currentAttributeValue)
+                    : "attribute [" + awarenessAttribute + "] on " + node.node() + " is not in " + actualAttributeValues;
 
-            // build the count of shards per attribute value
-            ObjectIntHashMap<String> shardPerAttribute = new ObjectIntHashMap<>();
+            int shardsForCurrentAttributeValue = 0;
+            // Will be the count of shards on nodes with attribute `awarenessAttribute` matching the one on `node`.
+
             for (ShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting.shardId())) {
                 if (assignedShard.started() || assignedShard.initializing()) {
                     // Note: this also counts relocation targets as that will be the new location of the shard.
                     // Relocation sources should not be counted as the shard is moving away
-                    RoutingNode routingNode = allocation.routingNodes().node(assignedShard.currentNodeId());
-                    shardPerAttribute.addTo(routingNode.node().getAttributes().get(awarenessAttribute), 1);
+                    final RoutingNode assignedNode = allocation.routingNodes().node(assignedShard.currentNodeId());
+                    if (currentAttributeValue.equals(assignedNode.node().getAttributes().get(awarenessAttribute))) {
+                        shardsForCurrentAttributeValue += 1;
+                    }
                 }
             }
 
             if (moveToNode) {
                 if (shardRouting.assignedToNode()) {
-                    String nodeId = shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId();
-                    if (node.nodeId().equals(nodeId) == false) {
-                        // we work on different nodes, move counts around
-                        shardPerAttribute.putOrAdd(allocation.routingNodes().node(nodeId).node().getAttributes().get(awarenessAttribute),
-                                0, -1);
-                        shardPerAttribute.addTo(node.node().getAttributes().get(awarenessAttribute), 1);
-                    }
+                    final RoutingNode currentNode = allocation.routingNodes().node(
+                            shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId());
+                    if (currentAttributeValue.equals(currentNode.node().getAttributes().get(awarenessAttribute)) == false) {
+                        shardsForCurrentAttributeValue += 1;
+                    } // else this shard is already on a node in the same zone as the target node, so moving it doesn't change the count
                 } else {
-                    shardPerAttribute.addTo(node.node().getAttributes().get(awarenessAttribute), 1);
+                    shardsForCurrentAttributeValue += 1;
                 }
             }
 
-            int numberOfAttributes = nodesPerAttribute.size();
-            List<String> fullValues = forcedAwarenessAttributes.get(awarenessAttribute);
-            if (fullValues != null) {
-                for (String fullValue : fullValues) {
-                    if (shardPerAttribute.containsKey(fullValue) == false) {
-                        numberOfAttributes++;
-                    }
-                }
-            }
-            // TODO should we remove ones that are not part of full list?
+            final List<String> forcedValues = forcedAwarenessAttributes.get(awarenessAttribute);
+            final int valueCount = forcedValues == null
+                    ? actualAttributeValues.size()
+                    : Math.toIntExact(Stream.concat(actualAttributeValues.stream(), forcedValues.stream()).distinct().count());
 
-            final int currentNodeCount = shardPerAttribute.get(node.node().getAttributes().get(awarenessAttribute));
-            final int maximumNodeCount = (shardCount + numberOfAttributes - 1) / numberOfAttributes; // ceil(shardCount/numberOfAttributes)
-            if (currentNodeCount > maximumNodeCount) {
+            final int maximumShardsPerAttributeValue = (shardCount + valueCount - 1) / valueCount; // ceil(shardCount/valueCount)
+            if (shardsForCurrentAttributeValue > maximumShardsPerAttributeValue) {
                 return debug ? debugNoTooManyCopies(
                         shardCount,
                         awarenessAttribute,
                         node.node().getAttributes().get(awarenessAttribute),
-                        numberOfAttributes,
-                        StreamSupport.stream(nodesPerAttribute.keys().spliterator(), false).map(c -> c.value).sorted().collect(toList()),
-                        fullValues == null ? null : fullValues.stream().sorted().collect(toList()),
-                        currentNodeCount,
-                        maximumNodeCount)
+                        valueCount,
+                        actualAttributeValues.stream().sorted().collect(toList()),
+                        forcedValues == null ? null : forcedValues.stream().sorted().collect(toList()),
+                        shardsForCurrentAttributeValue,
+                        maximumShardsPerAttributeValue)
                         : Decision.NO;
             }
         }

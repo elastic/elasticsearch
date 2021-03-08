@@ -13,7 +13,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.snapshots.SharedCacheConfiguration;
@@ -104,7 +103,7 @@ public class SharedBytes extends AbstractRefCounted {
                 boolean success = false;
                 incRef();
                 try {
-                    newIO = new SingleIO(p);
+                    newIO = new IO(p);
                     success = true;
                 } finally {
                     if (success == false) {
@@ -121,30 +120,12 @@ public class SharedBytes extends AbstractRefCounted {
         return sharedCacheConfiguration.getPhysicalOffset(sharedPageIndex);
     }
 
-    public interface IO extends RefCounted {
-
-        int read(ByteBuffer dst, long position) throws IOException;
-
-        /**
-         * Writes the contents of the given buffer to the requested position
-         *
-         * @param src      byte buffer to write
-         * @param position position relative to the start index of this instance to write to
-         */
-        void write(ByteBuffer src, long position) throws IOException;
-
-        /**
-         * Returns the maximum size of this cache channel's region.
-         */
-        long size();
-    }
-
-    private final class SingleIO extends AbstractRefCounted implements IO {
+    public final class IO extends AbstractRefCounted {
 
         private final int pageIndex;
         private final long pageStart;
 
-        private SingleIO(final int pageIndex) {
+        private IO(final int pageIndex) {
             super("shared-bytes-io");
             this.pageIndex = pageIndex;
             pageStart = getPhysicalOffset(pageIndex);
@@ -156,13 +137,21 @@ public class SharedBytes extends AbstractRefCounted {
             return fileChannel.read(dst, pageStart + position);
         }
 
+        /**
+         * Writes the contents of the given buffer to the requested position
+         *
+         * @param src      byte buffer to write
+         * @param position position relative to the start index of this instance to write to
+         */
         @SuppressForbidden(reason = "Use positional writes on purpose")
         public void write(ByteBuffer src, long position) throws IOException {
             checkOffsets(position, src.remaining());
             fileChannel.write(src, pageStart + position);
         }
 
-        @Override
+        /**
+         * Returns the maximum size of this cache channel's region.
+         */
         public long size() {
             return sharedCacheConfiguration.regionSizeBySharedPageIndex(pageIndex);
         }

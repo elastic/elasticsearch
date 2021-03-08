@@ -492,7 +492,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         assert firstIndex >= 0 : "no index found for offset";
 
         fcs[firstIndex].write(byteBuffer, start);
-        for (int i = 1; i < fcs.length && byteBuffer.hasRemaining(); i++) {
+        for (int i = firstIndex + 1; i < fcs.length && byteBuffer.hasRemaining(); i++) {
             fcs[i].write(byteBuffer, 0);
         }
     }

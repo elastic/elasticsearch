@@ -89,7 +89,10 @@ public class ListenableActionFutureTests extends ESTestCase {
                     awaitSafe(barrier);
 
                     final AtomicBoolean isComplete = new AtomicBoolean();
-                    if (postComplete.get()) {
+                    if (completerThreads == 1 && postComplete.get()) {
+                        // If there are multiple completer threads then onResponse might return on one thread, and hence postComplete is
+                        // set, before the other completer thread notifies all the listeners. OTOH with one completer thread we know that
+                        // postComplete indicates that the listeners were already notified.
                         future.addListener(new ActionListener<>() {
                             @Override
                             public void onResponse(Void response) {

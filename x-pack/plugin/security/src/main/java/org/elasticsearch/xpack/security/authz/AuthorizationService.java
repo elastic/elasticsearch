@@ -380,7 +380,7 @@ public class AuthorizationService {
                 prevListener = current;
             }
 
-            prevListener.whenComplete(v -> listener.onResponse(null), listener::onFailure);
+            prevListener.addListener(listener);
             first.intercept(requestInfo, authorizationEngine, authorizationInfo, firstStepListener);
         }
     }

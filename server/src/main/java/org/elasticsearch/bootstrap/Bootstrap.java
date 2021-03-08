@@ -40,6 +40,7 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -167,6 +168,18 @@ final class Bootstrap {
                 BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
                 BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings),
                 BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
+
+        final long cacheSize = SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
+        final long regionSize = SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
+        final int numRegions = Math.toIntExact(cacheSize / regionSize);
+        final long fileSize = numRegions * regionSize;
+        if (fileSize > 0) {
+            try {
+                Natives.tryCreateCacheFile(environment, fileSize);
+            } catch (Exception e) {
+                throw new BootstrapException(e);
+            }
+        }
 
         // initialize probes before the security manager is installed
         initializeProbes();

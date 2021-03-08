@@ -49,6 +49,7 @@ class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQl
 # Regex
 #
   Boolean regex(String, String)
+  Boolean regex(String, String, Boolean)
 
 #
 # Math

@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -23,21 +24,15 @@ import java.util.function.Supplier;
 public class ParseField {
     private final String name;
     private final String[] deprecatedNames;
+    private final Function<RestApiVersion, Boolean> forRestApiVersion;
     private String allReplacedWith = null;
     private final String[] allNames;
     private boolean fullyDeprecated = false;
 
     private static final String[] EMPTY = new String[0];
 
-    /**
-     * @param name
-     *            the primary name for this field. This will be returned by
-     *            {@link #getPreferredName()}
-     * @param deprecatedNames
-     *            names for this field which are deprecated and will not be
-     *            accepted when strict matching is used.
-     */
-    public ParseField(String name, String... deprecatedNames) {
+
+    private ParseField(String name, Function<RestApiVersion, Boolean> forRestApiVersion, String[] deprecatedNames) {
         this.name = name;
         if (deprecatedNames == null || deprecatedNames.length == 0) {
             this.deprecatedNames = EMPTY;
@@ -46,10 +41,23 @@ public class ParseField {
             Collections.addAll(set, deprecatedNames);
             this.deprecatedNames = set.toArray(new String[set.size()]);
         }
+        this.forRestApiVersion = forRestApiVersion;
+
         Set<String> allNames = new HashSet<>();
         allNames.add(name);
         Collections.addAll(allNames, this.deprecatedNames);
         this.allNames = allNames.toArray(new String[allNames.size()]);
+    }
+
+    /**
+     * Creates a field available for lookup for both current and previous REST API versions
+     * @param name            the primary name for this field. This will be returned by
+     *                        {@link #getPreferredName()}
+     * @param deprecatedNames names for this field which are deprecated and will not be
+     *                        accepted when strict matching is used.
+     */
+    public ParseField(String name, String... deprecatedNames) {
+        this(name, RestApiVersion.onOrAfter(RestApiVersion.minimumSupported()) ,deprecatedNames);
     }
 
     /**
@@ -76,6 +84,22 @@ public class ParseField {
      */
     public ParseField withDeprecation(String... deprecatedNames) {
         return new ParseField(this.name, deprecatedNames);
+    }
+
+
+    /**
+     * Creates a new field with current name and deprecatedNames, but overrides forRestApiVersion
+     * @param forRestApiVersion - a boolean function indicating if a field is for the given RestApiVersion
+     */
+    public ParseField forRestApiVersion(Function<RestApiVersion, Boolean> forRestApiVersion) {
+        return new ParseField(this.name, forRestApiVersion, this.deprecatedNames);
+    }
+
+    /**
+     * @return a function indicating for which RestApiVersion a field is declared for
+     */
+    public Function<RestApiVersion, Boolean> getForRestApiVersion() {
+        return forRestApiVersion;
     }
 
     /**
@@ -168,6 +192,7 @@ public class ParseField {
     public String[] getDeprecatedNames() {
         return deprecatedNames;
     }
+
 
     public static class CommonFields {
         public static final ParseField FIELD = new ParseField("field");

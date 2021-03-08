@@ -428,37 +428,11 @@ InternalEqlScriptUtils.cidrMatch(InternalQlScriptUtils.docValue(doc,params.v0),p
 "params":{"v0":"source_address","v1":["10.6.48.157/8"],"v2":"true"}
 ;
 
-//matchFunctionOne
-//process where match(command_line, "^.*?net.exe")
-//;
-//"regexp":{"command_line":{"value":"^.*?net.exe"
-//;
-//
-//matchFunctionTwo
-//process where match(command_line, "^.*?net.exe", "net\\.exe")
-//;
-//"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe"
-//;
-//
-//matchFunctionThree
-//process where match(command_line, "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
-//;
-//"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"
-//;
-
 numberFunctionSingleArgument
 process where number(process_name) == 1;
 InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
 "params":{"v0":"process_name","v1":null,"v2":1}
 ;
-
-//matchFunctionScalar
-//process where match(substring(command_line, 5), "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
-//;
-//"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(InternalEqlScriptUtils.substring(
-//InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
-//"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"}}
-//;
 
 
 numberFunctionTwoFieldArguments
@@ -710,3 +684,131 @@ process where true | tail 10 | head 7
 ;
 "size":7,
 ;
+
+
+//
+// like and regex
+//
+
+likeSingleArgNoPattern
+process where command_line like "net.exe"
+;
+"term":{"command_line":{"value":"net.exe","boost":1.0}
+;
+
+likeSingleArgNoPatternInsensitive
+process where command_line like~ "net.exe"
+;
+"term":{"command_line":{"value":"net.exe","case_insensitive":true,"boost":1.0}
+;
+
+likeSingleArg
+process where command_line like "n*t.exe"
+;
+"wildcard":{"command_line":{"wildcard":"n*t.exe","boost":1.0}
+;
+
+likeSingleArgInsensitive
+process where command_line like~ "n*t.exe"
+;
+"wildcard":{"command_line":{"wildcard":"n*t.exe","case_insensitive":true,"boost":1.0}
+;
+
+likeMultiArg
+process where command_line like ("n?t.e?e", "net.*")
+;
+{"bool":{"should":[{"wildcard"
+"wildcard":{"command_line":{"wildcard":"n?t.e?e","boost":1.0}
+"wildcard":{"command_line":{"wildcard":"net.*","boost":1.0}
+;
+
+likeMultiArgInsensitive
+process where command_line like~ ("n?t.e?e", "net.*")
+;
+{"bool":{"should":[{"wildcard"
+"wildcard":{"command_line":{"wildcard":"n?t.e?e","case_insensitive":true,"boost":1.0}
+"wildcard":{"command_line":{"wildcard":"net.*","case_insensitive":true,"boost":1.0}
+;
+
+likeMultiArgWithScript
+process where substring(command_line, 5) like ("net.e*", "net.e?e")
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^net\\.e.*$"}}
+"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^net\\.e.e$"}}
+;
+
+likeMultiArgWithScriptInsensitive
+process where substring(command_line, 5) like~ ("net.e*", "net.e?e")
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3,params.v4))",
+"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^net\\.e.*$","v4":true}}
+"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^net\\.e.e$","v4":true}}
+;
+
+regexSingleArgNoPattern
+process where command_line regex "net\\.exe"
+;
+"term":{"command_line":{"value":"net.exe","boost":1.0}
+;
+
+regexSingleArgNoPatternInsensitive
+process where command_line regex~ "net\\.exe"
+;
+"term":{"command_line":{"value":"net.exe","case_insensitive":true,"boost":1.0}
+;
+
+regexSingleArg
+process where command_line regex "^.*?net.exe"
+;
+"regexp":{"command_line":{"value":"^.*?net.exe",
+;
+
+regexSingleArgInsensitive
+process where command_line regex~ "^.*?net.exe"
+;
+"regexp":{"command_line":{"value":"^.*?net.exe","flags_value":255,"case_insensitive":true
+;
+
+regexMultiArg
+process where command_line regex ("^.*?net.exe", "net\\.exe")
+;
+"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe"
+;
+
+regexMultiArgInsensitive
+process where command_line regex~ ("^.*?net.exe", "net\\.exe")
+;
+"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe","flags_value":255,"case_insensitive":true
+;
+
+regexMultiMultiArgVariant
+process where command_line regex ("^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
+;
+"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"
+;
+
+regexMultiMultiArgVariantInsensitive
+process where command_line regex~ ("^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
+;
+"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+","flags_value":255,"case_insensitive":true
+;
+
+regexMultiArgWithScript
+process where substring(command_line, 5) regex ("^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"}}
+;
+
+regexMultiArgWithScriptInsensitive
+process where substring(command_line, 5) regex~ ("^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3,params.v4))",
+"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+","v4":true}}
+;
+

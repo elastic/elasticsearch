@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Check;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
-import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.time.OffsetTime;
 import java.time.ZoneId;
@@ -129,8 +128,8 @@ public final class ExpressionTranslators {
                 }
 
                 if (e instanceof RLike) {
-                    String pattern = ((RLike) e).pattern().asJavaRegex();
-                    q = new RegexQuery(e.source(), targetFieldName, pattern);
+                    RLike rl = ((RLike) e);
+                    q = new RegexQuery(e.source(), targetFieldName, rl.pattern().asJavaRegex(), rl.caseInsensitive());
                 }
             } else {
                 q = new ScriptQuery(e.source(), e.asScript());
@@ -217,15 +216,17 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(IsNotNull isNotNull, TranslatorHandler handler) {
-            Query query = null;
+            return handler.wrapFunctionQuery(isNotNull, isNotNull.field(), () -> translate(isNotNull, handler));
+        }
 
+        private static Query translate(IsNotNull isNotNull, TranslatorHandler handler) {
+            Query query = null;
             if (isNotNull.field() instanceof FieldAttribute) {
                 query = new ExistsQuery(isNotNull.source(), handler.nameOf(isNotNull.field()));
             } else {
                 query = new ScriptQuery(isNotNull.source(), isNotNull.asScript());
             }
-
-            return handler.wrapFunctionQuery(isNotNull, isNotNull.field(), query);
+            return query;
         }
     }
 
@@ -237,6 +238,10 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(IsNull isNull, TranslatorHandler handler) {
+            return handler.wrapFunctionQuery(isNull, isNull.field(), () -> translate(isNull, handler));
+        }
+
+        private static Query translate(IsNull isNull, TranslatorHandler handler) {
             Query query = null;
 
             if (isNull.field() instanceof FieldAttribute) {
@@ -245,7 +250,7 @@ public final class ExpressionTranslators {
                 query = new ScriptQuery(isNull.source(), isNull.asScript());
             }
 
-            return handler.wrapFunctionQuery(isNull, isNull.field(), query);
+            return query;
         }
     }
 
@@ -266,19 +271,19 @@ public final class ExpressionTranslators {
 
         public static Query doTranslate(BinaryComparison bc, TranslatorHandler handler) {
             checkBinaryComparison(bc);
-            return handler.wrapFunctionQuery(bc, bc.left(), translate(bc, handler));
+            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
         }
 
         private static Query translate(BinaryComparison bc, TranslatorHandler handler) {
             Source source = bc.source();
             String name = handler.nameOf(bc.left());
             Object value = valueOf(bc.right());
-            String format = handler.dateFormat(bc.left());
+            String format = null;
             boolean isDateLiteralComparison = false;
 
             // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
             // no matter the timezone provided by the user
-            if ((value instanceof ZonedDateTime || value instanceof OffsetTime) && format == null) {
+            if (value instanceof ZonedDateTime || value instanceof OffsetTime) {
                 DateFormatter formatter;
                 if (value instanceof ZonedDateTime) {
                     formatter = DateFormatter.forPattern(DATE_FORMAT);
@@ -341,41 +346,37 @@ public final class ExpressionTranslators {
             return doTranslate(r, handler);
         }
 
-        public static Query doTranslate(Range r, TranslatorHandler handler) {
-            Expression val = r.value();
+        public static Query doTranslate(Range r, TranslatorHandler handler) {            
+            return handler.wrapFunctionQuery(r, r.value(), () -> translate(r, handler));
+        }
 
-            Query query = null;
-            Holder<Object> lower = new Holder<>(valueOf(r.lower()));
-            Holder<Object> upper = new Holder<>(valueOf(r.upper()));
-            Holder<String> format = new Holder<>(handler.dateFormat(val));
+        private static RangeQuery translate(Range r, TranslatorHandler handler) {            
+            Object lower = valueOf(r.lower());
+            Object upper = valueOf(r.upper());
+            String format = null;
 
             // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
             // no matter the timezone provided by the user
-            if (format.get() == null) {
-                DateFormatter formatter = null;
-                if (lower.get() instanceof ZonedDateTime || upper.get() instanceof ZonedDateTime) {
-                    formatter = DateFormatter.forPattern(DATE_FORMAT);
-                } else if (lower.get() instanceof OffsetTime || upper.get() instanceof OffsetTime) {
-                    formatter = DateFormatter.forPattern(TIME_FORMAT);
-                }
-                if (formatter != null) {
-                    // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime
-                    // instance which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
-                    // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format.
-                    if (lower.get() instanceof ZonedDateTime || lower.get() instanceof OffsetTime) {
-                        lower.set(formatter.format((TemporalAccessor) lower.get()));
-                    }
-                    if (upper.get() instanceof ZonedDateTime || upper.get() instanceof OffsetTime) {
-                        upper.set(formatter.format((TemporalAccessor) upper.get()));
-                    }
-                    format.set(formatter.pattern());
-                }
+            DateFormatter formatter = null;
+            if (lower instanceof ZonedDateTime || upper instanceof ZonedDateTime) {
+                formatter = DateFormatter.forPattern(DATE_FORMAT);
+            } else if (lower instanceof OffsetTime || upper instanceof OffsetTime) {
+                formatter = DateFormatter.forPattern(TIME_FORMAT);
             }
-
-            query = handler.wrapFunctionQuery(r, val, new RangeQuery(r.source(), handler.nameOf(val), lower.get(), r.includeLower(),
-                                                                     upper.get(), r.includeUpper(), format.get(), r.zoneId()));
-
-            return query;
+            if (formatter != null) {
+                // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime
+                // instance which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
+                // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format.
+                if (lower instanceof ZonedDateTime || lower instanceof OffsetTime) {
+                    lower = formatter.format((TemporalAccessor) lower);
+                }
+                if (upper instanceof ZonedDateTime || upper instanceof OffsetTime) {
+                    upper = formatter.format((TemporalAccessor) upper);
+                }
+                format = formatter.pattern();
+            }
+            return new RangeQuery(
+                r.source(), handler.nameOf(r.value()), lower, r.includeLower(), upper, r.includeUpper(), format, r.zoneId());
         }
     }
 
@@ -387,6 +388,10 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(In in, TranslatorHandler handler) {
+            return handler.wrapFunctionQuery(in, in.value(), () -> translate(in, handler));
+        }
+
+        private static Query translate(In in, TranslatorHandler handler) {
             Query q;
             if (in.value() instanceof FieldAttribute) {
                 // equality should always be against an exact match (which is important for strings)
@@ -410,8 +415,9 @@ public final class ExpressionTranslators {
                         assert o instanceof ZonedDateTime : "expected a ZonedDateTime, but got: " + o.getClass().getName();
                         // see comment in Ranges#doTranslate() as to why formatting as String is required
                         String zdt = formatter.format((ZonedDateTime) o);
-                        RangeQuery right = new RangeQuery(in.source(), fa.exactAttribute().name(),
-                                zdt, true, zdt, true, formatter.pattern(), in.zoneId());
+                        RangeQuery right = new RangeQuery(
+                            in.source(), fa.exactAttribute().name(),
+                            zdt, true, zdt, true, formatter.pattern(), in.zoneId());
                         q = q == null ? right : new BoolQuery(in.source(), false, q, right);
                     }
                 } else {
@@ -420,7 +426,7 @@ public final class ExpressionTranslators {
             } else {
                 q = new ScriptQuery(in.source(), in.asScript());
             }
-            return handler.wrapFunctionQuery(in, in.value(), q);
+            return q;
         }
     }
 
@@ -436,7 +442,7 @@ public final class ExpressionTranslators {
             if (q != null) {
                 return q;
             }
-            return handler.wrapFunctionQuery(f, f, new ScriptQuery(f.source(), f.asScript()));
+            return handler.wrapFunctionQuery(f, f, () -> new ScriptQuery(f.source(), f.asScript()));
         }
 
         public static Query doKnownTranslate(ScalarFunction f, TranslatorHandler handler) {

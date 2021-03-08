@@ -91,6 +91,9 @@ public class PolicyUtil {
     private static final PermissionMatcher ALLOWED_MODULE_PERMISSIONS;
     static {
         List<Permission> namedPermissions = List.of(
+            // TODO: remove read permission, see https://github.com/elastic/elasticsearch/issues/69464
+            createFilePermission("<<ALL FILES>>", "read"),
+
             new ReflectPermission("suppressAccessChecks"),
             new RuntimePermission("createClassLoader"),
             new RuntimePermission("getClassLoader"),

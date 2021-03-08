@@ -50,16 +50,19 @@ public class AutoExpandReplicasTests extends ESTestCase {
         assertEquals(0, autoExpandReplicas.getMinReplicas());
         assertEquals(5, autoExpandReplicas.getMaxReplicas(8));
         assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertFalse(autoExpandReplicas.expandToAllNodes());
 
         autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "0-all").build());
         assertEquals(0, autoExpandReplicas.getMinReplicas());
         assertEquals(5, autoExpandReplicas.getMaxReplicas(6));
         assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertTrue(autoExpandReplicas.expandToAllNodes());
 
         autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "1-all").build());
         assertEquals(1, autoExpandReplicas.getMinReplicas());
         assertEquals(5, autoExpandReplicas.getMaxReplicas(6));
         assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertTrue(autoExpandReplicas.expandToAllNodes());
 
     }
 

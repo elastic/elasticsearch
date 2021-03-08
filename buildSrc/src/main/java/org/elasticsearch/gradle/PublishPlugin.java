@@ -9,7 +9,7 @@
 package org.elasticsearch.gradle;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
-import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import groovy.util.Node;
 import groovy.util.NodeList;
 import org.elasticsearch.gradle.info.BuildParams;
@@ -26,12 +26,12 @@ import org.gradle.api.plugins.BasePluginConvention;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
+import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
-
 import java.util.concurrent.Callable;
 
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
@@ -41,11 +41,19 @@ public class PublishPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(BasePlugin.class);
-        project.getPluginManager().apply("nebula.maven-nebula-publish");
+        project.getPluginManager().apply(MavenPublishPlugin.class);
         project.getPluginManager().apply(PomValidationPrecommitPlugin.class);
+        configurePublications(project);
         configureJavadocJar(project);
         configureSourcesJar(project);
         configurePomGeneration(project);
+    }
+
+    private void configurePublications(Project project) {
+        PublishingExtension publishingExtension = project.getExtensions().getByType(PublishingExtension.class);
+        MavenPublication publication = publishingExtension.getPublications().create("elastic", MavenPublication.class);
+        project.getPlugins().withType(JavaPlugin.class, plugin -> publication.from(project.getComponents().getByName("java")));
+        project.getPlugins().withType(ShadowPlugin.class, plugin -> configureWithShadowPlugin(project, publication));
     }
 
     private static String getArchivesBaseName(Project project) {
@@ -73,7 +81,6 @@ public class PublishPlugin implements Plugin<Project> {
         PublishingExtension publishing = project.getExtensions().getByType(PublishingExtension.class);
         final var mavenPublications = publishing.getPublications().withType(MavenPublication.class);
         addNameAndDescriptiontoPom(project, mavenPublications);
-        configurePomWithShadowPlugin(project, publishing);
 
         mavenPublications.all(publication -> {
             // Add git origin info to generated POM files for internal builds
@@ -93,27 +100,25 @@ public class PublishPlugin implements Plugin<Project> {
         }));
     }
 
-    private static void configurePomWithShadowPlugin(Project project, PublishingExtension publishing) {
-        project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", plugin -> {
-            MavenPublication publication = publishing.getPublications().maybeCreate("shadow", MavenPublication.class);
-            ShadowExtension shadow = project.getExtensions().getByType(ShadowExtension.class);
-            shadow.component(publication);
-            // Workaround for https://github.com/johnrengelman/shadow/issues/334
-            // Here we manually add any project dependencies in the "shadow" configuration to our generated POM
-            publication.getPom().withXml(xml -> {
-                Node root = xml.asNode();
-                Node dependenciesNode = (Node) ((NodeList) root.get("dependencies")).get(0);
-                project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME()).getAllDependencies().all(dependency -> {
-                    if (dependency instanceof ProjectDependency) {
-                        Node dependencyNode = dependenciesNode.appendNode("dependency");
-                        dependencyNode.appendNode("groupId", dependency.getGroup());
-                        ProjectDependency projectDependency = (ProjectDependency) dependency;
-                        String artifactId = getArchivesBaseName(projectDependency.getDependencyProject());
-                        dependencyNode.appendNode("artifactId", artifactId);
-                        dependencyNode.appendNode("version", dependency.getVersion());
-                        dependencyNode.appendNode("scope", "compile");
-                    }
-                });
+    private static void configureWithShadowPlugin(Project project, MavenPublication publication) {
+        // Workaround for https://github.com/johnrengelman/shadow/issues/334
+        // Here we manually add any project dependencies in the "shadow" configuration to our generated POM
+        publication.getPom().withXml(xml -> {
+            Node root = xml.asNode();
+            NodeList dependencies = (NodeList) root.get("dependencies");
+            Node dependenciesNode = (dependencies.size() == 0)
+                ? root.appendNode("dependencies")
+                : (Node) ((NodeList) root.get("dependencies")).get(0);
+            project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME()).getAllDependencies().all(dependency -> {
+                if (dependency instanceof ProjectDependency) {
+                    Node dependencyNode = dependenciesNode.appendNode("dependency");
+                    dependencyNode.appendNode("groupId", dependency.getGroup());
+                    ProjectDependency projectDependency = (ProjectDependency) dependency;
+                    String artifactId = getArchivesBaseName(projectDependency.getDependencyProject());
+                    dependencyNode.appendNode("artifactId", artifactId);
+                    dependencyNode.appendNode("version", dependency.getVersion());
+                    dependencyNode.appendNode("scope", "compile");
+                }
             });
         });
     }

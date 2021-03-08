@@ -14,7 +14,7 @@ dependencies {
   compileOnly project(":server")
 
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('ilm'))
   testImplementation project(path: xpackModule('async'))
 }

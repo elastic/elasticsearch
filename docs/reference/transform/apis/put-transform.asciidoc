@@ -114,7 +114,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
 //Begin latest
 `latest`::
 (Required^*^, object)
-beta:[]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-latest]
 +
 .Properties of `latest`

@@ -8,7 +8,7 @@ restResources {
 }
 
 dependencies {
-  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 testClusters.all {

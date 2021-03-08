@@ -91,17 +91,6 @@ public class SparseFileTrackerTests extends ESTestCase {
                     containsString("unable to listen to range")
                 );
                 assertThat(invoked.get(), is(false));
-            } else {
-                e = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> sparseFileTracker.waitForRange(ByteRange.of(start, end), ByteRange.of(start - 1L, end), listener)
-                );
-                assertThat(
-                    "listener range start must not be smaller than zero",
-                    e.getMessage(),
-                    containsString("invalid range to listen to")
-                );
-                assertThat(invoked.get(), is(false));
             }
 
             if (end < length) {

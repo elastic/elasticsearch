@@ -125,7 +125,7 @@ POST _ml/datafeeds/datafeed-total-requests/_update
 // TEST[skip:setup:server_metrics_datafeed]
 
 When the {dfeed} is updated, you receive the full {dfeed} configuration with
-with the updated values:
+the updated values:
 
 [source,console-result]
 ----

@@ -12,6 +12,10 @@ This section lists the privileges that you can assign to a role.
 All cluster administration operations, like snapshotting, node shutdown/restart,
 settings update, rerouting, or managing users and roles.
 
+`cancel_task`::
+Privileges to cancel tasks and delete async searches.
+See <<delete-async-search,delete async search>> API for more informations.
+
 `create_snapshot`::
 Privileges to create snapshots for existing repositories. Can also list and view
 details on existing repositories and snapshots.

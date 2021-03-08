@@ -118,6 +118,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             }
         });
 
+        // When building Elasticsearch, enforce the minimum compiler version
+        BuildParams.withInternalBuild(() -> assertMinimumCompilerVersion(minimumCompilerVersion));
+
         // Print global build info header just before task execution
         project.getGradle().getTaskGraph().whenReady(graph -> logGlobalBuildInfo());
     }
@@ -240,6 +243,15 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         );
 
         throw new GradleException(message);
+    }
+
+    private static void assertMinimumCompilerVersion(JavaVersion minimumCompilerVersion) {
+        JavaVersion currentVersion = Jvm.current().getJavaVersion();
+        if (minimumCompilerVersion.compareTo(currentVersion) > 0) {
+            throw new GradleException(
+                "Project requires Java version of " + minimumCompilerVersion + " or newer but Gradle JAVA_HOME is " + currentVersion
+            );
+        }
     }
 
     private static File findRuntimeJavaHome() {

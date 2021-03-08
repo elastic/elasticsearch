@@ -79,7 +79,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -97,6 +96,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.script.ScriptService;
@@ -282,8 +282,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         operatorPrivilegesService = mock(OperatorPrivileges.OperatorPrivilegesService.class);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService,
             auditTrailService, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings),
-            null, Collections.emptySet(), licenseState, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            operatorPrivilegesService);
+            null, Collections.emptySet(), licenseState, TestIndexNameExpressionResolver.newInstance(), operatorPrivilegesService);
     }
 
     private void authorize(Authentication authentication, String action, TransportRequest request) {
@@ -1045,8 +1044,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, null, Collections.emptySet(),
-            new XPackLicenseState(settings, () -> 0),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), operatorPrivilegesService);
+            new XPackLicenseState(settings, () -> 0), TestIndexNameExpressionResolver.newInstance(), operatorPrivilegesService);
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
@@ -1074,8 +1072,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new AnonymousUser(settings));
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings), null,
-            Collections.emptySet(), new XPackLicenseState(settings, () -> 0),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), operatorPrivilegesService);
+            Collections.emptySet(), new XPackLicenseState(settings, () -> 0), TestIndexNameExpressionResolver.newInstance(),
+            operatorPrivilegesService);
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
@@ -1817,7 +1815,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService,
             auditTrailService, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool,
             new AnonymousUser(Settings.EMPTY), engine, Collections.emptySet(), licenseState,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), operatorPrivilegesService);
+            TestIndexNameExpressionResolver.newInstance(), operatorPrivilegesService);
         Authentication authentication;
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             authentication = createAuthentication(new User("test user", "a_all"));

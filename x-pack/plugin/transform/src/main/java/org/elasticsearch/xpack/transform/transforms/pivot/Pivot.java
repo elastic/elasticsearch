@@ -87,7 +87,7 @@ public class Pivot extends AbstractCompositeAggFunction {
 
     @Override
     public void deduceMappings(Client client, SourceConfig sourceConfig, final ActionListener<Map<String, String>> listener) {
-        SchemaUtil.deduceMappings(client, config, sourceConfig.getIndex(), listener);
+        SchemaUtil.deduceMappings(client, config, sourceConfig.getIndex(), sourceConfig.getRuntimeMappings(), listener);
     }
 
     /**

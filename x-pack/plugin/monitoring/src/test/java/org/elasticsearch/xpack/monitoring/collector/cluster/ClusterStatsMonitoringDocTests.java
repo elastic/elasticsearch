@@ -336,8 +336,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                             clusterName,
                                                                             singletonList(mockNodeResponse),
                                                                             emptyList(),
-                                                                            MappingStats.of(metadata),
-                                                                            AnalysisStats.of(metadata),
+                                                                            MappingStats.of(metadata, () -> {}),
+                                                                            AnalysisStats.of(metadata, () -> {}),
                                                                             VersionStats.of(metadata, singletonList(mockNodeResponse)));
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
@@ -456,7 +456,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        \"file_sizes\": {}"
                 + "      },"
                 + "      \"mappings\":{"
-                + "        \"field_types\":[]"
+                + "        \"field_types\":[],"
+                + "        \"runtime_field_types\":[]"
                 + "      },"
                 + "      \"analysis\":{"
                 + "        \"char_filter_types\":[],"

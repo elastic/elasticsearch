@@ -8,9 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
@@ -403,7 +400,6 @@ public class DateFieldMapperTests extends MapperTestCase {
      * resolution. But its important that this lose precision in the same
      * way.
      */
-    @Repeat(iterations=1000)
     public void testFetchMillisFromRoundedNanos() throws IOException {
         assertFetch(dateMapperService(), "field", randomDecimalNanos(MAX_ISO_DATE), null);
     }

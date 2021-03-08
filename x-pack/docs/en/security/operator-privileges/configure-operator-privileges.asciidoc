@@ -55,16 +55,13 @@ shows an example of such a file:
 operator: <1>
   - usernames: ["system_agent_1","system_agent_2"] <2>
     realm_type: "file" <3>
-    realm_name: "file1" <4>
-    auth_type: "realm" <5>
+    auth_type: "realm" <4>
 -----------------------------------
 <1> A fixed value of `operator` signals the beginning of the definition.
 <2> A list of user names allowed for operator users. This field is mandatory.
 <3> The type of the authenticating realm allowed for operator users. The default
 and only acceptable value is <<file-realm,`file`>>.
-<4> The name of the authenticating realm allowed for operator users. For the
-`file` realm, the name is ignored.
-<5> The authentication type allowed for operator users. The default and only
+<4> The authentication type allowed for operator users. The default and only
 acceptable value is `realm`.
 
 You must specify at least the `usernames` field. If no other fields are

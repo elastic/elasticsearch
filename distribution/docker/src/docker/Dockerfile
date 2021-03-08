@@ -281,7 +281,7 @@ RUN <%= retry.loop(
 %>
 RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
     ${package_manager} install --setopt=tsflags=nodocs -y \\
-      nc shadow-utils zip unzip && \\
+      nc shadow-utils zip findutils unzip procps-ng && \\
     ${package_manager} clean all
 
 <% } %>

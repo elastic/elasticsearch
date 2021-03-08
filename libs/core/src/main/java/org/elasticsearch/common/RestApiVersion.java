@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common;
 
+import java.util.function.Function;
+
 /**
  * A enum representing versions of the REST API (particularly with regard to backwards compatibility).
  *
@@ -30,6 +32,10 @@ public enum RestApiVersion {
         return fromMajorVersion(major - 1);
     }
 
+    public boolean matches(Function<RestApiVersion, Boolean> restApiVersionFunctions){
+        return restApiVersionFunctions.apply(this);
+    }
+
     private static RestApiVersion fromMajorVersion(int majorVersion) {
         return valueOf("V_" + majorVersion);
     }
@@ -40,6 +46,14 @@ public enum RestApiVersion {
 
     public static RestApiVersion current() {
         return CURRENT;
+    }
+
+    public static Function<RestApiVersion, Boolean> equalTo(RestApiVersion restApiVersion) {
+        return r -> r.major == restApiVersion.major;
+    }
+
+    public static Function<RestApiVersion, Boolean> onOrAfter(RestApiVersion restApiVersion) {
+        return r -> r.major >= restApiVersion.major;
     }
 
 }

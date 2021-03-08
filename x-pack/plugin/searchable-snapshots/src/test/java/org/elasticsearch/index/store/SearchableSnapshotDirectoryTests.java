@@ -650,7 +650,6 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69914")
     public void testClearCache() throws Exception {
         try (CacheService cacheService = defaultCacheService()) {
             cacheService.start();
@@ -728,7 +727,8 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
 
                     try (IndexInput input = directory.openInput(fileInfo.physicalName(), randomIOContext())) {
                         assertThat(input.length(), equalTo((long) fileLength));
-                        final int start = between(0, fileLength - 1);
+                        // we can't just read footer as that is not served from cache
+                        final int start = between(0, fileLength - CodecUtil.footerLength() - 1);
                         final int end = between(start + 1, fileLength);
 
                         input.seek(start);

@@ -2,6 +2,8 @@
 [[ml-configuring-alerts]]
 = Configuring {anomaly-detect} alerts
 
+beta::[]
+
 {anomaly-detect-cap} alerts run scheduled checks on an {anomaly-job} or a group 
 of jobs to detect anomalies with certain conditions. If an anomaly meets the 
 conditions, the alert triggers the defined action. For example, you can create 

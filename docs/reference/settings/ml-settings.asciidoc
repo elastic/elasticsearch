@@ -85,6 +85,16 @@ not current free memory. Jobs are not allocated to a node if doing so would
 cause the estimated memory use of {ml} jobs to exceed the limit. When the
 {operator-feature} is enabled, this setting can be updated only by operator
 users. The minimum value is `5`; the maximum value is `200`. Defaults to `30`.
++
+--
+TIP: Do not configure this setting to a value higher than the amount of memory
+left over after running the {es} JVM unless you have enough swap space to
+accommodate it and have determined this is an appropriate configuration for a
+specialist use case. The maximum setting value is for the special case where it
+has been determined that using swap space for {ml} jobs is acceptable. The
+general best practice is to not use swap on {es} nodes.
+
+--
 
 `xpack.ml.max_model_memory_limit`::
 (<<cluster-update-settings,Dynamic>>) The maximum `model_memory_limit` property

@@ -459,9 +459,20 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
     }
 
-    public void testExtract() throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
-        assertFetch(mapperService, "field", randomAlphaOfLength(5), null);
-        assertFetch(mapperService, "field", new String[] {randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5)}, null);
+    public void testFetch() throws IOException {
+        assertFetch(keywordMapperService(), "field", randomAlphaOfLength(5), null);
+    }
+
+    public void testFetchMany() throws IOException {
+        assertFetch(
+            keywordMapperService(),
+            "field",
+            new String[] { randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5) },
+            null
+        );
+    }
+
+    private MapperService keywordMapperService() throws IOException {
+        return createMapperService(mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
     }
 }

@@ -36,6 +36,10 @@ import org.elasticsearch.indices.SystemIndices.Feature;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -2288,6 +2292,21 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(names, empty());
     }
 
+    public void testMathExpressionSupport() {
+        Instant instant = LocalDate.of(2021, 01, 11).atStartOfDay().toInstant(ZoneOffset.UTC);
+        String resolved = this.indexNameExpressionResolver.resolveDateMathExpression("<a-name-{now/M{yyyy-MM}}>", instant.toEpochMilli());
+
+        assertEquals(resolved, "a-name-2021-01");
+    }
+
+    public void testMathExpressionSupportWithOlderDate() {
+
+        Instant instant = LocalDate.of(2020, 12, 2).atStartOfDay().toInstant(ZoneOffset.UTC);
+        final String indexName = "<older-date-{now/M{yyyy-MM}}>";
+        String resolved = this.indexNameExpressionResolver.resolveDateMathExpression(indexName, instant.toEpochMilli());
+
+        assertEquals(resolved, "older-date-2020-12");
+    }
     private ClusterState systemIndexTestClusterState() {
         Settings settings = Settings.builder().build();
         Metadata.Builder mdBuilder = Metadata.builder()

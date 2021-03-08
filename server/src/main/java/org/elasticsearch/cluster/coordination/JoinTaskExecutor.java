@@ -62,7 +62,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         @Override
         public String toString() {
-            return node != null ? node + " " + reason : reason;
+            if (node == null) {
+                return reason;
+            }
+
+            final StringBuilder stringBuilder = new StringBuilder();
+            node.appendDescriptionWithoutAttributes(stringBuilder);
+            stringBuilder.append(' ').append(reason);
+            return stringBuilder.toString();
         }
 
         public boolean isBecomeMasterTask() {

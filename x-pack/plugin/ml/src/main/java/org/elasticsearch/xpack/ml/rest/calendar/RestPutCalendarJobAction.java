@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -25,10 +24,10 @@ public class RestPutCalendarJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
+        return List.of(
             new Route(PUT,
-                MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/jobs/{" + Job.ID.getPreferredName() +
-                    "}")
+                    MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/jobs/{" + Job.ID.getPreferredName() +
+                        "}")
         );
     }
 

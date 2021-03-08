@@ -19,8 +19,9 @@ import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.HistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.latest.Latest;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
@@ -39,7 +40,7 @@ public class TransformConfigLinterTests extends ESTestCase {
     public void testGetWarnings_Pivot_WithScriptBasedRuntimeFields() {
         PivotConfig pivotConfig =
             new PivotConfig(
-                GroupConfigTests.randomGroupConfig(Version.CURRENT, singletonList(SingleGroupSource.Type.TERMS)),
+                GroupConfigTests.randomGroupConfig(() -> new TermsGroupSource(randomAlphaOfLengthBetween(1, 20), null, false)),
                 AggregationConfigTests.randomAggregationConfig(),
                 null);
         Function function = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT);
@@ -47,6 +48,7 @@ public class TransformConfigLinterTests extends ESTestCase {
         assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, null), is(empty()));
 
         SyncConfig syncConfig = TimeSyncConfigTests.randomTimeSyncConfig();
+
         assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig), is(empty()));
 
         Map<String, Object> runtimeMappings = new HashMap<>() {{
@@ -91,7 +93,9 @@ public class TransformConfigLinterTests extends ESTestCase {
     public void testGetWarnings_Pivot_CouldNotFindAnyOptimization() {
         PivotConfig pivotConfig =
             new PivotConfig(
-                GroupConfigTests.randomGroupConfig(Version.CURRENT, singletonList(SingleGroupSource.Type.HISTOGRAM)),
+                GroupConfigTests.randomGroupConfig(
+                    () -> new HistogramGroupSource(
+                        randomAlphaOfLengthBetween(1, 20), null, false, randomDoubleBetween(Math.nextUp(0), Double.MAX_VALUE, false))),
                 AggregationConfigTests.randomAggregationConfig(),
                 null);
         Function function = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT);

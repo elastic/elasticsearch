@@ -39,9 +39,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.time.DateTimeException;
 import java.time.Instant;
@@ -356,6 +353,10 @@ public final class DateFieldMapper extends FieldMapper {
          * deseralization code isn't particularly careful here and can return
          * {@link double} instead of the exact string in the {@code _source}.
          * So we have to *get* that string.
+         * <p>
+         * Nik chose not to use {@link String#format} for this because it feels
+         * a little wasteful. It'd probably be fine but this makes Nik feel a
+         * less bad about the {@code instanceof} and the string allocation.
          */
         private static final NumberFormat NUMBER_FORMAT = NumberFormat.getInstance(Locale.ROOT);
         static {

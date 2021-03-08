@@ -606,73 +606,6 @@ public class FrozenCacheService implements Releasable {
             throw new AlreadyClosedException("File chunk is evicted");
         }
 
-        public StepListener<Integer> populateAndRead(
-            final ByteRange rangeToWrite,
-            final ByteRange rangeToRead,
-            final RangeAvailableHandler reader,
-            final RangeMissingHandler writer,
-            final Executor executor
-        ) {
-            final StepListener<Integer> listener = new StepListener<>();
-            if (rangeToRead.length() == 0) {
-                // TODO: getting here makes no sense in the current codebase, do we want to always write out the full write range or not?
-                listener.onResponse(0);
-                return listener;
-            }
-            Releasable decrementRef = null;
-            try {
-                ensureOpen();
-                incRef();
-                decrementRef = Releasables.releaseOnce(this::decRef);
-                ensureOpen();
-                Releasable finalDecrementRef = decrementRef;
-                listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
-                final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedPageIndex);
-                listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
-                final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                    rangeToWrite,
-                    rangeToRead,
-                    rangeListener(rangeToRead, reader, listener, fileChannel)
-                );
-
-                for (SparseFileTracker.Gap gap : gaps) {
-                    executor.execute(new AbstractRunnable() {
-
-                        @Override
-                        protected void doRun() throws Exception {
-                            if (CacheFileRegion.this.tryIncRef() == false) {
-                                // assert false : "expected a non-closed channel reference";
-                                throw new AlreadyClosedException("Cache file channel has been released and closed");
-                            }
-                            try {
-                                ensureOpen();
-                                final long start = gap.start();
-                                assert regionOwners[sharedPageIndex].get() == CacheFileRegion.this;
-                                writer.fillCacheRange(
-                                    new SharedBytes.IO[] { fileChannel },
-                                    start,
-                                    start,
-                                    gap.end() - start,
-                                    progress -> gap.onProgress(start + progress)
-                                );
-                            } finally {
-                                decRef();
-                            }
-                            gap.onCompletion();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            gap.onFailure(e);
-                        }
-                    });
-                }
-            } catch (Exception e) {
-                releaseAndFail(listener, decrementRef, e);
-            }
-            return listener;
-        }
-
         @Nullable
         public StepListener<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
             final StepListener<Integer> listener = new StepListener<>();
@@ -704,7 +637,7 @@ public class FrozenCacheService implements Releasable {
             ActionListener<Integer> listener,
             SharedBytes.IO fileChannel
         ) {
-            return ActionListener.wrap(success -> {
+            return ActionListener.wrap(v -> {
                 assert regionOwners[sharedPageIndex].get() == CacheFileRegion.this;
                 final int read = reader.onRangeAvailable(fileChannel, rangeToRead.start(), rangeToRead.start(), rangeToRead.length());
                 assert read == rangeToRead.length() : "partial read ["
@@ -789,8 +722,12 @@ public class FrozenCacheService implements Releasable {
             );
 
             for (int region = firstRegion; region <= lastRegion; region++) {
-                final ByteRange subRangeToWrite = mapSubRangeToRegion(rangeToWrite, region, fileSize, headerCacheLength, footerCacheLength);
                 final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region, fileSize, headerCacheLength, footerCacheLength);
+                if (subRangeToRead.length() == 0) {
+                    // TODO: we still want to write here
+                    continue;
+                }
+                final ByteRange subRangeToWrite = mapSubRangeToRegion(rangeToWrite, region, fileSize, headerCacheLength, footerCacheLength);
                 assert subRangeToRead.length() > 0 || subRangeToWrite.length() > 0
                     : "Either read or write region must be non-empty but saw [" + subRangeToRead + "][" + subRangeToWrite + "]";
 
@@ -803,24 +740,69 @@ public class FrozenCacheService implements Releasable {
                 final long readRangeRelativeStart = rangeToRead.start() - regionStart;
                 final long writeRangeRelativeStart = rangeToWrite.start() - regionStart;
                 final CacheFileRegion fileRegion = get(cacheKey, fileSize, region, headerCacheLength, footerCacheLength);
-                final StepListener<Integer> lis = fileRegion.populateAndRead(
-                    subRangeToWrite,
-                    subRangeToRead,
-                    (channel, channelPos, relativePos, length) -> {
-                        assert regionOwners[fileRegion.sharedPageIndex].get() == fileRegion;
-                        return reader.onRangeAvailable(channel, channelPos, relativePos - readRangeRelativeStart, length);
-                    },
-                    (channel, channelPos, relativePos, length, progressUpdater) -> {
-                        assert regionOwners[fileRegion.sharedPageIndex].get() == fileRegion;
-                        writer.fillCacheRange(channel, channelPos, relativePos - writeRangeRelativeStart, length, progressUpdater);
-                    },
-                    executor
-                );
-                assert lis != null;
+                final StepListener<Integer> listener = new StepListener<>();
+                final RangeMissingHandler rangeWriter = (channels, channelPos, relativePos, length, progressUpdater) -> {
+                    assert regionOwners[fileRegion.sharedPageIndex].get() == fileRegion;
+                    writer.fillCacheRange(channels, channelPos, relativePos - writeRangeRelativeStart, length, progressUpdater);
+                };
+                final RangeAvailableHandler rangeAvailableHandler = (channel, channelPos, relativePos, length) -> {
+                    assert regionOwners[fileRegion.sharedPageIndex].get() == fileRegion;
+                    return reader.onRangeAvailable(channel, channelPos, relativePos - readRangeRelativeStart, length);
+                };
+                Releasable decrementRef = null;
+                try {
+                    fileRegion.ensureOpen();
+                    fileRegion.incRef();
+                    decrementRef = Releasables.releaseOnce(fileRegion::decRef);
+                    final Releasable finalReleasable = decrementRef;
+                    fileRegion.ensureOpen();
+                    listener.whenComplete(integer -> finalReleasable.close(), throwable -> finalReleasable.close());
+                    final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(fileRegion.sharedPageIndex);
+                    listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
+                    final List<SparseFileTracker.Gap> gaps = fileRegion.tracker.waitForRange(
+                        subRangeToWrite,
+                        subRangeToRead,
+                        fileRegion.rangeListener(subRangeToRead, rangeAvailableHandler, listener, fileChannel)
+                    );
+                    for (SparseFileTracker.Gap gap : gaps) {
+                        executor.execute(new AbstractRunnable() {
+
+                            @Override
+                            protected void doRun() throws Exception {
+                                if (fileRegion.tryIncRef() == false) {
+                                    // assert false : "expected a non-closed channel reference";
+                                    throw new AlreadyClosedException("Cache file channel has been released and closed");
+                                }
+                                try {
+                                    fileRegion.ensureOpen();
+                                    final long start = gap.start();
+                                    assert regionOwners[fileRegion.sharedPageIndex].get() == fileRegion;
+                                    rangeWriter.fillCacheRange(
+                                        new SharedBytes.IO[] { fileChannel },
+                                        start,
+                                        start,
+                                        gap.end() - start,
+                                        progress -> gap.onProgress(start + progress)
+                                    );
+                                } finally {
+                                    fileRegion.decRef();
+                                }
+                                gap.onCompletion();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                gap.onFailure(e);
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    fileRegion.releaseAndFail(listener, decrementRef, e);
+                }
                 if (stepListener == null) {
-                    stepListener = lis;
+                    stepListener = listener;
                 } else {
-                    stepListener = stepListener.thenCombine(lis, Math::addExact);
+                    stepListener = stepListener.thenCombine(listener, Math::addExact);
                 }
 
             }

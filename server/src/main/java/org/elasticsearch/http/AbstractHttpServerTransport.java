@@ -85,6 +85,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final HttpTracer tracer;
 
     private volatile long slowLogThresholdMs;
+    protected volatile long lastClientStatsPruneTime;
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                           NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings) {
@@ -131,18 +132,25 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     @Override
     public HttpStats stats() {
-        pruneClientStats();
+        pruneClientStats(false);
         return new HttpStats(new ArrayList<>(httpChannelStats.values()), httpChannels.size(), totalChannelsAccepted.get());
     }
 
-    void pruneClientStats() {
-        // prune stale entries
-        long nowMillis = threadPool.absoluteTimeInMillis();
-        for (var statsEntry : httpChannelStats.entrySet()) {
-            long closedTimeMillis = statsEntry.getValue().closedTimeMillis;
-            if (closedTimeMillis > 0 && (nowMillis - closedTimeMillis > TimeUnit.MINUTES.toMillis(5))) {
-                httpChannelStats.remove(statsEntry.getKey());
+    /**
+     * Prunes client stats of entries that have been disconnected for more than five minutes.
+     *
+     * @param throttled When true, executes the prune process only if more than 60 seconds has elapsed since the last execution.
+     */
+    void pruneClientStats(boolean throttled) {
+        if (throttled == false || (threadPool.relativeTimeInMillis() - lastClientStatsPruneTime > TimeUnit.SECONDS.toMillis(60))) {
+            long nowMillis = threadPool.absoluteTimeInMillis();
+            for (var statsEntry : httpChannelStats.entrySet()) {
+                long closedTimeMillis = statsEntry.getValue().closedTimeMillis;
+                if (closedTimeMillis > 0 && (nowMillis - closedTimeMillis > TimeUnit.MINUTES.toMillis(5))) {
+                    httpChannelStats.remove(statsEntry.getKey());
+                }
             }
+            lastClientStatsPruneTime = threadPool.relativeTimeInMillis();
         }
     }
 
@@ -321,6 +329,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
             }
         }));
+        pruneClientStats(true);
         logger.trace(() -> new ParameterizedMessage("Http channel accepted: {}", httpChannel));
     }
 

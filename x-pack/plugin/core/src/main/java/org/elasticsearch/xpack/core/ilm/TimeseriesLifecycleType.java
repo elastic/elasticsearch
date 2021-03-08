@@ -370,6 +370,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
      */
     public static String validateMonotonicallyIncreasingPhaseTimings(Collection<Phase> phases) {
         List<String> errors = new ArrayList<>();
+        Set<String> invalidPhases = new HashSet<>();
 
         // Loop through all phases in order, for each phase with a min_age
         // configured, look at all the future phases to see if their ages are
@@ -385,6 +386,12 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
             if (maybePhase.isPresent()) {
                 Phase phase = maybePhase.get();
+                // We only consider a phase bad once, otherwise we can duplicate
+                // errors, so we keep track of the invalid phases we've seen and
+                // ignore them if they come around again.
+                if (invalidPhases.contains(phase.getName())) {
+                    continue;
+                }
                 TimeValue phaseMinAge = phase.getMinimumAge();
                 Set<String> followingPhases = new HashSet<>(ORDERED_VALID_PHASES.subList(i + 1, ORDERED_VALID_PHASES.size()));
                 Set<Phase> phasesWithBadAges = phases.stream()
@@ -393,6 +400,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
                     .filter(p -> p.getMinimumAge().compareTo(phaseMinAge) < 0)
                     .collect(Collectors.toSet());
                 if (phasesWithBadAges.size() > 0) {
+                    phasesWithBadAges.forEach(p -> invalidPhases.add(p.getName()));
                     errors.add("phases [" + phasesWithBadAges.stream().map(Phase::getName).collect(Collectors.joining(",")) +
                         "] configure a [min_age] value less than the [min_age] of [" + phase.getMinimumAge() +
                         "] for the [" + phaseName + "] phase, configuration: " +

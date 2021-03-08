@@ -771,6 +771,21 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 containsString("phases [frozen,delete] configure a [min_age] value less " +
                     "than the [min_age] of [3d] for the [warm] phase, configuration: {frozen=1d, delete=2d}"));
         }
+
+        {
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(3), Collections.emptyMap());
+            Phase coldPhase = new Phase(COLD_PHASE, null, Collections.emptyMap());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+
+            String err =
+                validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
+
+            assertThat(err,
+                containsString("phases [frozen,delete] configure a [min_age] value less than " +
+                    "the [min_age] of [3d] for the [warm] phase, configuration: {frozen=2d, delete=1d}"));
+        }
     }
 
     private void assertNextActionName(String phaseName, String currentAction, String expectedNextAction, String... availableActionNames) {

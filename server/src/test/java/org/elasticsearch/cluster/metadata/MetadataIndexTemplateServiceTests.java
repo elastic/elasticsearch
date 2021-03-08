@@ -474,7 +474,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertTemplatesEqual(state.metadata().templatesV2().get("bar"), barTemplate);
         assertTemplatesEqual(state.metadata().templatesV2().get("baz"), bazTemplate);
 
-        ClusterState updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foo,baz");
+        ClusterState updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foo", "baz");
         assertNull(updatedState.metadata().templatesV2().get("foo"));
         assertNotNull(updatedState.metadata().templatesV2().get("bar"));
         assertNull(updatedState.metadata().templatesV2().get("baz"));

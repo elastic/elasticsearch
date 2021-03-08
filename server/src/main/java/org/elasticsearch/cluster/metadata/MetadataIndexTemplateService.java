@@ -615,9 +615,9 @@ public class MetadataIndexTemplateService {
      * Remove the given index template from the cluster state. The index template name
      * supports simple regex wildcards for removing multiple index templates at a time.
      */
-    public void removeIndexTemplateV2(final String name, final TimeValue masterTimeout,
+    public void removeIndexTemplateV2(final String[] names, final TimeValue masterTimeout,
                                       final ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("remove-index-template-v2 [" + name + "]",
+        clusterService.submitStateUpdateTask("remove-index-template-v2 [" + String.join(",", names) + "]",
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
@@ -627,7 +627,7 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return innerRemoveIndexTemplateV2(currentState, name);
+                    return innerRemoveIndexTemplateV2(currentState, names);
                 }
 
                 @Override
@@ -638,11 +638,11 @@ public class MetadataIndexTemplateService {
     }
 
     // Package visible for testing
-    static ClusterState innerRemoveIndexTemplateV2(ClusterState currentState, String name) {
+    static ClusterState innerRemoveIndexTemplateV2(ClusterState currentState, String... names) {
         Set<String> templateNames = new HashSet<>();
         for (String templateName : currentState.metadata().templatesV2().keySet()) {
-            for (String name2 : name.split(",")) {
-                if (Regex.simpleMatch(name2, templateName)) {
+            for (String name : names) {
+                if (Regex.simpleMatch(name, templateName)) {
                     templateNames.add(templateName);
                 }
             }
@@ -650,10 +650,17 @@ public class MetadataIndexTemplateService {
         if (templateNames.isEmpty()) {
             // if its a match all pattern, and no templates are found (we have none), don't
             // fail with index missing...
-            if (Regex.isMatchAllPattern(name)) {
-                return currentState;
+            boolean isMatchAll = false;
+            for (String name : names) {
+                if (Regex.isMatchAllPattern(name)) {
+                    isMatchAll = true;
+                }
             }
-            throw new IndexTemplateMissingException(name);
+            if (isMatchAll) {
+                return currentState;
+            } else {
+                throw new IndexTemplateMissingException(String.join(",", names));
+            }
         }
 
         Optional<Set<String>> dataStreamsUsingTemplates = templateNames.stream()

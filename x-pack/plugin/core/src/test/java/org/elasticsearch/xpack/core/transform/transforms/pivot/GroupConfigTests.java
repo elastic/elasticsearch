@@ -22,9 +22,11 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource.Type;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -38,6 +40,10 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
     }
 
     public static GroupConfig randomGroupConfig(Version version) {
+        return randomGroupConfig(version, Arrays.asList(SingleGroupSource.Type.values()));
+    }
+
+    public static GroupConfig randomGroupConfig(Version version, List<Type> allowedTypes) {
         Map<String, Object> source = new LinkedHashMap<>();
         Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
 
@@ -47,7 +53,7 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
             String targetFieldName = randomAlphaOfLengthBetween(1, 20);
             if (names.add(targetFieldName)) {
                 SingleGroupSource groupBy = null;
-                Type type = randomFrom(SingleGroupSource.Type.values());
+                Type type = randomFrom(allowedTypes);
                 switch (type) {
                     case TERMS:
                         groupBy = TermsGroupSourceTests.randomTermsGroupSource(version);

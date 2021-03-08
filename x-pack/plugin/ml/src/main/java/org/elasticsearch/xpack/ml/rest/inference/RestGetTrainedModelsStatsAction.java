@@ -9,37 +9,31 @@ package org.elasticsearch.xpack.ml.rest.inference;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
+import static org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig.MODEL_ID;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         return List.of(
-            new ReplacedRoute(
-                GET, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats",
-                GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats"),
-            new ReplacedRoute(
-                GET, MachineLearning.BASE_PATH + "trained_models/_stats",
-                GET, MachineLearning.BASE_PATH + "inference/_stats"));
+            Route.builder(GET, BASE_PATH + "trained_models/{" + MODEL_ID.getPreferredName() + "}/_stats")
+                .replaces(GET, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}/_stats", RestApiVersion.V_8).build(),
+            Route.builder(GET, BASE_PATH + "trained_models/_stats")
+                .replaces(GET, BASE_PATH + "inference/_stats", RestApiVersion.V_8).build()
+        );
     }
 
     @Override
@@ -49,7 +43,7 @@ public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String modelId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
+        String modelId = restRequest.param(MODEL_ID.getPreferredName());
         if (Strings.isNullOrEmpty(modelId)) {
             modelId = Metadata.ALL;
         }

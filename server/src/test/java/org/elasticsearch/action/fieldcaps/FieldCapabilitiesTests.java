@@ -155,14 +155,14 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
     protected FieldCapabilities mutateInstance(FieldCapabilities instance) {
         String name = instance.getName();
         String type = instance.getType();
-        boolean isMetaField = instance.isMetaField();
+        boolean isMetadataField = instance.isMetadataField();
         boolean isSearchable = instance.isSearchable();
         boolean isAggregatable = instance.isAggregatable();
         String[] indices = instance.indices();
         String[] nonSearchableIndices = instance.nonSearchableIndices();
         String[] nonAggregatableIndices = instance.nonAggregatableIndices();
         Map<String, Set<String>> meta = instance.meta();
-        switch (between(0, 7)) {
+        switch (between(0, 8)) {
         case 0:
             name += randomAlphaOfLengthBetween(1, 10);
             break;
@@ -227,12 +227,12 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             meta = newMeta;
             break;
         case 8:
-            isMetaField = isMetaField == false;
+            isMetadataField = isMetadataField == false;
             break;
         default:
             throw new AssertionError();
         }
-        return new FieldCapabilities(name, type, isMetaField, isSearchable, isAggregatable,
+        return new FieldCapabilities(name, type, isMetadataField, isSearchable, isAggregatable,
             indices, nonSearchableIndices, nonAggregatableIndices, meta);
     }
 }

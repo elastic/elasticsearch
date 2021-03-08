@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 public class FieldCapabilities implements Writeable, ToXContentObject {
 
     private static final ParseField TYPE_FIELD = new ParseField("type");
-    private static final ParseField METADATA_FIELD = new ParseField("metadata_field");
+    private static final ParseField IS_METADATA_FIELD = new ParseField("metadata_field");
     private static final ParseField SEARCHABLE_FIELD = new ParseField("searchable");
     private static final ParseField AGGREGATABLE_FIELD = new ParseField("aggregatable");
     private static final ParseField INDICES_FIELD = new ParseField("indices");
@@ -131,7 +131,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field(TYPE_FIELD.getPreferredName(), type);
         if (isMetadataField) {
-            builder.field(METADATA_FIELD.getPreferredName(), isMetadataField);
+            builder.field(IS_METADATA_FIELD.getPreferredName(), isMetadataField);
         }
         builder.field(SEARCHABLE_FIELD.getPreferredName(), isSearchable);
         builder.field(AGGREGATABLE_FIELD.getPreferredName(), isAggregatable);
@@ -181,7 +181,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), SEARCHABLE_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), AGGREGATABLE_FIELD);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), METADATA_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), IS_METADATA_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), INDICES_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_SEARCHABLE_INDICES_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_AGGREGATABLE_INDICES_FIELD);
@@ -199,7 +199,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     /**
      * Whether this field is a metadata field.
      */
-    public boolean isMetaField() {
+    public boolean isMetadataField() {
         return isMetadataField;
     }
 

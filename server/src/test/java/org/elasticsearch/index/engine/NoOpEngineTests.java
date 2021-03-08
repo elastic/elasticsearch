@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class NoOpEngineTests extends EngineTestCase {
@@ -123,7 +124,9 @@ public class NoOpEngineTests extends EngineTestCase {
                         deletions += 1;
                     }
                 }
-                engine.getLocalCheckpointTracker().waitForProcessedOpsToComplete(numDocs + deletions - 1);
+                final long awaitedCheckpoint = numDocs + deletions - 1;
+                assertBusy(() ->
+                        assertThat(engine.getLocalCheckpointTracker().getProcessedCheckpoint(), greaterThanOrEqualTo(awaitedCheckpoint)));
                 engine.flush(true, true);
             }
 

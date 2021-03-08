@@ -423,9 +423,11 @@ public class RoutingTableTests extends ESAllocationTestCase {
             for (ShardRoutingState state: rightRemoveOrder) {
                 int theRoundThisStateShouldBeRemoved = rightRemoveOrder.indexOf(state) + 1;
                 if (removeReplicaNumber < theRoundThisStateShouldBeRemoved) {
-                    assertThat(indexRoutingTable.shard(0).replicaShardsWithState(state).size(), equalTo(1));
+                    assertThat(indexRoutingTable.prettyPrint(), indexRoutingTable.shard(0).replicaShardsWithState(state).size(),
+                        equalTo(1));
                 } else {
-                    assertThat(indexRoutingTable.shard(0).replicaShardsWithState(state).size(), equalTo(0));
+                    assertThat(indexRoutingTable.prettyPrint(), indexRoutingTable.shard(0).replicaShardsWithState(state).size(),
+                        equalTo(0));
                 }
             }
         }

@@ -35,7 +35,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * The {@link IndexRoutingTable} represents routing information for a single
@@ -54,6 +54,12 @@ import java.util.function.Function;
  */
 public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
 
+    private static final List<Predicate<ShardRouting>> PRIORITY_REMOVE_CLAUSES = List.of(
+        ShardRouting::unassigned,
+        ShardRouting::initializing,
+        ShardRouting::relocating,
+        shardRouting -> true
+    );
     private final Index index;
     private final ShardShuffler shuffler;
 
@@ -459,19 +465,11 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                     builder.addShard(shardRouting);
                 }
 
-                // define remove priority
-                List<Function<ShardRouting, Boolean>> priorityRemoveClauses = List.of(
-                    shardRouting -> shardRouting.assignedToNode() == false,
-                    shardRouting -> shardRouting.initializing(),
-                    shardRouting -> shardRouting.relocating(),
-                    shardRouting -> true
-                );
-
                 boolean removed = false;
-                for (Function<ShardRouting, Boolean> removeClause : priorityRemoveClauses) {
+                for (Predicate<ShardRouting> removeClause : PRIORITY_REMOVE_CLAUSES) {
                     if (removed == false) {
                         for (ShardRouting shardRouting : indexShard) {
-                            if (shardRouting.primary() == false && removeClause.apply(shardRouting)) {
+                            if (shardRouting.primary() == false && removeClause.test(shardRouting)) {
                                 builder.removeShard(shardRouting);
                                 removed = true;
                                 break;

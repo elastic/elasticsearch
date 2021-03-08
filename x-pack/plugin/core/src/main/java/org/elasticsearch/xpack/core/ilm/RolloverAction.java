@@ -101,6 +101,11 @@ public class RolloverAction implements LifecycleAction {
             out.writeBoolean(true);
             maxSize.writeTo(out);
         } else if (hasMaxPrimaryShardSize && out.getVersion().before(Version.V_7_13_0)) {
+            // In the case that the outgoing node is on a version that doesn't support maxPrimaryShardSize then
+            // serialize it as maxSize. When the outgoing node receives that node-to-node response there is no validation
+            // taking place (see constructors_ and otherwise we could end up with a rollover action instance without any conditions.
+            // If the node is rebooted then it would be unable to read the cluster state and fail starting up.
+            // (ilm policies are part of cluster state)
             out.writeBoolean(true);
             maxPrimaryShardSize.writeTo(out);
         } else {

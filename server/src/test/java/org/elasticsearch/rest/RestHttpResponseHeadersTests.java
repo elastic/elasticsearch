@@ -8,13 +8,13 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -49,7 +49,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
          * method list, passing in the RandomizedContext's Random instance,
          * before picking out a candidate sublist.
          */
-        List<RestRequest.Method> validHttpMethodArray = new ArrayList<RestRequest.Method>(Arrays.asList(RestRequest.Method.values()));
+        List<RestRequest.Method> validHttpMethodArray = new ArrayList<>(Arrays.asList(RestRequest.Method.values()));
         validHttpMethodArray.remove(RestRequest.Method.OPTIONS);
         Collections.shuffle(validHttpMethodArray, random());
 
@@ -65,7 +65,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
          * Generate an inverse list of one or more candidate invalid HTTP
          * methods, so we have a candidate method to fire at the test endpoint.
          */
-        List<RestRequest.Method> invalidHttpMethodArray = new ArrayList<RestRequest.Method>(Arrays.asList(RestRequest.Method.values()));
+        List<RestRequest.Method> invalidHttpMethodArray = new ArrayList<>(Arrays.asList(RestRequest.Method.values()));
         invalidHttpMethodArray.removeAll(validHttpMethodArray);
         // Remove OPTIONS, or else we'll get a 200 instead of 405
         invalidHttpMethodArray.remove(RestRequest.Method.OPTIONS);
@@ -82,18 +82,11 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
                 null, null, circuitBreakerService, usageService);
 
         // A basic RestHandler handles requests to the endpoint
-        RestHandler restHandler = new RestHandler() {
-
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                channel.sendResponse(new TestResponse());
-            }
-
-        };
+        RestHandler restHandler = (request, channel, client) -> channel.sendResponse(new TestResponse());
 
         // Register valid test handlers with test RestController
         for (RestRequest.Method method : validHttpMethodArray) {
-            restController.registerHandler(method, "/", restHandler);
+            restController.registerHandler(new Route(method, "/"), restHandler);
         }
 
         // Generate a test request with an invalid HTTP method

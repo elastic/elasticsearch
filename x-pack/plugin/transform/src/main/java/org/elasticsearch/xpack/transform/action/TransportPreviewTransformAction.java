@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.transform.action;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
@@ -18,6 +20,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -37,8 +40,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
+import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -53,18 +59,19 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class TransportPreviewTransformAction extends HandledTransportAction<
-    PreviewTransformAction.Request,
-    PreviewTransformAction.Response> {
+public class TransportPreviewTransformAction extends HandledTransportAction<Request, Response> {
 
     private static final int NUMBER_OF_PREVIEW_BUCKETS = 100;
     private final Client client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
+    private final TransportService transportService;
+    private final boolean isRemoteClusterClientNode;
     private final SourceDestValidator sourceDestValidator;
 
     @Inject
@@ -102,14 +109,16 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
         Settings settings,
         IngestService ingestService
     ) {
-        super(name, transportService, actionFilters, PreviewTransformAction.Request::new);
+        super(name, transportService, actionFilters, Request::new);
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.transportService = transportService;
+        this.isRemoteClusterClientNode = DiscoveryNode.isRemoteClusterClient(settings);
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
-            DiscoveryNode.isRemoteClusterClient(settings)
+            isRemoteClusterClientNode
                 /* transforms are BASIC so always allowed, no need to check license */
                 ? new RemoteClusterLicenseChecker(client, mode -> true) : null,
             ingestService,
@@ -119,9 +128,27 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
     }
 
     @Override
-    protected void doExecute(Task task, PreviewTransformAction.Request request, ActionListener<PreviewTransformAction.Response> listener) {
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
         TransformNodes.warnIfNoTransformNodes(clusterState);
+        final DiscoveryNodes nodes = clusterState.nodes();
+
+        // Redirection can only be performed between nodes that are at least 7.13.
+        if (nodes.getMinNodeVersion().onOrAfter(Version.V_7_13_0)
+                && request.getConfig().getSource().requiresRemoteCluster()
+                && (isRemoteClusterClientNode == false)) {
+            // remote_cluster_client role is required but the current node is not remote_cluster_client, find another node.
+            Optional<DiscoveryNode> remoteClusterClientNode = TransformNodes.selectAnyTransformRemoteNode(nodes);
+            if (remoteClusterClientNode.isPresent()) {
+                // Redirect the request to a remote_cluster_client node
+                transportService.sendRequest(
+                    remoteClusterClientNode.get(), actionName, request, new ActionListenerResponseHandler<>(listener, Response::new));
+            } else {
+                // There are no remote_cluster_client nodes in the cluster, fail
+                listener.onFailure(ExceptionsHelper.badRequestException("No remote_cluster_client node to run on"));
+            }
+            return;
+        }
 
         final TransformConfig config = request.getConfig();
         sourceDestValidator.validate(
@@ -156,7 +183,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
         String pipeline,
         String dest,
         SyncConfig syncConfig,
-        ActionListener<PreviewTransformAction.Response> listener
+        ActionListener<Response> listener
     ) {
         final SetOnce<Map<String, String>> mappings = new SetOnce<>();
 
@@ -177,7 +204,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
 
             List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
             warnings.forEach(HeaderWarning::addWarning);
-            listener.onResponse(new PreviewTransformAction.Response(docs, generatedDestIndexSettings));
+            listener.onResponse(new Response(docs, generatedDestIndexSettings));
         }, listener::onFailure);
         function.deduceMappings(client, source, ActionListener.wrap(deducedMappings -> {
             mappings.set(deducedMappings);
@@ -196,7 +223,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
                         );
                         List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
                         warnings.forEach(HeaderWarning::addWarning);
-                        listener.onResponse(new PreviewTransformAction.Response(docs, generatedDestIndexSettings));
+                        listener.onResponse(new Response(docs, generatedDestIndexSettings));
                     } else {
                         List<Map<String, Object>> results = docs.stream().map(doc -> {
                             Map<String, Object> src = new HashMap<>();

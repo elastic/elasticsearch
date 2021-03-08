@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master, data, ingest").build();
+        return Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master, data, ingest, remote_cluster_client").build();
     }
 
     public void testWarningForStats() {

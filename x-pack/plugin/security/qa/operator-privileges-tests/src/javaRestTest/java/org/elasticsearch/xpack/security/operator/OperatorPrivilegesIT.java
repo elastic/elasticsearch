@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class OperatorPrivilegesIT extends ESRestTestCase {
 
     private static final String OPERATOR_AUTH_HEADER = "Basic "
-        + Base64.getEncoder().encodeToString("test_operator:x-pack-test-password".getBytes(StandardCharsets.UTF_8));;
+        + Base64.getEncoder().encodeToString("test_operator:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
 
     @Override
     protected Settings restClientSettings() {

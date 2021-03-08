@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -109,13 +110,13 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }
         DiscoveryNode discoveryNode = selectLeastLoadedNode(
             clusterState,
-            (node) -> nodeCanRunThisTransform(node, params, null)
+            node -> nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), null)
         );
 
         if (discoveryNode == null) {
             Map<String, String> explainWhyAssignmentFailed = new TreeMap<>();
             for (DiscoveryNode node : clusterState.getNodes()) {
-                nodeCanRunThisTransform(node, params, explainWhyAssignmentFailed);
+                nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), explainWhyAssignmentFailed);
             }
             String reason = "Not starting transform ["
                 + params.getId()
@@ -130,14 +131,15 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
     }
 
-    public static boolean nodeCanRunThisTransform(DiscoveryNode node, TransformTaskParams params, Map<String, String> explain) {
+    public static boolean nodeCanRunThisTransform(DiscoveryNode node,
+                                                  Version minRequiredVersion,
+                                                  boolean requiresRemote,
+                                                  Map<String, String> explain) {
         // version of the transform run on a node that has at least the same version
-        if (node.getVersion().onOrAfter(params.getVersion()) == false) {
+        if (node.getVersion().onOrAfter(minRequiredVersion) == false) {
             if (explain != null) {
                 explain.put(
-                    node.getId(),
-                    "node has version: " + node.getVersion() + " but transform requires at least " + params.getVersion()
-                );
+                    node.getId(), "node has version: " + node.getVersion() + " but transform requires at least " + minRequiredVersion);
             }
             return false;
         }
@@ -151,7 +153,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }
 
         // does the transform require a remote and remote is enabled?
-        if (params.requiresRemote() && node.isRemoteClusterClient() == false) {
+        if (requiresRemote && node.isRemoteClusterClient() == false) {
             if (explain != null) {
                 explain.put(node.getId(), "transform requires a remote connection but remote is disabled");
             }

@@ -12,22 +12,27 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Response;
@@ -46,6 +51,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -58,6 +64,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
     private final TransformConfigManager transformConfigManager;
     private final TransformCheckpointService transformCheckpointService;
     private final Client client;
+    private final boolean isRemoteClusterClientNode;
 
     @Inject
     public TransportGetTransformStatsAction(
@@ -65,9 +72,10 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         ActionFilters actionFilters,
         ClusterService clusterService,
         TransformServices transformServices,
-        Client client
+        Client client,
+        Settings settings
     ) {
-        this(GetTransformStatsAction.NAME, transportService, actionFilters, clusterService, transformServices, client);
+        this(GetTransformStatsAction.NAME, transportService, actionFilters, clusterService, transformServices, client, settings);
     }
 
     protected TransportGetTransformStatsAction(
@@ -76,12 +84,14 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         ActionFilters actionFilters,
         ClusterService clusterService,
         TransformServices transformServices,
-        Client client
+        Client client,
+        Settings settings
     ) {
         super(name, clusterService, transportService, actionFilters, Request::new, Response::new, Response::new, ThreadPool.Names.SAME);
         this.transformConfigManager = transformServices.getConfigManager();
         this.transformCheckpointService = transformServices.getCheckpointService();
         this.client = client;
+        this.isRemoteClusterClientNode = DiscoveryNode.isRemoteClusterClient(settings);
     }
 
     @Override
@@ -132,28 +142,49 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> finalListener) {
-        final ClusterState state = clusterService.state();
-        TransformNodes.warnIfNoTransformNodes(state);
+        final ClusterState clusterState = clusterService.state();
+        TransformNodes.warnIfNoTransformNodes(clusterState);
+        final DiscoveryNodes nodes = clusterState.nodes();
 
         transformConfigManager.expandTransformIds(
             request.getId(),
             request.getPageParams(),
             request.isAllowNoMatch(),
             ActionListener.wrap(hitsAndIds -> {
-                request.setExpandedIds(hitsAndIds.v2());
-                final TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(hitsAndIds.v2(), state);
+
+                if (hitsAndIds.v2().v2().stream().anyMatch(config -> config.getSource().requiresRemoteCluster())
+                        && (isRemoteClusterClientNode == false)) {
+                    // remote_cluster_client role is required but the current node is not remote_cluster_client, find another node.
+                    Optional<DiscoveryNode> remoteClusterClientNode = TransformNodes.selectAnyTransformRemoteNode(nodes);
+                    if (remoteClusterClientNode.isPresent()) {
+                        // Redirect the request to a remote_cluster_client node
+                        transportService.sendRequest(
+                            remoteClusterClientNode.get(),
+                            actionName,
+                            request,
+                            new ActionListenerResponseHandler<>(finalListener, Response::new));
+                    } else {
+                        // There are no remote_cluster_client nodes in the cluster, fail
+                        finalListener.onFailure(ExceptionsHelper.badRequestException("No remote_cluster_client node to run on"));
+                    }
+                    return;
+                }
+
+                request.setExpandedIds(hitsAndIds.v2().v1());
+                final TransformNodeAssignments transformNodeAssignments =
+                    TransformNodes.transformTaskNodes(hitsAndIds.v2().v1(), clusterState);
 
                 ActionListener<Response> doExecuteListener = ActionListener.wrap(response -> {
-                    PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+                    PersistentTasksCustomMetadata tasksInProgress = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                     if (tasksInProgress != null) {
                         // Mutates underlying state object with the assigned node attributes
-                        response.getTransformsStats().forEach(dtsasi -> setNodeAttributes(dtsasi, tasksInProgress, state));
+                        response.getTransformsStats().forEach(dtsasi -> setNodeAttributes(dtsasi, tasksInProgress, clusterState));
                     }
                     collectStatsForTransformsWithoutTasks(
                         request,
                         response,
                         transformNodeAssignments.getWaitingForAssignment(),
-                        state,
+                        clusterState,
                         ActionListener.wrap(
                             finalResponse -> finalListener.onResponse(
                                 new Response(

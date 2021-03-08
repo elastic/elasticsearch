@@ -40,7 +40,7 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
         this.scriptLangs = new HashSet<>();
     }
 
-    RuntimeFieldStats(StreamInput in) throws IOException {
+    public RuntimeFieldStats(StreamInput in) throws IOException {
         this.type = in.readString();
         this.count = in.readInt();
         this.indexCount = in.readInt();

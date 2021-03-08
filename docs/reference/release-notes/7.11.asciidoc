@@ -44,7 +44,7 @@ Mapping::
 * Collect multiple paths from XContentMapValues {es-pull}68540[#68540] (issue: {es-issue}68215[#68215])
 
 SQL::
-* Fix the inconsistent behaviour of ISO_WEEK_YEAR() {es-pull}68758[#68758] (issue: {es-issue}67872[#67872])
+* Fix the inconsistent behaviour of `ISO_WEEK_YEAR()` {es-pull}68758[#68758] (issue: {es-issue}67872[#67872])
 * Make `RestSqlQueryAction` thread-safe {es-pull}69895[#69895] (issue: {es-issue}69866[#69866])
 
 Snapshot/Restore::

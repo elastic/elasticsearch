@@ -165,11 +165,11 @@ public class ParseField {
         for (String depName : deprecatedNames) {
             if (fieldName.equals(depName)) {
                 if (fullyDeprecated) {
-                    deprecationHandler.usedRemovedField(parserName, location, fieldName, isCompatibleDeprecation);
+                    deprecationHandler.logRemovedField(parserName, location, fieldName, isCompatibleDeprecation);
                 } else if (allReplacedWith == null) {
-                    deprecationHandler.usedRenamedField(parserName, location, fieldName, name, isCompatibleDeprecation);
+                    deprecationHandler.logRenamedField(parserName, location, fieldName, name, isCompatibleDeprecation);
                 } else {
-                    deprecationHandler.usedReplacedField(parserName, location, fieldName, allReplacedWith, isCompatibleDeprecation);
+                    deprecationHandler.logReplacedField(parserName, location, fieldName, allReplacedWith, isCompatibleDeprecation);
                 }
                 return true;
             }

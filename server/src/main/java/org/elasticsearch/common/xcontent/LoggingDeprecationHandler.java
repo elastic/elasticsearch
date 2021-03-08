@@ -48,23 +48,23 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
     }
 
     @Override
-    public void usedRenamedField(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
-        usedRenamedField(parserName, location, usedName, modernName, false);
+    public void logRenamedField(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
+        logRenamedField(parserName, location, usedName, modernName, false);
     }
 
     @Override
-    public void usedReplacedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
-        usedReplacedField(parserName, location, usedName, replacedWith, false);
+    public void logReplacedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
+        logReplacedField(parserName, location, usedName, replacedWith, false);
     }
 
     @Override
-    public void usedRemovedField(String parserName, Supplier<XContentLocation> location, String usedName) {
-        usedRemovedField(parserName, location, usedName, false);
+    public void logRemovedField(String parserName, Supplier<XContentLocation> location, String usedName) {
+        logRemovedField(parserName, location, usedName, false);
     }
 
     @Override
-    public void usedRenamedField(String parserName, Supplier<XContentLocation> location, String usedName, String modernName,
-                                 boolean isCompatibleDeprecation) {
+    public void logRenamedField(String parserName, Supplier<XContentLocation> location, String usedName, String modernName,
+                                boolean isCompatibleDeprecation) {
         String prefix = parserLocation(parserName, location);
         TriConsumer<String, Object[], String> loggingFunction = getLoggingFunction(isCompatibleDeprecation);
         loggingFunction.apply("{}Deprecated field [{}] used, expected [{}] instead",
@@ -72,8 +72,8 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
     }
 
     @Override
-    public void usedReplacedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith,
-                                  boolean isCompatibleDeprecation) {
+    public void logReplacedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith,
+                                 boolean isCompatibleDeprecation) {
         String prefix = parserLocation(parserName, location);
         TriConsumer<String, Object[], String> loggingFunction = getLoggingFunction(isCompatibleDeprecation);
         loggingFunction.apply("{}Deprecated field [{}] used, replaced by [{}]",
@@ -81,8 +81,8 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
     }
 
     @Override
-    public void usedRemovedField(String parserName, Supplier<XContentLocation> location, String usedName,
-                                 boolean isCompatibleDeprecation) {
+    public void logRemovedField(String parserName, Supplier<XContentLocation> location, String usedName,
+                                boolean isCompatibleDeprecation) {
         String prefix = parserLocation(parserName, location);
         TriConsumer<String, Object[], String> loggingFunction = getLoggingFunction(isCompatibleDeprecation);
         loggingFunction.apply("{}Deprecated field [{}] used, this field is unused and will be removed entirely",

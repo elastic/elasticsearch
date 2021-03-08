@@ -79,33 +79,33 @@ public class ParseFieldTests extends ESTestCase {
         public boolean compatibleWarningsUsed = false;
 
         @Override
-        public void usedRenamedField(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
+        public void logRenamedField(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
         }
 
         @Override
-        public void usedReplacedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
+        public void logReplacedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
         }
 
         @Override
-        public void usedRemovedField(String parserName, Supplier<XContentLocation> location, String usedName) {
+        public void logRemovedField(String parserName, Supplier<XContentLocation> location, String usedName) {
         }
 
         @Override
-        public void usedRenamedField(String parserName, Supplier<XContentLocation> location, String usedName, String modernName,
-                                     boolean isCompatibleDeprecation) {
+        public void logRenamedField(String parserName, Supplier<XContentLocation> location, String usedName, String modernName,
+                                    boolean isCompatibleDeprecation) {
             this.compatibleWarningsUsed = isCompatibleDeprecation;
         }
 
         @Override
-        public void usedReplacedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith,
-                                      boolean isCompatibleDeprecation) {
+        public void logReplacedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith,
+                                     boolean isCompatibleDeprecation) {
             this.compatibleWarningsUsed = isCompatibleDeprecation;
 
         }
 
         @Override
-        public void usedRemovedField(String parserName, Supplier<XContentLocation> location, String usedName,
-                                     boolean isCompatibleDeprecation) {
+        public void logRemovedField(String parserName, Supplier<XContentLocation> location, String usedName,
+                                    boolean isCompatibleDeprecation) {
             this.compatibleWarningsUsed = isCompatibleDeprecation;
         }
     }

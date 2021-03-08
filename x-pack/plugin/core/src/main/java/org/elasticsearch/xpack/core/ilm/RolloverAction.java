@@ -96,12 +96,17 @@ public class RolloverAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         boolean hasMaxSize = maxSize != null;
-        out.writeBoolean(hasMaxSize);
+        boolean hasMaxPrimaryShardSize = maxPrimaryShardSize != null;
         if (hasMaxSize) {
+            out.writeBoolean(true);
             maxSize.writeTo(out);
+        } else if (hasMaxPrimaryShardSize && out.getVersion().before(Version.V_7_13_0)) {
+            out.writeBoolean(true);
+            maxPrimaryShardSize.writeTo(out);
+        } else {
+            out.writeBoolean(false);
         }
         if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            boolean hasMaxPrimaryShardSize = maxPrimaryShardSize != null;
             out.writeBoolean(hasMaxPrimaryShardSize);
             if (hasMaxPrimaryShardSize) {
                 maxPrimaryShardSize.writeTo(out);

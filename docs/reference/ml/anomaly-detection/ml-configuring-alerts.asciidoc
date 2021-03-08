@@ -17,10 +17,9 @@ anomalies and notifies you in an email. This page helps you to configure an
 == Creating an alert
 
 You can create {anomaly-detect} alerts in the {anomaly-job} wizard after you 
-start the job, from the job list, or under **{stack-manage-app} > 
-{alerts-ui}**. On the *Create alert* window, select *{anomaly-detect-cap} alert* 
-under the {ml-cap} section, then give a name to the alert and optionally provide 
-tags.
+start the job, from the job list, or under **{stack-manage-app} > {alerts-ui}**. 
+On the *Create alert* window, select *{anomaly-detect-cap} alert* under the 
+{ml-cap} section, then give a name to the alert and optionally provide tags.
 
 Specify the time interval for the alert to check detected anomalies. It is 
 recommended to select an interval that is close to the bucket span of the 
@@ -83,11 +82,11 @@ in the message, like job ID, anomaly score, time, or top influencers.
 [role="screenshot"]
 image::images/ml-anomaly-alert-messages.jpg["Customizing your message"]
 
-After you save the configurations, the alert appears in the _Alerts and 
-Actions_ list where you can check its status and see the overview of its 
-configuration information.
+After you save the configurations, the alert appears in the *{alerts-ui}* list 
+where you can check its status and see the overview of its configuration 
+information.
 
 The name of an alert instance is always the same as the job ID of the associated 
 {anomaly-job}. You can mute the notifications for a particular {anomaly-job} on 
 the page of the alert that lists the individual alert instances. You can open it 
-via {alerts-ui} by selecting the alert name.
+via *{alerts-ui}* by selecting the alert name.

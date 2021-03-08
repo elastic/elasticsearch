@@ -118,8 +118,7 @@ final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected void doPreCollection() throws IOException {
-        List<BucketCollector> collectors = Arrays.asList(subAggregators);
-        deferredCollectors = MultiBucketCollector.wrap(collectors);
+        deferredCollectors = MultiBucketCollector.wrap(false, Arrays.asList(subAggregators));
         collectableSubAggregators = BucketCollector.NO_OP_COLLECTOR;
     }
 

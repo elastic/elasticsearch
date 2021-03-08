@@ -797,6 +797,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         waitUntil(() -> {
             try {
                 Map<String, Object> explainIndexResponse = explainIndex(client, originalIndex);
+                LOGGER.info("--> index {}, explain {}", originalIndex, explainIndexResponse);
                 if (explainIndexResponse == null) {
                     return false;
                 }

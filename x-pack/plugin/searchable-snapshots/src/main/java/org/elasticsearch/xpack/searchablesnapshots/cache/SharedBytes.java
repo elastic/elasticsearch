@@ -132,6 +132,11 @@ public class SharedBytes extends AbstractRefCounted {
          * @param position position relative to the start index of this instance to write to
          */
         void write(ByteBuffer src, long position) throws IOException;
+
+        /**
+         * Returns the maximum size of this cache channel's region.
+         */
+        long size();
     }
 
     private final class SingleIO extends AbstractRefCounted implements IO {
@@ -155,6 +160,11 @@ public class SharedBytes extends AbstractRefCounted {
         public void write(ByteBuffer src, long position) throws IOException {
             checkOffsets(position, src.remaining());
             fileChannel.write(src, pageStart + position);
+        }
+
+        @Override
+        public long size() {
+            return sharedCacheConfiguration.regionSizeBySharedPageIndex(pageIndex);
         }
 
         private void checkOffsets(long position, long length) {

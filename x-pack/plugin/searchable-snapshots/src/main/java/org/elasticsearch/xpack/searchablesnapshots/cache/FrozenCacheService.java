@@ -649,7 +649,7 @@ public class FrozenCacheService implements Releasable {
                                 final long start = gap.start();
                                 assert regionOwners[sharedPageIndex].get() == CacheFileRegion.this;
                                 writer.fillCacheRange(
-                                    fileChannel,
+                                    new SharedBytes.IO[] { fileChannel },
                                     start,
                                     start,
                                     gap.end() - start,
@@ -743,8 +743,8 @@ public class FrozenCacheService implements Releasable {
         private FrozenCacheFile(CacheKey cacheKey, long fileSize, ByteRange cacheRange, ByteRange sliceFooterByteRange) {
             this.cacheKey = cacheKey;
             this.fileSize = fileSize;
-            this.footerCacheLength = sharedBytes.sharedCacheConfiguration.effectiveFooterCacheRange(sliceFooterByteRange.length());
             this.headerCacheLength = SharedCacheConfiguration.effectiveHeaderCacheRange(cacheRange.length());
+            this.footerCacheLength = sharedBytes.sharedCacheConfiguration.effectiveFooterCacheRange(sliceFooterByteRange.length());
         }
 
         public long getLength() {
@@ -781,12 +781,14 @@ public class FrozenCacheService implements Releasable {
                 headerCacheLength,
                 footerCacheLength
             );
-            for (int region = sharedBytes.sharedCacheConfiguration.getRegion(
+            final int firstRegion = sharedBytes.sharedCacheConfiguration.getRegion(
                 rangeToWrite.start(),
                 fileSize,
                 headerCacheLength,
                 footerCacheLength
-            ); region <= lastRegion; region++) {
+            );
+
+            for (int region = firstRegion; region <= lastRegion; region++) {
                 final ByteRange subRangeToWrite = mapSubRangeToRegion(rangeToWrite, region, fileSize, headerCacheLength, footerCacheLength);
                 final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region, fileSize, headerCacheLength, footerCacheLength);
                 assert subRangeToRead.length() > 0 || subRangeToWrite.length() > 0
@@ -902,14 +904,20 @@ public class FrozenCacheService implements Releasable {
         /**
          * Fills given shared bytes channel instance with the requested number of bytes at the given {@code channelPos}.
          *
-         * @param channel            channel to write bytes to be cached to
-         * @param channelRelativePos position relative to the start of {@code channel} to write to
+         * @param channels           channels to write bytes to be cached to
+         * @param channelRelativePos position relative to the start of the first channel in {@code channels} to write to
+         *                           subsequent channels in the array will be written to from index 0
          * @param relativePos        position on the cached file that should be written to the channel at the given position
          * @param length             number of bytes to read and cache
          * @param progressUpdater    progress updater that is called with the number of bytes already written to the cache channel by the
          *                           implementation during cache writes
          */
-        void fillCacheRange(SharedBytes.IO channel, long channelRelativePos, long relativePos, long length, Consumer<Long> progressUpdater)
-            throws IOException;
+        void fillCacheRange(
+            SharedBytes.IO[] channels,
+            long channelRelativePos,
+            long relativePos,
+            long length,
+            Consumer<Long> progressUpdater
+        ) throws IOException;
     }
 }

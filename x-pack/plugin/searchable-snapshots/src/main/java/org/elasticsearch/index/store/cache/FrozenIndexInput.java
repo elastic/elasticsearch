@@ -226,7 +226,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                             cachedRange,
                             cachedRange,
                             (channel, channelPos, relativePos, len) -> Math.toIntExact(len),
-                            (channel, channelPos, relativePos, len, progressUpdater) -> {
+                            (channels, channelPos, relativePos, len, progressUpdater) -> {
                                 assert len <= cachedBlob.to() - cachedBlob.from();
                                 final long startTimeNanos = stats.currentTimeNanos();
                                 final BytesRefIterator iterator = cachedBlob.bytes()
@@ -237,7 +237,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                                 BytesRef current;
                                 while ((current = iterator.next()) != null) {
                                     final ByteBuffer byteBuffer = ByteBuffer.wrap(current.bytes, current.offset, current.length);
-                                    positionalWrite(channel, writePosition, byteBuffer);
+                                    positionalWrite(channels, writePosition, byteBuffer);
                                     bytesCopied += current.length;
                                     writePosition += current.length;
                                     progressUpdater.accept(bytesCopied);
@@ -307,8 +307,8 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                     luceneByteBufLock,
                     stopAsyncReads
                 ),
-                (channel, channelPos, relativePos, len, progressUpdater) -> this.writeCacheFile(
-                    channel,
+                (channels, channelPos, relativePos, len, progressUpdater) -> this.writeCacheFile(
+                    channels,
                     channelPos,
                     relativePos,
                     len,
@@ -479,9 +479,22 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         return ByteRange.EMPTY;
     }
 
-    private static void positionalWrite(SharedBytes.IO fc, long start, ByteBuffer byteBuffer) throws IOException {
+    private static void positionalWrite(SharedBytes.IO[] fcs, long start, ByteBuffer byteBuffer) throws IOException {
         assert assertCurrentThreadMayWriteCacheFile();
-        fc.write(byteBuffer, start);
+        int firstIndex = -1;
+        for (int i = 0; i < fcs.length; i++) {
+            if (start < fcs[i].size()) {
+                firstIndex = i;
+            } else {
+                start -= fcs[i].size();
+            }
+        }
+        assert firstIndex >= 0 : "no index found for offset";
+
+        fcs[firstIndex].write(byteBuffer, start);
+        for (int i = 1; i < fcs.length && byteBuffer.hasRemaining(); i++) {
+            fcs[i].write(byteBuffer, 0);
+        }
     }
 
     /**
@@ -586,7 +599,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
     }
 
     private void writeCacheFile(
-        final SharedBytes.IO fc,
+        final SharedBytes.IO[] fcs,
         long fileChannelPos,
         long relativePos,
         long length,
@@ -613,7 +626,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         try (InputStream input = openInputStreamFromBlobStore(logicalPos + relativePos + compoundFileOffset, length)) {
             while (remaining > 0L) {
                 final int bytesRead = readSafe(input, copyBuffer, relativePos, end, remaining, frozenCacheFile);
-                positionalWrite(fc, fileChannelPos + bytesCopied, ByteBuffer.wrap(copyBuffer, 0, bytesRead));
+                positionalWrite(fcs, fileChannelPos + bytesCopied, ByteBuffer.wrap(copyBuffer, 0, bytesRead));
                 bytesCopied += bytesRead;
                 remaining -= bytesRead;
                 progressUpdater.accept(bytesCopied);

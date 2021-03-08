@@ -5,19 +5,18 @@
 --
 With scripting, you can evaluate custom expressions in {es}. For example, you
 can use a script to return a computed value as a field or evaluate a custom
- score for a query.
+score for a query.
 
 The default scripting language is <<modules-scripting-painless,Painless>>.
-Additional `lang` plugins enable you to run scripts written in other languages.
-Everywhere a script can be used, you can include a `lang` parameter
-to specify the language of the script.
+Additional `lang` plugins are available to run scripts written in other
+languages. You can specify the language of the script anywhere that scripts run.
 
 [discrete]
 [[scripts-and-search-speed]]
 == Scripts and search speed
 
-Scripts can't make use of {es}'s index structures or related optimizations,
-which can sometimes result in slower search speeds.
+Scripts can't use {es}'s index structures or related optimizations, which can
+sometimes result in slower search speeds.
 
 If you often use scripts to transform indexed data, you can speed up search by
 making these changes during ingest instead. However, that often means slower
@@ -32,10 +31,9 @@ when updates occur. By default, scripts do not have a time-based expiration.
 You can change this behavior by using the `script.cache.expire` setting.
 Use the `script.cache.max_size` setting to configure the size of the cache.
 
-NOTE: The size of scripts is limited to 65,535 bytes. This can be
-changed by setting `script.max_size_in_bytes` setting to increase that soft
-limit, but if scripts are really large then a
-<<modules-scripting-engine,native script engine>> should be considered.
+NOTE: The size of scripts is limited to 65,535 bytes. Set the value of `script.max_size_in_bytes` to increase that soft limit. If your scripts are
+really large, then consider using a
+<<modules-scripting-engine,native script engine>>.
 
 [discrete]
 [[scripting-available-languages]]

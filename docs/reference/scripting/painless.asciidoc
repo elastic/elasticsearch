@@ -2,8 +2,8 @@
 == Painless scripting language
 
 _Painless_ is a performant, secure scripting language designed specifically for
-{es}. You can use Painless anywhere scripts are supported in {es} to safely
-write inline and stored scripts.
+{es}. You can use Painless to safely write inline and stored scripts anywhere
+scripts are supported in {es}.
 
 [[painless-features]]
 Painless provides numerous capabilities that center around the following
@@ -17,14 +17,12 @@ compilation error. See the
 for a complete list of available classes, methods, and fields per script
 context.
 * **Performance**: Painless compiles directly into JVM bytecode to take
-advantage of all possible optimizations the JVM provides. Also, Painless
+advantage of all possible optimizations that the JVM provides. Also, Painless
 typically avoids features that require additional slower checks at runtime.
 * **Simplicity**: Painless implements a syntax with a natural familiarity to
 anyone with some basic coding experience. Painless uses a subset of Java syntax
 with some additional improvements to enhance readability and remove
-boilerplate. Using a Java-like syntax provides a natural compilation path into
-JVM bytecode that the syntax and semantics of other languages tend to heavily
-complicate.
+boilerplate.
 
 [discrete]
 === Start scripting

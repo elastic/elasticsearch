@@ -2,7 +2,8 @@
 == How to write scripts
 
 Wherever scripting is supported in the {es} APIs, the syntax follows the same
-pattern:
+pattern; you specify the language of your script, provide the script logic (or
+source, and add parameters that are passed into the script:
 
 [source,js]
 -------------------------------------
@@ -96,7 +97,7 @@ POST /_scripts/painless/_execute
 Our script now contains a `Map` of user-defined parameters. The `get` method
 accesses a value using the `String` key of the `hello_world` parameter.
 
-We'll explicitly specify the `Painless` language, even though that's the
+We'll explicitly specify the `painless` language, even though that's the
 default language.
 
 The `params` section is where things get interesting. This part of the script
@@ -221,10 +222,8 @@ POST /_scripts/painless/_execute
 
 You can declare a primitive type <<script-spec-variables,variable>> or access a
 primitive type member field from a reference type instance, and assign it a
-primitive type value for evaluation during later operations.
-
-Use the field access operator or method call operator on a primitive type value
-to force evaluation as its corresponding reference type value.
+primitive type value for evaluation during later operations. But what's a
+<<script-type-reference,reference type>>?
 
 [[script-type-reference]]
 ==== Reference types
@@ -234,7 +233,7 @@ objects and provide a way to access them. You define reference types as part of
 the API for scripts.
 
 When you assign a primitive type to another variable, that variable gets a
-*copy* of the contents of the original primitive type. For example, declare a
+*copy* of the contents of the original primitive type. For example, declare
 variable `a` and assign it a value, and then set `b` equal to `a`.
 
 [source,console]
@@ -288,11 +287,11 @@ POST /_scripts/painless/_execute
     "source": """
         List first = new ArrayList();
         List last = new ArrayList();
-        List current = first;
+        List current = first; <1>
         for (int i = 0; i < 100; i++) {
           current.add(i);
           if (i == 5) {
-            current = last;
+            current = last; <2>
             }
         }
         return last;
@@ -300,15 +299,27 @@ POST /_scripts/painless/_execute
   }
 }
 ----
+<1> Set `current` equal to `first`
+<2> Modify `current` to make it equal to `last`
 
-The script returns the following result, which includes all values from `6` to
-`99`. We didn't change the `first` or `last` objects; we just changed the
-reference of `current`.
+As the script begins iterating from `0` to `99`, it reaches `5` and triggers
+the condition in the `for` loop. The script returns the following result, which
+includes all values from `6` to `99`.
+
+Our script didn't change the `first` or `last` objects, but instead changed the
+reference of `current`. This ability to modify referenced values without
+changing the underlying variable value allows you to write powerful scripts
+with dynamic capabilites.
 
 [source,console-result]
 ----
 {
-  "result" : "[6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99]"
+  "result" : "[6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+  23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41,
+  42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60,
+  61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
+  80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98,
+  99]"
 }
 ----
 // TEST[continued]
@@ -319,12 +330,8 @@ A dynamic type can represent the value of any primitive type or reference type
 using a single type named `def`. A `def` type value mimics the behavior of
 whatever value it represents at runtime. Because a `def` type can mimic
 multiple types, it always represents the last child descendant type value of
-any type value when evaluated.
-
-To access a `def` type variable, declare the variable or access a reference
-type member field from an instance. You can then assign the variable
-a value and reference the variable in various operations. The default value for
-a newly-declared `def` type variable is `null`.
+any type value when evaluated. The default value for a newly-declared `def`
+type variable is `null`.
 
 NOTE: Using the `def` type can have a slight impact on performance. Use only
 primitive types and reference types directly when performance is critical.
@@ -332,7 +339,7 @@ primitive types and reference types directly when performance is critical.
 [discrete]
 ===== How to use dynamic types
 So how do dynamic types work in practice? Let's look at a basic example. The
-following script creates a `List` named `x` and adds `1` to the list.
+following script creates an empty `List` named `x` and adds `1` to the list.
 The script then declares an `int` named `y` and says that it's equal to an `int`
 named `x`.
 

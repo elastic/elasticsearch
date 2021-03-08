@@ -206,7 +206,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return relativeStartNanos;
         }
 
-        long buildTookInMillis() {
+        public long buildTookInMillis() {
             return TimeUnit.NANOSECONDS.toMillis(relativeCurrentNanosProvider.getAsLong() - relativeStartNanos);
         }
     }

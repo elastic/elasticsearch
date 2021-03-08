@@ -153,12 +153,12 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * @param absoluteStartMillis the absolute start time to be used on the remote clusters to ensure that the same value is used
      * @param finalReduce whether the reduction should be final or not
      */
-    static SearchRequest subSearchRequest(TaskId parentTaskId, SearchRequest originalSearchRequest, String[] indices,
+    public static SearchRequest subSearchRequest(TaskId parentTaskId, SearchRequest originalSearchRequest, String[] indices,
                                           String clusterAlias, long absoluteStartMillis, boolean finalReduce) {
         Objects.requireNonNull(parentTaskId, "parentTaskId must be specified");
         Objects.requireNonNull(originalSearchRequest, "search request must not be null");
         validateIndices(indices);
-        Objects.requireNonNull(clusterAlias, "cluster alias must not be null");
+        //Objects.requireNonNull(clusterAlias, "cluster alias must not be null");
         if (absoluteStartMillis < 0) {
             throw new IllegalArgumentException("absoluteStartMillis must not be negative but was [" + absoluteStartMillis + "]");
         }
@@ -332,7 +332,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     /**
      * Returns whether the reduction phase that will be performed needs to be final or not.
      */
-    boolean isFinalReduce() {
+    public boolean isFinalReduce() {
         return finalReduce;
     }
 

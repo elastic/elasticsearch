@@ -205,17 +205,15 @@ import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
-import org.elasticsearch.action.search.persistent.ExecutePersistentQueryFetchAction;
-import org.elasticsearch.action.search.persistent.GetPersistentSearchAction;
-import org.elasticsearch.action.search.persistent.ReducePartialPersistentSearchAction;
-import org.elasticsearch.action.search.persistent.SubmitPersistentSearchAction;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
-import org.elasticsearch.action.search.persistent.TransportExecuteQueryFetchAction;
-import org.elasticsearch.action.search.persistent.TransportGetPersistentSearchAction;
-import org.elasticsearch.action.search.persistent.TransportReducePartialPersistentSearch;
+import org.elasticsearch.action.search.persistent.ExecutePersistentQueryFetchAction;
+import org.elasticsearch.action.search.persistent.GetPersistentSearchAction;
+import org.elasticsearch.action.search.persistent.GetShardResultAction;
+import org.elasticsearch.action.search.persistent.ReducePartialPersistentSearchAction;
+import org.elasticsearch.action.search.persistent.SubmitPersistentSearchAction;
 import org.elasticsearch.action.search.persistent.TransportSubmitPersistentSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -618,9 +616,10 @@ public class ActionModule extends AbstractModule {
 
         // Persistent search
         actions.register(SubmitPersistentSearchAction.INSTANCE, TransportSubmitPersistentSearchAction.class);
-        actions.register(GetPersistentSearchAction.INSTANCE, TransportGetPersistentSearchAction.class);
-        actions.register(ExecutePersistentQueryFetchAction.INSTANCE, TransportExecuteQueryFetchAction.class);
-        actions.register(ReducePartialPersistentSearchAction.INSTANCE, TransportReducePartialPersistentSearch.class);
+        actions.register(GetPersistentSearchAction.INSTANCE, GetPersistentSearchAction.TransportAction.class);
+        actions.register(GetShardResultAction.INSTANCE, GetShardResultAction.TransportAction.class);
+        actions.register(ExecutePersistentQueryFetchAction.INSTANCE, ExecutePersistentQueryFetchAction.TransportAction.class);
+        actions.register(ReducePartialPersistentSearchAction.INSTANCE, ReducePartialPersistentSearchAction.TransportAction.class);
 
         return unmodifiableMap(actions.getRegistry());
     }
@@ -808,8 +807,8 @@ public class ActionModule extends AbstractModule {
 
         // register ActionType -> transportAction Map used by NodeClient
         @SuppressWarnings("rawtypes")
-        MapBinder<ActionType, TransportAction> transportActionsBinder
-                = MapBinder.newMapBinder(binder(), ActionType.class, TransportAction.class);
+        MapBinder<ActionType, org.elasticsearch.action.support.TransportAction> transportActionsBinder
+                = MapBinder.newMapBinder(binder(), ActionType.class, org.elasticsearch.action.support.TransportAction.class);
         for (ActionHandler<?, ?> action : actions.values()) {
             // bind the action as eager singleton, so the map binder one will reuse it
             bind(action.getTransportAction()).asEagerSingleton();

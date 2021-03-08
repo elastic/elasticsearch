@@ -11,28 +11,38 @@ package org.elasticsearch.action.search.persistent;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.persistent.PersistentSearchShard;
+import org.elasticsearch.search.persistent.PersistentSearchShardFetchFailure;
 
 import java.io.IOException;
 import java.util.List;
 
 public class ReducePartialPersistentSearchResponse extends ActionResponse {
-    private final List<PersistentSearchShardId> reducedShards;
+    private final List<PersistentSearchShard> reducedShards;
+    private final List<PersistentSearchShardFetchFailure> failedToFetchShards;
 
-    public ReducePartialPersistentSearchResponse(List<PersistentSearchShardId> reducedShards) {
+    public ReducePartialPersistentSearchResponse(List<PersistentSearchShard> reducedShards,
+                                                 List<PersistentSearchShardFetchFailure> failedToFetchShards) {
         this.reducedShards = reducedShards;
+        this.failedToFetchShards = failedToFetchShards;
     }
 
     public ReducePartialPersistentSearchResponse(StreamInput in) throws IOException {
-        super(in);
-        this.reducedShards = in.readList(PersistentSearchShardId::new);
+        this.reducedShards = in.readList(PersistentSearchShard::new);
+        this.failedToFetchShards = in.readList(PersistentSearchShardFetchFailure::new);
     }
 
-    public List<PersistentSearchShardId> getReducedShards() {
+    public List<PersistentSearchShard> getReducedShards() {
         return reducedShards;
+    }
+
+    public List<PersistentSearchShardFetchFailure> getFailedToFetchShards() {
+        return failedToFetchShards;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(reducedShards);
+        out.writeList(failedToFetchShards);
     }
 }

@@ -73,7 +73,7 @@ public class PersistentSearchIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             final SearchRequest getPersistentSearchResultDocs
-                = new SearchRequest().allowPartialSearchResults(false).indices(PersistentSearchStorageService.INDEX);
+                = new SearchRequest().allowPartialSearchResults(false).indices(PersistentSearchResultsIndexStore.INDEX);
             final SearchResponse searchResponse =
                 client().search(getPersistentSearchResultDocs).actionGet();
             // Only the final reduced result is kept around
@@ -126,7 +126,7 @@ public class PersistentSearchIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             final SearchRequest getPersistentSearchResultDocs
-                = new SearchRequest().allowPartialSearchResults(false).indices(PersistentSearchStorageService.INDEX);
+                = new SearchRequest().allowPartialSearchResults(false).indices(PersistentSearchResultsIndexStore.INDEX);
             final SearchResponse searchResponse =
                 client().search(getPersistentSearchResultDocs).actionGet();
             // Only the final reduced result is kept around

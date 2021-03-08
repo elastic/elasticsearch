@@ -583,14 +583,14 @@ public final class SearchPhaseController {
         }
     }
 
-    InternalAggregation.ReduceContextBuilder getReduceContext(SearchRequest request) {
+    public InternalAggregation.ReduceContextBuilder getReduceContext(SearchRequest request) {
         return requestToAggReduceContextBuilder.apply(request);
     }
 
     /**
      * Returns a new {@link QueryPhaseResultConsumer} instance that reduces search responses incrementally.
      */
-    QueryPhaseResultConsumer newSearchPhaseResults(Executor executor,
+    public QueryPhaseResultConsumer newSearchPhaseResults(Executor executor,
                                                    CircuitBreaker circuitBreaker,
                                                    SearchProgressListener listener,
                                                    SearchRequest request,

@@ -135,7 +135,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return targetNodesIterator.size();
     }
 
-    ShardId shardId() {
+    public ShardId shardId() {
         return shardId;
     }
 

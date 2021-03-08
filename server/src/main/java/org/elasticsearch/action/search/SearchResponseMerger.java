@@ -64,7 +64,7 @@ import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs
 //TODO it may make sense to integrate the remote clusters responses as a shard response in the initial search phase and ignore hits coming
 //from the remote clusters in the fetch phase. This would be identical to the removed QueryAndFetch strategy except that only the remote
 //cluster response would have the fetch results.
-final class SearchResponseMerger {
+public final class SearchResponseMerger {
     final int from;
     final int size;
     final int trackTotalHitsUpTo;
@@ -73,13 +73,13 @@ final class SearchResponseMerger {
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
     private final boolean executeFinalReduce;
 
-    SearchResponseMerger(int from, int size, int trackTotalHitsUpTo, SearchTimeProvider searchTimeProvider,
-                         InternalAggregation.ReduceContextBuilder aggReduceContextBuilder) {
+    public SearchResponseMerger(int from, int size, int trackTotalHitsUpTo, SearchTimeProvider searchTimeProvider,
+                                InternalAggregation.ReduceContextBuilder aggReduceContextBuilder) {
         this(from, size, trackTotalHitsUpTo, searchTimeProvider, aggReduceContextBuilder, false);
     }
 
-    SearchResponseMerger(int from, int size, int trackTotalHitsUpTo, SearchTimeProvider searchTimeProvider,
-                         InternalAggregation.ReduceContextBuilder aggReduceContextBuilder, boolean executeFinalReduce) {
+    public SearchResponseMerger(int from, int size, int trackTotalHitsUpTo, SearchTimeProvider searchTimeProvider,
+                                InternalAggregation.ReduceContextBuilder aggReduceContextBuilder, boolean executeFinalReduce) {
         this.from = from;
         this.size = size;
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
@@ -93,7 +93,7 @@ final class SearchResponseMerger {
      * Merges currently happen at once when all responses are available and {@link #getMergedResponse(Clusters)} )} is called.
      * That may change in the future as it's possible to introduce incremental merges as responses come in if necessary.
      */
-    void add(SearchResponse searchResponse) {
+    public void add(SearchResponse searchResponse) {
         assert searchResponse.getScrollId() == null : "merging scroll results is not supported";
         searchResponses.add(searchResponse);
     }
@@ -106,7 +106,7 @@ final class SearchResponseMerger {
      * Returns the merged response. To be called once all responses have been added through {@link #add(SearchResponse)}
      * so that all responses are merged into a single one.
      */
-    SearchResponse getMergedResponse(Clusters clusters) {
+    public SearchResponse getMergedResponse(Clusters clusters) {
         //if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
         //we end up calling merge without anything to merge, we just return an empty search response
         if (searchResponses.size() == 0) {
@@ -381,9 +381,8 @@ final class SearchResponseMerger {
         private final String clusterAlias;
 
         ShardIdAndClusterAlias(ShardId shardId, String clusterAlias) {
-            // TODO: SearchResponseMerger is designed to merge responses from multiple clusters
             this.shardId = shardId;
-//            assert clusterAlias != null : "clusterAlias is null";
+            assert clusterAlias != null : "clusterAlias is null";
             this.clusterAlias = clusterAlias;
         }
 
@@ -407,13 +406,11 @@ final class SearchResponseMerger {
 
         @Override
         public int compareTo(ShardIdAndClusterAlias o) {
-            // TODO: SearchResponseMerger is designed to merge responses from multiple clusters, we're using it temporarily to merge
-            //       partial results
             int shardIdCompareTo = shardId.compareTo(o.shardId);
             if (shardIdCompareTo != 0) {
                 return shardIdCompareTo;
             }
-            return clusterAlias == null ? shardIdCompareTo : clusterAlias.compareTo(o.clusterAlias);
+            return clusterAlias.compareTo(o.clusterAlias);
         }
     }
 }

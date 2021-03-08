@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.persistent.PersistentSearchShard;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -20,13 +21,15 @@ import java.io.IOException;
 import java.util.Map;
 
 public class ExecutePersistentQueryFetchRequest extends ActionRequest {
-    private final PersistentSearchShardId searchShardId;
+    private final PersistentSearchShard searchShardId;
     private final long expireTime;
     private final ShardSearchRequest shardSearchRequest;
 
-    public ExecutePersistentQueryFetchRequest(PersistentSearchShardId searchShardId,
+    public ExecutePersistentQueryFetchRequest(PersistentSearchShard searchShardId,
+                                              int shardIndex,
                                               long expireTime,
                                               ShardSearchRequest shardSearchRequest) {
+        assert shardIndex >= 0 : "Expected a positive shard index";
         this.searchShardId = searchShardId;
         this.expireTime = expireTime;
         this.shardSearchRequest = shardSearchRequest;
@@ -34,13 +37,13 @@ public class ExecutePersistentQueryFetchRequest extends ActionRequest {
 
     public ExecutePersistentQueryFetchRequest(StreamInput in) throws IOException {
         super(in);
-        this.searchShardId = new PersistentSearchShardId(in);
+        this.searchShardId = new PersistentSearchShard(in);
         this.expireTime = in.readLong();
         this.shardSearchRequest = new ShardSearchRequest(in);
     }
 
     public String getResultDocId() {
-        return searchShardId.getDocId();
+        return searchShardId.getId();
     }
 
     public String getSearchId() {
@@ -52,7 +55,7 @@ public class ExecutePersistentQueryFetchRequest extends ActionRequest {
     }
 
     public int getShardIndex() {
-        return searchShardId.getShardIndex();
+        return shardSearchRequest.shardRequestIndex();
     }
 
     public ShardSearchRequest getShardSearchRequest() {

@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.persistent.ShardQueryResultInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -23,45 +24,49 @@ import java.util.Map;
 
 public class ReducePartialPersistentSearchRequest extends ActionRequest {
     private final String searchId;
-    private final List<PersistentSearchShardId> shardsToReduce;
+    private final List<ShardQueryResultInfo> shardsToReduce;
     private final SearchRequest originalRequest;
-    private final boolean performFinalReduce;
     private final long searchAbsoluteStartMillis;
     private final long searchRelativeStartNanos;
     private final long expirationTime;
+    private final int reductionRound;
+    private final boolean performFinalReduce;
 
     public ReducePartialPersistentSearchRequest(String searchId,
-                                                List<PersistentSearchShardId> shardsToReduce,
+                                                List<ShardQueryResultInfo> shardsToReduce,
                                                 SearchRequest originalRequest,
-                                                boolean performFinalReduce,
                                                 long searchAbsoluteStartMillis,
                                                 long searchRelativeStartNanos,
-                                                long expirationTime) {
+                                                long expirationTime,
+                                                int reductionRound,
+                                                boolean performFinalReduce) {
         this.searchId = searchId;
         this.shardsToReduce = List.copyOf(shardsToReduce);
         this.originalRequest = originalRequest;
-        this.performFinalReduce = performFinalReduce;
         this.searchAbsoluteStartMillis = searchAbsoluteStartMillis;
         this.searchRelativeStartNanos = searchRelativeStartNanos;
         this.expirationTime = expirationTime;
+        this.reductionRound = reductionRound;
+        this.performFinalReduce = performFinalReduce;
     }
 
     public ReducePartialPersistentSearchRequest(StreamInput in) throws IOException {
         super(in);
         this.searchId = in.readString();
-        this.shardsToReduce = in.readList(PersistentSearchShardId::new);
+        this.shardsToReduce = in.readList(ShardQueryResultInfo::new);
         this.originalRequest = new SearchRequest(in);
-        this.performFinalReduce = in.readBoolean();
         this.searchAbsoluteStartMillis = in.readLong();
         this.searchRelativeStartNanos = in.readLong();
         this.expirationTime = in.readLong();
+        this.reductionRound = in.readInt();
+        this.performFinalReduce = in.readBoolean();
     }
 
     public String getSearchId() {
         return searchId;
     }
 
-    public List<PersistentSearchShardId> getShardsToReduce() {
+    public List<ShardQueryResultInfo> getShardsToReduce() {
         return shardsToReduce;
     }
 
@@ -81,6 +86,10 @@ public class ReducePartialPersistentSearchRequest extends ActionRequest {
         return searchRelativeStartNanos;
     }
 
+    public int getReductionRound() {
+        return reductionRound;
+    }
+
     public boolean performFinalReduce() {
         return performFinalReduce;
     }
@@ -91,10 +100,11 @@ public class ReducePartialPersistentSearchRequest extends ActionRequest {
         out.writeString(searchId);
         out.writeList(shardsToReduce);
         originalRequest.writeTo(out);
-        out.writeBoolean(performFinalReduce);
         out.writeLong(searchAbsoluteStartMillis);
         out.writeLong(searchRelativeStartNanos);
         out.writeLong(expirationTime);
+        out.writeInt(reductionRound);
+        out.writeBoolean(performFinalReduce);
     }
 
     @Override

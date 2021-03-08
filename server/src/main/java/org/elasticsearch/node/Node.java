@@ -19,10 +19,11 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.search.PersistentSearchService;
+import org.elasticsearch.search.persistent.PersistentSearchService;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.search.persistent.ShardQueryResultFetcher;
 import org.elasticsearch.action.search.persistent.SearchShardTargetResolver;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -39,11 +40,11 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.AliasValidator;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -146,11 +147,14 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.persistent.PersistentSearchStorageService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.persistent.PersistentSearchMemoryController;
+import org.elasticsearch.search.persistent.PersistentSearchStorageService;
+import org.elasticsearch.search.persistent.PersistentSearchResultsIndexStore;
+import org.elasticsearch.search.persistent.PersistentSearchResultsMemoryStore;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
@@ -513,7 +517,7 @@ public class Node implements Closeable {
 
             // TODO: Ugly hack to create the persistent search index that for now it isn't a plugin
             featuresMap.put("persistent_search", new SystemIndices.Feature("Indices to store partial " +
-                "results", PersistentSearchStorageService.getSystemIndexDescriptors(), Collections.emptyList()));
+                "results", PersistentSearchResultsIndexStore.getSystemIndexDescriptors(), Collections.emptyList()));
             final SystemIndices systemIndices = new SystemIndices(Collections.unmodifiableMap(featuresMap));
 
             final SystemIndexManager systemIndexManager = new SystemIndexManager(systemIndices, client);
@@ -645,11 +649,32 @@ public class Node implements Closeable {
             final SearchPhaseController searchPhaseController = new SearchPhaseController(
                 namedWriteableRegistry, searchService::aggReduceContextBuilder);
 
-            final PersistentSearchStorageService persistentSearchStorageService =
-                new PersistentSearchStorageService(client, threadPool, namedWriteableRegistry, settings);
+            final PersistentSearchMemoryController persistentSearchMemoryController = new PersistentSearchMemoryController(settings);
+            final PersistentSearchResultsMemoryStore inMemoryCache =
+                new PersistentSearchResultsMemoryStore(persistentSearchMemoryController, threadPool, namedWriteableRegistry);
+            final PersistentSearchResultsIndexStore indexStore =
+                new PersistentSearchResultsIndexStore(client, threadPool, namedWriteableRegistry, settings);
 
-            final PersistentSearchService persistentSearchService = new PersistentSearchService(searchService, searchPhaseController,
-                persistentSearchStorageService, threadPool.executor(ThreadPool.Names.SEARCH), System::nanoTime);
+            final PersistentSearchStorageService persistentSearchStorageService =
+                new PersistentSearchStorageService(inMemoryCache, indexStore);
+
+            final ShardQueryResultFetcher shardResultFetcher = new ShardQueryResultFetcher(transportService, (nodeId) -> {
+                final DiscoveryNode node = clusterService.state().nodes().get(nodeId);
+                if (node == null) {
+                    return null;
+                }
+                return transportService.getConnection(node);
+            });
+
+            final PersistentSearchService persistentSearchService = new PersistentSearchService(searchService,
+                searchPhaseController,
+                persistentSearchStorageService,
+                threadPool,
+                System::nanoTime,
+                () -> clusterService.localNode().getId(),
+                shardResultFetcher,
+                circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
+            );
 
             modules.add(b -> {
                     b.bind(Node.class).toInstance(this);
@@ -714,6 +739,7 @@ public class Node implements Closeable {
                     b.bind(PersistentSearchService.class).toInstance(persistentSearchService);
                     b.bind(SearchShardTargetResolver.class)
                         .toInstance(new SearchShardTargetResolver.DefaultSearchShardTargetResolver(clusterService));
+                    b.bind(PersistentSearchStorageService.class).toInstance(persistentSearchStorageService);
                 }
             );
             injector = modules.createInjector();

@@ -6,27 +6,30 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.search.persistent;
+package org.elasticsearch.search.persistent;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-public class ExecutePersistentQueryFetchResponse extends ActionResponse {
-    private final String docId;
+public class ShardQueryResultInfo implements Writeable, Comparable<ShardQueryResultInfo> {
+    private final PersistentSearchShard shardId;
     private final String nodeId;
 
-    public ExecutePersistentQueryFetchResponse(String docId, String nodeId) {
-        this.docId = docId;
+    public ShardQueryResultInfo(PersistentSearchShard shardId, String nodeId) {
+        this.shardId = shardId;
         this.nodeId = nodeId;
     }
 
-    public ExecutePersistentQueryFetchResponse(StreamInput in) throws IOException {
-        super(in);
-        this.docId = in.readString();
+    public ShardQueryResultInfo(StreamInput in) throws IOException {
+        this.shardId = new PersistentSearchShard(in);
         this.nodeId = in.readString();
+    }
+
+    public PersistentSearchShard getShardId() {
+        return shardId;
     }
 
     public String getNodeId() {
@@ -35,7 +38,12 @@ public class ExecutePersistentQueryFetchResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(docId);
+        shardId.writeTo(out);
         out.writeString(nodeId);
+    }
+
+    @Override
+    public int compareTo(ShardQueryResultInfo o) {
+        return shardId.compareTo(o.getShardId());
     }
 }

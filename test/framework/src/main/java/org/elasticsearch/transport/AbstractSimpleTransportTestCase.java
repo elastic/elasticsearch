@@ -1896,7 +1896,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         Version version = Version.fromString("2.0.0");
         try (MockTransportService service = buildService("TS_C", version,  Settings.EMPTY)) {
-            service.start();
             TransportAddress address = service.boundAddress().publishAddress();
             DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", address, emptyMap(), emptySet(), version0);
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
@@ -1914,7 +1913,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
         try (MockTransportService service = buildService("TS_C", version,  Settings.EMPTY)) {
-            service.start();
             TransportAddress address = service.boundAddress().publishAddress();
             DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", address, emptyMap(), emptySet(), Version.fromString("2.0.0"));
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();

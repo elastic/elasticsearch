@@ -604,6 +604,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                  */
                 try {
                     Request getTemplatesRequest = new Request("GET", "_index_template");
+                    getTemplatesRequest.setOptions(allowTypesRemovalWarnings());
                     Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent,
                         EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()), false);
                     List<String> names = ((List<?>) composableIndexTemplates.get("index_templates")).stream()
@@ -625,6 +626,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
                 try {
                     Request compReq = new Request("GET", "_component_template");
+                    compReq.setOptions(allowTypesRemovalWarnings());
                     String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
                     Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
                     @SuppressWarnings("unchecked")
@@ -646,6 +648,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                     // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                 }
                 Request getLegacyTemplatesRequest = new Request("GET", "_template");
+                getLegacyTemplatesRequest.setOptions(allowTypesRemovalWarnings());
                 Map<String, Object> legacyTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent,
                     EntityUtils.toString(adminClient().performRequest(getLegacyTemplatesRequest).getEntity()), false);
                 for (String name : legacyTemplates.keySet()) {

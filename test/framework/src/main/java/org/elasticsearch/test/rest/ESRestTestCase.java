@@ -575,18 +575,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                     Request getTemplatesRequest = new Request("GET", "_index_template");
                     Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent,
                         EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()), false);
-                    List<String> names = ((List<?>) composableIndexTemplates.get("index_templates")).stream()
+                    String names = ((List<?>) composableIndexTemplates.get("index_templates")).stream()
                         .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
-                        .collect(Collectors.toList());
-                    for (String name : names) {
-                        if (isXPackTemplate(name)) {
-                            continue;
-                        }
-                        try {
-                            adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
-                        } catch (ResponseException e) {
-                            logger.debug(new ParameterizedMessage("unable to remove index template {}", name), e);
-                        }
+                        .filter(ESRestTestCase::isXPackTemplate)
+                        .collect(Collectors.joining(","));
+                    try {
+                        adminClient().performRequest(new Request("DELETE", "_index_template/" + names));
+                    } catch (ResponseException e) {
+                        logger.debug(new ParameterizedMessage("unable to remove index template {}", names), e);
                     }
                 } catch (Exception e) {
                     logger.info("ignoring exception removing all composable index templates", e);

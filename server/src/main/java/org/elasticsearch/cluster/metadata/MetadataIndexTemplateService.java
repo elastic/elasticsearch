@@ -641,8 +641,10 @@ public class MetadataIndexTemplateService {
     static ClusterState innerRemoveIndexTemplateV2(ClusterState currentState, String name) {
         Set<String> templateNames = new HashSet<>();
         for (String templateName : currentState.metadata().templatesV2().keySet()) {
-            if (Regex.simpleMatch(name, templateName)) {
-                templateNames.add(templateName);
+            for (String name2 : name.split(",")) {
+                if (Regex.simpleMatch(name2, templateName)) {
+                    templateNames.add(templateName);
+                }
             }
         }
         if (templateNames.isEmpty()) {

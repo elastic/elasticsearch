@@ -458,6 +458,28 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNull(updatedState.metadata().templatesV2().get("foo"));
     }
 
+    public void testRemoveMultipleIndexTemplateV2() throws Exception {
+        ComposableIndexTemplate fooTemplate = ComposableIndexTemplateTests.randomInstance();
+        ComposableIndexTemplate barTemplate = ComposableIndexTemplateTests.randomInstance();
+        ComposableIndexTemplate bazTemplate = ComposableIndexTemplateTests.randomInstance();
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+
+        ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", fooTemplate);
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "bar", barTemplate);
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "baz", bazTemplate);
+        assertNotNull(state.metadata().templatesV2().get("foo"));
+        assertNotNull(state.metadata().templatesV2().get("bar"));
+        assertNotNull(state.metadata().templatesV2().get("baz"));
+        assertTemplatesEqual(state.metadata().templatesV2().get("foo"), fooTemplate);
+        assertTemplatesEqual(state.metadata().templatesV2().get("bar"), barTemplate);
+        assertTemplatesEqual(state.metadata().templatesV2().get("baz"), bazTemplate);
+
+        ClusterState updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foo,baz");
+        assertNull(updatedState.metadata().templatesV2().get("foo"));
+        assertNotNull(updatedState.metadata().templatesV2().get("bar"));
+        assertNull(updatedState.metadata().templatesV2().get("baz"));
+    }
+
     /**
      * Test that if we have a pre-existing v1 template and put a v2 template that would match the same indices, we generate a warning
      */

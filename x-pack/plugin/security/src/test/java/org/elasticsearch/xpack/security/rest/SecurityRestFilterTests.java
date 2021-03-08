@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.rest;
 import com.nimbusds.jose.util.StandardCharset;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -143,6 +144,9 @@ public class SecurityRestFilterTests extends ESTestCase {
         RestRequest request = mock(RestRequest.class);
         when(licenseState.isSecurityEnabled()).thenReturn(false);
         filter.handleRequest(request, channel, null);
+        assertWarnings("Elasticsearch built-in security features are not enabled, your cluster may be accessible without authentication. " +
+            "Read https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." + Version.CURRENT.minor +
+            "/get-started-enable-security.html for more information");
         verify(restHandler).handleRequest(request, channel, null);
         verifyZeroInteractions(channel, authcService);
     }
@@ -200,6 +204,9 @@ public class SecurityRestFilterTests extends ESTestCase {
         RestRequest request = mock(RestRequest.class);
         when(request.method()).thenReturn(RestRequest.Method.OPTIONS);
         filter.handleRequest(request, channel, null);
+        assertWarnings("Elasticsearch built-in security features are not enabled, your cluster may be accessible without authentication. " +
+            "Read https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." + Version.CURRENT.minor +
+            "/get-started-enable-security.html for more information");
         verify(restHandler).handleRequest(request, channel, null);
         verifyZeroInteractions(channel);
         verifyZeroInteractions(authcService);

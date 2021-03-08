@@ -6,11 +6,17 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -20,6 +26,14 @@ import static org.hamcrest.Matchers.containsString;
  * but it is not possible to use that pipeline for ingestion.
  */
 public class SetSecurityUserProcessorWithSecurityNotEnabledIT extends ESRestTestCase {
+
+    @Override
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
+        configureClient(builder, settings);
+        builder.setStrictDeprecationMode(false);
+        return builder.build();
+    }
 
     public void testDefineAndUseProcessor() throws Exception {
         final String pipeline = "pipeline-" + getTestName();

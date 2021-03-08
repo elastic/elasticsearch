@@ -11,7 +11,6 @@ dependencies {
 
 tasks.named("javaRestTest").configure {
   description = "Run tests against a cluster that doesn't have security"
-  systemProperty 'tests.has_security', 'false'
 }
 
 if (BuildParams.inFipsJvm){
@@ -25,11 +24,35 @@ testClusters {
     numberOfNodes = 2
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'basic'
-    setting 'xpack.security.enabled', 'false'
   }
 }
 
-tasks.register("javaRestTestWithSecurity", StandaloneRestIntegTestTask) {
+tasks.register("javaRestTestWithSecurityDisabled", StandaloneRestIntegTestTask) {
+  description = "Run tests against a cluster that has security explicitly disabled"
+  dependsOn "javaRestTest"
+  useCluster testClusters.javaRestTest
+  systemProperty 'tests.has_security', 'false'
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  onlyIf {
+    BuildParams.inFipsJvm == false
+  }
+  doFirst {
+    testClusters.javaRestTest {
+      // TODO Rene: revisit if using dedicated new cluster definitions would be more efficient.
+      // Reconfigure cluster to explicitly disable security
+      setting 'xpack.ml.enabled', 'false'
+      setting 'xpack.license.self_generated.type', 'basic'
+      setting 'xpack.security.enabled', 'false'
+
+      restart()
+    }
+    nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.javaRestTest.getAllHttpSocketURI().join(",")}"
+  }
+}
+tasks.named("check").configure { dependsOn("javaRestTestWithSecurityDisabled") }
+
+tasks.register("javaRestTestWithSecurityEnabled", StandaloneRestIntegTestTask) {
   description = "Run tests against a cluster that has security enabled"
   dependsOn "javaRestTest"
   useCluster testClusters.javaRestTest
@@ -64,5 +87,5 @@ tasks.register("javaRestTestWithSecurity", StandaloneRestIntegTestTask) {
     nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.javaRestTest.getAllHttpSocketURI().join(",")}"
   }
 }
-tasks.named("check").configure { dependsOn("javaRestTestWithSecurity") }
+tasks.named("check").configure { dependsOn("javaRestTestWithSecurityEnabled") }
 

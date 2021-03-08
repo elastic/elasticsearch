@@ -662,7 +662,12 @@ public abstract class ESRestTestCase extends ESTestCase {
                     final String warning = warnings.get(0);
                     final boolean isSystemIndexWarning = warning.contains("this request accesses system indices")
                         && warning.contains("but in a future major version, direct access to system indices will be prevented by default");
-                    return isSystemIndexWarning == false;
+                    // We don't know is security is implicitly disabled, so just accept all security disabled warnings.
+                    final boolean isSecurityDisabledWarning = warning.contains("Elasticsearch built-in security features are not " +
+                        "enabled, your cluster may be accessible without authentication. Read " +
+                        "https://www.elastic.co/guide/en/elasticsearch/reference/")
+                        && warning.contains("/get-started-enable-security.html for more information");
+                    return isSystemIndexWarning == false && isSecurityDisabledWarning == false;
                 }).build();
             deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);
             final Response response = adminClient().performRequest(deleteRequest);

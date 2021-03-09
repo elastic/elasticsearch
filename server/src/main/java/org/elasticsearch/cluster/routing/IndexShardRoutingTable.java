@@ -343,11 +343,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 Optional<ResponseCollectorService.ComputedNodeStats> maybeMinStats = nodeStats.get(minNodeId);
                 if (maybeMinStats.isPresent()) {
                     adjustStats(collector, nodeStats, minNodeId, maybeMinStats.get());
-                    // Increase the number of searches for the "winning" node by one.
-                    // Note that this doesn't actually affect the "real" counts, instead
-                    // it only affects the captured node search counts, which is
-                    // captured once for each query in TransportSearchAction
-                    nodeSearchCounts.compute(minNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
                 }
             }
         }

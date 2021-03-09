@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.flattened.mapper;
+package org.elasticsearch.index.mapper.flattened;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.index.IndexableField;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.junit.Before;

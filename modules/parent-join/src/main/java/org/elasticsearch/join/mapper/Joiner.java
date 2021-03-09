@@ -15,7 +15,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper.JoinFieldType;
 import org.elasticsearch.search.aggregations.support.AggregationContext;

@@ -42,7 +42,7 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         return randomGroupConfig(() -> randomSingleGroupSource(version));
     }
 
-    public static GroupConfig randomGroupConfig(Supplier<SingleGroupSource> groupSupplier) {
+    public static GroupConfig randomGroupConfig(Supplier<SingleGroupSource> singleGroupSourceSupplier) {
         Map<String, Object> source = new LinkedHashMap<>();
         Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
 
@@ -51,7 +51,7 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         for (int i = 0; i < randomIntBetween(1, 20); ++i) {
             String targetFieldName = randomAlphaOfLengthBetween(1, 20);
             if (names.add(targetFieldName)) {
-                SingleGroupSource groupBy = groupSupplier.get();
+                SingleGroupSource groupBy = singleGroupSourceSupplier.get();
                 source.put(targetFieldName, Collections.singletonMap(groupBy.getType().value(), getSource(groupBy)));
                 groups.put(targetFieldName, groupBy);
             }
@@ -61,25 +61,19 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
     }
 
     private static SingleGroupSource randomSingleGroupSource(Version version) {
-        SingleGroupSource groupBy = null;
         Type type = randomFrom(SingleGroupSource.Type.values());
         switch (type) {
             case TERMS:
-                groupBy = TermsGroupSourceTests.randomTermsGroupSource(version);
-                break;
+                return TermsGroupSourceTests.randomTermsGroupSource(version);
             case HISTOGRAM:
-                groupBy = HistogramGroupSourceTests.randomHistogramGroupSource(version);
-                break;
+                return HistogramGroupSourceTests.randomHistogramGroupSource(version);
             case DATE_HISTOGRAM:
-                groupBy = DateHistogramGroupSourceTests.randomDateHistogramGroupSource(version);
-                break;
+                return DateHistogramGroupSourceTests.randomDateHistogramGroupSource(version);
             case GEOTILE_GRID:
-                groupBy = GeoTileGroupSourceTests.randomGeoTileGroupSource(version);
-                break;
+                return GeoTileGroupSourceTests.randomGeoTileGroupSource(version);
             default:
                 fail("unknown group source type, please implement tests and add support here");
         }
-        return groupBy;
     }
 
     @Override

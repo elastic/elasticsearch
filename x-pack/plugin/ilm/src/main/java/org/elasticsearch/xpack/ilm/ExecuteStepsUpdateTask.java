@@ -122,7 +122,6 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     try {
                         result = ((ClusterStateWaitStep) currentStep).isConditionMet(index, state);
                     } catch (Exception exception) {
-                        nextStepKey = currentStep.getNextStepKey();
                         return moveToErrorStep(state, currentStep.getKey(), exception);
                     }
                     // some steps can decide to change the next step to execute after waiting for some time for the condition

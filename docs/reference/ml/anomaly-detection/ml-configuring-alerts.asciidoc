@@ -26,8 +26,7 @@ recommended to select an interval that is close to the bucket span of the
 associated job. You can also select a notification option by using the _Notify_ 
 selector. An alert instance remains active as long as anomalies are found for a 
 particular {anomaly-job} during the check interval. When there is no anomaly 
-found in the next interval, the state of the alert instance changes to 
-`Recovered`, then transitions to `OK`. For more details, refer to the
+found in the next interval, the `Recovered` action group is invoked and the status of the alert instance changes to `OK`. For more details, refer to the
  documentation of 
  {kibana-ref}/defining-alerts.html#defining-alerts-general-details[general alert details].
   

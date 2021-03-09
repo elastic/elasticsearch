@@ -41,6 +41,7 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_PHA
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_WARM_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateAllSearchableSnapshotActionsUseSameRepository;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateFrozenPhaseHasSearchableSnapshotAction;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -669,7 +670,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             Map<String, LifecycleAction> actions = new HashMap<>();
             actions.put(TEST_SEARCHABLE_SNAPSHOT_ACTION.getWriteableName(), TEST_SEARCHABLE_SNAPSHOT_ACTION);
             Phase phase = new Phase(FROZEN_PHASE, TimeValue.ZERO, actions);
-            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(true));
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
 
     }
@@ -680,9 +681,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Map<String, LifecycleAction> frozenActions = new HashMap<>();
 
         {
-            hotActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean(), null));
-            coldActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean(), null));
-            frozenActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean(), null));
+            hotActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean()));
+            coldActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean()));
+            frozenActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean()));
 
             Phase hotPhase = new Phase(HOT_PHASE, TimeValue.ZERO, hotActions);
             Phase coldPhase = new Phase(HOT_PHASE, TimeValue.ZERO, coldActions);
@@ -692,9 +693,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
-            hotActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean(), null));
-            coldActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo2", randomBoolean(), null));
-            frozenActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean(), null));
+            hotActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean()));
+            coldActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo2", randomBoolean()));
+            frozenActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean()));
 
             Phase hotPhase = new Phase(HOT_PHASE, TimeValue.ZERO, hotActions);
             Phase coldPhase = new Phase(HOT_PHASE, TimeValue.ZERO, coldActions);
@@ -705,6 +706,24 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("policy specifies [searchable_snapshot]" +
                 " action multiple times with differing repositories [repo2, repo1]," +
                 " the same repository must be used for all searchable snapshot actions"));
+        }
+    }
+
+    public void testValidateFrozenPhaseHasSearchableSnapshot() {
+        {
+            Map<String, LifecycleAction> frozenActions = new HashMap<>();
+            frozenActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean()));
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.ZERO, frozenActions);
+            validateFrozenPhaseHasSearchableSnapshotAction(Collections.singleton(frozenPhase));
+        }
+
+        {
+            Map<String, LifecycleAction> frozenActions = new HashMap<>();
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.ZERO, frozenActions);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> validateFrozenPhaseHasSearchableSnapshotAction(Collections.singleton(frozenPhase)));
+            assertThat(e.getMessage(), containsString("policy specifies the [frozen] phase without a corresponding " +
+                "[searchable_snapshot] action, but a searchable snapshot action is required in the frozen phase"));
         }
     }
 

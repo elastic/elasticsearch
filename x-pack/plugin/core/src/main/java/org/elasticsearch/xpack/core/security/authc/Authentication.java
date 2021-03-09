@@ -150,13 +150,11 @@ public class Authentication implements ToXContentObject {
      *  This check is a best effort and it does not account for certain static and external changes.
      *  See also <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/security-limitations.html">
      *      security limitations</a>
-     * @param other
-     * @return
      */
     public boolean canAccessResourcesOf(Authentication other) {
         if (AuthenticationType.API_KEY == getAuthenticationType() && AuthenticationType.API_KEY == other.getAuthenticationType()) {
             final boolean sameKeyId = getMetadata().get(API_KEY_ID_KEY).equals(other.getMetadata().get(API_KEY_ID_KEY));
-            if (sameKeyId && Assertions.ENABLED) {
+            if (sameKeyId) {
                 assert getUser().principal().equals(other.getUser().principal()) :
                     "The same API key ID cannot be attributed to two different usernames";
             }

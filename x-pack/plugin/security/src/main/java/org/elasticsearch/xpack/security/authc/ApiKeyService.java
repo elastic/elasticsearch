@@ -796,7 +796,8 @@ public class ApiKeyService {
         public void logRemovedField(String parserName, Supplier<XContentLocation> location, String removedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
             deprecationLogger.deprecate(DeprecationCategory.API, "api_key_field",
-                "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely", prefix, removedName, apiKeyId);
+                "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely",
+                prefix, removedName, apiKeyId);
         }
     }
 

@@ -136,7 +136,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             remoteRequest.indexFilter(request.indexFilter());
             remoteRequest.nowInMillis(nowInMillis);
             remoteClusterClient.fieldCaps(remoteRequest,
-                ActionListener.wrap(response -> countDownListener.onResponse(response.getIndexResponses()), countDownListener::onFailure));
+                ActionListener.wrap(response -> {
+                    List<FieldCapabilitiesIndexResponse> remotes = new ArrayList<>();
+                    for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
+                        remotes.add(new FieldCapabilitiesIndexResponse(
+                            RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName()),
+                            resp.get(), resp.canMatch()));
+                    }
+                    countDownListener.onResponse(remotes);
+                }, countDownListener::onFailure));
         }
     }
 

@@ -6,18 +6,18 @@
   "additionalProperties": false,
   "title": "Root",
   "type": "object",
-        "oneOf": [
-        {
-          "required": [
-            "pivot"
-          ]
-        },
-        {
-          "required": [
-            "latest"
-          ]
-        }
-      ],
+  "oneOf": [
+    {
+      "required": [
+        "pivot"
+      ]
+    },
+    {
+      "required": [
+        "latest"
+      ]
+    }
+  ],
   "required": [
     "source",
     "dest"
@@ -101,7 +101,8 @@
       "title": "Latest",
       "type": "object",
       "required": [
-        "sort", "unique_key"
+        "sort",
+        "unique_key"
       ],
       "additionalProperties": false,
       "properties": {
@@ -198,7 +199,8 @@
           "title": "Time",
           "type": "object",
           "required": [
-            "field", "max_age"
+            "field",
+            "max_age"
           ],
           "additionalProperties": false,
           "properties": {

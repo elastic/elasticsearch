@@ -41,10 +41,9 @@ import static org.hamcrest.Matchers.is;
  * Test case for validating {@link ToXContent} objects against a json schema.
  */
 public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> extends ESTestCase {
+    protected static final int NUMBER_OF_TEST_RUNS = 20;
 
     public final void testSchema() throws IOException {
-        BytesReference xContent = XContentHelper.toXContent(createTestInstance(), XContentType.JSON, getToXContentParams(), false);
-
         ObjectMapper mapper = new ObjectMapper();
         SchemaValidatorsConfig config = new SchemaValidatorsConfig();
         JsonSchemaFactory factory = initializeSchemaFactory();
@@ -59,10 +58,13 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
         assertTrue("schema lacks at least 1 required field", jsonSchema.hasRequiredValidator());
         assertSchemaStrictness(jsonSchema.getValidators().values(), jsonSchema.getSchemaPath());
 
-        JsonNode jsonTree = mapper.readTree(xContent.streamInput());
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            BytesReference xContent = XContentHelper.toXContent(createTestInstance(), XContentType.JSON, getToXContentParams(), false);
+            JsonNode jsonTree = mapper.readTree(xContent.streamInput());
 
-        Set<ValidationMessage> errors = jsonSchema.validate(jsonTree);
-        assertThat("Schema validation failed for: " + jsonTree.toPrettyString(), errors, is(empty()));
+            Set<ValidationMessage> errors = jsonSchema.validate(jsonTree);
+            assertThat("Schema validation failed for: " + jsonTree.toPrettyString(), errors, is(empty()));
+        }
     }
 
     /**

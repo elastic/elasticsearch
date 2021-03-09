@@ -156,6 +156,10 @@ public class PublishPlugin implements Plugin<Project> {
                 SourceSet mainSourceSet = Util.getJavaMainSourceSet(project).get();
                 jar.from(mainSourceSet.getAllSource());
             });
+
+            project.getConfigurations().create("sources");
+            project.getArtifacts().add("sources", sourcesJarTask);
+
             maybeConfigure(project.getTasks(), BasePlugin.ASSEMBLE_TASK_NAME, t -> t.dependsOn(sourcesJarTask));
         });
     }

@@ -227,29 +227,35 @@ ${source_elasticsearch}
 
 RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
 
-# The distribution includes a `config` directory, no need to create it
-COPY ${config_dir}/elasticsearch.yml config/
-COPY ${bin_dir}/transform-log4j-config-${version}.jar /tmp/
+COPY ${config_dir}/elasticsearch.yml config/elasticsearch.yml
+COPY ${bin_dir}/transform-log4j-config-${version}-sources.jar /tmp/transform-log4j-config/transform-log4j-config-${version}-sources.jar
 
-# 1. Configure the distribution for Docker
-# 2. Ensure directories are created. Most already are, but make sure
-# 3. Apply correct permissions
-# 4. Move the distribution's default logging config aside
-# 5. Generate a docker logging config, to be used by default
-# 6. Apply more correct permissions
-# 7. The JDK's directories' permissions don't allow `java` to be executed under a different
-#    group to the default. Fix this.
-# 8. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
-# 9. Ensure all files are world-readable by default. It should be possible to
-#    examine the contents of the image under any UID:GID
-RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
-    mkdir -p config/jvm.options.d data logs plugins && \\
-    chmod 0775 config config/jvm.options.d data logs plugins && \\
-    mv config/log4j2.properties config/log4j2.file.properties && \\
-    jdk/bin/java -jar /tmp/transform-log4j-config-${version}.jar config/log4j2.file.properties > config/log4j2.properties && \\
-    chmod 0660 config/elasticsearch.yml config/log4j2*.properties && \\
-    find ./jdk -type d -exec chmod 0755 {} + && \\
-    find . -xdev -perm -4000 -exec chmod ug-s {} + && \\
+#  1. Fail on any error
+#  2. Put the Java CLI tools on the path
+#  3. Configure the distribution for Docker
+#  4. Ensure directories are created. Most already are, but make sure
+#  5. Apply correct permissions
+#  6. Move the distribution's default logging config aside
+#  7. Unpack the source code of a logging config transform utility
+#  8. Generate the docker logging config that will be used by default, taking
+#     advantage of Java's ability to execute a single source file
+#  9. Apply more correct permissions
+# 10. The JDK's directories' permissions don't allow `java` to be executed under a different
+#     group to the default. Fix this.
+# 11. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
+# 12. Ensure all files are world-readable by default. It should be possible to
+#     examine the contents of the image under any UID:GID
+RUN set -e ; \\
+    export PATH=\$PWD/jdk/bin:\$PATH ; \\
+    sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env ; \\
+    mkdir -p config/jvm.options.d data logs plugins ; \\
+    chmod 0775 config config/jvm.options.d data logs plugins ; \\
+    mv config/log4j2.properties config/log4j2.file.properties ; \\
+    (cd /tmp/transform-log4j-config && jar xf transform-log4j-config-${version}-sources.jar) ; \\
+    java /tmp/transform-log4j-config/org/elasticsearch/transform/log4j/TransformLog4jConfig.java config/log4j2.file.properties > config/log4j2.properties ; \\
+    chmod 0660 config/elasticsearch.yml config/log4j2*.properties ; \\
+    find ./jdk -type d -exec chmod 0755 {} + ; \\
+    find . -xdev -perm -4000 -exec chmod ug-s {} + ; \\
     find . -type f -exec chmod o+r {} +
 
 <% if (docker_base == "ubi" || docker_base == "iron_bank") { %>

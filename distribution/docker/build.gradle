@@ -25,7 +25,7 @@ configurations {
 dependencies {
   aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar", configuration: 'default')
   dockerSource project(path: ":distribution:archives:linux-tar", configuration: 'default')
-  transformLog4jJar project(path: ":distribution:docker:transform-log4j-config", configuration: 'default')
+  transformLog4jJar project(path: ":distribution:docker:transform-log4j-config", configuration: 'sources')
 }
 
 ext.expansions = { Architecture architecture, DockerBase base, boolean local ->

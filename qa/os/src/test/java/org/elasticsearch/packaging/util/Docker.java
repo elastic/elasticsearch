@@ -446,9 +446,7 @@ public class Docker {
      */
     public static void verifyContainerInstallation(Installation installation, Distribution distribution) {
         verifyOssInstallation(installation);
-        if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation);
-        }
+        verifyDefaultInstallation(installation);
     }
 
     private static void verifyOssInstallation(Installation es) {
@@ -593,6 +591,6 @@ public class Docker {
     }
 
     public static String getImageName(Distribution distribution) {
-        return distribution.flavor.name + (distribution.packaging == Distribution.Packaging.DOCKER_UBI ? "-ubi8" : "") + ":test";
+        return "elasticsearch" + (distribution.packaging == Distribution.Packaging.DOCKER_UBI ? "-ubi8" : "") + ":test";
     }
 }

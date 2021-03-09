@@ -60,7 +60,7 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
         count = newSize;
         valuesCursor = 0;
 
-        if (newSize <= values.length) {
+        if (newSize <= getArrayLength()) {
             return;
         }
 
@@ -68,7 +68,7 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
         // to include both the additional bytes used by the grown array
         // as well as the overhead of keeping both arrays in memory while
         // copying.
-        long oldValuesSizeInBytes = (long) values.length * Long.BYTES;
+        long oldValuesSizeInBytes = (long) getArrayLength() * Long.BYTES;
         int newValuesLength = ArrayUtil.oversize(newSize, Long.BYTES);
         circuitBreakerConsumer.accept((long) newValuesLength * Long.BYTES);
 
@@ -82,6 +82,11 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
     /** Grow the array in a method so we can override it during testing */
     protected void growExact(int newValuesLength) {
         values = ArrayUtil.growExact(values, newValuesLength);
+    }
+
+    /** Get the size of the internal array using a method so we can override it during testing */
+    protected int getArrayLength() {
+        return values.length;
     }
 
     /**

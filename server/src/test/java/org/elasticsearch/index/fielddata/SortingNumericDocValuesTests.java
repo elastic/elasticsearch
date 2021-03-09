@@ -8,27 +8,35 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
 
 public class SortingNumericDocValuesTests extends ESTestCase {
 
    public void testResize() {
-       LongConsumer consumer = new LongConsumer() {
-           long total = 0;
-           @Override
-           public void accept(long value) {
-               total += value;
-               assertThat(total, Matchers.greaterThanOrEqualTo(0L));
-           }
+       final int oldSize = Integer.MAX_VALUE - 200;
+       final int newSize = Integer.MAX_VALUE - 100;
+       // This counter should account for the initialization of the array (size == 1)
+       // and the diff between getArrayLength() and resize()
+       final AtomicLong counter = new AtomicLong();
+       LongConsumer consumer = value -> {
+           long total = counter.addAndGet(value);
+           assertThat(total, Matchers.greaterThanOrEqualTo(0L));
        };
        SortingNumericDocValues docValues = new SortingNumericDocValues(consumer) {
 
            @Override
            protected void growExact(int newValuesLength) {
                // don't grow the array
+           }
+
+           /** Get the size of the internal array using a method so we can override it during testing */
+           protected int getArrayLength() {
+               return oldSize;
            }
 
            @Override
@@ -56,6 +64,8 @@ public class SortingNumericDocValuesTests extends ESTestCase {
                return 0;
            }
        };
-       docValues.resize(Integer.MAX_VALUE - 100);
+       docValues.resize(newSize);
+       final long internalNewSize = ArrayUtil.oversize(newSize, Long.BYTES);
+       assertThat(counter.get(), Matchers.lessThan((internalNewSize + 1) * Long.BYTES));
    }
 }

@@ -70,13 +70,18 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
         // copying.
         long oldValuesSizeInBytes = values.length * Long.BYTES;
         int newValuesLength = ArrayUtil.oversize(newSize, Long.BYTES);
-        circuitBreakerConsumer.accept(newValuesLength * Long.BYTES);
+        circuitBreakerConsumer.accept((long) newValuesLength * Long.BYTES);
 
         // resize
-        values = ArrayUtil.growExact(values, newValuesLength);
+        growExact(newValuesLength);
 
         // account for freeing the old values array
         circuitBreakerConsumer.accept(-oldValuesSizeInBytes);
+    }
+
+    /** Grow the array in a method so we can override it during testing */
+    protected void growExact(int newValuesLength) {
+        values = ArrayUtil.growExact(values, newValuesLength);
     }
 
     /**

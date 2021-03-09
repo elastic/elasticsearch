@@ -121,7 +121,7 @@ public class TransformNodesTests extends ESTestCase {
         assertEquals(0, transformNodeAssignments.getStopped().size());
 
         // test simple matching
-        transformNodeAssignments = TransformNodes.findActiveTasks("df-id-f*", cs);
+        transformNodeAssignments = TransformNodes.findPersistentTasks("df-id-f*", cs);
         assertEquals(1, transformNodeAssignments.getExecutorNodes().size());
         assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
         assertEquals(1, transformNodeAssignments.getWaitingForAssignment().size());
@@ -132,14 +132,14 @@ public class TransformNodesTests extends ESTestCase {
         assertEquals(0, transformNodeAssignments.getStopped().size());
 
         // test matching none
-        transformNodeAssignments = TransformNodes.findActiveTasks("df-id-z*", cs);
+        transformNodeAssignments = TransformNodes.findPersistentTasks("df-id-z*", cs);
         assertEquals(0, transformNodeAssignments.getExecutorNodes().size());
         assertEquals(0, transformNodeAssignments.getWaitingForAssignment().size());
         assertEquals(0, transformNodeAssignments.getAssigned().size());
         assertEquals(0, transformNodeAssignments.getStopped().size());
 
         // test matching all
-        transformNodeAssignments = TransformNodes.findActiveTasks("df-id-*", cs);
+        transformNodeAssignments = TransformNodes.findPersistentTasks("df-id-*", cs);
         assertEquals(3, transformNodeAssignments.getExecutorNodes().size());
         assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
         assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-2"));
@@ -156,7 +156,7 @@ public class TransformNodesTests extends ESTestCase {
         assertEquals(0, transformNodeAssignments.getStopped().size());
 
         // test matching all with _all
-        transformNodeAssignments = TransformNodes.findActiveTasks("_all", cs);
+        transformNodeAssignments = TransformNodes.findPersistentTasks("_all", cs);
         assertEquals(3, transformNodeAssignments.getExecutorNodes().size());
         assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
         assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-2"));
@@ -173,7 +173,7 @@ public class TransformNodesTests extends ESTestCase {
         assertEquals(0, transformNodeAssignments.getStopped().size());
 
         // test matching exact
-        transformNodeAssignments = TransformNodes.findActiveTasks(transformIdFoo, cs);
+        transformNodeAssignments = TransformNodes.findPersistentTasks(transformIdFoo, cs);
         assertEquals(1, transformNodeAssignments.getExecutorNodes().size());
         assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
         assertEquals(0, transformNodeAssignments.getWaitingForAssignment().size());
@@ -194,7 +194,7 @@ public class TransformNodesTests extends ESTestCase {
         assertEquals(1, transformNodeAssignments.getStopped().size());
         assertTrue(transformNodeAssignments.getStopped().contains("df-id"));
 
-        transformNodeAssignments = TransformNodes.findActiveTasks("df-*", emptyState);
+        transformNodeAssignments = TransformNodes.findPersistentTasks("df-*", emptyState);
 
         assertEquals(0, transformNodeAssignments.getExecutorNodes().size());
         assertEquals(0, transformNodeAssignments.getWaitingForAssignment().size());

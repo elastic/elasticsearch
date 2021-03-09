@@ -72,15 +72,15 @@ public final class TransformNodes {
     }
 
     /**
-     * Get node assignments for a given list of transform or transform pattern.
+     * Get node assignments for a given transform pattern.
      *
-     * Note: This only returns active assignments, stopped transforms are not reported. Active means running or waiting for a node.
+     * Note: This only returns p-task assignments, stopped transforms are not reported. P-Tasks can be running or waiting for a node.
      *
-     * @param transformId The transform or a simply wildcard pattern.
+     * @param transformId The transform or a wildcard pattern, including '_all' to match against transform tasks.
      * @param clusterState State
-     * @return  The {@link TransformNodeAssignments} for the given transforms.
+     * @return  The {@link TransformNodeAssignments} for the given pattern.
      */
-    public static TransformNodeAssignments findActiveTasks(String transformId, ClusterState clusterState) {
+    public static TransformNodeAssignments findPersistentTasks(String transformId, ClusterState clusterState) {
         Set<String> executorNodes = new HashSet<>();
         Set<String> assigned = new HashSet<>();
         Set<String> waitingForAssignment = new HashSet<>();
@@ -105,9 +105,8 @@ public final class TransformNodes {
         return new TransformNodeAssignments(executorNodes, assigned, waitingForAssignment, Collections.emptySet());
     }
 
-
     /**
-     * Get the assignment of a specific transform
+     * Get the assignment of a specific transform.
      *
      * @param transformId the transform id
      * @param clusterState state
@@ -138,7 +137,7 @@ public final class TransformNodes {
 
     /**
      * Check if cluster has at least 1 transform nodes and add a header warning if not.
-     * To be used by transport actions.
+     * To be used by transport actions only.
      *
      * @param clusterState state
      */

@@ -180,7 +180,10 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     }
                 }, e -> {
                     if (e instanceof ResourceNotFoundException) {
-                        final TransformNodeAssignments transformNodeAssignments = TransformNodes.findActiveTasks(request.getId(), state);
+                        final TransformNodeAssignments transformNodeAssignments = TransformNodes.findPersistentTasks(
+                            request.getId(),
+                            state
+                        );
 
                         if (transformNodeAssignments.getAssigned().isEmpty()
                             && transformNodeAssignments.getWaitingForAssignment().isEmpty()) {

@@ -36,11 +36,11 @@ themselves when communicating with other nodes.
 
 The cluster must validate the authenticity of these certificates. The
 recommended approach is to trust a specific certificate authority (CA). When
-nodes are added to your cluster they can use a certificate signed by the same
+nodes are added to your cluster they must use a certificate signed by the same
 CA.
 
 For the transport layer, we recommend using a separate, dedicated CA instead
-of an existing, possibly shared CA. Use the `elasticsearch-certutil` tool to
+of an existing, possibly shared CA so that node membership is tightly controlled. Use the `elasticsearch-certutil` tool to
 generate a CA for your cluster.
 
 NOTE: If you're running a multi-node cluster, jump to
@@ -67,7 +67,7 @@ that method of generating a CA and certificates.
 ./bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
 ----
 
-   a. Enter the password for your CA.
+   a. Enter the password for your CA or just press enter if you did not configure one in the previous step.
 
    b. Create a password for the certificate.
 +
@@ -122,7 +122,7 @@ parameter and the following options:
 This command generates a compressed `node-certs.zip` file.
 
    `--ca <ca_file>`:: Name of the CA file used to sign your certificates. The
-   default file name from the `elasticsearch-certutil` tool is `elastic-certificates.p12`.
+   default file name from the `elasticsearch-certutil` tool is `elastic-stack-ca.p12`.
 
    `--in <input_file>`:: Name of the file that is used to run in https://www.elastic.co/guide/en/elasticsearch/reference/current/certutil.html#certutil-silent[silent mode]. The input file must be a YAML file. This parameter cannot be used with the `ca` parameter.
 
@@ -212,7 +212,7 @@ For example, if you installed {es} with an archive distribution
 {es}.
 +
 WARNING: You must perform a full cluster restart. Nodes that are configured to
-use TLS cannot communicate with nodes that are using unencrypted (and vice-versa).
+use TLS for transport cannot communicate with nodes that use unencrypted transport connection (and vice-versa).
 
 *Next*: <<add-built-in-users,Add the built-in users to {kib}>>
 

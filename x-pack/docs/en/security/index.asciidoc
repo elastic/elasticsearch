@@ -31,7 +31,7 @@ TIP: If you plan to run {es} in a Federal Information Processing Standard (FIPS)
 == Preventing unauthorized access
 
 To prevent unauthorized access to your {es} cluster, you need a way to
-_authenticate_ users and validate that a user is who they claim to be. For
+_authenticate_ users in order to validate that a user is who they claim to be. For
 example, making sure that only the person named _Kelsey Andorra_ can sign
 in as the user `kandorra`. The {es-security-features} provide a standalone
 authentication mechanism that enables you to quickly password-protect your

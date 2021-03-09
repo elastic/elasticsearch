@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.99.99"
-      reason: "Flattened fields were moved from xpack to core in 7.12."
+      version: " - 7.12.99"
+      reason: "Flattened fields were moved from xpack to core in 7.13."
 
 ---
 "Test exists query on flattened object field":
@@ -110,10 +110,6 @@ setup:
 
 ---
 "Test fields option on flattened object field":
-  - skip:
-      version: " - 7.10.99"
-      reason: "Fields option on search request was added in 7.10"
-
   - do:
       indices.create:
         index:  test

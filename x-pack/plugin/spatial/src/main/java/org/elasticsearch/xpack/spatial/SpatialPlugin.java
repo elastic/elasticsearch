@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoTil
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
+import org.elasticsearch.xpack.spatial.vectortile.RestAggregatedVectorTileAction;
 import org.elasticsearch.xpack.spatial.vectortile.RestVectorTileAction;
 
 import java.util.Arrays;
@@ -98,7 +99,9 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        return Collections.singletonList(new RestVectorTileAction());
+        return Arrays.asList(
+            new RestVectorTileAction(),
+            new RestAggregatedVectorTileAction());
     }
 
     @Override

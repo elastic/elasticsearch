@@ -59,7 +59,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         // retrieve the initial timestamp in case the action is a cross cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ClusterState clusterState = clusterService.state();
-        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices());
+        final Map<String, OriginalIndices> remoteClusterIndices =
+            remoteClusterService.groupIndices(request.indicesOptions(), request.indices());
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         final String[] concreteIndices;
         if (localIndices == null) {

@@ -60,7 +60,7 @@ public class RestStopDatafeedAction extends BaseRestHandler {
                 request.setForce(restRequest.paramAsBoolean(Request.FORCE.getPreferredName(), request.isForce()));
             }
             if (restRequest.hasParam(Request.ALLOW_NO_DATAFEEDS)) {
-                LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(
+                LoggingDeprecationHandler.INSTANCE.logRenamedField(
                     null, () -> null, Request.ALLOW_NO_DATAFEEDS, Request.ALLOW_NO_MATCH.getPreferredName());
             }
             request.setAllowNoMatch(

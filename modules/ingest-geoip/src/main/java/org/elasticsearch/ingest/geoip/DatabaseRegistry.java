@@ -32,12 +32,15 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -104,18 +107,37 @@ final class DatabaseRegistry implements Closeable {
 
     public void initialize(ResourceWatcherService resourceWatcher, IngestService ingestService) throws IOException {
         localDatabases.initialize(resourceWatcher);
-        if (Files.exists(geoipTmpDirectory)) {
-            Files.walk(geoipTmpDirectory)
-                .filter(Files::isRegularFile)
-                .peek(path -> LOGGER.info("deleting stale file [{}]", path))
-                .forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-        } else {
+        Files.walkFileTree(geoipTmpDirectory, new FileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                try {
+                    LOGGER.info("deleting stale file [{}]", file);
+                    Files.deleteIfExists(file);
+                } catch (IOException e) {
+                    LOGGER.warn("can't delete stale file [" + file + "]", e);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFileFailed(Path file, IOException e) {
+                if(e instanceof NoSuchFileException == false) {
+                    LOGGER.warn("can't delete stale file [" + file + "]", e);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) {
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        if (Files.exists(geoipTmpDirectory) == false) {
             Files.createDirectory(geoipTmpDirectory);
         }
         LOGGER.info("initialized database registry, using geoip-databases directory [{}]", geoipTmpDirectory);

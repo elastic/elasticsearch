@@ -29,7 +29,7 @@ nodes with TLS.
 [[generate-certificates]]
 ==== Generate the certificate authority
 
-You can add as many nodes as you want in a cluster but they must be able to communicate with each other. The communication between nodes in a cluster is handled by the transport module. To secure your cluster, you must ensure that the internode communications are encrypted and that mutual TLS is configured.
+You can add as many nodes as you want in a cluster but they must be able to communicate with each other. The communication between nodes in a cluster is handled by the transport module. To secure your cluster, you must ensure that the internode communications are encrypted and verified which is achieved with mutual TLS.
 
 In a secured cluster, {es} nodes use certificates to identify
 themselves when communicating with other nodes.

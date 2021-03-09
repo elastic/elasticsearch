@@ -55,20 +55,20 @@ import java.util.zip.GZIPInputStream;
 /**
  * A component that is responsible for making the databases maintained by {@link GeoIpDownloader}
  * available for ingest processors.
- * <p>
+ *
  * Also provided a lookup mechanism for geoip processors with fallback to {@link LocalDatabases}.
  * All databases are downloaded into a geoip tmp directory, which is created at node startup.
- * <p>
+ *
  * The following high level steps are executed after each cluster state update:
  * 1) Check which databases are available in {@link GeoIpTaskState},
- * which is part of the geoip downloader persistent task.
+ *    which is part of the geoip downloader persistent task.
  * 2) For each database check whether the databases have changed
- * by comparing the local and remote md5 hash or are locally missing.
+ *    by comparing the local and remote md5 hash or are locally missing.
  * 3) For each database identified in step 2 start downloading the database
- * chunks. Each chunks is appended to a tmp file (inside geoip tmp dir) and
- * after all chunks have been downloaded, the database is uncompressed and
- * renamed to the final filename.After this the database is loaded and
- * if there is an old instance of this database then that is closed.
+ *    chunks. Each chunks is appended to a tmp file (inside geoip tmp dir) and
+ *    after all chunks have been downloaded, the database is uncompressed and
+ *    renamed to the final filename.After this the database is loaded and
+ *    if there is an old instance of this database then that is closed.
  * 4) Cleanup locally loaded databases that are no longer mentioned in {@link GeoIpTaskState}.
  */
 final class DatabaseRegistry implements Closeable {

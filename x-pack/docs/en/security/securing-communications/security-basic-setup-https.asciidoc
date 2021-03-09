@@ -6,7 +6,7 @@
 
 In a production environment, some {es} features such as tokens and
 API keys will be disabled unless you enable TLS on the HTTP layer. This
-addition layer of security ensures that all communications to and from your
+additional layer of security ensures that all communications to and from your
 cluster are secured.
 
 When you run the `elasticsearch-certutil` tool in `http` mode, the tool asks

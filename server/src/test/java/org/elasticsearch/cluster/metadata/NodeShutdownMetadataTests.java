@@ -6,9 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.cluster;
+package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
@@ -37,13 +37,13 @@ public class NodeShutdownMetadataTests extends AbstractDiffableSerializationTest
 
     @Override
     protected NodeShutdownMetadata createTestInstance() {
-        Map<String, NodeShutdownMetadata.SingleNodeShutdownMetadata> nodes = randomList(0, 10, this::randomNodeShutdownInfo).stream()
-            .collect(Collectors.toMap(NodeShutdownMetadata.SingleNodeShutdownMetadata::getNodeId, Function.identity()));
+        Map<String, SingleNodeShutdownMetadata> nodes = randomList(0, 10, this::randomNodeShutdownInfo).stream()
+            .collect(Collectors.toMap(SingleNodeShutdownMetadata::getNodeId, Function.identity()));
         return new NodeShutdownMetadata(nodes);
     }
 
-    private NodeShutdownMetadata.SingleNodeShutdownMetadata randomNodeShutdownInfo() {
-        return new NodeShutdownMetadata.SingleNodeShutdownMetadata(
+    private SingleNodeShutdownMetadata randomNodeShutdownInfo() {
+        return new SingleNodeShutdownMetadata(
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),

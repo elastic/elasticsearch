@@ -649,7 +649,7 @@ public class FrozenCacheService implements Releasable {
             final long relativePos = rangeToRead.start() + regionRelativeStart;
             return ActionListener.wrap(v -> {
                 assert regionOwners[sharedPageIndex].get() == CacheFileRegion.this;
-                //logger.info("--> read [{}] [{}] [{}]", rangeToRead, relativePos, fileChannel.size());
+                // logger.info("--> read [{}] [{}] [{}]", rangeToRead, relativePos, fileChannel.size());
                 final int read = reader.onRangeAvailable(fileChannel, rangeToRead.start(), relativePos, rangeToRead.length());
                 assert read == rangeToRead.length() : "partial read ["
                     + read
@@ -755,10 +755,10 @@ public class FrozenCacheService implements Releasable {
                 Releasable decrementRef = null;
                 try {
                     fileRegion.ensureOpen();
-                    fileRegion.incRef();
                     decrementRef = Releasables.releaseOnce(fileRegion::decRef);
                     final Releasable finalReleasable = decrementRef;
                     fileRegion.ensureOpen();
+                    fileRegion.incRef();
                     listener.whenComplete(integer -> finalReleasable.close(), throwable -> finalReleasable.close());
                     final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(fileRegion.sharedPageIndex);
                     fileChannel.incRef();
@@ -799,7 +799,8 @@ public class FrozenCacheService implements Releasable {
                     return listener;
                 }
             }
-            if (gapsList.isEmpty() == false && writeStart >= 0) {
+            if (gapsList.isEmpty() == false) {
+                assert writeStart >= 0;
                 final long startingRegionStart = sharedBytes.sharedCacheConfiguration.getRegionStart(
                     firstWriteRegion,
                     fileSize,
@@ -901,15 +902,9 @@ public class FrozenCacheService implements Releasable {
                                 }
                             }
                             final long relativeWritePos = startingRegionStart + startingOffset - rangeToWrite.start();
-                            writer.fillCacheRange(
-                                ios,
-                                startingOffset,
-                                relativeWritePos,
-                                length,
-                                progress -> {
-                                    //logger.info("--> read to [{}]", progress);
-                                }
-                            );
+                            writer.fillCacheRange(ios, startingOffset, relativeWritePos, length, progress -> {
+                                // logger.info("--> read to [{}]", progress);
+                            });
                             for (int i = 0; i < gapsList.size(); i++) {
                                 List<SparseFileTracker.Gap> gaps = gapsList.get(i);
                                 for (SparseFileTracker.Gap gap : gaps) {

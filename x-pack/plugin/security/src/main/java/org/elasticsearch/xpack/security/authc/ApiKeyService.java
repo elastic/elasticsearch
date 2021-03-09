@@ -779,24 +779,25 @@ public class ApiKeyService {
         }
 
         @Override
-        public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
+        public void logRenamedField(String parserName, Supplier<XContentLocation> location, String oldName, String currentName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
             deprecationLogger.deprecate(DeprecationCategory.API, "api_key_field",
-                "{}Deprecated field [{}] used in api key [{}], expected [{}] instead", prefix, usedName, apiKeyId, modernName);
+                "{}Deprecated field [{}] used in api key [{}], expected [{}] instead", prefix, oldName, apiKeyId, currentName);
         }
 
         @Override
-        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
+        public void logReplacedField(String parserName, Supplier<XContentLocation> location, String oldName, String replacedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
             deprecationLogger.deprecate(DeprecationCategory.API, "api_key_field",
-                "{}Deprecated field [{}] used in api key [{}], replaced by [{}]", prefix, usedName, apiKeyId, replacedWith);
+                "{}Deprecated field [{}] used in api key [{}], replaced by [{}]", prefix, oldName, apiKeyId, replacedName);
         }
 
         @Override
-        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
+        public void logRemovedField(String parserName, Supplier<XContentLocation> location, String removedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
             deprecationLogger.deprecate(DeprecationCategory.API, "api_key_field",
-                "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely", prefix, usedName, apiKeyId);
+                "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely",
+                prefix, removedName, apiKeyId);
         }
     }
 

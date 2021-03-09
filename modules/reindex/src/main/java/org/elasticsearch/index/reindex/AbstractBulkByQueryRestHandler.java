@@ -10,8 +10,8 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,7 +44,7 @@ public abstract class AbstractBulkByQueryRestHandler<
         SearchRequest searchRequest = internal.getSearchRequest();
 
         try (XContentParser parser = extractRequestSpecificFields(restRequest, bodyConsumers)) {
-            IntConsumer sizeConsumer = restRequest.getRestApiCompatibleVersion() == RestApiCompatibleVersion.V_7 ?
+            IntConsumer sizeConsumer = restRequest.getRestApiVersion() == RestApiVersion.V_7 ?
                 size -> setMaxDocsFromSearchSize(internal, size) :
                 size -> failOnSizeSpecified();
             RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, namedWriteableRegistry, sizeConsumer);
@@ -95,8 +95,7 @@ public abstract class AbstractBulkByQueryRestHandler<
     }
 
     private void setMaxDocsFromSearchSize(Request request, int size) {
-        //TODO use compatible instance
-        LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, null, "size", "max_docs");
+        LoggingDeprecationHandler.INSTANCE.logReplacedField(null, null, "size", "max_docs", true);
         setMaxDocsValidateIdentical(request, size);
     }
 }

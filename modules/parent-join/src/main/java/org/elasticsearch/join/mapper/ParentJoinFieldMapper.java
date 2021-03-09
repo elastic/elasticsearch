@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -45,10 +46,7 @@ import java.util.function.Supplier;
 
 /**
  * A {@link FieldMapper} that creates hierarchical joins (parent-join) between documents in the same index.
- * Only one parent-join field can be defined per index. The verification of this assumption is done
- * through the {@link MetaJoinFieldMapper} which declares a meta field called "_parent_join".
- * This field is only used to ensure that there is a single parent-join field defined in the mapping and
- * cannot be used to index or query any data.
+ * Only one parent-join field can be defined per index.
  */
 public final class ParentJoinFieldMapper extends FieldMapper {
 
@@ -115,10 +113,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             relations.get().stream()
                 .map(relation -> new ParentIdFieldMapper(name + "#" + relation.parent, eagerGlobalOrdinals.get()))
                 .forEach(mapper -> parentIdFields.put(mapper.name(), mapper));
-            MetaJoinFieldMapper unique = new MetaJoinFieldMapper(name);
             Joiner joiner = new Joiner(name(), relations.get());
             return new ParentJoinFieldMapper(name, new JoinFieldType(buildFullName(contentPath), joiner, meta.get()),
-                unique, Collections.unmodifiableMap(parentIdFields), eagerGlobalOrdinals.get(), relations.get());
+                Collections.unmodifiableMap(parentIdFields), eagerGlobalOrdinals.get(), relations.get());
         }
     }
 
@@ -171,20 +168,16 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         return pj.canMerge(cj, s -> conflicts.addConflict("relations", s));
     }
 
-    // The meta field that ensures that there is no other parent-join in the mapping
-    private final MetaJoinFieldMapper uniqueFieldMapper;
     private final Map<String, ParentIdFieldMapper> parentIdFields;
     private final boolean eagerGlobalOrdinals;
     private final List<Relations> relations;
 
     protected ParentJoinFieldMapper(String simpleName,
                                     MappedFieldType mappedFieldType,
-                                    MetaJoinFieldMapper uniqueFieldMapper,
                                     Map<String, ParentIdFieldMapper> parentIdFields,
                                     boolean eagerGlobalOrdinals, List<Relations> relations) {
         super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
         this.parentIdFields = parentIdFields;
-        this.uniqueFieldMapper = uniqueFieldMapper;
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         this.relations = relations;
     }
@@ -202,7 +195,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     @Override
     public Iterator<Mapper> iterator() {
         List<Mapper> mappers = new ArrayList<>(parentIdFields.values());
-        mappers.add(uniqueFieldMapper);
         return mappers.iterator();
     }
 
@@ -298,4 +290,34 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         return new Builder(simpleName()).init(this);
     }
 
+    @Override
+    protected void doValidate(MappingLookup mappers) {
+        List<JoinFieldType> fts = getJoinFieldTypes(mappers.fieldMappers());
+        if (fts.size() > 1) {
+            throw new IllegalArgumentException("Only one [parent-join] field can be defined per index, got " + fts);
+        }
+    }
+
+    static JoinFieldType getJoinFieldType(Iterable<Mapper> mappers) {
+        for (Mapper mapper : mappers) {
+            if (mapper instanceof FieldMapper
+                    && ((FieldMapper) mapper).fieldType() instanceof JoinFieldType) {
+                FieldMapper fieldMapper = (FieldMapper) mapper;
+                return (JoinFieldType) fieldMapper.fieldType();
+            }
+        }
+        return null;
+    }
+
+    private List<JoinFieldType> getJoinFieldTypes(Iterable<Mapper> mappers) {
+        List<JoinFieldType> fieldTypes = new ArrayList<>();
+        for (Mapper mapper : mappers) {
+            if (mapper instanceof FieldMapper
+                    && ((FieldMapper) mapper).fieldType() instanceof JoinFieldType) {
+                FieldMapper fieldMapper = (FieldMapper) mapper;
+                fieldTypes.add((JoinFieldType) fieldMapper.fieldType());
+            }
+        }
+        return fieldTypes;
+    }
 }

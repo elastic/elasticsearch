@@ -22,6 +22,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -109,6 +110,11 @@ public abstract class AggregationContext implements Releasable {
      * Lookup a {@link MappedFieldType} by path.
      */
     public abstract MappedFieldType getFieldType(String path);
+
+    /**
+     * Returns an iterable over all the registered field mappers.
+     */
+    public abstract Iterable<Mapper> getFieldMappers();
 
     /**
      * Returns true if the field identified by the provided name is mapped, false otherwise
@@ -327,6 +333,11 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public MappedFieldType getFieldType(String path) {
             return context.getFieldType(path);
+        }
+
+        @Override
+        public Iterable<Mapper> getFieldMappers() {
+            return context.getFieldMappers();
         }
 
         @Override

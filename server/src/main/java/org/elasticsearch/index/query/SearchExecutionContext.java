@@ -324,6 +324,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
+     * Returns an iterable over all the registered field mappers.
+     */
+    public Iterable<Mapper> getFieldMappers() {
+        return mappingLookup.fieldMappers();
+    }
+
+    /**
      * Returns true if the field identified by the provided name is mapped, false otherwise
      */
     public boolean isFieldMapped(String name) {

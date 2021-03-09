@@ -27,6 +27,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -208,6 +209,11 @@ public class AggConstructionContentionBenchmark {
             if (path.startsWith("int")) {
                 return new NumberFieldMapper.NumberFieldType(path, NumberType.INTEGER);
             }
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Iterable<Mapper> getFieldMappers() {
             throw new UnsupportedOperationException();
         }
 

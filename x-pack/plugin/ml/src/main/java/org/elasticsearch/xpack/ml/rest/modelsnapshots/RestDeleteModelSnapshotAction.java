@@ -27,7 +27,7 @@ public class RestDeleteModelSnapshotAction extends BaseRestHandler {
     public List<Route> routes() {
         return Collections.singletonList(
             new Route(DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID.getPreferredName() + "}")
+                    "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID.getPreferredName() + "}")
         );
     }
 

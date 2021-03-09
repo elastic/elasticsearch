@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -604,8 +605,14 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
     ) throws Exception {
 
+        final String fileName;
+        if (SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.get(indexSettings)) {
+            fileName = randomAlphaOfLength(10) + randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
+        } else {
+            fileName = randomAlphaOfLength(10) + randomFileExtension();
+        }
+
         final byte[] fileContent = randomByteArrayOfLength(randomIntBetween(10, MAX_FILE_LENGTH));
-        final String fileName = randomAlphaOfLength(10) + randomFileExtension();
         final SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
         final IndexId indexId = new IndexId("_name", "_uuid");
         final ShardId shardId = new ShardId("_name", "_uuid", 0);

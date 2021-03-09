@@ -75,7 +75,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
 
     @Override
     public Set<ScriptContext<?>> getSupportedContexts() {
-        return Set.of(TemplateScript.CONTEXT);
+        return Set.of(TemplateScript.CONTEXT, TemplateScript.INGEST_CONTEXT);
     }
 
     private CustomMustacheFactory createMustacheFactory(Map<String, String> options) {

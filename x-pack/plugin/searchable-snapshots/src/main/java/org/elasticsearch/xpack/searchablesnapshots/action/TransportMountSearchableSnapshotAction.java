@@ -43,10 +43,12 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
@@ -180,9 +182,6 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             }
             final SnapshotId snapshotId = matchingSnapshotId.get();
 
-            final String[] ignoreIndexSettings = Arrays.copyOf(request.ignoreIndexSettings(), request.ignoreIndexSettings().length + 1);
-            ignoreIndexSettings[ignoreIndexSettings.length - 1] = IndexMetadata.SETTING_DATA_PATH;
-
             final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repoData, snapshotId, indexId);
             if (isSearchableSnapshotStore(indexMetadata.getSettings())) {
                 throw new IllegalArgumentException(
@@ -200,6 +199,16 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                         SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexMetadata.getSettings())
                     )
                 );
+            }
+
+            final Set<String> ignoreIndexSettings = new LinkedHashSet<>(Arrays.asList(request.ignoreIndexSettings()));
+            ignoreIndexSettings.add(IndexMetadata.SETTING_DATA_PATH);
+            for (final String indexSettingKey : indexMetadata.getSettings().keySet()) {
+                if (indexSettingKey.startsWith(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX)
+                    || indexSettingKey.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX)
+                    || indexSettingKey.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX)) {
+                    ignoreIndexSettings.add(indexSettingKey);
+                }
             }
 
             client.admin()
@@ -224,7 +233,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                                 .build()
                         )
                         // Pass through ignored index settings
-                        .ignoreIndexSettings(ignoreIndexSettings)
+                        .ignoreIndexSettings(ignoreIndexSettings.toArray(new String[0]))
                         // Don't include global state
                         .includeGlobalState(false)
                         // Don't include aliases

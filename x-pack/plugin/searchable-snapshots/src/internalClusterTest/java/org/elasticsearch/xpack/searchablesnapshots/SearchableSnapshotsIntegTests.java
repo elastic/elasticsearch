@@ -219,8 +219,12 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         }
         final String expectedDataTiersPreference;
         if (randomBoolean()) {
-            expectedDataTiersPreference = String.join(",", randomSubsetOf(DataTier.ALL_DATA_TIERS.stream()
-                .filter(tier -> tier.equals(DataTier.DATA_FROZEN) == false).collect(Collectors.toSet())));
+            expectedDataTiersPreference = String.join(
+                ",",
+                randomSubsetOf(
+                    DataTier.ALL_DATA_TIERS.stream().filter(tier -> tier.equals(DataTier.DATA_FROZEN) == false).collect(Collectors.toSet())
+                )
+            );
             indexSettingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, expectedDataTiersPreference);
         } else {
             expectedDataTiersPreference = getDataTiersPreference(MountSearchableSnapshotRequest.Storage.FULL_COPY);

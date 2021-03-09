@@ -363,7 +363,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + "-000001";
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         Map<String, LifecycleAction> hotActions = new HashMap<>();
-        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, null, 1L));
+        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, 1L));
         hotActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()));
         createPolicy(client(), policy, null, null,
             new Phase("hot", TimeValue.ZERO, hotActions),

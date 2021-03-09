@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -28,6 +30,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.COLD_PHASE;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.DELETE_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.FROZEN_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.HOT_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_COLD_ACTIONS;
@@ -37,10 +40,11 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_V
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_COLD_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_HOT_ACTIONS;
-import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_PHASES;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_PHASES;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_WARM_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateAllSearchableSnapshotActionsUseSameRepository;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateMonotonicallyIncreasingPhaseTimings;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -278,12 +282,12 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     public void testGetOrderedPhases() {
         Map<String, Phase> phaseMap = new HashMap<>();
-        for (String phaseName : randomSubsetOf(randomIntBetween(0, VALID_PHASES.size()), VALID_PHASES)) {
+        for (String phaseName : randomSubsetOf(randomIntBetween(0, ORDERED_VALID_PHASES.size()), ORDERED_VALID_PHASES)) {
             phaseMap.put(phaseName, new Phase(phaseName, TimeValue.ZERO, Collections.emptyMap()));
         }
 
 
-        assertTrue(isSorted(TimeseriesLifecycleType.INSTANCE.getOrderedPhases(phaseMap), Phase::getName, VALID_PHASES));
+        assertTrue(isSorted(TimeseriesLifecycleType.INSTANCE.getOrderedPhases(phaseMap), Phase::getName, ORDERED_VALID_PHASES));
     }
 
     public void testGetOrderedPhasesInsertsMigrateAction() {
@@ -292,7 +296,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         phaseMap.put(WARM_PHASE, new Phase(WARM_PHASE, TimeValue.ZERO, Map.of()));
 
         List<Phase> orderedPhases = TimeseriesLifecycleType.INSTANCE.getOrderedPhases(phaseMap);
-        assertTrue(isSorted(orderedPhases, Phase::getName, VALID_PHASES));
+        assertTrue(isSorted(orderedPhases, Phase::getName, ORDERED_VALID_PHASES));
         Phase warmPhase = orderedPhases.get(1);
         assertThat(warmPhase, is(notNullValue()));
         assertThat(warmPhase.getActions().get(MigrateAction.NAME), is(notNullValue()));
@@ -699,6 +703,88 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("policy specifies [searchable_snapshot]" +
                 " action multiple times with differing repositories [repo2, repo1]," +
                 " the same repository must be used for all searchable snapshot actions"));
+        }
+    }
+
+    public void testValidatingIncreasingAges() {
+        {
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.ZERO, Collections.emptyMap());
+
+            assertFalse(Strings.hasText(validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase,
+                warmPhase, coldPhase, frozenPhase, deletePhase))));
+        }
+
+        {
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+
+            List<Phase> phases = new ArrayList<>();
+            phases.add(hotPhase);
+            if (randomBoolean()) {
+                phases.add(warmPhase);
+            }
+            if (randomBoolean()) {
+                phases.add(coldPhase);
+            }
+            if (randomBoolean()) {
+                phases.add(frozenPhase);
+            }
+            if (randomBoolean()) {
+                phases.add(deletePhase);
+            }
+            assertFalse(Strings.hasText(validateMonotonicallyIncreasingPhaseTimings(phases)));
+        }
+
+        {
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.timeValueHours(12), Collections.emptyMap());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.ZERO, Collections.emptyMap());
+
+            String err =
+                validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
+
+            assertThat(err,
+                containsString("phases [cold] configure a [min_age] value less than the" +
+                    " [min_age] of [1d] for the [hot] phase, configuration: {cold=12h}"));
+        }
+
+        {
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(3), Collections.emptyMap());
+            Phase coldPhase = new Phase(COLD_PHASE, null, Collections.emptyMap());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+
+            String err =
+                validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
+
+            assertThat(err,
+                containsString("phases [frozen,delete] configure a [min_age] value less " +
+                    "than the [min_age] of [3d] for the [warm] phase, configuration: {frozen=1d, delete=2d}"));
+        }
+
+        {
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(3), Collections.emptyMap());
+            Phase coldPhase = new Phase(COLD_PHASE, null, Collections.emptyMap());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+
+            String err =
+                validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
+
+            assertThat(err,
+                containsString("phases [frozen,delete] configure a [min_age] value less than " +
+                    "the [min_age] of [3d] for the [warm] phase, configuration: {frozen=2d, delete=1d}"));
         }
     }
 

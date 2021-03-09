@@ -267,6 +267,19 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         testUnsuccessfulSnapshotRetention(true);
     }
 
+    public void testRetentionWithMultipleRepositories() throws Exception {
+        disableRepoConsistencyCheck("test leaves behind an empty repository");
+        final String secondRepo = "other-repo";
+        createRepository(secondRepo, "fs");
+        final String policyId = "some-policy-id";
+        createSnapshotPolicy(policyId, "snap", NEVER_EXECUTE_CRON_SCHEDULE, secondRepo,
+                "*", true,
+                true, new SnapshotRetentionConfiguration(null, 1, 2));
+        logger.info("-->  start snapshot");
+        client().execute(ExecuteSnapshotLifecycleAction.INSTANCE, new ExecuteSnapshotLifecycleAction.Request(policyId)).get();
+        testUnsuccessfulSnapshotRetention(randomBoolean());
+    }
+
     private void testUnsuccessfulSnapshotRetention(boolean partialSuccess) throws Exception {
         final String indexName = "test-idx";
         final String policyId = "test-policy";

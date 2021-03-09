@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -66,6 +68,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
     private final Client client;
     private final ClusterService clusterService;
+    private final MetadataCreateIndexService metadataCreateIndexService;
 
     @Inject
     public TransportRollupAction(Client client,
@@ -73,11 +76,13 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                                  TransportService transportService,
                                  ThreadPool threadPool,
                                  ActionFilters actionFilters,
+                                 MetadataCreateIndexService metadataCreateIndexService,
                                  IndexNameExpressionResolver indexNameExpressionResolver) {
         super(RollupAction.NAME, transportService, clusterService, threadPool, actionFilters, RollupAction.Request::new,
             indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
         this.clusterService = clusterService;
+        this.metadataCreateIndexService = metadataCreateIndexService;
     }
 
     @Override
@@ -116,10 +121,13 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
         CreateIndexRequest req = new CreateIndexRequest(tmpIndexName, Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
-            .put(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey(), sourceIndexName)
-            .put(IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.getKey(), sourceIndexUuid)
             .build())
             .mapping(mapping);
+
+        CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest =
+            new CreateIndexClusterStateUpdateRequest("rollup", req.index(), req.index())
+                .settings(req.settings()).mappings(req.mappings());
+
         RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(request);
         ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
         resizeRequest.setResizeType(ResizeType.CLONE);
@@ -149,30 +157,51 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 listener.onFailure(validationException);
                 return;
             }
-            client.admin().indices().create(req, ActionListener.wrap(createIndexResponse ->
-                client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
-                    if (indexerResp.isCreated()) {
-                        client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
-                            if (updateSettingsResponse.isAcknowledged()) {
-                                client.admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(resizeResponse -> {
-                                    if (resizeResponse.isAcknowledged()) {
-                                        publishMetadata(request.getRollupConfig(), originalIndexName, tmpIndexName,
-                                            rollupIndexName, listener);
-                                    } else {
-                                        deleteTmpIndex(originalIndexName, tmpIndexName, listener,
-                                            new ElasticsearchException("Unable to resize temp rollup index [" + tmpIndexName + "]"));
-                                    }
-                                }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
-                            } else {
-                                deleteTmpIndex(originalIndexName, tmpIndexName, listener,
-                                    new ElasticsearchException("Unable to update settings of temp rollup index [" + tmpIndexName + "]"));
-                            }
-                        }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
-                    } else {
-                        deleteTmpIndex(originalIndexName, tmpIndexName, listener,
-                            new ElasticsearchException("Unable to index into temp rollup index [" + tmpIndexName + "]"));
-                    }
-                }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e))), listener::onFailure));
+
+            clusterService.submitStateUpdateTask("rollup create index", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    return metadataCreateIndexService
+                        .applyCreateIndexRequest(currentState, createIndexClusterStateUpdateRequest, true,
+                            (builder, indexMetadata) -> builder.put(IndexMetadata.builder(indexMetadata).settings(Settings.builder()
+                                .put(indexMetadata.getSettings())
+                                .put(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey(), sourceIndexName)
+                                .put(IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.getKey(), sourceIndexUuid)
+                            )));
+                }
+
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    // index created
+                    client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
+                        if (indexerResp.isCreated()) {
+                            client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
+                                if (updateSettingsResponse.isAcknowledged()) {
+                                    client.admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(resizeResponse -> {
+                                        if (resizeResponse.isAcknowledged()) {
+                                            publishMetadata(request.getRollupConfig(), originalIndexName, tmpIndexName,
+                                                rollupIndexName, listener);
+                                        } else {
+                                            deleteTmpIndex(originalIndexName, tmpIndexName, listener,
+                                                new ElasticsearchException("Unable to resize temp rollup index [" + tmpIndexName + "]"));
+                                        }
+                                    }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
+                                } else {
+                                    deleteTmpIndex(originalIndexName, tmpIndexName, listener,
+                                        new ElasticsearchException("Unable to update settings of temp rollup index [" + tmpIndexName + "]"));
+                                }
+                            }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
+                        } else {
+                            deleteTmpIndex(originalIndexName, tmpIndexName, listener,
+                                new ElasticsearchException("Unable to index into temp rollup index [" + tmpIndexName + "]"));
+                        }
+                    }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         }, listener::onFailure));
     }
 

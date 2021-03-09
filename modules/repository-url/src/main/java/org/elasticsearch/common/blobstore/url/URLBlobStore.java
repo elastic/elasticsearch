@@ -8,10 +8,15 @@
 
 package org.elasticsearch.common.blobstore.url;
 
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.url.http.HttpURLBlobContainer;
+import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
+import org.elasticsearch.common.blobstore.url.http.URLHttpClientSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -24,9 +29,17 @@ import java.net.URL;
  */
 public class URLBlobStore implements BlobStore {
 
+    static final Setting<ByteSizeValue> BUFFER_SIZE_SETTING = Setting.byteSizeSetting(
+        "repositories.uri.buffer_size",
+        new ByteSizeValue(100, ByteSizeUnit.KB),
+        Setting.Property.NodeScope
+    );
+
+
     private final URL path;
 
     private final int bufferSizeInBytes;
+    private final CheckedFunction<BlobPath, BlobContainer, MalformedURLException> blobContainerFactory;
 
     /**
      * Constructs new read-only URL-based blob store
@@ -40,10 +53,19 @@ public class URLBlobStore implements BlobStore {
      * @param settings settings
      * @param path     base URL
      */
-    public URLBlobStore(Settings settings, URL path) {
+    public URLBlobStore(Settings settings, URL path, URLHttpClient httpClient, URLHttpClientSettings httpClientSettings) {
         this.path = path;
-        this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.uri.buffer_size",
-            new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
+        this.bufferSizeInBytes = (int) BUFFER_SIZE_SETTING.get(settings).getBytes();
+
+        final String protocol = this.path.getProtocol();
+        if (protocol.equals("http") || protocol.equals("https")) {
+            this.blobContainerFactory = (blobPath) ->
+                new HttpURLBlobContainer(this, blobPath, buildPath(blobPath), httpClient, httpClientSettings);
+        } else if (protocol.equals("file")) {
+            this.blobContainerFactory = (blobPath) -> new FileURLBlobContainer(this, blobPath, buildPath(blobPath));
+        } else {
+            this.blobContainerFactory = (blobPath) -> new URLBlobContainer(this, blobPath, buildPath(blobPath));
+        }
     }
 
     @Override
@@ -72,7 +94,7 @@ public class URLBlobStore implements BlobStore {
     @Override
     public BlobContainer blobContainer(BlobPath path) {
         try {
-            return new URLBlobContainer(this, path, buildPath(path));
+            return blobContainerFactory.apply(path);
         } catch (MalformedURLException ex) {
             throw new BlobStoreException("malformed URL " + path, ex);
         }

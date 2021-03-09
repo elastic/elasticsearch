@@ -11,7 +11,7 @@ dependencies {
 
 restResources {
   restApi {
-    include 'security', 'transform'
+    include '_common', 'bulk', 'indices', 'cluster', 'search', 'security', 'transform'
   }
 }
 

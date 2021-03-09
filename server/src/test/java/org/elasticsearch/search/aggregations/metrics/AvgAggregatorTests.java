@@ -246,7 +246,11 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             iw -> {
                 List<List<IndexableField>> docs = new ArrayList<>();
                 for (double value : values) {
-                    docs.add(List.of(new NumericDocValuesField("number", NumericUtils.doubleToSortableLong(value))));
+                    docs.add(
+                        org.elasticsearch.common.collect.List.of(
+                            new NumericDocValuesField("number", NumericUtils.doubleToSortableLong(value))
+                        )
+                    );
                 }
                 /*
                  * Use add documents to force us to collect from a single segment

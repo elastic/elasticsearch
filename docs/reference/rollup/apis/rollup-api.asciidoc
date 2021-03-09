@@ -54,9 +54,9 @@ POST /my-index-000001/_rollup/rollup-my-index-000001
 * You can only roll up an index that contains:
 
 ** A <<date,`date`>> or <<date_nanos,`date_nanos`>> timestamp field.
-** At least one metric field to roll up. This field must be a
-   <<number,numeric>>, `date`, or `date_nanos` field other than the timestamp
-   field. This field cannot be an `unsigned_long`.
+** At least one metric to roll up. This field must be a <<number,numeric>>,
+  `date`, or `date_nanos` field other than the timestamp field. This field
+  cannot be an `unsigned_long`.
 
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-indices,index privilege>> for the index you roll up.

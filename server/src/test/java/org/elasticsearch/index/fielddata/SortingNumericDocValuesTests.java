@@ -21,7 +21,7 @@ public class SortingNumericDocValuesTests extends ESTestCase {
        final int oldSize = Integer.MAX_VALUE - 200;
        final int newSize = Integer.MAX_VALUE - 100;
        // This counter should account for the initialization of the array (size == 1)
-       // and the diff between getArrayLength() and resize()
+       // and the diff between newSize (over-sized) and oldSize.
        final AtomicLong counter = new AtomicLong();
        LongConsumer consumer = value -> {
            long total = counter.addAndGet(value);
@@ -65,7 +65,7 @@ public class SortingNumericDocValuesTests extends ESTestCase {
            }
        };
        docValues.resize(newSize);
-       final long internalNewSize = ArrayUtil.oversize(newSize, Long.BYTES);
-       assertThat(counter.get(), Matchers.lessThan((internalNewSize + 1) * Long.BYTES));
+       final long diff = ArrayUtil.oversize(newSize, Long.BYTES) - oldSize;
+       assertThat(counter.get(), Matchers.equalTo((diff + 1) * Long.BYTES));
    }
 }

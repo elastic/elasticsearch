@@ -362,6 +362,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "restricted frozen phase")
     public void testIdenticalSearchableSnapshotActionIsNoop() throws Exception {
         String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
@@ -466,6 +467,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "restricted frozen phase")
     public void testConvertingPartialSearchableSnapshotIntoFull() throws Exception {
         String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT) +"-000001";
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
@@ -475,10 +477,11 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                     SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
                     MountSearchableSnapshotRequest.Storage.SHARED_CACHE),
                     RolloverAction.NAME, new RolloverAction(null, null, null, 1L))),
-            null, null,
-            new Phase("frozen", TimeValue.ZERO,
+            null,
+            new Phase("cold", TimeValue.ZERO,
                 singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
                     MountSearchableSnapshotRequest.Storage.FULL_COPY))),
+            null,
             null
         );
 
@@ -504,7 +507,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("frozen"));
+            assertThat(stepKeyForIndex.getPhase(), is("cold"));
             assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
 
@@ -543,6 +546,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             containsString("policy specifies [searchable_snapshot] action multiple times with differing repositories"));
     }
 
+    @AwaitsFix(bugUrl = "restricted frozen phase")
     public void testSearchableSnapshotActionOverridesMigrateAction() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,

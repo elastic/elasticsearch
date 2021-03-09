@@ -78,7 +78,7 @@ public final class TransformNodes {
      *
      * @param transformId The transform or a wildcard pattern, including '_all' to match against transform tasks.
      * @param clusterState State
-     * @return  The {@link TransformNodeAssignments} for the given pattern.
+     * @return The {@link TransformNodeAssignments} for the given pattern.
      */
     public static TransformNodeAssignments findPersistentTasks(String transformId, ClusterState clusterState) {
         Set<String> executorNodes = new HashSet<>();
@@ -144,7 +144,7 @@ public final class TransformNodes {
     public static void warnIfNoTransformNodes(ClusterState clusterState) {
         long transformNodes = getNumberOfTransformNodes(clusterState);
         if (transformNodes == 0) {
-            HeaderWarning.addWarning(TransformMessages.getMessage(TransformMessages.REST_WARN_NO_TRANSFORM_NODES, transformNodes));
+            HeaderWarning.addWarning(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
         }
     }
 }

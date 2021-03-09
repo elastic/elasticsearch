@@ -31,7 +31,7 @@ public class TransformMessages {
 
     public static final String REST_DEPRECATED_ENDPOINT = "[_data_frame/transforms/] is deprecated, use [_transform/] in the future.";
     public static final String REST_WARN_NO_TRANSFORM_NODES =
-        "Transform requires the transform node role for at least 1 node, found [{0}] transform nodes";
+        "Transform requires the transform node role for at least 1 node, found no transform nodes";
 
     public static final String CANNOT_STOP_FAILED_TRANSFORM = "Unable to stop transform [{0}] as it is in a failed state with reason [{1}]."
         + " Use force stop to stop the transform.";

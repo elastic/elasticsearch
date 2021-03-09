@@ -312,7 +312,6 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         statsForTransformsWithoutTasks.forEach(stat -> populateSingleStoppedTransformStat(stat, ActionListener.wrap(checkpointingInfo -> {
             synchronized (allStateAndStats) {
                 if (transformsWaitingForAssignment.contains(stat.getId())) {
-                    // corner case: as we
                     Assignment assignment = TransformNodes.getAssignment(stat.getId(), clusterState);
                     allStateAndStats.add(
                         new TransformStats(

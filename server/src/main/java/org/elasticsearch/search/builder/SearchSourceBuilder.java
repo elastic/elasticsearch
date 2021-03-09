@@ -1152,11 +1152,23 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     from = parser.intValue();
                 } else if (SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    size = parser.intValue();
+                    int parsedSize = parser.intValue();
+                    // we treat -1 as not-set, but deprecate it to be able to later remove this funny extra treatment
+                    if (parsedSize != -1) {
+                        size(parsedSize);
+                    } else {
+                        deprecationLogger.deprecate(
+                            DeprecationCategory.API,
+                            "search-api-size-1",
+                            "Using search size of -1 is deprecated and will be removed in future versions. "
+                            + "Instead, don't use the `size` parameter if you don't want to set it explicitely."
+                        );
+                    }
+
                 } else if (TIMEOUT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     timeout = TimeValue.parseTimeValue(parser.text(), null, TIMEOUT_FIELD.getPreferredName());
                 } else if (TERMINATE_AFTER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    terminateAfter = parser.intValue();
+                    terminateAfter(parser.intValue());
                 } else if (MIN_SCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     minScore = parser.floatValue();
                 } else if (VERSION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -1170,9 +1182,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (TRACK_TOTAL_HITS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_BOOLEAN ||
                         (token == XContentParser.Token.VALUE_STRING && Booleans.isBoolean(parser.text()))) {
-                        trackTotalHitsUpTo = parser.booleanValue() ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED;
+                        trackTotalHits(parser.booleanValue());
                     } else {
-                        trackTotalHitsUpTo = parser.intValue();
+                        trackTotalHitsUpTo(parser.intValue());
                     }
                 } else if (_SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fetchSourceContext = FetchSourceContext.fromXContent(parser);

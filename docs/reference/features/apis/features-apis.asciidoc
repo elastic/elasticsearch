@@ -1,0 +1,11 @@
+[[features-apis]]
+== Features APIs
+
+You can use the following APIs to introspect and manage Features provided
+by Elasticsearch and Elasticsearch plugins.
+
+[discrete]
+=== Features APIs
+* <<get-features-api,Get Features API>>
+
+include::get-features-api.asciidoc[]

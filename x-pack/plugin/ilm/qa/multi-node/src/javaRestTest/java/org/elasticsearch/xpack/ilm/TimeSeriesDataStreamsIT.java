@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
+import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -46,6 +47,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -236,6 +238,18 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         assertThat(dataStreams.size(), is(1));
         Map<String, Object> logsDataStream = (Map<String, Object>) dataStreams.get(0);
         assertThat(logsDataStream.get("ilm_policy"), is(policyName));
+    }
+
+    public void testDeleteOnlyIndexInDataStreamDeletesDataStream() throws Exception {
+        createNewSingletonPolicy(client(), policyName, "delete", new DeleteAction(false));
+        createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
+        indexDocument(client(), dataStream, true);
+
+        assertBusy(() -> {
+            Request r = new Request("GET", "/_data_stream/" + dataStream);
+            Exception e = expectThrows(Exception.class, () -> client().performRequest(r));
+            assertThat(e.getMessage(), containsString("no such index [" + dataStream + "]"));
+        });
     }
 
     private static Template getTemplate(String policyName) throws IOException {

@@ -37,6 +37,7 @@ public final class GroupedActionListener<T> extends ActionListener.Delegating<T,
     public GroupedActionListener(ActionListener<Collection<T>> delegate, int groupSize) {
         super(delegate);
         if (groupSize <= 0) {
+            assert false : "illegal group size [" + groupSize + "]";
             throw new IllegalArgumentException("groupSize must be greater than 0 but was " + groupSize);
         }
         results = new AtomicArray<>(groupSize);
@@ -48,7 +49,7 @@ public final class GroupedActionListener<T> extends ActionListener.Delegating<T,
         results.setOnce(pos.incrementAndGet() - 1, element);
         if (countDown.countDown()) {
             if (failure.get() != null) {
-                delegate.onFailure(failure.get());
+                super.onFailure(failure.get());
             } else {
                 List<T> collect = this.results.asList();
                 delegate.onResponse(Collections.unmodifiableList(collect));
@@ -68,7 +69,7 @@ public final class GroupedActionListener<T> extends ActionListener.Delegating<T,
             });
         }
         if (countDown.countDown()) {
-            delegate.onFailure(failure.get());
+            super.onFailure(failure.get());
         }
     }
 }

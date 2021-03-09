@@ -19,10 +19,12 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -355,5 +357,149 @@ public class DateFieldMapperTests extends MapperTestCase {
         } else {
             assertThat(up, equalTo(0L));
         }
+    }
+
+    /**
+     * The max date iso8601 can parse. It'll format much larger dates.
+     */
+    private static final long MAX_ISO_DATE = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("9999-12-12T23:59:59.999Z");
+
+    public void testFetchMillis() throws IOException {
+        assertFetch(dateMapperService(), "field", randomLongBetween(0, Long.MAX_VALUE), null);
+    }
+
+    public void testFetchMillisFromMillisFormatted() throws IOException {
+        assertFetch(dateMapperService(), "field", randomLongBetween(0, Long.MAX_VALUE), "epoch_millis");
+    }
+
+    public void testFetchMillisFromMillisFormattedIso8601() throws IOException {
+        assertFetch(dateMapperService(), "field", randomLongBetween(0, Long.MAX_VALUE), "iso8601");
+    }
+
+    public void testFetchMillisFromIso8601() throws IOException {
+        assertFetch(
+            dateMapperService(),
+            "field",
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomLongBetween(0, MAX_ISO_DATE)),
+            "iso8601"
+        );
+    }
+
+    public void testFetchMillisFromIso8601Nanos() throws IOException {
+        assertFetch(dateMapperService(), "field", randomIs8601Nanos(MAX_ISO_DATE), null);
+    }
+
+    public void testFetchMillisFromIso8601NanosFormatted() throws IOException {
+        assertFetch(dateMapperService(), "field", randomIs8601Nanos(MAX_ISO_DATE), "strict_date_optional_time_nanos");
+    }
+
+    /**
+     * Tests round tripping a date with nanosecond resolution through doc
+     * values and field fetching via the {@code date} field. We expect this to
+     * lose precision because the {@code date} field only supports millisecond
+     * resolution. But its important that this lose precision in the same
+     * way.
+     */
+    public void testFetchMillisFromRoundedNanos() throws IOException {
+        assertFetch(dateMapperService(), "field", randomDecimalNanos(MAX_ISO_DATE), null);
+    }
+
+    /**
+     * Tests round tripping a date with nanosecond resolution through doc
+     * values and field fetching via the {@code date} field with a specific
+     * format. We expect this to lose precision because the {@code date}
+     * field only supports millisecond resolution. But its important that
+     * this lose precision in the same way.
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70085") // Fails about 1/1000 of the time because of rounding.
+    public void testFetchMillisFromFixedNanos() throws IOException {
+        assertFetch(dateMapperService(), "field", new BigDecimal(randomDecimalNanos(MAX_ISO_DATE)), null);
+    }
+
+    private MapperService dateMapperService() throws IOException {
+        return createMapperService(mapping(b -> b.startObject("field").field("type", "date").endObject()));
+    }
+
+    /**
+     * The maximum valid nanosecond date in milliseconds since epoch.
+     */
+    private static final long MAX_NANOS = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+
+    public void testFetchNanos() throws IOException {
+        assertFetch(dateNanosMapperService(), "field", randomLongBetween(0, MAX_NANOS), null);
+    }
+
+    public void testFetchNanosFromMillisFormatted() throws IOException {
+        assertFetch(dateNanosMapperService(), "field", randomLongBetween(0, MAX_NANOS), "epoch_millis");
+    }
+
+    public void testFetchNanosFromMillisFormattedIso8601() throws IOException {
+        assertFetch(dateNanosMapperService(), "field", randomLongBetween(0, MAX_NANOS), "iso8601");
+    }
+
+    public void testFetchNanosFromIso8601Nanos() throws IOException {
+        assertFetch(dateNanosMapperService(), "field", randomIs8601Nanos(MAX_NANOS), null);
+    }
+
+    public void testFetchNanosFromIso8601NanosFormatted() throws IOException {
+        assertFetch(dateNanosMapperService(), "field", randomIs8601Nanos(MAX_NANOS), "strict_date_optional_time_nanos");
+    }
+
+    public void testFetchNanosFromRoundedNanos() throws IOException {
+        assertFetch(dateNanosMapperService(), "field", randomDecimalNanos(MAX_NANOS), null);
+    }
+
+    /**
+     * Maximum date we can round trip through {@code date_nanos} without
+     * losing precision right now. We hope to be able to make this
+     * {@link #MAX_NANOS} soon.
+     * <p>
+     * Given the maximum precise value for a double (9,007,199,254,740,992)
+     * I'd expect this to be 1970-04-15T05:59:59.253Z but that causes
+     * errors. I'm curious about why but not curious enough to track it down.
+     */
+    private static final long MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(
+        "1970-04-10T00:00:00.000Z"
+    );
+
+    /**
+     * Tests round tripping a date with nanosecond resolution through doc
+     * values and field fetching via the {@code date_nanos} field.
+     */
+    public void testFetchNanosFromFixedNanos() throws IOException {
+        assertFetch(
+            dateNanosMapperService(),
+            "field",
+            new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION)),
+            null
+        );
+    }
+
+    /**
+     * Tests round tripping a date with nanosecond resolution through doc
+     * values and field fetching via the {@code date_nanos} field when there
+     * is a format.
+     */
+    public void testFetchNanosFromFixedNanosFormatted() throws IOException {
+        assertFetch(
+            dateNanosMapperService(),
+            "field",
+            new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION)),
+            "strict_date_optional_time_nanos"
+        );
+    }
+
+    private MapperService dateNanosMapperService() throws IOException {
+        return createMapperService(mapping(b -> b.startObject("field").field("type", "date_nanos").endObject()));
+    }
+
+    private String randomIs8601Nanos(long maxMillis) {
+        String date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomLongBetween(0, maxMillis));
+        date = date.substring(0, date.length() - 1);  // Strip off trailing "Z"
+        return date + String.format(Locale.ROOT, "%06d", between(0, 999999)) + "Z";  // Add nanos and the "Z"
+    }
+
+    private String randomDecimalNanos(long maxMillis) {
+        return Long.toString(randomLongBetween(0, maxMillis)) + "." + between(0, 999999);
     }
 }

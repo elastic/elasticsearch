@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -273,6 +274,11 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
             logger.debug("[{}] created transform", config.getId());
             auditor.info(config.getId(), "Created transform.");
+            List<String> warnings = TransformConfigLinter.getWarnings(function, config.getSource(), config.getSyncConfig());
+            for (String warning : warnings) {
+                logger.warn(new ParameterizedMessage("[{}] {}", config.getId(), warning));
+                auditor.warning(config.getId(), warning);
+            }
             listener.onResponse(AcknowledgedResponse.TRUE);
         }, listener::onFailure);
 

@@ -10,12 +10,15 @@ package org.elasticsearch.repositories.encrypted;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
@@ -49,6 +52,7 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.transport.Transports;
 
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -103,7 +107,9 @@ public class EncryptedRepository extends BlobStoreRepository {
     // license is checked before every snapshot operations; protected non-final for tests
     protected Supplier<XPackLicenseState> licenseStateSupplier;
     private final SecureString repositoryPassword;
-    private final String localRepositoryPasswordHash;
+    // the "hash" of the repository password from the local node is not actually a hash but the ciphertext of a
+    // known-plaintext using a key derived from the repository password using a random salt
+    private final SetOnce<String> localRepositoryPasswordHash = new SetOnce<>();
     private final String localRepositoryPasswordSalt;
     private volatile String validatedLocalRepositoryPasswordHash;
     private final Cache<String, SecretKey> dekCache;
@@ -144,13 +150,6 @@ public class EncryptedRepository extends BlobStoreRepository {
         // the salt used to generate an irreversible "hash"; it is generated randomly but it's fixed for the lifetime of the
         // repository solely for efficiency reasons
         this.localRepositoryPasswordSalt = UUIDs.randomBase64UUID();
-        // the "hash" of the repository password from the local node is not actually a hash but the ciphertext of a
-        // known-plaintext using a key derived from the repository password using a random salt
-        this.localRepositoryPasswordHash = AESKeyUtils.computeId(
-            AESKeyUtils.generatePasswordBasedKey(repositoryPassword, localRepositoryPasswordSalt)
-        );
-        // a "hash" computed locally is also locally trusted (trivially)
-        this.validatedLocalRepositoryPasswordHash = this.localRepositoryPasswordHash;
         // stores decrypted DEKs; DEKs are reused to encrypt/decrypt multiple independent blobs
         this.dekCache = CacheBuilder.<String, SecretKey>builder().setMaximumWeight(DEK_CACHE_WEIGHT).build();
         if (isReadOnly() != delegatedRepository.isReadOnly()) {
@@ -159,6 +158,47 @@ public class EncryptedRepository extends BlobStoreRepository {
                 "Unexpected fatal internal error",
                 new IllegalStateException("The encrypted repository must be read-only iff the delegate repository is read-only")
             );
+        }
+    }
+
+    // Use this method instead of directly accessing the hash field. We don't generate its value in the constructor because it's relative
+    // expensive to generate and the constructor may run on the CS applier or transport thread so we use this method to only run it once
+    // when needed.
+    private String localRepositoryPasswordHash() {
+        String hash = localRepositoryPasswordHash.get();
+        if (hash == null) {
+            assert Transports.assertNotTransportThread("hash generation may be too slow to run on transport thread");
+            assert ClusterApplierService.assertNotClusterStateUpdateThread(
+                "hash generation may be too slow to run on cluster state thread"
+            );
+            synchronized (localRepositoryPasswordHash) {
+                if (localRepositoryPasswordHash.get() == null) {
+                    try {
+                        hash = AESKeyUtils.computeId(AESKeyUtils.generatePasswordBasedKey(repositoryPassword, localRepositoryPasswordSalt));
+                        localRepositoryPasswordHash.set(hash);
+                        // a "hash" computed locally is also locally trusted (trivially)
+                        this.validatedLocalRepositoryPasswordHash = hash;
+                    } catch (GeneralSecurityException e) {
+                        assert false : e;
+                        throw new RepositoryException(metadata.name(), "unexpected failure to generation password hash", e);
+                    }
+                }
+            }
+        }
+        return hash;
+    }
+
+    @Override
+    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        if (localRepositoryPasswordHash.get() == null) {
+            // we haven't yet initialized the repository data so fork to the generic pool and initialize it there before continuing to
+            // load repository data for the first time
+            threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
+                localRepositoryPasswordHash();
+                super.getRepositoryData(l);
+            }));
+        } else {
+            super.getRepositoryData(listener);
         }
     }
 
@@ -194,13 +234,10 @@ public class EncryptedRepository extends BlobStoreRepository {
         // fill in the hash of the repository password, which is then checked before every snapshot operation
         // (i.e. {@link #snapshotShard} and {@link #finalizeSnapshot}) to ensure that all participating nodes
         // in the snapshot operation use the same repository password
+        final String pwHash = localRepositoryPasswordHash();
         snapshotUserMetadata.put(PASSWORD_SALT_USER_METADATA_KEY, localRepositoryPasswordSalt);
-        snapshotUserMetadata.put(PASSWORD_HASH_USER_METADATA_KEY, localRepositoryPasswordHash);
-        logger.trace(
-            "Snapshot metadata for local repository password  [{}] and [{}]",
-            localRepositoryPasswordSalt,
-            localRepositoryPasswordHash
-        );
+        snapshotUserMetadata.put(PASSWORD_HASH_USER_METADATA_KEY, pwHash);
+        logger.trace("Snapshot metadata for local repository password  [{}] and [{}]", localRepositoryPasswordSalt, pwHash);
         // do not wrap in Map.of; we have to be able to modify the map (remove the added entries) when finalizing the snapshot
         return snapshotUserMetadata;
     }
@@ -353,6 +390,9 @@ public class EncryptedRepository extends BlobStoreRepository {
         assert snapshotUserMetadata != null;
         assert snapshotUserMetadata.get(PASSWORD_HASH_USER_METADATA_KEY) instanceof String;
         final String masterRepositoryPasswordId = (String) snapshotUserMetadata.get(PASSWORD_HASH_USER_METADATA_KEY);
+        if (validatedLocalRepositoryPasswordHash == null) {
+            localRepositoryPasswordHash();
+        }
         if (false == masterRepositoryPasswordId.equals(validatedLocalRepositoryPasswordHash)) {
             assert snapshotUserMetadata.get(PASSWORD_SALT_USER_METADATA_KEY) instanceof String;
             final String masterRepositoryPasswordIdSalt = (String) snapshotUserMetadata.get(PASSWORD_SALT_USER_METADATA_KEY);

@@ -80,7 +80,8 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
                 randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE + 1, SharedCacheConfiguration.SMALL_REGION_SIZE * 2)
             );
         } else {
-            regionSize = new ByteSizeValue(randomLongBetween(ByteSizeValue.ofKb(1L).getBytes(), ByteSizeValue.ofMb(64L).getBytes()));
+            regionSize = new ByteSizeValue(
+                    randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE + 1, ByteSizeValue.ofMb(64L).getBytes()));
         }
 
         final ByteSizeValue cacheSize = new ByteSizeValue(randomLongBetween(3L, 10L) * regionSize.getBytes() + randomIntBetween(0, 100));

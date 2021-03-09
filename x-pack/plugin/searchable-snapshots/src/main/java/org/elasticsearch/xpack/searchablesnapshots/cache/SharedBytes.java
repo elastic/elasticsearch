@@ -13,6 +13,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.snapshots.SharedCacheConfiguration;
@@ -93,17 +94,17 @@ public class SharedBytes extends AbstractRefCounted {
         }
     }
 
-    private final Map<Integer, IO> ios = ConcurrentCollections.newConcurrentMap();
+    private final Map<Integer, IoRegion> ios = ConcurrentCollections.newConcurrentMap();
 
-    IO getFileChannel(int sharedBytesPos) {
+    IoRegion getFileChannel(int sharedBytesPos) {
         assert fileChannel != null;
         return ios.compute(sharedBytesPos, (p, io) -> {
             if (io == null || io.tryIncRef() == false) {
-                final IO newIO;
+                final IoRegion newIO;
                 boolean success = false;
                 incRef();
                 try {
-                    newIO = new IO(p);
+                    newIO = new IoRegion(p);
                     success = true;
                 } finally {
                     if (success == false) {
@@ -120,19 +121,21 @@ public class SharedBytes extends AbstractRefCounted {
         return sharedCacheConfiguration.getPhysicalOffset(sharedPageIndex);
     }
 
-    public final class IO extends AbstractRefCounted {
+    public final class IoRegion extends AbstractRefCounted implements IO {
 
         private final int pageIndex;
         private final long pageStart;
 
-        private IO(final int pageIndex) {
+        private IoRegion(final int pageIndex) {
             super("shared-bytes-io");
             this.pageIndex = pageIndex;
             pageStart = getPhysicalOffset(pageIndex);
         }
 
+        @Override
         @SuppressForbidden(reason = "Use positional reads on purpose")
         public int read(ByteBuffer dst, long position) throws IOException {
+            assert refCount() > 0;
             checkOffsets(position, dst.remaining());
             return fileChannel.read(dst, pageStart + position);
         }
@@ -143,16 +146,27 @@ public class SharedBytes extends AbstractRefCounted {
          * @param src      byte buffer to write
          * @param position position relative to the start index of this instance to write to
          */
+        @Override
         @SuppressForbidden(reason = "Use positional writes on purpose")
         public void write(ByteBuffer src, long position) throws IOException {
+            assert refCount() > 0;
+            final long regionSize = sharedCacheConfiguration.regionSizeBySharedPageIndex(pageIndex);
+            final int oldLimit = src.limit();
+            final int remainingInPage = Math.toIntExact(regionSize - position);
+            if (src.remaining() > remainingInPage) {
+                src.limit(Math.toIntExact(src.position() + remainingInPage));
+            }
             checkOffsets(position, src.remaining());
             fileChannel.write(src, pageStart + position);
+            src.limit(oldLimit);
         }
 
         /**
          * Returns the maximum size of this cache channel's region.
          */
+        @Override
         public long size() {
+            assert refCount() > 0;
             return sharedCacheConfiguration.regionSizeBySharedPageIndex(pageIndex);
         }
 
@@ -169,5 +183,15 @@ public class SharedBytes extends AbstractRefCounted {
             ios.remove(pageIndex, this);
             SharedBytes.this.decRef();
         }
+    }
+
+    public interface IO extends RefCounted {
+        @SuppressForbidden(reason = "Use positional reads on purpose")
+        int read(ByteBuffer dst, long position) throws IOException;
+
+        @SuppressForbidden(reason = "Use positional writes on purpose")
+        void write(ByteBuffer src, long position) throws IOException;
+
+        long size();
     }
 }

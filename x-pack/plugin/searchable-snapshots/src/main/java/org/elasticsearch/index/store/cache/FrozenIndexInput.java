@@ -485,16 +485,21 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         for (int i = 0; i < fcs.length; i++) {
             if (start < fcs[i].size()) {
                 firstIndex = i;
+                break;
             } else {
                 start -= fcs[i].size();
             }
         }
         assert firstIndex >= 0 : "no index found for offset";
 
-        fcs[firstIndex].write(byteBuffer, start);
-        for (int i = firstIndex + 1; i < fcs.length && byteBuffer.hasRemaining(); i++) {
-            fcs[i].write(byteBuffer, 0);
+        long written = 0L;
+        for (int i = firstIndex; i < fcs.length && byteBuffer.hasRemaining(); i++) {
+            int remaining = byteBuffer.remaining();
+            fcs[i].write(byteBuffer, start);
+            written += (remaining - byteBuffer.remaining());
+            start = 0;
         }
+        assert byteBuffer.hasRemaining() == false;
     }
 
     /**
@@ -599,7 +604,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
     }
 
     private void writeCacheFile(
-        final SharedBytes.IO[] fcs,
+        SharedBytes.IO[] fcs,
         long fileChannelPos,
         long relativePos,
         long length,

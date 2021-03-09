@@ -73,7 +73,7 @@ public abstract class MappedFieldType {
         this.isStored = isStored;
         this.docValues = hasDocValues;
         this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
-        this.meta = meta;
+        this.meta = Objects.requireNonNull(meta);
     }
 
     /**

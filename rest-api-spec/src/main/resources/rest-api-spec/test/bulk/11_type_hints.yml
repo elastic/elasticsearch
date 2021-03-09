@@ -21,7 +21,7 @@
           - index:
               _index: test_index
               _id: id_1
-              match_mapping_types:
+              match_mapping_hints:
                 location: location_type
           - location: [ -71.34, 41.12 ]
           - index:

@@ -40,7 +40,6 @@ public final class TransformNodes {
      * @return The {@link TransformNodeAssignments} for the given transforms.
      */
     public static TransformNodeAssignments transformTaskNodes(List<String> transformIds, ClusterState clusterState) {
-
         Set<String> executorNodes = new HashSet<>();
         Set<String> assigned = new HashSet<>();
         Set<String> waitingForAssignment = new HashSet<>();
@@ -82,7 +81,6 @@ public final class TransformNodes {
      * @return  The {@link TransformNodeAssignments} for the given transforms.
      */
     public static TransformNodeAssignments findActiveTasks(String transformId, ClusterState clusterState) {
-
         Set<String> executorNodes = new HashSet<>();
         Set<String> assigned = new HashSet<>();
         Set<String> waitingForAssignment = new HashSet<>();
@@ -104,7 +102,6 @@ public final class TransformNodes {
                 }
             }
         }
-
         return new TransformNodeAssignments(executorNodes, assigned, waitingForAssignment, Collections.emptySet());
     }
 
@@ -118,7 +115,6 @@ public final class TransformNodes {
      */
     public static Assignment getAssignment(String transformId, ClusterState clusterState) {
         PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
-
         PersistentTask<?> task = tasksMetadata.getTask(transformId);
 
         if (task != null) {
@@ -126,7 +122,6 @@ public final class TransformNodes {
         }
 
         return PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT;
-
     }
 
     /**

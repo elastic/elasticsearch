@@ -456,7 +456,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             ft.docValueFormat(format, null),
             ft.fielddataBuilder("test", () -> null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
         );
-        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        QueryShardContext searchExecutionContext = mock(QueryShardContext.class);
         when(searchExecutionContext.sourcePath(field)).thenReturn(org.elasticsearch.common.collect.Set.of(field));
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);

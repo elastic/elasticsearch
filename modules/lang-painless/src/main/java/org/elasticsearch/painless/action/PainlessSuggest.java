@@ -6,11 +6,95 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.action;
+
+import org.antlr.v4.runtime.ANTLRInputStream;
+import org.antlr.v4.runtime.Token;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.painless.antlr.EnhancedSuggestLexer;
+import org.elasticsearch.painless.antlr.SuggestLexer;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 
 public class PainlessSuggest {
 
-    /*private static class WalkState {
+    public static class Suggestion implements Writeable, ToXContentObject {
+
+        private static final ParseField TYPE_FIELD = new ParseField("type");
+        private static final ParseField TEXT_FIELD = new ParseField("text");
+
+        private final String type;
+        private final String text;
+
+        public Suggestion(String type, String text) {
+            this.type = type;
+            this.text = text;
+        }
+
+        public Suggestion(StreamInput in) throws IOException {
+            this.type = in.readString();
+            this.text = in.readString();
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public String getText() {
+            return text;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(this.type);
+            out.writeString(this.text);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(TYPE_FIELD.getPreferredName(), type);
+            builder.field(TEXT_FIELD.getPreferredName(), text);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Suggestion that = (Suggestion)o;
+            return Objects.equals(type, that.type) && Objects.equals(text, that.text);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type, text);
+        }
+
+        @Override
+        public String toString() {
+            return "Suggestion{" +
+                    "type='" + type + '\'' +
+                    ", text='" + text + '\'' +
+                    '}';
+        }
+    }
+
+    private static class WalkState {
 
         private final List<? extends Token> tokens;
 
@@ -72,7 +156,7 @@ public class PainlessSuggest {
             // 0 - possible start of function
             fstates.add(fs -> {
                 Token token = fs.ws.tokens.get(fs.ws.current);
-                if (token.getType() == PainlessLexer.ATYPE || token.getType() == PainlessLexer.TYPE) {
+                if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
                     // VALID: possible return type for function
                     fs.returnType = token.getText();
                     return 1;
@@ -83,7 +167,7 @@ public class PainlessSuggest {
             // 1 - possible function name
             fstates.add(fs -> {
                 Token token = fs.ws.tokens.get(fs.ws.current);
-                if (token.getType() == PainlessLexer.ID) {
+                if (token.getType() == SuggestLexer.ID) {
                     // VALID: possible function name
                     fs.functionName = token.getText();
                     return 2;
@@ -94,7 +178,7 @@ public class PainlessSuggest {
             // 2 - start of parameters
             fstates.add(fs -> {
                 Token token = fs.ws.tokens.get(fs.ws.current);
-                if (token.getType() == PainlessLexer.LP) {
+                if (token.getType() == SuggestLexer.LP) {
                     // VALID: found a function, record return type and function name
                     fs.functionData = new FunctionData();
                     fs.functionData.returnType = fs.returnType;
@@ -108,14 +192,14 @@ public class PainlessSuggest {
             // 3 - start of a parameter or end of parameters
             fstates.add(fs -> {
                 Token token = fs.ws.tokens.get(fs.ws.current);
-                if (token.getType() == PainlessLexer.ATYPE || token.getType() == PainlessLexer.TYPE) {
+                if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
                     // VALID: found a parameter type
                     fs.parameterType = token.getText();
                     return 6;
-                } else if (token.getType() == PainlessLexer.RP) {
+                } else if (token.getType() == SuggestLexer.RP) {
                     // VALID: end of function header
                     return 4;
-                } else if (token.getType() == PainlessLexer.LBRACK) {
+                } else if (token.getType() == SuggestLexer.LBRACK) {
                     // ERROR (process): missing right parenthesis, but found start of function body
                     fs.brackets = 1;
                     fs.functionData.bodyStartToken = fs.ws.current + 1;
@@ -127,7 +211,7 @@ public class PainlessSuggest {
             // 4 - start of function body
             fstates.add(fs -> {
                 Token token = fs.ws.tokens.get(fs.ws.current);
-                if (token.getType() == PainlessLexer.LBRACK) {
+                if (token.getType() == SuggestLexer.LBRACK) {
                     // VALID: found start of function body
                     fs.brackets = 1;
                     fs.functionData.bodyStartToken = fs.ws.current + 1;
@@ -139,10 +223,10 @@ public class PainlessSuggest {
             // 5 - possible end of function body
             fstates.add(fs -> {
                 Token token = fs.ws.tokens.get(fs.ws.current);
-                if (token.getType() == PainlessLexer.LBRACK) {
+                if (token.getType() == SuggestLexer.LBRACK) {
                     // VALID: increase scope
                     ++fs.brackets;
-                } else if (token.getType() == PainlessLexer.RBRACK) {
+                } else if (token.getType() == SuggestLexer.RBRACK) {
                     // VALID: decrease scope
                     --fs.brackets;
                     if (fs.brackets == 0) {
@@ -157,15 +241,15 @@ public class PainlessSuggest {
             // 6 - parameter name
             fstates.add(fs -> {
                 Token token = fs.ws.tokens.get(fs.ws.current);
-                if (token.getType() == PainlessLexer.ID) {
+                if (token.getType() == SuggestLexer.ID) {
                     // VALID: found a parameter name, record parameter type and name
                     fs.functionData.parameterTypes.add(fs.parameterType);
                     fs.functionData.parameterNames.add(token.getText());
                     return 7;
-                } else if (token.getType() == PainlessLexer.RP) {
+                } else if (token.getType() == SuggestLexer.RP) {
                     // ERROR (process): missing parameter name, but found end of function header
                     return 4;
-                } else if (token.getType() == PainlessLexer.LBRACK) {
+                } else if (token.getType() == SuggestLexer.LBRACK) {
                     // ERROR (process): missing parameter name, but found start of function body
                     return 5;
                 }
@@ -175,13 +259,13 @@ public class PainlessSuggest {
             // 7 - start of another parameter or end of parameters
             fstates.add(fs -> {
                 Token token = fs.ws.tokens.get(fs.ws.current);
-                if (token.getType() == PainlessLexer.COMMA) {
+                if (token.getType() == SuggestLexer.COMMA) {
                     // VALID: found comma, look for another parameter
                     return 8;
-                } else if (token.getType() == PainlessLexer.RP) {
+                } else if (token.getType() == SuggestLexer.RP) {
                     // VALID: end of function header
                     return 4;
-                } else if (token.getType() == PainlessLexer.LBRACK) {
+                } else if (token.getType() == SuggestLexer.LBRACK) {
                     // ERROR (process): missing comma or right parenthesis, but found start of function body
                     return 5;
                 }
@@ -191,14 +275,14 @@ public class PainlessSuggest {
             // 8 - start of another parameter
             fstates.add(fs -> {
                 Token token = fs.ws.tokens.get(fs.ws.current);
-                if (token.getType() == PainlessLexer.ATYPE || token.getType() == PainlessLexer.TYPE) {
+                if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
                     // VALID: found a parameter type
                     fs.parameterType = token.getText();
                     return 6;
-                } else if (token.getType() == PainlessLexer.RP) {
+                } else if (token.getType() == SuggestLexer.RP) {
                     // ERROR (process): missing parameter type, but found end of function header
                     return 4;
-                } else if (token.getType() == PainlessLexer.LBRACK) {
+                } else if (token.getType() == SuggestLexer.LBRACK) {
                     // ERROR (process): missing parameter type, but found start of function body
                     return 5;
                 }
@@ -265,7 +349,7 @@ public class PainlessSuggest {
             // 0
             lstates.add(ls -> {
                 Token token = ls.ws.tokens.get(ls.ws.current);
-                if (token.getType() == PainlessLexer.ARROW) {
+                if (token.getType() == SuggestLexer.ARROW) {
                     ls.lambdaData = new LambdaData();
                     ls.lambdas.add(ls.lambdaData);
                     ls.lambdaData.headerStartToken = ls.ws.current;
@@ -277,17 +361,17 @@ public class PainlessSuggest {
             // 1
             lstates.add(ls -> {
                 Token token = ls.ws.tokens.get(ls.ws.current);
-                if (token.getType() == PainlessLexer.ID) {
+                if (token.getType() == SuggestLexer.ID) {
                     ls.lambdaData.headerStartToken = ls.ws.current;
                     ls.lambdaData.parameterTypes.add("def");
                     ls.lambdaData.parameterNames.add(token.getText());
-                } else if (token.getType() == PainlessLexer.ARROW) {
+                } else if (token.getType() == SuggestLexer.ARROW) {
                     ls.lambdaData = new LambdaData();
                     ls.lambdas.add(ls.lambdaData);
                     ls.lambdaData.headerStartToken = ls.ws.current;
                     ls.lambdaData.headerEndToken = ls.ws.current;
                     return 1;
-                } else if (token.getType() == PainlessLexer.RP) {
+                } else if (token.getType() == SuggestLexer.RP) {
                     return 2;
                 }
                 return 0;
@@ -295,15 +379,15 @@ public class PainlessSuggest {
             // 2
             lstates.add(ls -> {
                 Token token = ls.ws.tokens.get(ls.ws.current);
-                if (token.getType() == PainlessLexer.LP) {
+                if (token.getType() == SuggestLexer.LP) {
                     ls.lambdaData.headerStartToken = ls.ws.current;
                     return 0;
-                } else if (token.getType() == PainlessLexer.ID) {
+                } else if (token.getType() == SuggestLexer.ID) {
                     ls.lambdaData.headerStartToken = ls.ws.current;
                     ls.lambdaData.parameterTypes.add("def");
                     ls.lambdaData.parameterNames.add(token.getText());
                     return 3;
-                } else if (token.getType() == PainlessLexer.ARROW) {
+                } else if (token.getType() == SuggestLexer.ARROW) {
                     ls.lambdaData = new LambdaData();
                     ls.lambdas.add(ls.lambdaData);
                     ls.lambdaData.headerStartToken = ls.ws.current;
@@ -315,16 +399,16 @@ public class PainlessSuggest {
             // 3
             lstates.add(ls -> {
                 Token token = ls.ws.tokens.get(ls.ws.current);
-                if (token.getType() == PainlessLexer.LP) {
+                if (token.getType() == SuggestLexer.LP) {
                     ls.lambdaData.headerStartToken = ls.ws.current;
                     return 0;
-                } else if (token.getType() == PainlessLexer.ATYPE || token.getType() == PainlessLexer.TYPE) {
+                } else if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
                     ls.lambdaData.headerStartToken = ls.ws.current;
                     ls.lambdaData.parameterTypes.set(ls.lambdaData.parameterTypes.size() - 1, token.getText());
                     return 4;
-                } else if (token.getType() == PainlessLexer.COMMA) {
+                } else if (token.getType() == SuggestLexer.COMMA) {
                     return 2;
-                } else if (token.getType() == PainlessLexer.ARROW) {
+                } else if (token.getType() == SuggestLexer.ARROW) {
                     ls.lambdaData = new LambdaData();
                     ls.lambdas.add(ls.lambdaData);
                     ls.lambdaData.headerStartToken = ls.ws.current;
@@ -336,12 +420,12 @@ public class PainlessSuggest {
             // 4
             lstates.add(ls -> {
                 Token token = ls.ws.tokens.get(ls.ws.current);
-                if (token.getType() == PainlessLexer.LP) {
+                if (token.getType() == SuggestLexer.LP) {
                     ls.lambdaData.headerStartToken = ls.ws.current;
                     return 0;
-                } if (token.getType() == PainlessLexer.COMMA) {
+                } if (token.getType() == SuggestLexer.COMMA) {
                     return 2;
-                } else if (token.getType() == PainlessLexer.ARROW) {
+                } else if (token.getType() == SuggestLexer.ARROW) {
                     ls.lambdaData = new LambdaData();
                     ls.lambdas.add(ls.lambdaData);
                     ls.lambdaData.headerStartToken = ls.ws.current;
@@ -397,9 +481,9 @@ public class PainlessSuggest {
                 public String toString() {
                     StringBuilder builder = new StringBuilder();
                     builder.append("[");
-                    builder.append(type == -1 ? "EOF" : PainlessLexer.ruleNames[type - 1]);
+                    builder.append(type == -1 ? "EOF" : SuggestLexer.ruleNames[type - 1]);
                     builder.append(" : ");
-                    builder.append(sentinel == -1 ? "EOF" : PainlessLexer.ruleNames[sentinel - 1]);
+                    builder.append(sentinel == -1 ? "EOF" : SuggestLexer.ruleNames[sentinel - 1]);
                     builder.append(" : ");
                     builder.append(variables);
                     builder.append("]");
@@ -413,13 +497,13 @@ public class PainlessSuggest {
                 }
             }
 
-            //private final PainlessLookup lookup;
+            //private final SuggestLookup lookup;
             private final WalkState ws;
             private final Map<Integer, LambdaMachine.LambdaData> mld;
 
-            private BlockScope scope = new BlockScope(null, PainlessLexer.EOF, PainlessLexer.EOF);
+            private BlockScope scope = new BlockScope(null, SuggestLexer.EOF, SuggestLexer.EOF);
 
-            private BlockState(/*PainlessLookup lookup, *//*WalkState ws, Map<Integer, LambdaMachine.LambdaData> mld) {
+            private BlockState(/*SuggestLookup lookup, */WalkState ws, Map<Integer, LambdaMachine.LambdaData> mld) {
                 //this.lookup = Objects.requireNonNull(lookup);
                 this.ws = ws;
                 this.mld = mld;
@@ -434,13 +518,13 @@ public class PainlessSuggest {
             // 0
             declstates.add(bs -> {
                 Token token = bs.ws.tokens.get(bs.ws.current);
-                if (token.getType() == PainlessLexer.ATYPE || token.getType() == PainlessLexer.TYPE) {
+                if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
                     bs.scope.decltype = token.getText();
                     return 1;
-                } else if (token.getType() == PainlessLexer.IN) {
+                } else if (token.getType() == SuggestLexer.IN) {
                     Token prev = bs.ws.current > 0 ? bs.ws.tokens.get(bs.ws.current - 1) : null;
 
-                    if (prev != null && prev.getType() == PainlessLexer.ID) {
+                    if (prev != null && prev.getType() == SuggestLexer.ID) {
                         bs.scope.variables.put(prev.getText(), "def");
                     }
                 }
@@ -449,10 +533,10 @@ public class PainlessSuggest {
             // 1
             declstates.add(bs -> {
                 Token token = bs.ws.tokens.get(bs.ws.current);
-                if (token.getType() == PainlessLexer.ATYPE || token.getType() == PainlessLexer.TYPE) {
+                if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
                     bs.scope.decltype = token.getText();
                     return 1;
-                } else if (token.getType() == PainlessLexer.ID) {
+                } else if (token.getType() == SuggestLexer.ID) {
                     bs.scope.variables.put(token.getText(), bs.scope.decltype);
                     return 2;
                 }
@@ -461,11 +545,11 @@ public class PainlessSuggest {
             // 2
             declstates.add(bs -> {
                 Token token = bs.ws.tokens.get(bs.ws.current);
-                if (token.getType() == PainlessLexer.COMMA) {
+                if (token.getType() == SuggestLexer.COMMA) {
                     return 1;
-                } else if (token.getType() == PainlessLexer.ASSIGN) {
+                } else if (token.getType() == SuggestLexer.ASSIGN) {
                     return 3;
-                } else if (token.getType() == PainlessLexer.ATYPE || token.getType() == PainlessLexer.TYPE) {
+                } else if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
                     bs.scope.decltype = token.getText();
                     return 1;
                 }
@@ -474,20 +558,20 @@ public class PainlessSuggest {
             // 3
             declstates.add(bs -> {
                 Token token = bs.ws.tokens.get(bs.ws.current);
-                if (token.getType() == PainlessLexer.COMMA && bs.scope.declparens == 0 && bs.scope.declbraces == 0) {
+                if (token.getType() == SuggestLexer.COMMA && bs.scope.declparens == 0 && bs.scope.declbraces == 0) {
                     return 1;
-                } else if (token.getType() == PainlessLexer.LP) {
+                } else if (token.getType() == SuggestLexer.LP) {
                     ++bs.scope.declparens;
                     return 3;
-                } else if (token.getType() == PainlessLexer.RP) {
+                } else if (token.getType() == SuggestLexer.RP) {
                     --bs.scope.declparens;
                     return 3;
-                } else if (token.getType() == PainlessLexer.LBRACE) {
+                } else if (token.getType() == SuggestLexer.LBRACE) {
                     ++bs.scope.declbraces;
                     return 3;
-                } else if (token.getType() == PainlessLexer.RBRACE) {
+                } else if (token.getType() == SuggestLexer.RBRACE) {
                     --bs.scope.declbraces;
-                } else if (token.getType() == PainlessLexer.SEMICOLON) {
+                } else if (token.getType() == SuggestLexer.SEMICOLON) {
                     return 0;
                 }
                 return 3;
@@ -498,23 +582,23 @@ public class PainlessSuggest {
             WalkState ws = bs.ws;
 
             int token = ws.tokens.get(ws.current).getType();
-            int prev = ws.current > 0 ? ws.tokens.get(ws.current - 1).getType() : PainlessLexer.EOF;
+            int prev = ws.current > 0 ? ws.tokens.get(ws.current - 1).getType() : SuggestLexer.EOF;
 
             if (bs.scope.pop) {
-                if (token == PainlessLexer.CATCH && (bs.scope.type == PainlessLexer.TRY || bs.scope.type == PainlessLexer.CATCH)) {
+                if (token == SuggestLexer.CATCH && (bs.scope.type == SuggestLexer.TRY || bs.scope.type == SuggestLexer.CATCH)) {
                     bs.scope = bs.scope.parent;
-                } else if (token == PainlessLexer.ELSE) {
-                    while (bs.scope.type != PainlessLexer.IF && bs.scope.sentinel == PainlessLexer.SEMICOLON) {
+                } else if (token == SuggestLexer.ELSE) {
+                    while (bs.scope.type != SuggestLexer.IF && bs.scope.sentinel == SuggestLexer.SEMICOLON) {
                         bs.scope = bs.scope.parent;
                     }
 
-                    if (bs.scope.type == PainlessLexer.IF) {
+                    if (bs.scope.type == SuggestLexer.IF) {
                         bs.scope = bs.scope.parent;
                     }
                 } else {
                     bs.scope = bs.scope.parent;
 
-                    while (bs.scope.sentinel == PainlessLexer.SEMICOLON) {
+                    while (bs.scope.sentinel == SuggestLexer.SEMICOLON) {
                         bs.scope = bs.scope.parent;
                     }
                 }
@@ -523,50 +607,50 @@ public class PainlessSuggest {
             LambdaMachine.LambdaData ld = bs.mld.get(ws.current);
 
             if (ld != null) {
-                bs.scope = new BlockState.BlockScope(bs.scope, PainlessLexer.ARROW, PainlessLexer.EOF);
+                bs.scope = new BlockState.BlockScope(bs.scope, SuggestLexer.ARROW, SuggestLexer.EOF);
 
                 for (int param = 0; param < ld.parameterTypes.size(); ++param) {
                     bs.scope.variables.put(ld.parameterNames.get(param), ld.parameterTypes.get(param));
                 }
 
                 ws.current = ld.headerEndToken;
-                token = PainlessLexer.ARROW;
-            } else if (token == PainlessLexer.WHILE || token == PainlessLexer.IF || token == PainlessLexer.ELSE) {
-                if (prev == PainlessLexer.ELSE && token == PainlessLexer.IF) {
-                    bs.scope.type = PainlessLexer.IF;
+                token = SuggestLexer.ARROW;
+            } else if (token == SuggestLexer.WHILE || token == SuggestLexer.IF || token == SuggestLexer.ELSE) {
+                if (prev == SuggestLexer.ELSE && token == SuggestLexer.IF) {
+                    bs.scope.type = SuggestLexer.IF;
                 } else {
-                    bs.scope = new BlockState.BlockScope(bs.scope, token, PainlessLexer.SEMICOLON);
+                    bs.scope = new BlockState.BlockScope(bs.scope, token, SuggestLexer.SEMICOLON);
                 }
-            } else if (token == PainlessLexer.FOR) {
-                bs.scope = new BlockState.BlockScope(bs.scope, token, PainlessLexer.RP);
-            } else if (token == PainlessLexer.DO || token == PainlessLexer.TRY || token == PainlessLexer.CATCH) {
-                bs.scope = new BlockState.BlockScope(bs.scope, token, PainlessLexer.RBRACK);
-            } else if (token == PainlessLexer.LBRACK) {
-                if (bs.scope.sentinel == PainlessLexer.SEMICOLON || bs.scope.sentinel == PainlessLexer.RP) {
-                    bs.scope.sentinel = PainlessLexer.RBRACK;
+            } else if (token == SuggestLexer.FOR) {
+                bs.scope = new BlockState.BlockScope(bs.scope, token, SuggestLexer.RP);
+            } else if (token == SuggestLexer.DO || token == SuggestLexer.TRY || token == SuggestLexer.CATCH) {
+                bs.scope = new BlockState.BlockScope(bs.scope, token, SuggestLexer.RBRACK);
+            } else if (token == SuggestLexer.LBRACK) {
+                if (bs.scope.sentinel == SuggestLexer.SEMICOLON || bs.scope.sentinel == SuggestLexer.RP) {
+                    bs.scope.sentinel = SuggestLexer.RBRACK;
                 }
-            } else if (token == PainlessLexer.LP) {
+            } else if (token == SuggestLexer.LP) {
                 ++bs.scope.parens;
-            } else if (token == PainlessLexer.RP) {
+            } else if (token == SuggestLexer.RP) {
                 bs.scope.parens = Math.max(0, bs.scope.parens - 1);
 
-                if (bs.scope.sentinel == PainlessLexer.RP && bs.scope.parens == 0) {
-                    bs.scope.sentinel = PainlessLexer.SEMICOLON;
+                if (bs.scope.sentinel == SuggestLexer.RP && bs.scope.parens == 0) {
+                    bs.scope.sentinel = SuggestLexer.SEMICOLON;
                 }
-            } else if (token == PainlessLexer.LBRACE) {
+            } else if (token == SuggestLexer.LBRACE) {
                 ++bs.scope.braces;
-            } else if (token == PainlessLexer.RBRACE) {
+            } else if (token == SuggestLexer.RBRACE) {
                 bs.scope.braces = Math.max(0, bs.scope.braces - 1);
             }
 
-            if (bs.scope.type == PainlessLexer.ARROW) {
-                if (token == PainlessLexer.COMMA || token == PainlessLexer.RP && bs.scope.parens == 0 && bs.scope.braces == 0) {
+            if (bs.scope.type == SuggestLexer.ARROW) {
+                if (token == SuggestLexer.COMMA || token == SuggestLexer.RP && bs.scope.parens == 0 && bs.scope.braces == 0) {
                     bs.scope = bs.scope.parent;
                 }
             } else if (token == bs.scope.sentinel) {
-                if (bs.scope.type == PainlessLexer.DO) {
-                    bs.scope.type = PainlessLexer.WHILE;
-                    bs.scope.sentinel = PainlessLexer.SEMICOLON;
+                if (bs.scope.type == SuggestLexer.DO) {
+                    bs.scope.type = SuggestLexer.WHILE;
+                    bs.scope.sentinel = SuggestLexer.SEMICOLON;
                 } else {
                     bs.scope.pop = true;
                 }
@@ -587,7 +671,7 @@ public class PainlessSuggest {
                 String str = bs.scope.toString();
                 if (str.equals(previous) == false) {
                     int token = ws.tokens.get(ws.current).getType();
-                    builder.append(token == -1 ? "EOF" : PainlessLexer.ruleNames[token - 1]);
+                    builder.append(token == -1 ? "EOF" : SuggestLexer.ruleNames[token - 1]);
                     builder.append(" : ");
                     builder.append(bs.scope);
                     builder.append("\n");
@@ -668,19 +752,19 @@ public class PainlessSuggest {
             // 0
             astates.add(as -> {
                 Token token = as.ws.tokens.get(as.ws.current);
-                if (token.getType() == PainlessLexer.ID || token.getType() == PainlessLexer.TYPE) {
+                if (token.getType() == SuggestLexer.ID || token.getType() == SuggestLexer.TYPE) {
                     as.segment = new Segment(null, Segment.ID, token.getText(), -1);
                     return as.ws.current == 0 ? -2 : 1;
-                } else if (token.getType() == PainlessLexer.LP) {
+                } else if (token.getType() == SuggestLexer.LP) {
                     as.segment = new Segment(null, Segment.OPEN, null, -1);
                     return 2;
-                } else if (token.getType() == PainlessLexer.DOT || token.getType() == PainlessLexer.NSDOT) {
+                } else if (token.getType() == SuggestLexer.DOT || token.getType() == SuggestLexer.NSDOT) {
                     as.segment = new Segment(null, Segment.DOT, token.getText(), -1);
                     return 4;
-                } else if (token.getType() == PainlessLexer.DOTID) {
+                } else if (token.getType() == SuggestLexer.DOTID) {
                     as.segment = new Segment(null, Segment.FIELD, token.getText(), -1);
                     return 3;
-                } else if (token.getType() == PainlessLexer.DOTINTEGER) {
+                } else if (token.getType() == SuggestLexer.DOTINTEGER) {
                     as.segment = new Segment(null, Segment.NUMBER, token.getText(), -1);
                     return 3;
                 }
@@ -689,9 +773,9 @@ public class PainlessSuggest {
             // 1
             astates.add(as -> {
                 Token token = as.ws.tokens.get(as.ws.current);
-                if (token.getType() == PainlessLexer.TYPE || token.getType() == PainlessLexer.ATYPE) {
+                if (token.getType() == SuggestLexer.TYPE || token.getType() == SuggestLexer.ATYPE) {
                     return -1;
-                } else if (token.getType() == PainlessLexer.NEW) {
+                } else if (token.getType() == SuggestLexer.NEW) {
                     as.segment.type = Segment.NEW;
                 }
                 return -2;
@@ -699,10 +783,10 @@ public class PainlessSuggest {
             // 2
             astates.add(as -> {
                 Token token = as.ws.tokens.get(as.ws.current);
-                if (token.getType() == PainlessLexer.TYPE || token.getType() == PainlessLexer.ID) {
+                if (token.getType() == SuggestLexer.TYPE || token.getType() == SuggestLexer.ID) {
                     as.segment.id = token.getText();
                     return -2;
-                } else if (token.getType() == PainlessLexer.DOTID) {
+                } else if (token.getType() == SuggestLexer.DOTID) {
                     as.segment.id = token.getText();
                     return 3;
                 }
@@ -711,7 +795,7 @@ public class PainlessSuggest {
             // 3
             astates.add(as -> {
                 Token token = as.ws.tokens.get(as.ws.current);
-                if (token.getType() == PainlessLexer.DOT || token.getType() == PainlessLexer.NSDOT) {
+                if (token.getType() == SuggestLexer.DOT || token.getType() == SuggestLexer.NSDOT) {
                     return 4;
                 }
                 return -1;
@@ -719,22 +803,22 @@ public class PainlessSuggest {
             // 4
             astates.add(as -> {
                 Token token = as.ws.tokens.get(as.ws.current);
-                if (token.getType() == PainlessLexer.ID) {
+                if (token.getType() == SuggestLexer.ID) {
                     as.segment = new Segment(as.segment, Segment.ID, token.getText(), -1);
                     return -2;
-                } else if (token.getType() == PainlessLexer.TYPE || token.getType() == PainlessLexer.ATYPE) {
+                } else if (token.getType() == SuggestLexer.TYPE || token.getType() == SuggestLexer.ATYPE) {
                     as.segment = new Segment(as.segment, Segment.TYPE, token.getText(), -1);
                     return -2;
-                } else if (token.getType() == PainlessLexer.DOTID) {
+                } else if (token.getType() == SuggestLexer.DOTID) {
                     as.segment = new Segment(as.segment, Segment.FIELD, token.getText(), -1);
                     return 3;
-                } else if (token.getType() == PainlessLexer.DOTINTEGER) {
+                } else if (token.getType() == SuggestLexer.DOTINTEGER) {
                     as.segment = new Segment(as.segment, Segment.NUMBER, token.getText(), -1);
                     return 3;
-                } else if (token.getType() == PainlessLexer.RBRACE) {
+                } else if (token.getType() == SuggestLexer.RBRACE) {
                     as.segment = new Segment(as.segment, Segment.INDEX, null, -1);
                     return 5;
-                } else if (token.getType() == PainlessLexer.RP) {
+                } else if (token.getType() == SuggestLexer.RP) {
                     as.segment = new Segment(as.segment, Segment.CALL, null, 0);
                     return 7;
                 }
@@ -743,21 +827,21 @@ public class PainlessSuggest {
             // 5
             astates.add(as -> {
                 Token token = as.ws.tokens.get(as.ws.current);
-                if (token.getType() == PainlessLexer.LBRACE) {
+                if (token.getType() == SuggestLexer.LBRACE) {
                     if (as.brackets == 0 && as.parens == 0 && as.braces == 0) {
                         return 6;
                     } else {
                         --as.braces;
                     }
-                } else if (token.getType() == PainlessLexer.RBRACE) {
+                } else if (token.getType() == SuggestLexer.RBRACE) {
                     ++as.braces;
-                } else if (token.getType() == PainlessLexer.LP) {
+                } else if (token.getType() == SuggestLexer.LP) {
                     --as.parens;
-                } else if (token.getType() == PainlessLexer.RP) {
+                } else if (token.getType() == SuggestLexer.RP) {
                     ++as.parens;
-                } else if (token.getType() == PainlessLexer.LBRACK) {
+                } else if (token.getType() == SuggestLexer.LBRACK) {
                     --as.brackets;
-                } else if (token.getType() == PainlessLexer.RBRACK) {
+                } else if (token.getType() == SuggestLexer.RBRACK) {
                     ++as.brackets;
                 }
 
@@ -770,16 +854,16 @@ public class PainlessSuggest {
             // 6
             astates.add(as -> {
                 Token token = as.ws.tokens.get(as.ws.current);
-                if (token.getType() == PainlessLexer.ID) {
+                if (token.getType() == SuggestLexer.ID) {
                     as.segment = new Segment(as.segment, Segment.ID, token.getText(), -1);
                     return -2;
-                } else if (token.getType() == PainlessLexer.DOTID) {
+                } else if (token.getType() == SuggestLexer.DOTID) {
                     as.segment = new Segment(as.segment, Segment.FIELD, token.getText(), -1);
                     return 3;
-                } else if (token.getType() == PainlessLexer.RBRACE) {
+                } else if (token.getType() == SuggestLexer.RBRACE) {
                     as.segment = new Segment(as.segment, Segment.INDEX, null, -1);
                     return 5;
-                } else if (token.getType() == PainlessLexer.RP) {
+                } else if (token.getType() == SuggestLexer.RP) {
                     as.segment = new Segment(as.segment, Segment.CALL, null, 0);
                     return 7;
                 }
@@ -788,25 +872,25 @@ public class PainlessSuggest {
             // 7
             astates.add(as -> {
                 Token token = as.ws.tokens.get(as.ws.current);
-                if (token.getType() == PainlessLexer.LP) {
+                if (token.getType() == SuggestLexer.LP) {
                     if (as.brackets == 0 && as.parens == 0 && as.braces == 0) {
                         return 8;
                     } else {
                         --as.parens;
                     }
-                } else if (token.getType() == PainlessLexer.COMMA) {
+                } else if (token.getType() == SuggestLexer.COMMA) {
                     if (as.brackets == 0 && as.parens == 0 && as.braces == 0) {
                         ++as.segment.arity;
                     }
-                } else if (token.getType() == PainlessLexer.RP) {
+                } else if (token.getType() == SuggestLexer.RP) {
                     ++as.parens;
-                } else if (token.getType() == PainlessLexer.LBRACE) {
+                } else if (token.getType() == SuggestLexer.LBRACE) {
                     --as.braces;
-                } else if (token.getType() == PainlessLexer.RBRACE) {
+                } else if (token.getType() == SuggestLexer.RBRACE) {
                     ++as.braces;
-                } else if (token.getType() == PainlessLexer.LBRACK) {
+                } else if (token.getType() == SuggestLexer.LBRACK) {
                     --as.brackets;
-                } else if (token.getType() == PainlessLexer.RBRACK) {
+                } else if (token.getType() == SuggestLexer.RBRACK) {
                     ++as.brackets;
                 }
 
@@ -823,13 +907,13 @@ public class PainlessSuggest {
             // 8
             astates.add(as -> {
                 Token token = as.ws.tokens.get(as.ws.current);
-                if (token.getType() == PainlessLexer.ID) {
+                if (token.getType() == SuggestLexer.ID) {
                     as.segment.id = token.getText();
                     return -2;
-                } else if (token.getType() == PainlessLexer.DOTID) {
+                } else if (token.getType() == SuggestLexer.DOTID) {
                     as.segment.id = token.getText();
                     return 3;
-                } else if (token.getType() == PainlessLexer.TYPE) {
+                } else if (token.getType() == SuggestLexer.TYPE) {
                     as.segment.type = Segment.CONSTRUCTOR;
                     as.segment.id = token.getText();
                     return 9;
@@ -839,7 +923,7 @@ public class PainlessSuggest {
             // 9
             astates.add(as -> {
                 Token token = as.ws.tokens.get(as.ws.current);
-                if (token.getType() == PainlessLexer.NEW) {
+                if (token.getType() == SuggestLexer.NEW) {
                     return -2;
                 }
                 return -1;
@@ -867,17 +951,23 @@ public class PainlessSuggest {
         }
     }
 
-    private static List<String> track(List<? extends Token> tokens) {
-        return new Tracker(tokens).track();
+    public static List<Suggestion> suggest(PainlessLookup lookup, String source) {
+        ANTLRInputStream stream = new ANTLRInputStream(source);
+        SuggestLexer lexer = new EnhancedSuggestLexer(stream, lookup);
+        lexer.removeErrorListeners();
+
+        return new PainlessSuggest(lookup, lexer.getAllTokens()).suggest();
     }
 
+    private final PainlessLookup lookup;
     private final List<? extends Token> tokens;
 
-    private Tracker(List<? extends Token> tokens) {
-        this.tokens = Collections.unmodifiableList(tokens);
+    private PainlessSuggest(PainlessLookup lookup, List<? extends Token> tokens) {
+        this.lookup = Objects.requireNonNull(lookup);
+        this.tokens = Collections.unmodifiableList(Objects.requireNonNull(tokens));
     }
 
-    private List<String> track() {
+    private List<Suggestion> suggest() {
         //FunctionState fs = new FunctionState(tokens);
         //FunctionMachine.walk(fs);
 
@@ -901,16 +991,9 @@ public class PainlessSuggest {
             builder.append(as.segment);
         }
 
-        //for (FunctionMachine.FunctionState functionState = ws.functions) {
+        List<Suggestion> suggestions = new ArrayList<>();
+        suggestions.add(new Suggestion("test", "\n\n" + builder.toString()));
 
-        //}
-
-        if (true) throw new RuntimeException("\n\n" + builder);
-        //if (true) throw new RuntimeException("\n\n" + builder.toString());
-        //tokens.stream().map(t -> PainlessLexer.ruleNames[t.getType()] + ":" + t.getText()).collect(Collectors.toList())
-        //        .toString()
-        //);
-
-        return null;
-    }*/
+        return suggestions;
+    }
 }

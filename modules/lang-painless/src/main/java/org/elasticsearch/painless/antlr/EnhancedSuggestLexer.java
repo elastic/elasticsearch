@@ -24,12 +24,12 @@ import org.elasticsearch.painless.lookup.PainlessLookup;
  * <li>Enhances the error message when a string contains invalid escape sequences to include a list of valid escape sequences.
  * </ul>
  */
-final class EnhancedSuggestLexer {}/*extends SuggestLexer {
+public final class EnhancedSuggestLexer extends SuggestLexer {
 
     private Token current = null;
     private final PainlessLookup painlessLookup;
 
-    EnhancedSuggestLexer(CharStream charStream, PainlessLookup painlessLookup) {
+    public EnhancedSuggestLexer(CharStream charStream, PainlessLookup painlessLookup) {
         super(charStream);
         this.painlessLookup = painlessLookup;
     }
@@ -75,4 +75,4 @@ final class EnhancedSuggestLexer {}/*extends SuggestLexer {
     protected boolean isType(String text) {
         return painlessLookup.isValidCanonicalClassName(text);
     }
-}*/
+}

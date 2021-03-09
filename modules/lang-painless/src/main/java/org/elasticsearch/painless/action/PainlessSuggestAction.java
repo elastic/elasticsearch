@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.painless.PainlessScriptEngine;
 import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
-import org.elasticsearch.painless.action.PainlessSuggestAction.Response.Suggestion;
+import org.elasticsearch.painless.action.PainlessSuggest.Suggestion;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -154,69 +154,6 @@ public class PainlessSuggestAction extends ActionType<PainlessSuggestAction.Resp
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        public static class Suggestion implements Writeable, ToXContentObject {
-
-            private static final ParseField TYPE_FIELD = new ParseField("type");
-            private static final ParseField TEXT_FIELD = new ParseField("text");
-
-            private final String type;
-            private final String text;
-
-            public Suggestion(String type, String text) {
-                this.type = type;
-                this.text = text;
-            }
-
-            public Suggestion(StreamInput in) throws IOException {
-                this.type = in.readString();
-                this.text = in.readString();
-            }
-
-            public String getType() {
-                return type;
-            }
-
-            public String getText() {
-                return text;
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeString(this.type);
-                out.writeString(this.text);
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject();
-                builder.field(TYPE_FIELD.getPreferredName(), type);
-                builder.field(TEXT_FIELD.getPreferredName(), text);
-                builder.endObject();
-                return builder;
-            }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                Suggestion that = (Suggestion)o;
-                return Objects.equals(type, that.type) && Objects.equals(text, that.text);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(type, text);
-            }
-
-            @Override
-            public String toString() {
-                return "Suggestion{" +
-                        "type='" + type + '\'' +
-                        ", text='" + text + '\'' +
-                        '}';
-            }
-        }
-
         public static final ParseField SUGGESTIONS = new ParseField("suggestions");
 
         private final List<Suggestion> suggestions;
@@ -276,6 +213,7 @@ public class PainlessSuggestAction extends ActionType<PainlessSuggestAction.Resp
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+            String source = request.getScript().getIdOrCode();
             String context = request.getContext();
 
             if (request.getContext() == null) {
@@ -295,8 +233,7 @@ public class PainlessSuggestAction extends ActionType<PainlessSuggestAction.Resp
                 throw new IllegalArgumentException("script context [" + request.getContext() + "] not found");
             }
 
-            // TODO(Jack): replace this with actual suggestions
-            List<Suggestion> suggestions = Collections.singletonList(new Suggestion("test", "test"));
+            List<Suggestion> suggestions = PainlessSuggest.suggest(lookup, source);
 
             listener.onResponse(new Response(suggestions));
         }

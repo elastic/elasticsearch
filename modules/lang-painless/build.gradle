@@ -262,12 +262,6 @@ tasks.register("regenSuggest") {
     doLast {
         // moves token files to grammar directory for use with IDE's
         ant.move(file: "${outputPath}/SuggestLexer.tokens", toDir: grammarPath)
-        // make the generated classes package private
-        ant.replaceregexp(match: 'public ((interface|class) \\QSuggest\\E\\w+)',
-                replace: '\\1',
-                encoding: 'UTF-8') {
-            fileset(dir: outputPath, includes: 'Suggest*.java')
-        }
         // make the lexer abstract
         ant.replaceregexp(match: '(class \\QSuggest\\ELexer)',
                 replace: 'abstract \\1',

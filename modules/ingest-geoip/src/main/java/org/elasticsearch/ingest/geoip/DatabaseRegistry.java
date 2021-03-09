@@ -32,12 +32,14 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -52,20 +54,20 @@ import java.util.zip.GZIPInputStream;
 /**
  * A component that is responsible for making the databases maintained by {@link GeoIpDownloader}
  * available for ingest processors.
- *
+ * <p>
  * Also provided a lookup mechanism for geoip processors with fallback to {@link LocalDatabases}.
  * All databases are downloaded into a geoip tmp directory, which is created at node startup.
- *
+ * <p>
  * The following high level steps are executed after each cluster state update:
  * 1) Check which databases are available in {@link GeoIpTaskState},
- *    which is part of the geoip downloader persistent task.
+ * which is part of the geoip downloader persistent task.
  * 2) For each database check whether the databases have changed
- *    by comparing the local and remote md5 hash or are locally missing.
+ * by comparing the local and remote md5 hash or are locally missing.
  * 3) For each database identified in step 2 start downloading the database
- *    chunks. Each chunks is appended to a tmp file (inside geoip tmp dir) and
- *    after all chunks have been downloaded, the database is uncompressed and
- *    renamed to the final filename.After this the database is loaded and
- *    if there is an old instance of this database then that is closed.
+ * chunks. Each chunks is appended to a tmp file (inside geoip tmp dir) and
+ * after all chunks have been downloaded, the database is uncompressed and
+ * renamed to the final filename.After this the database is loaded and
+ * if there is an old instance of this database then that is closed.
  * 4) Cleanup locally loaded databases that are no longer mentioned in {@link GeoIpTaskState}.
  */
 final class DatabaseRegistry implements Closeable {
@@ -104,18 +106,35 @@ final class DatabaseRegistry implements Closeable {
 
     public void initialize(ResourceWatcherService resourceWatcher, IngestService ingestService) throws IOException {
         localDatabases.initialize(resourceWatcher);
-        if (Files.exists(geoipTmpDirectory)) {
-            Files.walk(geoipTmpDirectory)
-                .filter(Files::isRegularFile)
-                .peek(path -> LOGGER.info("deleting stale file [{}]", path))
-                .forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-        } else {
+        Files.walkFileTree(geoipTmpDirectory, new FileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                try {
+                    LOGGER.info("deleting stale file [{}]", file);
+                    Files.deleteIfExists(file);
+                } catch (IOException e) {
+                    LOGGER.warn("can't delete stale file [" + file + "]", e);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFileFailed(Path file, IOException e) {
+                LOGGER.warn("can't delete stale file [" + file + "]", e);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) {
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        if (Files.exists(geoipTmpDirectory) == false) {
             Files.createDirectory(geoipTmpDirectory);
         }
         LOGGER.info("initialized database registry, using geoip-databases directory [{}]", geoipTmpDirectory);

@@ -10,11 +10,9 @@ package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.StreamsUtils;
-import org.junit.After;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -27,7 +25,6 @@ import java.util.Collections;
 import java.util.List;
 
 public abstract class AbstractGeoIpIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(IngestGeoIpPlugin.class, IngestGeoIpSettingsPlugin.class);
@@ -62,24 +59,6 @@ public abstract class AbstractGeoIpIT extends ESIntegTestCase {
         @Override
         public List<Setting<?>> getSettings() {
             return Collections.singletonList(Setting.simpleString("ingest.geoip.database_path", Setting.Property.NodeScope));
-        }
-    }
-
-    @After
-    public void cleanDatabases() throws Exception {
-        super.tearDown();
-        Path path = internalCluster().getInstance(Environment.class).tmpFile();
-        Path databases = path.resolve("geoip-databases");
-        if (Files.exists(databases)) {
-            Files.walk(databases)
-                .filter(Files::isRegularFile)
-                .forEach(path1 -> {
-                    try {
-                        Files.delete(path1);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
         }
     }
 }

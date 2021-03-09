@@ -151,6 +151,12 @@ PUT /_snapshot/my_read_only_url_repository
 ----
 // TEST[skip:no access to url file path]
 
+The following settings are supported:
+
+`url`::
+(Required)
+URL where the snapshots are stored.
+
 The `url` parameter supports the following protocols:
 
 * `file`
@@ -158,6 +164,15 @@ The `url` parameter supports the following protocols:
 * `http`
 * `https`
 * `jar`
+
+`http_max_retries`::
+
+    Specifies the maximun number of retries that are perfomed in case of transient failures for `http` and `https` URLs.
+    The default value is `5`.
+
+`http_socket_timeout`::
+
+     Specifies the maximum time to wait for data to be transferred over a connection before timing out. The default value is `50s`.
 
 URLs using the `file` protocol must point to the location of a shared filesystem
 accessible to all master and data nodes in the cluster. This location must be

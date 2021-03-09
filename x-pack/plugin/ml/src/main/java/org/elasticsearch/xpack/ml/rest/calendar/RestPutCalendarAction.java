@@ -25,9 +25,7 @@ public class RestPutCalendarAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
-            new Route(PUT, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}")
-        );
+        return List.of(new Route(PUT, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"));
     }
 
     @Override

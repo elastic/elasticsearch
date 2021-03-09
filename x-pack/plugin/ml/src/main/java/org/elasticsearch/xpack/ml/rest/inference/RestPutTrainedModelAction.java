@@ -7,34 +7,28 @@
 package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig.MODEL_ID;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestPutTrainedModelAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        return singletonList(
-            new ReplacedRoute(
-                PUT, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
-                PUT, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"));
+        return List.of(
+            Route.builder(PUT, BASE_PATH + "trained_models/{" + MODEL_ID.getPreferredName() + "}")
+                .replaces(PUT, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}", RestApiVersion.V_8).build()
+        );
     }
 
     @Override
@@ -44,7 +38,7 @@ public class RestPutTrainedModelAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String id = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
+        String id = restRequest.param(MODEL_ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
         PutTrainedModelAction.Request putRequest = PutTrainedModelAction.Request.parseRequest(id, parser);
         putRequest.timeout(restRequest.paramAsTime("timeout", putRequest.timeout()));

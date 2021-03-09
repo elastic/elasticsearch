@@ -1153,15 +1153,16 @@ tag::model-id-or-alias[]
 The unique identifier of the trained model or a model alias.
 end::model-id-or-alias[]
 
-tag::model-memory-limit[]
+tag::model-memory-limit-ad[]
 The approximate maximum amount of memory resources that are required for
 analytical processing. Once this limit is approached, data pruning becomes
 more aggressive. Upon exceeding this limit, new entities are not modeled. The
-default value for jobs created in version 6.1 and later is `1024mb`.
-This value will need to be increased for jobs that are expected to analyze high
-cardinality fields, but the default is set to a relatively small size to ensure
-that high resource usage is a conscious decision. The default value for jobs
-created in versions earlier than 6.1 is `4096mb`.
+default value for jobs created in version 6.1 and later is `1024mb`. If the
+`xpack.ml.max_model_memory_limit` setting has a value greater than `0` and less
+than `1024mb`, however, that value is used instead. The default value is
+relatively small to ensure that high resource usage is a conscious decision. If
+you have jobs that are expected to analyze high cardinality fields, you will
+likely need to use a higher value. 
 +
 If you specify a number instead of a string, the units are assumed to be MiB.
 Specifying a string is recommended for clarity. If you specify a byte size unit
@@ -1170,15 +1171,23 @@ it is rounded down to the closest MiB. The minimum valid value is 1 MiB. If you
 specify a value less than 1 MiB, an error occurs. For more information about
 supported byte size units, see <<byte-units>>.
 +
-If your `elasticsearch.yml` file contains an `xpack.ml.max_model_memory_limit`
-setting, an error occurs when you try to create jobs that have
-`model_memory_limit` values greater than that setting. For more information,
-see <<ml-settings>>.
-end::model-memory-limit[]
+If you specify a value for the `xpack.ml.max_model_memory_limit` setting, an
+error occurs when you try to create jobs that have `model_memory_limit` values
+greater than that setting value. For more information, see <<ml-settings>>.
+end::model-memory-limit-ad[]
 
 tag::model-memory-limit-anomaly-jobs[]
 The upper limit for model memory usage, checked on increasing values.
 end::model-memory-limit-anomaly-jobs[]
+
+tag::model-memory-limit-dfa[]
+The approximate maximum amount of memory resources that are permitted for
+analytical processing. The default value for {dfanalytics-jobs} is `1gb`. If
+you specify a value for the `xpack.ml.max_model_memory_limit` setting, an error
+occurs when you try to create jobs that have `model_memory_limit` values greater
+than that setting value. For more information, see
+<<ml-settings>>.
+end::model-memory-limit-dfa[]
 
 tag::model-memory-status[]
 The status of the mathematical models, which can have one of the following

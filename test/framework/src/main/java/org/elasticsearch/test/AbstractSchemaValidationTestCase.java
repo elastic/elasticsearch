@@ -67,7 +67,7 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
 
     /**
      * Creates a random instance to use in the schema tests.
-     * Override this method if the random instance that you build
+     * Override this method to return the random instance that you build
      * which must implement {@link ToXContent}.
      */
     protected abstract T createTestInstance();

@@ -513,12 +513,7 @@ functionality other than the analysis itself.
 
 `model_memory_limit`::
 (Optional, string)
-The approximate maximum amount of memory resources that are permitted for
-analytical processing. The default value for {dfanalytics-jobs} is `1gb`. If
-your `elasticsearch.yml` file contains an `xpack.ml.max_model_memory_limit`
-setting, an error occurs when you try to create {dfanalytics-jobs} that have
-`model_memory_limit` values greater than that setting. For more information, see
-<<ml-settings>>.
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-dfa]
 
 `source`::
 (object)

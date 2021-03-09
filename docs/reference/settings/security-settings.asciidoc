@@ -1644,7 +1644,7 @@ or `client_secret_jwt`. Defaults to `client_secret_basic`.
 // tag::rp-client-auth-jwt-signature-algorithm[]
 `rp.client_auth_signature_algorithm` {ess-icon}::
 (<<static-cluster-setting, Static>>)
-The signature algorithm tat {es} uses to sign the JWT with which it authenticates
+The signature algorithm that {es} uses to sign the JWT with which it authenticates
 as a Client to the OpenID Connect Provider when `client_secret_jwt` is selected for
 `rp.client_auth_method`. Can be either `HS256`, `HS384`, or `HS512`. Defaults to 
 `HS384`. 

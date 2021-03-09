@@ -10,9 +10,9 @@ package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -287,7 +287,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     public XContentBuilder  toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(_INDEX, index);
-        if (builder.getRestApiCompatibilityVersion() == RestApiCompatibleVersion.V_7) {
+        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
             builder.field(TYPE_FIELD_NAME, SINGLE_MAPPING_TYPE);
         }
         builder.field(_ID, id);

@@ -63,7 +63,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             modelId = Metadata.ALL;
         }
         GetTrainedModelsStatsAction.Request statsRequest = new GetTrainedModelsStatsAction.Request(modelId);
-        GetTrainedModelsAction.Request modelsAction = new GetTrainedModelsAction.Request(modelId, false, null);
+        GetTrainedModelsAction.Request modelsAction = new GetTrainedModelsAction.Request(modelId, null, Collections.emptySet());
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             statsRequest.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                 restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));

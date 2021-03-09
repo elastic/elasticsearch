@@ -376,33 +376,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected void initializeFunction() {
         // create the function
         function = FunctionFactory.create(getConfig());
-
         if (isContinuous()) {
-            Map<String, Object> scriptBasedRuntimeFieldNames = transformConfig.getSource().getScriptBasedRuntimeMappings();
-            List<String> performanceCriticalFields = function.getPerformanceCriticalFields();
-            if (performanceCriticalFields.stream().allMatch(scriptBasedRuntimeFieldNames::containsKey)) {
-                String message = "all the group-by fields are script-based runtime fields, "
-                    + "this transform might run slowly, please check your configuration.";
-                logger.warn(new ParameterizedMessage("[{}] {}", getJobId(), message));
-                auditor.warning(getJobId(), message);
-            }
-
-            if (scriptBasedRuntimeFieldNames.containsKey(transformConfig.getSyncConfig().getField())) {
-                String message = "sync time field is a script-based runtime field, "
-                    + "this transform might run slowly, please check your configuration.";
-                logger.warn(new ParameterizedMessage("[{}] {}", getJobId(), message));
-                auditor.warning(getJobId(), message);
-            }
-
             changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
-            if (changeCollector.isOptimized() == false) {
-                String message = "could not find any optimizations for continuous execution, "
-                    + "this transform might run slowly, please check your configuration.";
-                logger.warn(new ParameterizedMessage("[{}] {}", getJobId(), message));
-                auditor.warning(getJobId(), message);
-            }
-
-            // TODO: Report warnings in preview
         }
     }
 
@@ -424,20 +399,29 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return;
         }
 
-        refreshDestinationIndex(ActionListener.wrap(response -> {
-            if (response.getFailedShards() > 0) {
-                logger.warn(
-                    "[{}] failed to refresh transform destination index, not all data might be available after checkpoint.",
-                    getJobId()
-                );
-            }
-            // delete data defined by retention policy
-            if (transformConfig.getRetentionPolicyConfig() != null) {
-                executeRetentionPolicy(listener);
-            } else {
-                finalizeCheckpoint(listener);
-            }
-        }, listener::onFailure));
+        ActionListener<Void> failureHandlingListener = ActionListener.wrap(listener::onResponse, failure -> {
+            handleFailure(failure);
+            listener.onFailure(failure);
+        });
+
+        try {
+            refreshDestinationIndex(ActionListener.wrap(response -> {
+                if (response.getFailedShards() > 0) {
+                    logger.warn(
+                        "[{}] failed to refresh transform destination index, not all data might be available after checkpoint.",
+                        getJobId()
+                    );
+                }
+                // delete data defined by retention policy
+                if (transformConfig.getRetentionPolicyConfig() != null) {
+                    executeRetentionPolicy(failureHandlingListener);
+                } else {
+                    finalizeCheckpoint(failureHandlingListener);
+                }
+            }, failureHandlingListener::onFailure));
+        } catch (Exception e) {
+            failureHandlingListener.onFailure(e);
+        }
     }
 
     private void executeRetentionPolicy(ActionListener<Void> listener) {
@@ -585,6 +569,22 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         IndexerState indexerState = getState();
         if (IndexerState.INDEXING.equals(indexerState) || IndexerState.STOPPING.equals(indexerState)) {
             logger.debug("[{}] indexer for transform has state [{}]. Ignoring trigger.", getJobId(), indexerState);
+            return false;
+        }
+
+        /*
+         * ignore if indexer thread is shutting down (after finishing a checkpoint)
+         * shutting down means:
+         *  - indexer has finished a checkpoint and called onFinish
+         *  - indexer state has changed from indexing to started
+         *  - state persistence has been called but has _not_ returned yet
+         *
+         *  If we trigger the indexer in this situation the 2nd indexer thread might
+         *  try to save state at the same time, causing a version conflict
+         *  see gh#67121
+         */
+        if (indexerThreadShuttingDown) {
+            logger.debug("[{}] indexer thread is shutting down. Ignoring trigger.", getJobId());
             return false;
         }
 
@@ -776,7 +776,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
             auditor.warning(
                 getJobId(),
-                "Transform encountered an exception: " + message + " Will attempt again at next scheduled trigger."
+                "Transform encountered an exception: " + message + "; Will attempt again at next scheduled trigger."
             );
             lastAuditedExceptionMessage = message;
         }

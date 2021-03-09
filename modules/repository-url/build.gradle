@@ -25,6 +25,24 @@ restResources {
   }
 }
 
+dependencies {
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener',
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger'
+  )
+}
+
  // This directory is shared between two URL repositories and one FS repository in YAML integration tests
 File repositoryDir = new File(project.buildDir, "shared-repository")
 

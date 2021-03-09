@@ -9,8 +9,10 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -26,7 +28,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class RestIndexActionV7Tests extends RestActionTestCase {
 
     final List<String> contentTypeHeader =
-        Collections.singletonList("application/vnd.elasticsearch+json;compatible-with="+ RestApiCompatibleVersion.V_7.major);
+        Collections.singletonList("application/vnd.elasticsearch+json;compatible-with="+ RestApiVersion.V_7.major);
 
 
     private final AtomicReference<ClusterState> clusterStateSupplier = new AtomicReference<>();
@@ -39,6 +41,7 @@ public class RestIndexActionV7Tests extends RestActionTestCase {
 
         verifyingClient.setExecuteVerifier((actionType, request) -> {
             assertThat(request, instanceOf(IndexRequest.class));
+            return new IndexResponse(new ShardId("test", "test", 0), "id", 0, 0, 0, true);
         });
     }
 
@@ -49,7 +52,7 @@ public class RestIndexActionV7Tests extends RestActionTestCase {
             .withPath("/some_index/some_type/some_id")
             .build();
         dispatchRequest(deprecatedRequest);
-        assertWarnings(RestIndexActionV7.TYPES_DEPRECATION_MESSAGE, RestIndexActionV7.COMPATIBLE_API_MESSAGE);
+        assertWarnings(RestIndexActionV7.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testCreateWithTypeInPath() {
@@ -59,7 +62,7 @@ public class RestIndexActionV7Tests extends RestActionTestCase {
             .withPath("/some_index/some_type/some_id/_create")
             .build();
         dispatchRequest(deprecatedRequest);
-        assertWarnings(RestIndexActionV7.TYPES_DEPRECATION_MESSAGE, RestIndexActionV7.COMPATIBLE_API_MESSAGE);
+        assertWarnings(RestIndexActionV7.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testAutoIdWithType() {
@@ -69,6 +72,6 @@ public class RestIndexActionV7Tests extends RestActionTestCase {
             .withPath("/some_index/some_type/")
             .build();
         dispatchRequest(deprecatedRequest);
-        assertWarnings(RestIndexActionV7.TYPES_DEPRECATION_MESSAGE, RestIndexActionV7.COMPATIBLE_API_MESSAGE);
+        assertWarnings(RestIndexActionV7.TYPES_DEPRECATION_MESSAGE);
     }
 }

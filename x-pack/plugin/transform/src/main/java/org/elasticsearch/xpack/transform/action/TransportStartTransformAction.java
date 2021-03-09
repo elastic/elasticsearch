@@ -257,7 +257,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 config.getSource().getIndex(),
                 config.getDestination().getIndex(),
                 config.getDestination().getPipeline(),
-                SourceDestValidations.ALL_VALIDATIONS,
+                SourceDestValidations.getValidations(false, config.getAdditionalValidations()),
                 validationListener
             );
         }, listener::onFailure);

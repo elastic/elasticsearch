@@ -754,23 +754,23 @@ setup:
         body: { "size" : 0, "aggs" : { "no_field_terms" : { "terms" : { "size": 1 } } } }
 
 ---
-"string profiler via global ordinals":
+"string profiler via global ordinals filters implementation":
   - skip:
-      version: " - 7.8.99"
-      reason: debug information added in 7.9.0
+      version: " - 7.99.99"
+      reason: filters implementation first supported with sub-aggregators in 8.0.0, being backported to 7.13.0
   - do:
       bulk:
         index: test_1
         refresh: true
         body: |
           { "index": {} }
-          { "str": "sheep", "number": 1 }
+          { "boolean": true, "str": "sheep", "number": 1 }
           { "index": {} }
-          { "str": "sheep", "number": 3 }
+          { "boolean": true, "str": "sheep", "number": 3 }
           { "index": {} }
-          { "str": "cow", "number": 1 }
+          { "boolean": true, "str": "cow", "number": 1 }
           { "index": {} }
-          { "str": "pig", "number": 1 }
+          { "boolean": true, "str": "pig", "number": 1 }
 
   - do:
       search:
@@ -794,17 +794,73 @@ setup:
   - match: { aggregations.str_terms.buckets.1.max_number.value: 1 }
   - match: { aggregations.str_terms.buckets.2.key: pig }
   - match: { aggregations.str_terms.buckets.2.max_number.value: 1 }
-  - match: { profile.shards.0.aggregations.0.type: GlobalOrdinalsStringTermsAggregator }
+  - match: { profile.shards.0.aggregations.0.type: StringTermsAggregatorFromFilters }
   - match: { profile.shards.0.aggregations.0.description: str_terms }
-  - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 4 }
-  - match: { profile.shards.0.aggregations.0.debug.deferred_aggregators: [ max_number ] }
-  - match: { profile.shards.0.aggregations.0.debug.collection_strategy: dense }
-  - match: { profile.shards.0.aggregations.0.debug.result_strategy: terms }
-  - gt:    { profile.shards.0.aggregations.0.debug.segments_with_single_valued_ords: 0 }
-  - match: { profile.shards.0.aggregations.0.debug.segments_with_multi_valued_ords: 0 }
-  - match: { profile.shards.0.aggregations.0.debug.has_filter: false }
+  - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.delegate: FiltersAggregator.FilterByFilter }
+  - match: { profile.shards.0.aggregations.0.debug.delegate_debug.filters.0.query: str:cow }
+  - match: { profile.shards.0.aggregations.0.debug.delegate_debug.filters.1.query: str:pig }
+  - match: { profile.shards.0.aggregations.0.debug.delegate_debug.filters.2.query: str:sheep }
   - match: { profile.shards.0.aggregations.0.children.0.type: MaxAggregator }
   - match: { profile.shards.0.aggregations.0.children.0.description: max_number }
+  - match: { profile.shards.0.aggregations.0.children.0.breakdown.collect_count: 4 }
+
+---
+"string profiler via global ordinals native implementation":
+  - skip:
+      version: " - 7.8.99"
+      reason: debug information added in 7.9.0
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "boolean": true, "str": "sheep", "number": 1 }
+          { "index": {} }
+          { "boolean": true, "str": "sheep", "number": 3 }
+          { "index": {} }
+          { "boolean": true, "str": "cow", "number": 1 }
+          { "index": {} }
+          { "boolean": true, "str": "pig", "number": 1 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            bool:    # add a dummy agg "on top" of the child agg just to force it out of filter-by-filter mode
+              terms:
+                field: boolean
+              aggs:
+                str_terms:
+                  terms:
+                    field: str
+                    collect_mode: breadth_first
+                    execution_hint: global_ordinals
+                  aggs:
+                    max_number:
+                      max:
+                        field: number
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.0.max_number.value: 3 }
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.1.key: cow }
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.1.max_number.value: 1 }
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.2.key: pig }
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.2.max_number.value: 1 }
+  - match: { profile.shards.0.aggregations.0.children.0.type: GlobalOrdinalsStringTermsAggregator }
+  - match: { profile.shards.0.aggregations.0.children.0.description: str_terms }
+  - match: { profile.shards.0.aggregations.0.children.0.breakdown.collect_count: 4 }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.deferred_aggregators: [ max_number ] }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.collection_strategy: remap using many bucket ords }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.result_strategy: terms }
+  - gt:    { profile.shards.0.aggregations.0.children.0.debug.segments_with_single_valued_ords: 0 }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.segments_with_multi_valued_ords: 0 }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.has_filter: false }
+  - match: { profile.shards.0.aggregations.0.children.0.children.0.type: MaxAggregator }
+  - match: { profile.shards.0.aggregations.0.children.0.children.0.description: max_number }
 
   - do:
       indices.create:
@@ -823,7 +879,7 @@ setup:
         refresh: true
         body: |
           { "index": {} }
-          { "str": ["pig", "sheep"], "number": 100 }
+          { "boolean": true, "str": ["pig", "sheep"], "number": 100 }
 
   - do:
       search:
@@ -832,30 +888,35 @@ setup:
           profile: true
           size: 0
           aggs:
-            str_terms:
+            bool:    # add a dummy agg "on top" of the child agg just to force it out of filter-by-filter mode
               terms:
-                field: str
-                collect_mode: breadth_first
-                execution_hint: global_ordinals
+                field: boolean
               aggs:
-                max_number:
-                  max:
-                    field: number
-  - match: { aggregations.str_terms.buckets.0.key: pig }
-  - match: { aggregations.str_terms.buckets.0.max_number.value: 100 }
-  - match: { aggregations.str_terms.buckets.1.key: sheep }
-  - match: { aggregations.str_terms.buckets.1.max_number.value: 100 }
-  - match: { profile.shards.0.aggregations.0.type: GlobalOrdinalsStringTermsAggregator }
-  - match: { profile.shards.0.aggregations.0.description: str_terms }
-  - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 1 }
-  - match: { profile.shards.0.aggregations.0.debug.deferred_aggregators: [ max_number ] }
-  - match: { profile.shards.0.aggregations.0.debug.collection_strategy: dense }
-  - match: { profile.shards.0.aggregations.0.debug.result_strategy: terms }
-  - match: { profile.shards.0.aggregations.0.debug.segments_with_single_valued_ords: 0 }
-  - gt:    { profile.shards.0.aggregations.0.debug.segments_with_multi_valued_ords: 0 }
-  - match: { profile.shards.0.aggregations.0.debug.has_filter: false }
-  - match: { profile.shards.0.aggregations.0.children.0.type: MaxAggregator }
-  - match: { profile.shards.0.aggregations.0.children.0.description: max_number }
+                str_terms:
+                  terms:
+                    field: str
+                    collect_mode: breadth_first
+                    execution_hint: global_ordinals
+                  aggs:
+                    max_number:
+                      max:
+                        field: number
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.0.key: pig }
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.0.max_number.value: 100 }
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.1.key: sheep }
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.1.max_number.value: 100 }
+  - match: { profile.shards.0.aggregations.0.children.0.type: GlobalOrdinalsStringTermsAggregator }
+  - match: { profile.shards.0.aggregations.0.children.0.description: str_terms }
+  - match: { profile.shards.0.aggregations.0.children.0.breakdown.collect_count: 1 }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.deferred_aggregators: [ max_number ] }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.collection_strategy: remap using many bucket ords }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.result_strategy: terms }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.segments_with_single_valued_ords: 0 }
+  - gt:    { profile.shards.0.aggregations.0.children.0.debug.segments_with_multi_valued_ords: 0 }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.has_filter: false }
+  - match: { profile.shards.0.aggregations.0.children.0.children.0.type: MaxAggregator }
+  - match: { profile.shards.0.aggregations.0.children.0.children.0.description: max_number }
+
 
 ---
 "string profiler via map":

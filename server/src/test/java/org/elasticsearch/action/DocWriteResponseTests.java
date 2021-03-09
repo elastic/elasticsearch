@@ -10,8 +10,8 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -111,7 +111,7 @@ public class DocWriteResponseTests extends ESTestCase {
             // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
         };
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.withCompatibleVersion(RestApiCompatibleVersion.V_7);
+            builder.withCompatibleVersion(RestApiVersion.V_7);
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
@@ -120,7 +120,7 @@ public class DocWriteResponseTests extends ESTestCase {
         }
 
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.withCompatibleVersion(RestApiCompatibleVersion.V_8);
+            builder.withCompatibleVersion(RestApiVersion.V_8);
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {

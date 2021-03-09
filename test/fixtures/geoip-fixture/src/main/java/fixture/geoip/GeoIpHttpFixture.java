@@ -11,11 +11,11 @@ package fixture.geoip;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.BufferedWriter;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
 public class GeoIpHttpFixture {
@@ -26,16 +26,24 @@ public class GeoIpHttpFixture {
         String rawData = new String(GeoIpHttpFixture.class.getResourceAsStream("/data.json").readAllBytes(), StandardCharsets.UTF_8);
         this.server = HttpServer.create(new InetSocketAddress(InetAddress.getByName(args[0]), Integer.parseInt(args[1])), 0);
         this.server.createContext("/", exchange -> {
+            String query = exchange.getRequestURI().getQuery();
+            if (query == null || query.contains("elastic_geoip_service_tos=agree") == false) {
+                exchange.sendResponseHeaders(400, 0);
+                exchange.getResponseBody().close();
+                return;
+            }
             String data = rawData.replace("endpoint", "http://" + exchange.getRequestHeaders().getFirst("Host"));
             exchange.sendResponseHeaders(200, data.length());
             try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(exchange.getResponseBody()))) {
                 writer.write(data);
             }
         });
-        this.server.createContext("/db.mmdb.gz", exchange -> {
+        this.server.createContext("/db", exchange -> {
             exchange.sendResponseHeaders(200, 0);
-            try (OutputStream outputStream = exchange.getResponseBody()) {
-                GeoIpHttpFixture.class.getResourceAsStream("/GeoIP2-City-Test.mmdb.gz").transferTo(outputStream);
+            String dbName = exchange.getRequestURI().getPath().replaceAll(".*/db", "");
+            try (OutputStream outputStream = exchange.getResponseBody();
+                 InputStream db = GeoIpHttpFixture.class.getResourceAsStream(dbName)) {
+                db.transferTo(outputStream);
             }
         });
     }

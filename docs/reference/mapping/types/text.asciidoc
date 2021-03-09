@@ -13,6 +13,10 @@ used for sorting and seldom used for aggregations (although the
 <<search-aggregations-bucket-significanttext-aggregation,significant text aggregation>>
 is a notable exception).
 
+`text` fields are best suited for unstructured but human-readable content. If
+you need to index unstructured machine-generated content, see
+<<mapping-unstructured-content>>.
+
 If you need to index structured content such as email addresses, hostnames, status
 codes, or tags, it is likely that you should rather use a <<keyword,`keyword`>> field.
 

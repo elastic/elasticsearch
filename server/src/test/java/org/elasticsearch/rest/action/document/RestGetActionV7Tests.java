@@ -9,11 +9,13 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.Collections;
 import java.util.List;
@@ -23,13 +25,14 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class RestGetActionV7Tests extends RestActionTestCase {
     final List<String> contentTypeHeader =
-        Collections.singletonList("application/vnd.elasticsearch+json;compatible-with="+ RestApiCompatibleVersion.V_7.major);
+        Collections.singletonList("application/vnd.elasticsearch+json;compatible-with="+ RestApiVersion.V_7.major);
 
     @Before
     public void setUpAction() {
         controller().registerHandler(new RestGetActionV7());
         verifyingClient.setExecuteVerifier((actionType, request) -> {
             assertThat(request, instanceOf(GetRequest.class));
+            return Mockito.mock(GetResponse.class);
         });
     }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestRequest;
@@ -27,14 +26,12 @@ public class RestIndexActionV7 {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document "
         + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
         + "or /{index}/_create/{id}).";
-    static final String COMPATIBLE_API_MESSAGE = "[Compatible API usage] Index API with types has been removed, use typeless endpoints.";
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndexActionV7.class);
 
     private static void logDeprecationMessage() {
         deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "index_with_types", TYPES_DEPRECATION_MESSAGE);
-        deprecationLogger.compatibleApiWarning("index_with_types", COMPATIBLE_API_MESSAGE);
-    }
+   }
 
     public static class CompatibleRestIndexAction extends RestIndexAction {
         @Override
@@ -52,11 +49,6 @@ public class RestIndexActionV7 {
             logDeprecationMessage();
             request.param("type");
             return super.prepareRequest(request, client);
-        }
-
-        @Override
-        public RestApiCompatibleVersion compatibleWithVersion() {
-            return RestApiCompatibleVersion.V_7;
         }
     }
 
@@ -77,11 +69,6 @@ public class RestIndexActionV7 {
             logDeprecationMessage();
             request.param("type");
             return super.prepareRequest(request, client);
-        }
-
-        @Override
-        public RestApiCompatibleVersion compatibleWithVersion() {
-            return RestApiCompatibleVersion.V_7;
         }
     }
 
@@ -106,11 +93,6 @@ public class RestIndexActionV7 {
             logDeprecationMessage();
             request.param("type");
             return super.prepareRequest(request, client);
-        }
-
-        @Override
-        public RestApiCompatibleVersion compatibleWithVersion() {
-            return RestApiCompatibleVersion.V_7;
         }
     }
 }

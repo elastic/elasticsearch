@@ -224,7 +224,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.NamedRegistry;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
@@ -781,7 +781,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCatAction(catActions));
 
         // Rest Compatible API
-        if(RestApiCompatibleVersion.minimumSupported() == RestApiCompatibleVersion.V_7){
+        if(RestApiVersion.minimumSupported() == RestApiVersion.V_7){
             registerHandler.accept(new RestIndexActionV7.CompatibleRestIndexAction());
             registerHandler.accept(new RestIndexActionV7.CompatibleCreateHandler());
             registerHandler.accept(new RestIndexActionV7.CompatibleAutoIdHandler(nodesInCluster));

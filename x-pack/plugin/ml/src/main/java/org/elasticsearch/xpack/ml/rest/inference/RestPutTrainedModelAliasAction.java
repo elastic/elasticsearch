@@ -6,35 +6,26 @@
  */
 package org.elasticsearch.xpack.ml.rest.inference;
 
-import static java.util.Collections.singletonList;
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
-
-import java.io.IOException;
-import java.util.List;
-
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
+
+import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction.Request.MODEL_ALIAS;
+import static org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig.MODEL_ID;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestPutTrainedModelAliasAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(
-            new Route(
-                PUT,
-                MachineLearning.BASE_PATH
-                    + "trained_models/{"
-                    + TrainedModelConfig.MODEL_ID.getPreferredName()
-                    + "}/model_aliases/{"
-                    + PutTrainedModelAliasAction.Request.MODEL_ALIAS
-                    + "}"
-
-            )
+        return List.of(
+            new Route(PUT, BASE_PATH + "trained_models/{" + MODEL_ID.getPreferredName() + "}/model_aliases/{" + MODEL_ALIAS + "}")
         );
     }
 
@@ -45,8 +36,8 @@ public class RestPutTrainedModelAliasAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String modelAlias = restRequest.param(PutTrainedModelAliasAction.Request.MODEL_ALIAS);
-        String modelId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
+        String modelAlias = restRequest.param(MODEL_ALIAS);
+        String modelId = restRequest.param(MODEL_ID.getPreferredName());
         boolean reassign = restRequest.paramAsBoolean(PutTrainedModelAliasAction.Request.REASSIGN, false);
         return channel -> client.execute(
             PutTrainedModelAliasAction.INSTANCE,

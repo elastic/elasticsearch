@@ -9,7 +9,6 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestRequest;
@@ -43,10 +42,5 @@ public class RestGetActionV7 extends RestGetAction {
         deprecationLogger.compatibleApiWarning("get_with_types", COMPATIBLE_API_MESSAGE);
         request.param("type");
         return super.prepareRequest(request, client);
-    }
-
-    @Override
-    public RestApiCompatibleVersion compatibleWithVersion() {
-        return RestApiCompatibleVersion.V_7;
     }
 }

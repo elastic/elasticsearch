@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionType;
 public class SnapshottableFeaturesAction extends ActionType<GetSnapshottableFeaturesResponse> {
 
     public static final SnapshottableFeaturesAction INSTANCE = new SnapshottableFeaturesAction();
-    public static final String NAME = "cluster:admin/snapshot/features/get";
+    public static final String NAME = "cluster:admin/features/get";
 
     private SnapshottableFeaturesAction() {
         super(NAME, GetSnapshottableFeaturesResponse::new);

@@ -306,7 +306,12 @@ public final class TestUtils {
     public static class NoopBlobStoreCacheService extends BlobStoreCacheService {
 
         public NoopBlobStoreCacheService() {
-            super(null, mock(Client.class), null);
+            super(null, null, mock(Client.class), null);
+        }
+
+        @Override
+        protected boolean useLegacyCachedBlobSizes() {
+            return false;
         }
 
         @Override
@@ -332,7 +337,12 @@ public final class TestUtils {
         private final ConcurrentHashMap<String, CachedBlob> blobs = new ConcurrentHashMap<>();
 
         public SimpleBlobStoreCacheService() {
-            super(null, mock(Client.class), null);
+            super(null, null, mock(Client.class), null);
+        }
+
+        @Override
+        protected boolean useLegacyCachedBlobSizes() {
+            return false;
         }
 
         @Override

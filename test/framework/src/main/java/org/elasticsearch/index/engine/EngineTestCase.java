@@ -1212,8 +1212,9 @@ public abstract class EngineTestCase extends ESTestCase {
      * @param seqNo the sequence number that the checkpoint must advance to before this method returns
      * @throws InterruptedException if the thread was interrupted while blocking on the condition
      */
-    public static void waitForOpsToComplete(InternalEngine engine, long seqNo) throws InterruptedException {
-        engine.getLocalCheckpointTracker().waitForProcessedOpsToComplete(seqNo);
+    public static void waitForOpsToComplete(InternalEngine engine, long seqNo) throws Exception {
+        assertBusy(() ->
+                assertThat(engine.getLocalCheckpointTracker().getProcessedCheckpoint(), greaterThanOrEqualTo(seqNo)));
     }
 
     public static boolean hasSnapshottedCommits(Engine engine) {

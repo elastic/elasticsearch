@@ -95,6 +95,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
+import org.elasticsearch.xpack.core.ml.action.DeployTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
@@ -141,6 +142,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UndeployTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
@@ -157,6 +159,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNam
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStatsNamedWriteablesProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.deployment.DeployTrainedModelTaskState;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -175,6 +178,7 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAliasAction;
+import org.elasticsearch.xpack.ml.action.TransportDeployTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportEstimateModelMemoryAction;
 import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.action.TransportExplainDataFrameAnalyticsAction;
@@ -221,6 +225,7 @@ import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportStopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportStopDatafeedAction;
+import org.elasticsearch.xpack.ml.action.TransportUndeployTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateDatafeedAction;
@@ -252,10 +257,13 @@ import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.aggs.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.inference.aggs.InternalInferenceAggregation;
+import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
+import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcessFactory;
+import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
@@ -325,10 +333,12 @@ import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestUpdateFilterAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAliasAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestDeployTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAliasAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestUndeployTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteForecastAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteJobAction;
@@ -531,6 +541,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     private final SetOnce<CircuitBreaker> inferenceModelBreaker = new SetOnce<>();
     private final SetOnce<ModelLoadingService> modelLoadingService = new SetOnce<>();
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
+    private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
 
     public MachineLearning(Settings settings, Path configPath) {
         this.settings = settings;
@@ -693,6 +704,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         final NormalizerProcessFactory normalizerProcessFactory;
         final AnalyticsProcessFactory<AnalyticsResult> analyticsProcessFactory;
         final AnalyticsProcessFactory<MemoryUsageEstimationResult> memoryEstimationProcessFactory;
+        final PyTorchProcessFactory pyTorchProcessFactory;
         if (MachineLearningField.AUTODETECT_PROCESS.get(settings)) {
             try {
                 NativeController nativeController =
@@ -714,6 +726,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     dataFrameAnalyticsAuditor);
                 memoryEstimationProcessFactory =
                     new NativeMemoryUsageEstimationProcessFactory(environment, nativeController, clusterService);
+                pyTorchProcessFactory = new NativePyTorchProcessFactory(environment, nativeController, clusterService);
                 mlController = nativeController;
             } catch (IOException e) {
                 // The low level cause of failure from the named pipe helper's perspective is almost never the real root cause, so
@@ -733,6 +746,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
             analyticsProcessFactory = (jobId, analyticsProcessConfig, hasState, executorService, onProcessCrash) -> null;
             memoryEstimationProcessFactory = (jobId, analyticsProcessConfig, hasState, executorService, onProcessCrash) -> null;
+            pyTorchProcessFactory = (jobId, executorService, onProcessCrash) -> null;
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
@@ -773,6 +787,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             clusterService.getNodeName(),
             inferenceModelBreaker.get());
         this.modelLoadingService.set(modelLoadingService);
+        this.deploymentManager.set(new DeploymentManager(threadPool, pyTorchProcessFactory));
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(
@@ -877,7 +892,12 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     autodetectProcessManager.get(),
                     memoryTracker.get(),
                     expressionResolver,
-                    client)
+                    client),
+                new TransportDeployTrainedModelAction.TaskExecutor(settings,
+                    clusterService,
+                    expressionResolver,
+                    memoryTracker.get(),
+                    deploymentManager.get())
         );
     }
 
@@ -953,6 +973,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             new RestPutTrainedModelAliasAction(),
             new RestDeleteTrainedModelAliasAction(),
             new RestPreviewDataFrameAnalyticsAction(),
+            new RestDeployTrainedModelAction(),
+            new RestUndeployTrainedModelAction(),
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
@@ -1039,6 +1061,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 new ActionHandler<>(PutTrainedModelAliasAction.INSTANCE, TransportPutTrainedModelAliasAction.class),
                 new ActionHandler<>(DeleteTrainedModelAliasAction.INSTANCE, TransportDeleteTrainedModelAliasAction.class),
                 new ActionHandler<>(PreviewDataFrameAnalyticsAction.INSTANCE, TransportPreviewDataFrameAnalyticsAction.class),
+                new ActionHandler<>(DeployTrainedModelAction.INSTANCE, TransportDeployTrainedModelAction.class),
+                new ActionHandler<>(UndeployTrainedModelAction.INSTANCE, TransportUndeployTrainedModelAction.class),
                 usageAction,
                 infoAction);
     }
@@ -1173,6 +1197,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             StartDataFrameAnalyticsAction.TaskParams::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             SnapshotUpgradeTaskParams::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DEPLOY_TRAINED_MODEL_TASK_NAME,
+            DeployTrainedModelAction.TaskParams::new));
 
         // Persistent task states
         namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, JobTaskState.NAME, JobTaskState::new));
@@ -1182,6 +1208,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class,
             SnapshotUpgradeTaskState.NAME,
             SnapshotUpgradeTaskState::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class,
+            DeployTrainedModelTaskState.NAME, DeployTrainedModelTaskState::new));
 
         namedWriteables.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedWriteables());
         namedWriteables.addAll(new AnalysisStatsNamedWriteablesProvider().getNamedWriteables());

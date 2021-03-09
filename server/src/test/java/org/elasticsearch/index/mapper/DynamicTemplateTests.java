@@ -163,7 +163,7 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("match_mapping_type", "*");
         templateDef.put("mapping", Collections.singletonMap("store", true));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
-        assertTrue(template.match("a.b", "b", randomFrom(XContentFieldType.getBuiltinTypes())));
+        assertTrue(template.match("a.b", "b", null, randomFrom(XContentFieldType.values())));
         assertFalse(template.isRuntimeMapping());
     }
 
@@ -173,13 +173,13 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("runtime", Collections.emptyMap());
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         assertTrue(template.isRuntimeMapping());
-        assertTrue(template.match("a.b", "b", XContentFieldType.BOOLEAN));
-        assertTrue(template.match("a.b", "b", XContentFieldType.DATE));
-        assertTrue(template.match("a.b", "b", XContentFieldType.STRING));
-        assertTrue(template.match("a.b", "b", XContentFieldType.DOUBLE));
-        assertTrue(template.match("a.b", "b", XContentFieldType.LONG));
-        assertFalse(template.match("a.b", "b", XContentFieldType.OBJECT));
-        assertFalse(template.match("a.b", "b", XContentFieldType.BINARY));
+        assertTrue(template.match("a.b", "b", null, XContentFieldType.BOOLEAN));
+        assertTrue(template.match("a.b", "b", null, XContentFieldType.DATE));
+        assertTrue(template.match("a.b", "b", null, XContentFieldType.STRING));
+        assertTrue(template.match("a.b", "b", null, XContentFieldType.DOUBLE));
+        assertTrue(template.match("a.b", "b", null, XContentFieldType.LONG));
+        assertFalse(template.match("a.b", "b", null, XContentFieldType.OBJECT));
+        assertFalse(template.match("a.b", "b", null, XContentFieldType.BINARY));
     }
 
     public void testMatchAllTypesTemplateRuntime() {
@@ -188,13 +188,13 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("runtime", Collections.emptyMap());
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         assertTrue(template.isRuntimeMapping());
-        assertTrue(template.match("a.b", "b", XContentFieldType.BOOLEAN));
-        assertTrue(template.match("a.b", "b", XContentFieldType.DATE));
-        assertTrue(template.match("a.b", "b", XContentFieldType.STRING));
-        assertTrue(template.match("a.b", "b", XContentFieldType.DOUBLE));
-        assertTrue(template.match("a.b", "b", XContentFieldType.LONG));
-        assertFalse(template.match("a.b", "b", XContentFieldType.OBJECT));
-        assertFalse(template.match("a.b", "b", XContentFieldType.BINARY));
+        assertTrue(template.match("a.b", "b", null, XContentFieldType.BOOLEAN));
+        assertTrue(template.match("a.b", "b", null, XContentFieldType.DATE));
+        assertTrue(template.match("a.b", "b", null, XContentFieldType.STRING));
+        assertTrue(template.match("a.b", "b", null, XContentFieldType.DOUBLE));
+        assertTrue(template.match("a.b", "b", null, XContentFieldType.LONG));
+        assertFalse(template.match("a.b", "b", null, XContentFieldType.OBJECT));
+        assertFalse(template.match("a.b", "b", null, XContentFieldType.BINARY));
     }
 
     public void testMatchTypeTemplate() {
@@ -202,8 +202,8 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("match_mapping_type", "string");
         templateDef.put("mapping", Collections.singletonMap("store", true));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
-        assertTrue(template.match("a.b", "b", XContentFieldType.STRING));
-        assertFalse(template.match("a.b", "b", XContentFieldType.BOOLEAN));
+        assertTrue(template.match("a.b", "b", null, XContentFieldType.STRING));
+        assertFalse(template.match("a.b", "b", null, XContentFieldType.BOOLEAN));
         assertFalse(template.isRuntimeMapping());
     }
 
@@ -212,9 +212,19 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("match_mapping_type", "string");
         templateDef.put("runtime", Collections.emptyMap());
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
-        assertTrue(template.match("a.b", "b", XContentFieldType.STRING));
-        assertFalse(template.match("a.b", "b", XContentFieldType.BOOLEAN));
+        assertTrue(template.match("a.b", "b", null, XContentFieldType.STRING));
+        assertFalse(template.match("a.b", "b", null, XContentFieldType.BOOLEAN));
         assertTrue(template.isRuntimeMapping());
+    }
+
+    public void testMatchHintTemplate() {
+        Map<String, Object> templateDef = new HashMap<>();
+        templateDef.put("match_mapping_hint", "location");
+        templateDef.put("mapping", Collections.singletonMap("store", true));
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+        assertTrue(template.match("a.b", "b", "location", randomFrom(XContentFieldType.values())));
+        assertFalse(template.match("a.b", "b", null, randomFrom(XContentFieldType.values())));
+        assertFalse(template.match("a.b", "b", "point", randomFrom(XContentFieldType.values())));
     }
 
     public void testSupportedMatchMappingTypesRuntime() {
@@ -228,7 +238,7 @@ public class DynamicTemplateTests extends ESTestCase {
             assertEquals("Dynamic template [my_template] defines a runtime field but type [" + type + "] is not supported as runtime field",
                 e.getMessage());
         }
-        XContentFieldType[] supported = XContentFieldType.getBuiltinTypes().stream()
+        XContentFieldType[] supported = Arrays.stream(XContentFieldType.values())
             .filter(XContentFieldType::supportsRuntimeField).toArray(XContentFieldType[]::new);
         for (XContentFieldType type : supported) {
             Map<String, Object> templateDef = new HashMap<>();

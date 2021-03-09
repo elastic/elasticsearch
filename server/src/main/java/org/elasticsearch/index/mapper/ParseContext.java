@@ -670,14 +670,24 @@ public abstract class ParseContext {
     public abstract List<RuntimeFieldType> getDynamicRuntimeFields();
 
     /**
-     * Returns a dynamic matching type hint for the given full path of a file if exists.
+     * Find a dynamic mapping template for the given field and its matching type
+     *
+     * @param name      the name of the field
+     * @param matchType the expecting matchType of the field
+     * @return the matching template; otherwise returns null
+     * @throws MapperParsingException if the given field has a type hint, but no template matches
      */
-    public final DynamicTemplate.XContentFieldType getDynamicMatchingTypeHint(String fullPath) {
-        final String typeHint = sourceToParse().dynamicMappingHints().get(fullPath);
-        if (typeHint != null) {
-            return DynamicTemplate.XContentFieldType.createCustomType(typeHint);
-        } else {
-            return null;
+    public final DynamicTemplate findDynamicTemplate(String name, DynamicTemplate.XContentFieldType matchType) {
+        final String pathAsString = path().pathAsText(name);
+        final String matchHint = sourceToParse().dynamicMappingHints().get(pathAsString);
+        for (DynamicTemplate dynamicTemplate : root().dynamicTemplates()) {
+            if (dynamicTemplate.match(pathAsString, name, matchHint, matchType)) {
+                return dynamicTemplate;
+            }
         }
+        if (matchHint != null) {
+            throw new MapperParsingException("Can't find template for matching hint [" + matchHint + "] of field [" + name + "]");
+        }
+        return null;
     }
 }

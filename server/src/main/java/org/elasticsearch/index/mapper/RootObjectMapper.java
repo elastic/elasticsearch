@@ -289,12 +289,15 @@ public class RootObjectMapper extends ObjectMapper {
         return runtimeFieldTypes.get(name);
     }
 
-    public DynamicTemplate findTemplate(ContentPath path, String name, XContentFieldType matchType) {
+    public DynamicTemplate findTemplate(ContentPath path, String name, String hint, XContentFieldType matchType) {
         final String pathAsString = path.pathAsText(name);
         for (DynamicTemplate dynamicTemplate : dynamicTemplates.value()) {
-            if (dynamicTemplate.match(pathAsString, name, matchType)) {
+            if (dynamicTemplate.match(pathAsString, name, hint, matchType)) {
                 return dynamicTemplate;
             }
+        }
+        if (hint != null) {
+            throw new MapperParsingException("Can't find template for matching type [" + hint + "] of field [" + name + "]");
         }
         return null;
     }
@@ -404,11 +407,10 @@ public class RootObjectMapper extends ObjectMapper {
         if (template.getXContentFieldType() != null) {
             types = new XContentFieldType[]{template.getXContentFieldType()};
         } else if (template.isRuntimeMapping()) {
-            types = XContentFieldType.getBuiltinTypes().stream()
-                .filter(XContentFieldType::supportsRuntimeField)
+            types = Arrays.stream(XContentFieldType.values()).filter(XContentFieldType::supportsRuntimeField)
                 .toArray(XContentFieldType[]::new);
         } else {
-            types = XContentFieldType.getBuiltinTypes().toArray(XContentFieldType[]::new);
+            types = XContentFieldType.values();
         }
 
         Exception lastError = null;

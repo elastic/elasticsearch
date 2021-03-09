@@ -192,7 +192,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 mappings.startObject();
                 mappings.startObject("locations");
                 {
-                    mappings.field("custom_mapping_type", "location");
+                    mappings.field("match_mapping_hint", "location");
                     mappings.startObject("mapping");
                     {
                         mappings.field("type", "geo_point");
@@ -208,17 +208,17 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").setMapping(mappings));
         List<IndexRequest> requests = new ArrayList<>();
         requests.add(new IndexRequest("test").id("1").source("location", "41.12,-71.34")
-            .setDynamicMappingTypeHints(Map.of("location", "location")));
+            .setDynamicMatchMappingHints(Map.of("location", "location")));
         requests.add(new IndexRequest("test").id("2").source(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("location").field("lat", 41.12).field("lon", -71.34).endObject()
                 .endObject())
-            .setDynamicMappingTypeHints(Map.of("location", "location")));
+            .setDynamicMatchMappingHints(Map.of("location", "location")));
         requests.add(new IndexRequest("test").id("3").source("address.location", "41.12,-71.34")
-            .setDynamicMappingTypeHints(Map.of("address.location", "location")));
+            .setDynamicMatchMappingHints(Map.of("address.location", "location")));
         requests.add(new IndexRequest("test").id("4").source("location", new double[]{-71.34, 41.12})
-            .setDynamicMappingTypeHints(Map.of("location", "location")));
+            .setDynamicMatchMappingHints(Map.of("location", "location")));
         requests.add(new IndexRequest("test").id("5").source("array_of_numbers", new double[]{-71.34, 41.12}));
 
         Randomness.shuffle(requests);
@@ -245,13 +245,13 @@ public class DynamicMappingIT extends ESIntegTestCase {
                     .startObject()
                     .field("my_location",  "41.12,-71.34")
                     .endObject())
-                .setDynamicMappingTypeHints(Map.of("my_location", "location"))
+                .setDynamicMatchMappingHints(Map.of("my_location", "location"))
         );
         final BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
         assertTrue(bulkItemResponses.hasFailures());
         for (BulkItemResponse resp : bulkItemResponses.getItems()) {
             assertThat(resp.getFailure().getCause(), instanceOf(MapperParsingException.class));
-            assertThat(resp.getFailureMessage(), containsString("Can't find template for matching type [location] of field [my_location]"));
+            assertThat(resp.getFailureMessage(), containsString("Can't find template for matching hint [location] of field [my_location]"));
         }
     }
 }

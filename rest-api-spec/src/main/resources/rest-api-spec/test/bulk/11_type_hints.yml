@@ -11,7 +11,7 @@
           mappings:
             dynamic_templates:
               - locations:
-                  custom_mapping_type: location_type
+                  match_mapping_hint: location_type
                   mapping:
                     type: geo_point
   - do:
@@ -27,7 +27,7 @@
           - index:
               _index: test_index
               _id: id_2
-              match_mapping_types:
+              match_mapping_hints:
                 location: location_type
           - location: "41.12,-71.34"
   - do:

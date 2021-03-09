@@ -544,7 +544,7 @@ final class DocumentParser {
                 parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
             } else {
                 Mapper objectMapperFromTemplate =
-                    dynamic.getDynamicFieldsBuilder().createFieldOrObjectMapperFromTemplate(context, arrayFieldName);
+                    dynamic.getDynamicFieldsBuilder().createObjectMapperFromTemplate(context, arrayFieldName);
                 if (objectMapperFromTemplate == null) {
                     parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
                 } else {

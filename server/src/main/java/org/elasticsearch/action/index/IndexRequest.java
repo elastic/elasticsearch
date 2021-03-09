@@ -109,7 +109,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
-    private Map<String, String> dynamicMappingTypeHints = Map.of();
+    private Map<String, String> dynamicMatchMappingHints = Map.of();
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -149,9 +149,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             requireAlias = false;
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            dynamicMappingTypeHints = in.readMap(StreamInput::readString, StreamInput::readString);
+            dynamicMatchMappingHints = in.readMap(StreamInput::readString, StreamInput::readString);
         } else {
-            dynamicMappingTypeHints = Map.of();
+            dynamicMatchMappingHints = Map.of();
         }
     }
 
@@ -663,9 +663,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeBoolean(requireAlias);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeMap(dynamicMappingTypeHints, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(dynamicMatchMappingHints, StreamOutput::writeString, StreamOutput::writeString);
         } else {
-            if (dynamicMappingTypeHints.isEmpty() == false) {
+            if (dynamicMatchMappingHints.isEmpty() == false) {
                 throw new IllegalStateException("Dynamic mapping type hints requires all nodes in the cluster on 8.0 or later");
             }
         }
@@ -727,12 +727,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
-    public IndexRequest setDynamicMappingTypeHints(Map<String, String> dynamicMappingTypeHints) {
-        this.dynamicMappingTypeHints = Objects.requireNonNull(dynamicMappingTypeHints);
+    public IndexRequest setDynamicMatchMappingHints(Map<String, String> dynamicMatchMappingHints) {
+        this.dynamicMatchMappingHints = Objects.requireNonNull(dynamicMatchMappingHints);
         return this;
     }
 
-    public Map<String, String> getDynamicMappingTypeHints() {
-        return dynamicMappingTypeHints;
+    public Map<String, String> getDynamicMatchMappingHints() {
+        return dynamicMatchMappingHints;
     }
 }

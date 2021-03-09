@@ -8,10 +8,12 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexNotFoundException;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
@@ -41,7 +43,24 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
         }
         getClient().admin().indices()
             .delete(new DeleteIndexRequest(shrinkIndexName).masterNodeTimeout(getMasterTimeout(currentClusterState)),
-                ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                        // even if not all nodes acked the delete request yet we can consider this operation as successful as
+                        // we'll generate a new index name and attempt to shrink into the newly generated name
+                        listener.onResponse(true);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (e instanceof IndexNotFoundException) {
+                            // we can move on if the index was deleted in the meantime
+                            listener.onResponse(true);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }
+                });
     }
 
 }

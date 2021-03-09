@@ -77,47 +77,43 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
         final CountDown completionCounter = new CountDown(totalNumRequest);
         final List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());
-        final ActionListener<List<FieldCapabilitiesIndexResponse>> countDownListener = new ActionListener<>() {
-            @Override
-            public void onResponse(List<FieldCapabilitiesIndexResponse> results) {
-                for (FieldCapabilitiesIndexResponse res : results) {
-                    if (res.canMatch()) {
-                        indexResponses.add(res);
-                    }
-                }
-                countDown();
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                // TODO we should somehow inform the user that we failed
-                countDown();
-            }
-
-            private void countDown() {
-                if (completionCounter.countDown()) {
-                    if (request.isMergeResults()) {
-                        listener.onResponse(merge(indexResponses, request.includeUnmapped()));
-                    } else {
-                        listener.onResponse(new FieldCapabilitiesResponse(indexResponses));
-                    }
+        final Runnable countDown = () -> {
+            if (completionCounter.countDown()) {
+                if (request.isMergeResults()) {
+                    listener.onResponse(merge(indexResponses, request.includeUnmapped()));
+                } else {
+                    listener.onResponse(new FieldCapabilitiesResponse(indexResponses));
                 }
             }
         };
 
         for (String index : concreteIndices) {
-            client.executeLocally(TransportFieldCapabilitiesIndexAction.TYPE,
+            client.executeLocally(
+                TransportFieldCapabilitiesIndexAction.TYPE,
                 new FieldCapabilitiesIndexRequest(
                     request.fields(),
                     index,
                     localIndices,
                     request.indexFilter(),
-                    nowInMillis, request.runtimeFields()
+                    nowInMillis,
+                    request.runtimeFields()
                 ),
-                ActionListener.wrap(
-                    response -> countDownListener.onResponse(Collections.singletonList(response)),
-                    countDownListener::onFailure
-                )
+                new ActionListener<FieldCapabilitiesIndexResponse>() {
+                    @Override
+                    public void onResponse(FieldCapabilitiesIndexResponse result) {
+                        if (result.canMatch()) {
+                            indexResponses.add(result);
+                        }
+                        countDown.run();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        indexResponses.add(new FieldCapabilitiesIndexResponse(index, e));
+                        countDown.run();
+                    }
+                }
             );
         }
 
@@ -135,27 +131,52 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             remoteRequest.runtimeFields(request.runtimeFields());
             remoteRequest.indexFilter(request.indexFilter());
             remoteRequest.nowInMillis(nowInMillis);
-            remoteClusterClient.fieldCaps(remoteRequest,
-                ActionListener.wrap(response -> {
-                    List<FieldCapabilitiesIndexResponse> remotes = new ArrayList<>();
-                    for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
-                        remotes.add(new FieldCapabilitiesIndexResponse(
-                            RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName()),
-                            resp.get(), resp.canMatch()));
+            remoteClusterClient.fieldCaps(remoteRequest, ActionListener.wrap(response -> {
+                List<FieldCapabilitiesIndexResponse> remotes = new ArrayList<>();
+                for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
+                    if (resp.getException() == null) {
+                        remotes.add(
+                            new FieldCapabilitiesIndexResponse(
+                                RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName()),
+                                resp.get(),
+                                resp.canMatch()
+                            )
+                        );
+                    } else {
+                        remotes.add(
+                            new FieldCapabilitiesIndexResponse(
+                                RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName()),
+                                resp.getException()
+                            )
+                        );
                     }
-                    countDownListener.onResponse(remotes);
-                }, countDownListener::onFailure));
+                    ;
+                }
+                indexResponses.addAll(remotes);
+                countDown.run();
+            }, e -> {
+                // individual index failures should show up as remote responses containing an exception
+                countDown.run();
+                }
+            ));
         }
     }
 
     private FieldCapabilitiesResponse merge(List<FieldCapabilitiesIndexResponse> indexResponses, boolean includeUnmapped) {
         String[] indices = indexResponses.stream()
+            .filter(response -> response.getException() == null)
             .map(FieldCapabilitiesIndexResponse::getIndexName)
             .sorted()
             .toArray(String[]::new);
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<> ();
+        final Map<String, Exception> failureMap = new HashMap<> ();
         for (FieldCapabilitiesIndexResponse response : indexResponses) {
-            innerMerge(responseMapBuilder, response.getIndexName(), response.get());
+            if (response.getException() == null) {
+                innerMerge(responseMapBuilder, response.getIndexName(), response.get());
+            } else {
+                failureMap.put(response.getIndexName(), response.getException());
+            }
+
         }
         final Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
         for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
@@ -170,8 +191,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
             responseMap.put(entry.getKey(), Collections.unmodifiableMap(typeMap));
         }
-
-        return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap));
+        return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap), Collections.unmodifiableMap(failureMap));
     }
 
     private void addUnmappedFields(String[] indices, String field, Map<String, FieldCapabilities.Builder> typeMap) {

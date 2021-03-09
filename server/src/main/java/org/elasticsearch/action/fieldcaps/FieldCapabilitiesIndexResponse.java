@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -25,11 +26,20 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
     private final String indexName;
     private final Map<String, IndexFieldCapabilities> responseMap;
     private final boolean canMatch;
+    private final Exception exception;
 
     FieldCapabilitiesIndexResponse(String indexName, Map<String, IndexFieldCapabilities> responseMap, boolean canMatch) {
         this.indexName = indexName;
         this.responseMap = responseMap;
         this.canMatch = canMatch;
+        this.exception = null;
+    }
+
+    FieldCapabilitiesIndexResponse(String indexName, Exception exception) {
+        this.indexName = indexName;
+        this.responseMap = Collections.emptyMap();
+        this.canMatch = false;
+        this.exception = exception;
     }
 
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
@@ -37,6 +47,7 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
         this.indexName = in.readString();
         this.responseMap = in.readMap(StreamInput::readString, IndexFieldCapabilities::new);
         this.canMatch = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readBoolean() : true;
+        this.exception = in.getVersion().onOrAfter(Version.CURRENT) ? in.readException() : null;
     }
 
     /**
@@ -58,6 +69,13 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
     }
 
     /**
+     * Get the optional exception if there is any, otherwise returns null
+     */
+    public Exception getException() {
+        return exception;
+    }
+
+    /**
      *
      * Get the field capabilities for the provided {@code field}
      */
@@ -72,6 +90,9 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
         if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             out.writeBoolean(canMatch);
         }
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            out.writeException(exception);
+        }
     }
 
     @Override
@@ -81,11 +102,12 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
         FieldCapabilitiesIndexResponse that = (FieldCapabilitiesIndexResponse) o;
         return canMatch == that.canMatch &&
             Objects.equals(indexName, that.indexName) &&
-            Objects.equals(responseMap, that.responseMap);
+            Objects.equals(responseMap, that.responseMap) &&
+            Objects.equals(exception, that.exception);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexName, responseMap, canMatch);
+        return Objects.hash(indexName, responseMap, canMatch, exception);
     }
 }

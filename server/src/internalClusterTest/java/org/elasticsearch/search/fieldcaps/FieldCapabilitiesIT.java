@@ -8,30 +8,46 @@
 
 package org.elasticsearch.search.fieldcaps;
 
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class FieldCapabilitiesIT extends ESIntegTestCase {
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -95,7 +111,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(FieldFilterPlugin.class);
+        return List.of(FieldFilterPlugin.class, ExceptionOnRewriteQueryPlugin.class);
     }
 
     public void testFieldAlias() {
@@ -235,10 +251,117 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertTrue(newField.containsKey("keyword"));
     }
 
+    public void testWithRunntimeMappings() throws InterruptedException {
+        Map<String, Object> runtimeFields = new HashMap<>();
+        runtimeFields.put("day_of_week", Collections.singletonMap("type", "keyword"));
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setRuntimeFields(runtimeFields).get();
+        Map<String, FieldCapabilities> runtimeField = response.getField("day_of_week");
+        assertNotNull(runtimeField);
+        assertEquals("day_of_week", runtimeField.get("keyword").getName());
+        assertEquals("keyword", runtimeField.get("keyword").getType());
+        assertTrue(runtimeField.get("keyword").isSearchable());
+        assertTrue(runtimeField.get("keyword").isAggregatable());
+    }
+
+    public void testFailures() throws InterruptedException {
+        assertAcked(prepareCreate("index1-error"));
+        assertAcked(prepareCreate("index2-error"));
+        FieldCapabilitiesResponse response = client().prepareFieldCaps()
+            .setFields("*")
+            .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
+            .get();
+        Map<String, Exception> failures = response.getFailures();
+        assertThat(failures.keySet(), containsInAnyOrder("index1-error", "index2-error"));
+        for (String index : List.of("index1-error", "index2-error")) {
+            Exception failure = failures.get(index);
+            assertEquals(RemoteTransportException.class, failure.getClass());
+            assertEquals(IllegalArgumentException.class, failure.getCause().getClass());
+            assertEquals("I throw because I choose to.", failure.getCause().getMessage());
+        }
+        // the "indices" section should not include failed ones
+        assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder("old_index", "new_index"));
+        assertEquals(RestStatus.OK, response.status());
+
+        // if all requested indices failed, we also want the request to fail
+        response = client().prepareFieldCaps("index1-error", "index2-error")
+            .setFields("*")
+            .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
+            .get();
+        assertThat(failures.keySet(), containsInAnyOrder("index1-error", "index2-error"));
+        assertEquals(0, response.getIndices().length);
+        assertEquals(RestStatus.BAD_REQUEST, response.status());
+    }
+
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {
         assertNotNull(response.getIndices());
         Arrays.sort(indices);
         Arrays.sort(response.getIndices());
         assertArrayEquals(indices, response.getIndices());
+    }
+
+    /**
+     * Adds an "exception" query that  throws on rewrite if the index name contains the string "error"
+     */
+    public static class ExceptionOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
+
+        public ExceptionOnRewriteQueryPlugin() {}
+
+        @Override
+        public List<QuerySpec<?>> getQueries() {
+            return singletonList(
+                new QuerySpec<>("exception", ExceptionOnRewriteQueryBuilder::new, p -> new ExceptionOnRewriteQueryBuilder())
+            );
+        }
+    }
+
+    static class ExceptionOnRewriteQueryBuilder extends AbstractQueryBuilder<ExceptionOnRewriteQueryBuilder> {
+
+        public static final String NAME = "exception";
+
+        ExceptionOnRewriteQueryBuilder() {}
+
+        ExceptionOnRewriteQueryBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            SearchExecutionContext searchExecutionContext = queryRewriteContext.convertToSearchExecutionContext();
+            if (searchExecutionContext != null) {
+                if (searchExecutionContext.indexMatches("*error*")) {
+                    throw new IllegalArgumentException("I throw because I choose to.");
+                };
+            }
+            return this;
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) {}
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(NAME);
+            builder.endObject();
+        }
+
+        @Override
+        protected Query doToQuery(SearchExecutionContext context) {
+            return new MatchAllDocsQuery();
+        }
+
+        @Override
+        protected boolean doEquals(ExceptionOnRewriteQueryBuilder other) {
+            return false;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
     }
 }

@@ -85,7 +85,8 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
                     FieldCapabilitiesTests.randomFieldCaps(toReplace)));
                 break;
         }
-        return new FieldCapabilitiesResponse(null, mutatedResponses);
+        // TODO pass real list
+        return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyMap());
     }
 
     @Override
@@ -105,7 +106,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         String generatedResponse = BytesReference.bytes(builder).utf8ToString();
         assertEquals((
             "{" +
-            "    \"indices\": null," +
+            "    \"indices\": [\"index1\",\"index2\",\"index3\",\"index4\"]," +
             "    \"fields\": {" +
             "        \"rating\": { " +
             "            \"keyword\": {" +
@@ -130,7 +131,10 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
             "                \"aggregatable\": false" +
             "            }" +
             "        }" +
-            "    }" +
+            "    }," +
+            "    \"failed_indices\":1," +
+            "    \"failures\":{\"errorindex\":{\"error\":{\"root_cause\":[{\"type\":\"illegal_argument_exception\"," +
+            "       \"reason\":\"test\"}],\"type\":\"illegal_argument_exception\",\"reason\":\"test\"}}}" +
             "}").replaceAll("\\s+", ""), generatedResponse);
     }
 
@@ -158,6 +162,8 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         Map<String, Map<String, FieldCapabilities>> responses = new HashMap<>();
         responses.put("title", titleCapabilities);
         responses.put("rating", ratingCapabilities);
-        return new FieldCapabilitiesResponse(null, responses);
+
+        Map<String, Exception> failureMap = Collections.singletonMap("errorindex", new IllegalArgumentException("test"));
+        return new FieldCapabilitiesResponse(new String[] {"index1", "index2", "index3", "index4"}, responses, failureMap);
     }
 }

@@ -8,28 +8,39 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.ElasticsearchExceptionTests;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestCase<FieldCapabilitiesResponse> {
 
     @Override
     protected FieldCapabilitiesResponse createTestInstance() {
+        FieldCapabilitiesResponse randomResponse;
         List<FieldCapabilitiesIndexResponse> responses = new ArrayList<>();
         int numResponse = randomIntBetween(0, 10);
 
         for (int i = 0; i < numResponse; i++) {
             responses.add(createRandomIndexResponse());
         }
-        return new FieldCapabilitiesResponse(responses);
+        randomResponse = new FieldCapabilitiesResponse(responses);
+        return randomResponse;
     }
 
     @Override
@@ -91,6 +102,42 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                     FieldCapabilitiesTests.randomFieldCaps(toReplace)));
                 break;
         }
-        return new FieldCapabilitiesResponse(null, mutatedResponses);
+        return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyMap());
+    }
+
+    public void testFailureSerialization() throws IOException {
+        String[] indices = randomArray(randomIntBetween(1, 5), String[]::new, () -> randomAlphaOfLength(5));
+        Map<String, Exception> failures = new HashMap<>();
+        for (String index : indices) {
+            failures.put(index, (Exception) ElasticsearchExceptionTests.randomExceptions().v1());
+        }
+        FieldCapabilitiesResponse randomResponse = new FieldCapabilitiesResponse(indices, Collections.emptyMap(), failures);
+        FieldCapabilitiesResponse deserialized = copyInstance(randomResponse);
+        assertThat(deserialized.getIndices(), Matchers.equalTo(randomResponse.getIndices()));
+        // only match keys, exception equality is difficult to assert
+        assertThat(deserialized.getFailures().keySet(), Matchers.equalTo(randomResponse.getFailures().keySet()));
+    }
+
+    public void testFailureParsing() throws IOException {
+        String[] indices = randomArray(randomIntBetween(1, 5), String[]::new, () -> randomAlphaOfLength(5));
+        Map<String, Exception> failures = new HashMap<>();
+        for (String index : indices) {
+            failures.put(index, (Exception) ElasticsearchExceptionTests.randomExceptions().v1());
+        }
+        FieldCapabilitiesResponse randomResponse = new FieldCapabilitiesResponse(indices, Collections.emptyMap(), failures);
+
+        boolean humanReadable = randomBoolean();
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference originalBytes = toShuffledXContent(randomResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        FieldCapabilitiesResponse parsedResponse;
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            parsedResponse = FieldCapabilitiesResponse.fromXContent(parser);
+            assertNull(parser.nextToken());
+        }
+        assertNotSame(parsedResponse, randomResponse);
+        assertThat(parsedResponse.getIndices(), Matchers.equalTo(randomResponse.getIndices()));
+        // only match keys, exception equality is difficult to assert
+        assertThat(parsedResponse.getFailures().keySet(), Matchers.equalTo(randomResponse.getFailures().keySet()));
+        assertThat(Arrays.asList(parsedResponse.getFailedIndices()), containsInAnyOrder(indices));
     }
 }

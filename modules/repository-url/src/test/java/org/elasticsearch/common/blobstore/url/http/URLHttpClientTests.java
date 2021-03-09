@@ -57,6 +57,9 @@ public class URLHttpClientTests extends ESTestCase {
         httpServer.stop(1);
         httpClient.close();
         httpClientFactory.close();
+        httpServer = null;
+        httpClientFactory = null;
+        httpClient = null;
     }
 
     public void testSuccessfulRequest() throws Exception {

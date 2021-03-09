@@ -14,6 +14,7 @@ import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClientSettings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -36,6 +37,14 @@ public class FileURLBlobStoreTests extends AbstractURLBlobStoreTests {
         Files.write(file, data);
         blobStore = new URLBlobStore(Settings.EMPTY, file.getParent().toUri().toURL(), mock(URLHttpClient.class),
             mock(URLHttpClientSettings.class));
+    }
+
+    @AfterClass
+    public static void cleanData() {
+        data = null;
+        blobName = null;
+        blobStore = null;
+        file = null;
     }
 
     @Override

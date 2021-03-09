@@ -97,9 +97,13 @@ public class HttpURLBlobStoreTests extends AbstractURLBlobStoreTests {
     @AfterClass
     public static void stopHttp() throws IOException {
         httpServer.stop(0);
-        httpServer = null;
         httpClient.close();
         httpClientFactory.close();
+        httpServer = null;
+        httpClientFactory = null;
+        httpClient = null;
+        blobName = null;
+        content = null;
     }
 
     @Before

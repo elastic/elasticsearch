@@ -30,7 +30,7 @@ For more information about the native realm, see
 `<roles>`::
 (Required, string)
 Comma-separated list of roles to evict from the native role cache. Supports
-wildcard (`*`) patterns. To evict all roles from the cache, use `_all` or `*`.
+wildcard (`*`) patterns. To evict all roles from the cache, use `*`.
 
 
 [[security-api-clear-role-cache-example]]
@@ -52,10 +52,9 @@ are also supported.
 POST /_security/role/my_admin_role,my_test_role-*/_clear_cache
 ----
 
-To clear all roles from the cache, use `_all` or `*`.
+To clear all roles from the cache, use `*`.
 
 [source,console]
 ----
-POST /_security/role/_all/_clear_cache
 POST /_security/role/*/_clear_cache
 ----

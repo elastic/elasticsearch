@@ -82,6 +82,12 @@ public abstract class SecureSetting<T> extends Setting<T> {
         }
     }
 
+    @Override
+    void validateWithoutDependencies(Settings settings) {
+        // secure settings have no Setting.Validator
+        get(settings);
+    }
+
     /**
      * Returns the digest of this secure setting's value or {@code null} if the setting is missing (inside the keystore). This method can be
      * called even after the {@code SecureSettings} have been closed, unlike {@code #get(Settings)}. The digest is used to check for changes

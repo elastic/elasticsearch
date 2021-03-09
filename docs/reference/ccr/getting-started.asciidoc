@@ -57,6 +57,16 @@ response time
 In this guide, you'll learn how to:
 
 * Configure a <<modules-remote-clusters,remote cluster>> with a leader index
+
+[IMPORTANT]
+====
+* In the local cluster, the <<remote-node,`remote_cluster_client`>>
+  <<node-roles,role>> must be configured on nodes with the `master` role, and on
+  at least one data node in the local cluster. Note that individual tasks for
+  coordinating replication scales with the number of data nodes in the local
+  cluster that have the `remote_cluster_client` role.
+====
+
 * Create a follower index on a local cluster
 * Create an auto-follow pattern to automatically follow time series indices
 that are periodically created in a remote cluster

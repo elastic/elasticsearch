@@ -35,9 +35,11 @@ update.
 === Phase transitions
 
 {ilm-init} moves indices through the lifecycle according to their age. 
-To control the timing of these transitions, you set a _minimum age_ for each phase. 
-For an index to move to the next phase, all actions in the current phase must be complete and 
-the index must be older than the minimum age of the next phase. 
+To control the timing of these transitions, you set a _minimum age_ for each phase. For an index to
+move to the next phase, all actions in the current phase must be complete and the index must be
+older than the minimum age of the next phase. Configured minimum ages must increase between
+subsequent phases, for example, a "warm" phase with a minimum age of 10 days can only be followed by
+a "cold" phase with a minimum age either unset, or >= 10 days.
 
 The minimum age defaults to zero, which causes {ilm-init} to move indices to the next phase
 as soon as all actions in the current phase complete. 

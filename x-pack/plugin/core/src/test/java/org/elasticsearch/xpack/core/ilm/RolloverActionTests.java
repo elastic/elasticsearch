@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -15,6 +16,9 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> {
 
@@ -117,5 +121,19 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         assertEquals(action.getMaxAge(), firstStep.getMaxAge());
         assertEquals(action.getMaxDocs(), firstStep.getMaxDocs());
         assertEquals(nextStepKey, fifthStep.getNextStepKey());
+    }
+
+    public void testBwcSerializationWithMaxPrimaryShardSize() throws Exception {
+        // In case of serializing to node with older version, replace maxPrimaryShardSize with maxSize.
+        RolloverAction instance = new RolloverAction(null, new ByteSizeValue(1L), null, null);
+        RolloverAction deserializedInstance = copyInstance(instance, Version.V_7_11_2);
+        assertThat(deserializedInstance.getMaxPrimaryShardSize(), nullValue());
+        assertThat(deserializedInstance.getMaxSize(), equalTo(instance.getMaxPrimaryShardSize()));
+
+        // But not if maxSize is also specified:
+        instance = new RolloverAction(new ByteSizeValue(1L), new ByteSizeValue(2L), null, null);
+        deserializedInstance = copyInstance(instance, Version.V_7_11_2);
+        assertThat(deserializedInstance.getMaxPrimaryShardSize(), nullValue());
+        assertThat(deserializedInstance.getMaxSize(), equalTo(instance.getMaxSize()));
     }
 }

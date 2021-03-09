@@ -86,8 +86,8 @@
 ---
 "get cluster stats without runtime fields":
   - skip:
-      version: " - 7.99.99"
-      reason:  "cluster stats includes runtime fields from 8.0 on"
+      version: " - 7.12.99"
+      reason:  "cluster stats includes runtime fields from 7.13 on"
   - do:
       indices.create:
         index: sensor
@@ -99,8 +99,8 @@
 ---
 "Usage stats with script-less runtime fields":
   - skip:
-      version: " - 7.99.99"
-      reason:  "cluster stats includes runtime fields from 8.0 on"
+      version: " - 7.12.99"
+      reason:  "cluster stats includes runtime fields from 7.13 on"
   - do:
       indices.create:
         index: sensor

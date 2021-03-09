@@ -402,7 +402,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return "[" + name.substring(start + 1, end) + "] ";
     }
 
-    private void ensureNoWarnings() {
+    public void ensureNoWarnings() {
         //Check that there are no unaccounted warning headers. These should be checked with {@link #assertWarnings(String...)} in the
         //appropriate test
         try {

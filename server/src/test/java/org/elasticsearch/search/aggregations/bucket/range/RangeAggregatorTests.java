@@ -177,7 +177,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 true,
                 false,
                 null,
-                null
+                Collections.emptyMap()
             )
         );
     }
@@ -191,7 +191,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
-            null
+            Collections.emptyMap()
         );
 
         long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -280,7 +280,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             true,
             false,
             null,
-            null
+            Collections.emptyMap()
         );
 
         long start = 2L << 54; // Double stores 53 bits of mantissa, so we aggregate a bunch of bigger values
@@ -476,7 +476,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             true,
             false,
             null,
-            null
+            Collections.emptyMap()
         );
         RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test_range_agg");
         aggregationBuilder.field(NUMBER_FIELD_NAME);

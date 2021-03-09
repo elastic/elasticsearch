@@ -74,6 +74,7 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
             default:
                 fail("unknown group source type, please implement tests and add support here");
         }
+        return null;
     }
 
     @Override

@@ -579,16 +579,20 @@ public abstract class ESRestTestCase extends ESTestCase {
                         .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
                         .filter(name -> isXPackTemplate(name) == false)
                         .collect(Collectors.toList());
-                    try {
-                        adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
-                    } catch (ResponseException e) {
-                        logger.debug(new ParameterizedMessage("unable to remove multiple composable index template {}", names), e);
+                    // Ideally we would want to check the version of the elected master node and
+                    // send the delete request directly to that node.
+                    if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_8_0_0))) {
+                        try {
+                            adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
+                        } catch (ResponseException e) {
+                            logger.debug(new ParameterizedMessage("unable to remove multiple composable index template {}", names), e);
+                        }
+                    } else {
                         for (String name : names) {
                             try {
                                 adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
-                            } catch (ResponseException e1) {
-                                e1.addSuppressed(e);
-                                logger.debug(new ParameterizedMessage("unable to remove composable index template {}", name), e1);
+                            } catch (ResponseException e) {
+                                logger.debug(new ParameterizedMessage("unable to remove composable index template {}", name), e);
                             }
                         }
                     }

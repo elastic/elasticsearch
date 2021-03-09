@@ -640,26 +640,42 @@ public class MetadataIndexTemplateService {
     // Package visible for testing
     static ClusterState innerRemoveIndexTemplateV2(ClusterState currentState, String... names) {
         Set<String> templateNames = new HashSet<>();
-        for (String templateName : currentState.metadata().templatesV2().keySet()) {
+
+        if (names.length > 1) {
+            Set<String> missingNames = null;
             for (String name : names) {
+                if (currentState.metadata().templatesV2().containsKey(name)) {
+                    templateNames.add(name);
+                } else {
+                    if (missingNames == null) {
+                        missingNames = new HashSet<>();
+                    }
+                    missingNames.add(name);
+                }
+            }
+
+            if (missingNames != null) {
+                throw new IndexTemplateMissingException(String.join(",", missingNames));
+            }
+        } else {
+            final String name = names[0];
+            for (String templateName : currentState.metadata().templatesV2().keySet()) {
                 if (Regex.simpleMatch(name, templateName)) {
                     templateNames.add(templateName);
                 }
             }
-        }
-        if (templateNames.isEmpty()) {
-            // if its a match all pattern, and no templates are found (we have none), don't
-            // fail with index missing...
-            boolean isMatchAll = false;
-            for (String name : names) {
+            if (templateNames.isEmpty()) {
+                // if its a match all pattern, and no templates are found (we have none), don't
+                // fail with index missing...
+                boolean isMatchAll = false;
                 if (Regex.isMatchAllPattern(name)) {
                     isMatchAll = true;
                 }
-            }
-            if (isMatchAll) {
-                return currentState;
-            } else {
-                throw new IndexTemplateMissingException(String.join(",", names));
+                if (isMatchAll) {
+                    return currentState;
+                } else {
+                    throw new IndexTemplateMissingException(name);
+                }
             }
         }
 

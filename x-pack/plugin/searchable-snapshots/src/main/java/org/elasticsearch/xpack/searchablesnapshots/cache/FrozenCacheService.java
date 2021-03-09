@@ -607,7 +607,11 @@ public class FrozenCacheService implements Releasable {
         }
 
         @Nullable
-        public StepListener<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
+        private StepListener<Integer> readIfAvailableOrPending(
+            final ByteRange rangeToRead,
+            final long regionRelativeStart,
+            final RangeAvailableHandler reader
+        ) {
             final StepListener<Integer> listener = new StepListener<>();
             Releasable decrementRef = null;
             try {
@@ -619,7 +623,10 @@ public class FrozenCacheService implements Releasable {
                 listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
                 final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedPageIndex);
                 listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
-                if (tracker.waitForRangeIfPending(rangeToRead, rangeListener(rangeToRead, reader, listener, fileChannel))) {
+                if (tracker.waitForRangeIfPending(
+                    rangeToRead,
+                    rangeListener(rangeToRead, regionRelativeStart, reader, listener, fileChannel)
+                )) {
                     return listener;
                 } else {
                     IOUtils.close(decrementRef, fileChannel::decRef);
@@ -633,13 +640,15 @@ public class FrozenCacheService implements Releasable {
 
         private ActionListener<Void> rangeListener(
             ByteRange rangeToRead,
+            long regionRelativeStart,
             RangeAvailableHandler reader,
             ActionListener<Integer> listener,
             SharedBytes.IO fileChannel
         ) {
+            final long relativePos = rangeToRead.start() + regionRelativeStart;
             return ActionListener.wrap(v -> {
                 assert regionOwners[sharedPageIndex].get() == CacheFileRegion.this;
-                final int read = reader.onRangeAvailable(fileChannel, rangeToRead.start(), rangeToRead.start(), rangeToRead.length());
+                final int read = reader.onRangeAvailable(fileChannel, rangeToRead.start(), relativePos, rangeToRead.length());
                 assert read == rangeToRead.length() : "partial read ["
                     + read
                     + "] does not match the range to read ["
@@ -732,14 +741,10 @@ public class FrozenCacheService implements Releasable {
                     headerCacheLength,
                     footerCacheLength
                 );
-                final long readRangeRelativeStart = rangeToRead.start() - regionStart;
-                final long writeRangeRelativeStart = rangeToWrite.start() - regionStart;
+                final long readRangeRelativeStart = regionStart - rangeToRead.start();
+                final long writeRangeRelativeStart = regionStart - rangeToWrite.start();
                 final CacheFileRegion fileRegion = get(cacheKey, fileSize, region, headerCacheLength, footerCacheLength);
                 final StepListener<Integer> listener = new StepListener<>();
-                final RangeAvailableHandler rangeAvailableHandler = (channel, channelPos, relativePos, length) -> {
-                    assert regionOwners[fileRegion.sharedPageIndex].get() == fileRegion;
-                    return reader.onRangeAvailable(channel, channelPos, relativePos - readRangeRelativeStart, length);
-                };
                 Releasable decrementRef = null;
                 try {
                     fileRegion.ensureOpen();
@@ -753,7 +758,7 @@ public class FrozenCacheService implements Releasable {
                     final List<SparseFileTracker.Gap> gaps = fileRegion.tracker.waitForRange(
                         subRangeToWrite,
                         subRangeToRead,
-                        fileRegion.rangeListener(subRangeToRead, rangeAvailableHandler, listener, fileChannel)
+                        fileRegion.rangeListener(subRangeToRead, readRangeRelativeStart, reader, listener, fileChannel)
                     );
                     for (SparseFileTracker.Gap gap : gaps) {
                         executor.execute(new AbstractRunnable() {
@@ -771,7 +776,7 @@ public class FrozenCacheService implements Releasable {
                                     writer.fillCacheRange(
                                         new SharedBytes.IO[] { fileChannel },
                                         start,
-                                        start - writeRangeRelativeStart,
+                                        start + writeRangeRelativeStart,
                                         gap.end() - start,
                                         progress -> gap.onProgress(start + progress)
                                     );
@@ -819,21 +824,13 @@ public class FrozenCacheService implements Releasable {
             ); region <= lastRegion; region++) {
                 final CacheFileRegion fileRegion = get(cacheKey, fileSize, region, headerCacheLength, footerCacheLength);
                 final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region, fileSize, headerCacheLength, footerCacheLength);
-                final long regionRelativeStart = start - sharedBytes.sharedCacheConfiguration.getRegionStart(
+                final long regionRelativeStart = sharedBytes.sharedCacheConfiguration.getRegionStart(
                     region,
                     fileSize,
                     headerCacheLength,
                     footerCacheLength
-                );
-                final StepListener<Integer> lis = fileRegion.readIfAvailableOrPending(
-                    subRangeToRead,
-                    (channel, channelPos, relativePos, length) -> reader.onRangeAvailable(
-                        channel,
-                        channelPos,
-                        relativePos - regionRelativeStart,
-                        length
-                    )
-                );
+                ) - start;
+                final StepListener<Integer> lis = fileRegion.readIfAvailableOrPending(subRangeToRead, regionRelativeStart, reader);
                 if (lis == null) {
                     return null;
                 }

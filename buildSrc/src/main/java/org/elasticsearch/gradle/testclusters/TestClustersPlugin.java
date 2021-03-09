@@ -63,13 +63,13 @@ public class TestClustersPlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         BuildParams.withInternalBuild(() -> project.getPlugins().apply(InternalDistributionDownloadPlugin.class))
             .orElse(() -> project.getPlugins().apply(DistributionDownloadPlugin.class));
-
         project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
-
-        ReaperService reaper = project.getRootProject().getExtensions().getByType(ReaperService.class);
-
+        Provider<ReaperService> reaperServiceProvider = GradleUtils.getBuildService(
+            project.getGradle().getSharedServices(),
+            ReaperPlugin.REAPER_SERVICE_NAME
+        );
         // enable the DSL to describe clusters
-        NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project, reaper);
+        NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project, reaperServiceProvider);
 
         // provide a task to be able to list defined clusters.
         createListClustersTask(project, container);
@@ -90,7 +90,10 @@ public class TestClustersPlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(TestClustersHookPlugin.class);
     }
 
-    private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(Project project, ReaperService reaper) {
+    private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(
+        Project project,
+        Provider<ReaperService> reaper
+    ) {
         // Create an extensions that allows describing clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(
             ElasticsearchCluster.class,

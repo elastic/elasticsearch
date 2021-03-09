@@ -77,7 +77,7 @@ public class TransportDeleteTrainedModelAction
                                    ActionListener<AcknowledgedResponse> listener) {
         String id = request.getId();
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-        Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata);
+        Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
 
         if (referencedModels.contains(id)) {
             listener.onFailure(new ElasticsearchStatusException("Cannot delete model [{}] as it is still referenced by ingest processors",
@@ -142,7 +142,7 @@ public class TransportDeleteTrainedModelAction
         });
     }
 
-    private Set<String> getReferencedModelKeys(IngestMetadata ingestMetadata) {
+    static Set<String> getReferencedModelKeys(IngestMetadata ingestMetadata, IngestService ingestService) {
         Set<String> allReferencedModelKeys = new HashSet<>();
         if (ingestMetadata == null) {
             return allReferencedModelKeys;

@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.elasticsearch.gradle.test.rest.transform.RestTestContext;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentObject;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 
 /**
@@ -33,6 +34,7 @@ public class RemoveMatch implements RestTestTransformByParentObject {
     }
 
     @Override
+    @Internal
     public String getKeyToFind() {
         return "match";
     }

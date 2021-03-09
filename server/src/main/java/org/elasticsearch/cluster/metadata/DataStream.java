@@ -24,6 +24,7 @@ import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -177,15 +178,19 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      * stream definitions that do not reference backing indices not contained in the snapshot.
      *
      * @param indicesInSnapshot List of indices in the snapshot
-     * @return Reconciled {@link DataStream} instance
+     * @return Reconciled {@link DataStream} instance or {@code null} if no reconciled version of this data stream could be built from the
+     *         given indices
      */
-    public DataStream snapshot(List<String> indicesInSnapshot) {
+    @Nullable
+    public DataStream snapshot(Collection<String> indicesInSnapshot) {
         // do not include indices not available in the snapshot
         List<Index> reconciledIndices = new ArrayList<>(this.indices);
-        reconciledIndices.removeIf(x -> indicesInSnapshot.contains(x.getName()) == false);
+        if (reconciledIndices.removeIf(x -> indicesInSnapshot.contains(x.getName()) == false) == false) {
+            return this;
+        }
 
         if (reconciledIndices.size() == 0) {
-            throw new IllegalArgumentException("cannot reconcile data stream without at least one backing index");
+            return null;
         }
 
         return new DataStream(

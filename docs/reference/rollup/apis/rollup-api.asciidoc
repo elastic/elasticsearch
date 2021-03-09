@@ -147,7 +147,8 @@ object, this property is required.
 `terms`::
 (Optional, <<search-aggregations-bucket-terms-aggregation,`terms`
 aggregation>> object)
-Stores values for <<keyword,keyword family>> and <<number,numeric>> fields.
+Groups and stores unique values for <<keyword,keyword family>> and
+<<number,numeric>> fields.
 +
 .Properties of `terms`
 [%collapsible%open]

@@ -146,7 +146,7 @@ String outputPath = 'src/main/java/org/elasticsearch/painless/antlr'
 
 tasks.register("cleanGenerated", Delete) {
   delete fileTree(grammarPath) {
-    include '*.tokens'
+    include '*Painless*.tokens'
   }
   delete fileTree(outputPath) {
     include 'Painless*.java'
@@ -217,4 +217,76 @@ tasks.register("regen") {
       patternset(includes: 'Painless*.java')
     }
   }
+}
+
+/**********************************************
+ *         Suggest lexer regeneration          *
+ **********************************************/
+
+configurations {
+    suggestRegenerate
+}
+
+dependencies {
+    regenerate 'org.antlr:antlr4:4.5.3'
+}
+
+String suggestGrammarPath = 'src/main/antlr'
+String suggestOutputPath = 'src/main/java/org/elasticsearch/painless/antlr'
+
+tasks.register("cleanSuggestGenerated", Delete) {
+    delete fileTree(grammarPath) {
+        include 'SuggestLexer.tokens'
+    }
+    delete fileTree(outputPath) {
+        include 'Suggest*.java'
+    }
+}
+
+tasks.register("regenSuggestLexer", JavaExec) {
+    dependsOn "cleanSuggestGenerated"
+    main = 'org.antlr.v4.Tool'
+    classpath = configurations.regenerate
+    systemProperty 'file.encoding', 'UTF-8'
+    systemProperty 'user.language', 'en'
+    systemProperty 'user.country', 'US'
+    systemProperty 'user.variant', ''
+    args '-Werror',
+            '-package', 'org.elasticsearch.painless.antlr',
+            '-o', outputPath,
+            "${file(grammarPath)}/SuggestLexer.g4"
+}
+
+tasks.register("regenSuggest") {
+    dependsOn "regenSuggestLexer"
+    doLast {
+        // moves token files to grammar directory for use with IDE's
+        ant.move(file: "${outputPath}/SuggestLexer.tokens", toDir: grammarPath)
+        // make the generated classes package private
+        ant.replaceregexp(match: 'public ((interface|class) \\QSuggest\\E\\w+)',
+                replace: '\\1',
+                encoding: 'UTF-8') {
+            fileset(dir: outputPath, includes: 'Suggest*.java')
+        }
+        // make the lexer abstract
+        ant.replaceregexp(match: '(class \\QSuggest\\ELexer)',
+                replace: 'abstract \\1',
+                encoding: 'UTF-8') {
+            fileset(dir: outputPath, includes: 'SuggestLexer.java')
+        }
+        // nuke timestamps/filenames in generated files
+        ant.replaceregexp(match: '\\Q// Generated from \\E.*',
+                replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
+                encoding: 'UTF-8') {
+            fileset(dir: outputPath, includes: 'Suggest*.java')
+        }
+        // remove tabs in antlr generated files
+        ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
+            fileset(dir: outputPath, includes: 'Suggest*.java')
+        }
+        // fix line endings
+        ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
+            patternset(includes: 'Suggest*.java')
+        }
+    }
 }

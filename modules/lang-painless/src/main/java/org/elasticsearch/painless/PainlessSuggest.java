@@ -10,7 +10,7 @@ package org.elasticsearch.painless;
 
 public class PainlessSuggest {
 
-    private static class WalkState {
+    /*private static class WalkState {
 
         private final List<? extends Token> tokens;
 
@@ -419,7 +419,7 @@ public class PainlessSuggest {
 
             private BlockScope scope = new BlockScope(null, PainlessLexer.EOF, PainlessLexer.EOF);
 
-            private BlockState(/*PainlessLookup lookup, */WalkState ws, Map<Integer, LambdaMachine.LambdaData> mld) {
+            private BlockState(/*PainlessLookup lookup, *//*WalkState ws, Map<Integer, LambdaMachine.LambdaData> mld) {
                 //this.lookup = Objects.requireNonNull(lookup);
                 this.ws = ws;
                 this.mld = mld;
@@ -912,5 +912,5 @@ public class PainlessSuggest {
         //);
 
         return null;
-    }
+    }*/
 }

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-lexer grammar PainlessLexer;
+lexer grammar SuggestLexer;
 
 @members {
 /** Is the preceding {@code /} a the beginning of a regex (true) or a division (false). */

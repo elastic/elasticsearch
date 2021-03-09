@@ -14,10 +14,10 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -43,17 +43,17 @@ public class AuthenticationTests extends ESTestCase {
         assertEquals(authenticatedBy, authentication.getSourceRealm());
     }
 
-    public void testSameOwnerAsForRealms() {
+    public void testCanAccessResourcesOf() {
         // Same user is the same
         final User user1 = randomUser();
         final RealmRef realm1 = randomRealm();
-        assertSameOwner(randomAuthentication(user1, realm1), randomAuthentication(user1, realm1));
+        checkCanAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm1));
 
         // Different username is different no matter which realm it is from
         final User user2 = randomValueOtherThanMany(u -> u.principal().equals(user1.principal()), this::randomUser);
         // user 2 can be from either the same realm or a different realm
         final RealmRef realm2 = randomFrom(realm1, randomRealm());
-        assertNotTheSameOwner(randomAuthentication(user1, realm2), randomAuthentication(user2, realm2));
+        assertCannotAccessResources(randomAuthentication(user1, realm2), randomAuthentication(user2, realm2));
 
         // Same username but different realm is different
         final RealmRef realm3;
@@ -61,43 +61,49 @@ public class AuthenticationTests extends ESTestCase {
             case 0: // change name
                 realm3 = mutateRealm(realm1, randomAlphaOfLengthBetween(3, 8), null);
                 if (realmIsSingleton(realm1)) {
-                    assertSameOwner(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
+                    checkCanAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
                 } else {
-                    assertNotTheSameOwner(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
+                    assertCannotAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
                 }
                 break;
             case 1: // change type
                 realm3 = mutateRealm(realm1, null, randomAlphaOfLengthBetween(3, 8));
-                assertNotTheSameOwner(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
+                assertCannotAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
                 break;
             case 2: // both
                 realm3 = mutateRealm(realm1, randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
-                assertNotTheSameOwner(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
+                assertCannotAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
                 break;
             default:
                 assert false : "Case number out of range";
         }
 
         // User and its API key are not the same owner
-        assertNotTheSameOwner(randomAuthentication(user1, realm1),
+        assertCannotAccessResources(randomAuthentication(user1, realm1),
             randomApiKeyAuthentication(user1, randomAlphaOfLengthBetween(10, 20)));
 
         // Same API key ID are the same owner
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
-        assertSameOwner(randomApiKeyAuthentication(user1, apiKeyId1), randomApiKeyAuthentication(user1, apiKeyId1));
+        checkCanAccessResources(randomApiKeyAuthentication(user1, apiKeyId1), randomApiKeyAuthentication(user1, apiKeyId1));
 
         // Two API keys (2 API key IDs) are not the same owner
         final String apiKeyId2 = randomValueOtherThan(apiKeyId1, () -> randomAlphaOfLengthBetween(10, 20));
-        assertNotTheSameOwner(randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId1),
+        assertCannotAccessResources(randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId1),
             randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId2));
     }
 
-    private void assertSameOwner(Authentication authentication0, Authentication authentication1) {
-        assertTrue(authentication0.canAccessResourcesOf(authentication1));
-        assertTrue(authentication1.canAccessResourcesOf(authentication0));
+    private void checkCanAccessResources(Authentication authentication0, Authentication authentication1) {
+        if (authentication0.getAuthenticationType() == authentication1.getAuthenticationType()
+            || EnumSet.of(AuthenticationType.REALM, AuthenticationType.TOKEN).equals(
+                EnumSet.of(authentication0.getAuthenticationType(), authentication1.getAuthenticationType()))) {
+            assertTrue(authentication0.canAccessResourcesOf(authentication1));
+            assertTrue(authentication1.canAccessResourcesOf(authentication0));
+        } else {
+            assertCannotAccessResources(authentication0, authentication1);
+        }
     }
 
-    private void assertNotTheSameOwner(Authentication authentication0, Authentication authentication1) {
+    private void assertCannotAccessResources(Authentication authentication0, Authentication authentication1) {
         assertFalse(authentication0.canAccessResourcesOf(authentication1));
         assertFalse(authentication1.canAccessResourcesOf(authentication0));
     }
@@ -110,7 +116,7 @@ public class AuthenticationTests extends ESTestCase {
     private RealmRef randomRealm() {
         return new RealmRef(
             randomAlphaOfLengthBetween(3, 8),
-            randomFrom(FileRealmSettings.TYPE, NativeRealmSettings.TYPE, KerberosRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8)),
+            randomFrom(FileRealmSettings.TYPE, NativeRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8)),
             randomAlphaOfLengthBetween(3, 8));
     }
 
@@ -158,7 +164,6 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     private boolean realmIsSingleton(RealmRef realmRef) {
-        return Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE, KerberosRealmSettings.TYPE).contains(realmRef.getType());
+        return Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE).contains(realmRef.getType());
     }
-
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -160,16 +161,31 @@ public class Authentication implements ToXContentObject {
             }
             return sameKeyId;
         }
-        if (false == getUser().principal().equals(other.getUser().principal())) {
+
+        if (getAuthenticationType().equals(other.getAuthenticationType())
+            || (AuthenticationType.REALM == getAuthenticationType() && AuthenticationType.TOKEN == other.getAuthenticationType())
+            || (AuthenticationType.TOKEN == getAuthenticationType() && AuthenticationType.REALM == other.getAuthenticationType())) {
+            if (false == getUser().principal().equals(other.getUser().principal())) {
+                return false;
+            }
+            final RealmRef thisRealm = getSourceRealm();
+            final RealmRef otherRealm = other.getSourceRealm();
+            if (FileRealmSettings.TYPE.equals(thisRealm.getType()) || NativeRealmSettings.TYPE.equals(thisRealm.getType())) {
+                return thisRealm.getType().equals(otherRealm.getType());
+            }
+            return thisRealm.getName().equals(otherRealm.getName()) && thisRealm.getType().equals(otherRealm.getType());
+        } else {
+            assert EnumSet.of(
+                AuthenticationType.REALM,
+                AuthenticationType.API_KEY,
+                AuthenticationType.TOKEN,
+                AuthenticationType.ANONYMOUS,
+                AuthenticationType.INTERNAL
+            ).containsAll(EnumSet.of(getAuthenticationType(), other.getAuthenticationType()))
+                : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
+                + EnumSet.of(getAuthenticationType(), other.getAuthenticationType());
             return false;
         }
-        final RealmRef thisRealm = getSourceRealm();
-        final RealmRef otherRealm = other.getSourceRealm();
-        if (FileRealmSettings.TYPE.equals(thisRealm.getType()) || NativeRealmSettings.TYPE.equals(thisRealm.getType())
-            || KerberosRealmSettings.TYPE.equals(thisRealm.getType())) {
-            return thisRealm.getType().equals(otherRealm.getType());
-        }
-        return thisRealm.getName().equals(otherRealm.getName()) && thisRealm.getType().equals(otherRealm.getType());
     }
 
     @Override

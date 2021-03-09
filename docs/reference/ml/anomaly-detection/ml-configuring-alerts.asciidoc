@@ -17,21 +17,19 @@ anomalies and notifies you in an email. This page helps you to configure an
 == Creating an alert
 
 You can create {anomaly-detect} alerts in the {anomaly-job} wizard after you 
-start the job, from the job list, or under **{stack-manage-app} > 
-{alerts-ui}**. On the *Create alert* window, select *{anomaly-detect-cap} alert* 
-under the {ml-cap} section, then give a name to the alert and optionally provide 
-tags.
+start the job, from the job list, or under **{stack-manage-app} > {alerts-ui}**. 
+On the *Create alert* window, select *{anomaly-detect-cap} alert* under the 
+{ml-cap} section, then give a name to the alert and optionally provide tags.
 
 Specify the time interval for the alert to check detected anomalies. It is 
 recommended to select an interval that is close to the bucket span of the 
 associated job. You can also select a notification option by using the _Notify_ 
-selector. For more details, refer to the documentation of
+selector. An alert instance remains active as long as anomalies are found for a 
+particular {anomaly-job} during the check interval. When there is no anomaly 
+found in the next interval, the `Recovered` action group is invoked and the 
+status of the alert instance changes to `OK`. For more details, refer to the 
+documentation of 
 {kibana-ref}/defining-alerts.html#defining-alerts-general-details[general alert details].
-
-NOTE: {anomaly-detect-cap} alerts handle duplications. If you set an interval 
-that makes the alert check the same bucket multiple times and the bucket 
-contains an anomaly that meets the alert conditions, the configured action 
-is triggered only once.
   
 [role="screenshot"]
 image::images/ml-anomaly-alert-type.jpg["Creating an anomaly detection alert"]
@@ -51,6 +49,13 @@ For each alert, you can configure the `anomaly_score` that triggers it. The
 `anomaly_score` indicates the significance of a given anomaly compared to 
 previous anomalies. The default severity threshold is 75 which means every 
 anomaly with an `anomaly_score` of 75 or higher triggers the alert.
+
+You can select whether you want the alert to include interim results. Interim 
+results are created by the {anomaly-job} before a bucket is finalized. These 
+results might disappear after the bucket is fully processed. Include 
+interim results if you want to be notified earlier about a potential anomaly 
+even if it might be a false positive. If you want to get notified 
+only about anomalies of fully processed buckets, do not include interim results.
 
 You can also test the configured conditions against your existing data and check 
 the sample results by providing a valid interval for your data. The generated 
@@ -77,6 +82,11 @@ in the message, like job ID, anomaly score, time, or top influencers.
 [role="screenshot"]
 image::images/ml-anomaly-alert-messages.jpg["Customizing your message"]
 
-After you save the configurations, the alert appears in the _Alerts and 
-Actions_ list where you can check its status and see the overview of its 
-configuration information.
+After you save the configurations, the alert appears in the *{alerts-ui}* list 
+where you can check its status and see the overview of its configuration 
+information.
+
+The name of an alert instance is always the same as the job ID of the associated 
+{anomaly-job} that triggered the alert. You can mute the notifications for a 
+particular {anomaly-job} on the page of the alert that lists the individual 
+alert instances. You can open it via *{alerts-ui}* by selecting the alert name.

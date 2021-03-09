@@ -40,11 +40,14 @@ import org.elasticsearch.plugins.Plugin;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static java.util.stream.Collectors.toList;
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -457,5 +460,27 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             ft.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] { "hello world" }
         );
+    }
+
+    public void testFetch() throws IOException {
+        assertFetch(keywordMapperService(), "field", randomAlphaOfLength(5), null);
+    }
+
+    public void testFetchMany() throws IOException {
+        /*
+         * When we have many values doc values will sort and unique them.
+         * Source fetching won't, but we expect that. So we test with
+         * sorted and uniqued values.
+         */
+        int count = between(2, 10);
+        Set<String> values = new HashSet<>();
+        while (values.size() < count) {
+            values.add(randomAlphaOfLength(5));
+        }
+        assertFetch(keywordMapperService(), "field", values.stream().sorted().collect(toList()), null);
+    }
+
+    private MapperService keywordMapperService() throws IOException {
+        return createMapperService(mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
     }
 }

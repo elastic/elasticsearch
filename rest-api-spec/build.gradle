@@ -347,6 +347,7 @@ tasks.named("yamlRestCompatTest").configure {
     'search/40_indices_boost/Indices boost using object',
     'search/70_response_filtering/Search with response filtering',
     'search/90_search_after/search with search_after parameter',
+    'search/110_field_collapsing/field collapsing and inner_hits',
     'search_shards/10_basic/Search shards aliases with and without filters',
     'snapshot.get/10_basic/Get missing snapshot info succeeds when ignore_unavailable is true',
     'snapshot.get/10_basic/Get missing snapshot info throws an exception',

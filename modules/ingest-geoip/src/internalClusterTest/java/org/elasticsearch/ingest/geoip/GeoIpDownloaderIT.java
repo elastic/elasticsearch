@@ -93,8 +93,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     public void testGeoIpDatabasesDownload() throws Exception {
-        // use short wait for local fixture, longer when we hit real service
-        int waitTime = ENDPOINT == null ? 120 : 10;
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
@@ -106,7 +104,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             GeoIpTaskState state = (GeoIpTaskState) task.getState();
             assertNotNull(state);
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
-        }, waitTime, TimeUnit.SECONDS);
+        }, 2, TimeUnit.MINUTES);
 
         GeoIpTaskState state = (GeoIpTaskState) getTask().getState();
         for (String id : List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb")) {

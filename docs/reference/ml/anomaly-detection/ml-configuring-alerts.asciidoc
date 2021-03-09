@@ -26,9 +26,10 @@ recommended to select an interval that is close to the bucket span of the
 associated job. You can also select a notification option by using the _Notify_ 
 selector. An alert instance remains active as long as anomalies are found for a 
 particular {anomaly-job} during the check interval. When there is no anomaly 
-found in the next interval, the `Recovered` action group is invoked and the status of the alert instance changes to `OK`. For more details, refer to the
- documentation of 
- {kibana-ref}/defining-alerts.html#defining-alerts-general-details[general alert details].
+found in the next interval, the `Recovered` action group is invoked and the 
+status of the alert instance changes to `OK`. For more details, refer to the 
+documentation of 
+{kibana-ref}/defining-alerts.html#defining-alerts-general-details[general alert details].
   
 [role="screenshot"]
 image::images/ml-anomaly-alert-type.jpg["Creating an anomaly detection alert"]
@@ -86,6 +87,6 @@ where you can check its status and see the overview of its configuration
 information.
 
 The name of an alert instance is always the same as the job ID of the associated 
-{anomaly-job}. You can mute the notifications for a particular {anomaly-job} on 
-the page of the alert that lists the individual alert instances. You can open it 
-via *{alerts-ui}* by selecting the alert name.
+{anomaly-job} that triggered the alert. You can mute the notifications for a 
+particular {anomaly-job} on the page of the alert that lists the individual 
+alert instances. You can open it via *{alerts-ui}* by selecting the alert name.

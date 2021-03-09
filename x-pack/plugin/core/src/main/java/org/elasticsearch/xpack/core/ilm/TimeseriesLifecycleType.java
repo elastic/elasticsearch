@@ -412,7 +412,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
     }
 
     /**
-     * Require that all "frozen" phases configured in a policy have a searchable snapshot action.
+     * Require that the "frozen" phase configured in a policy has a searchable snapshot action.
      */
     static void validateFrozenPhaseHasSearchableSnapshotAction(Collection<Phase> phases) {
         Optional<Phase> maybeFrozenPhase = phases.stream()

@@ -36,6 +36,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -125,7 +126,9 @@ final class DatabaseRegistry implements Closeable {
 
             @Override
             public FileVisitResult visitFileFailed(Path file, IOException e) {
-                LOGGER.warn("can't delete stale file [" + file + "]", e);
+                if(e instanceof NoSuchFileException == false) {
+                    LOGGER.warn("can't delete stale file [" + file + "]", e);
+                }
                 return FileVisitResult.CONTINUE;
             }
 

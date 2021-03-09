@@ -47,7 +47,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         }));
         DocumentMapper docMapper = mapperService.documentMapper();
 
-        Joiner joiner = Joiner.getJoiner(mapperService.mappingLookup().fieldMappers());
+        Joiner joiner = Joiner.getJoiner(mapperService.mappingLookup().fieldTypes());
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
 
@@ -233,7 +233,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        Joiner joiner = Joiner.getJoiner(mapperService.mappingLookup().fieldMappers());
+        Joiner joiner = Joiner.getJoiner(mapperService.mappingLookup().fieldTypes());
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
         assertTrue(joiner.childTypeExists("child2"));
@@ -259,7 +259,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        joiner = Joiner.getJoiner(mapperService.mappingLookup().fieldMappers());
+        joiner = Joiner.getJoiner(mapperService.mappingLookup().fieldTypes());
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
         assertTrue(joiner.childTypeExists("child2"));
@@ -331,7 +331,8 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
                 b.field("type", "join");
                 b.startObject("relations").field("product", "item").endObject().endObject();
             })));
-            assertThat(exc.getMessage(), containsString("Only one [parent-join] field can be defined per index"));
+            assertThat(exc.getMessage(),
+                equalTo("Only one [parent-join] field can be defined per index, got [join_field, another_join_field]"));
         }
 
         {
@@ -346,7 +347,8 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
                 IllegalArgumentException.class,
                 () -> merge(mapperService, mapping(b -> b.startObject("another_join_field").field("type", "join").endObject()))
             );
-            assertThat(exc.getMessage(), containsString("Only one [parent-join] field can be defined per index"));
+            assertThat(exc.getMessage(),
+                equalTo("Only one [parent-join] field can be defined per index, got [join_field, another_join_field]"));
         }
     }
 

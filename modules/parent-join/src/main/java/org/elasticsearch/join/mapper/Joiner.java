@@ -14,11 +14,13 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper.JoinFieldType;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,21 +37,21 @@ public final class Joiner {
      * Get the Joiner for this context, or {@code null} if none is configured
      */
     public static Joiner getJoiner(SearchExecutionContext context) {
-        return getJoiner(context.getFieldMappers());
+        return getJoiner(context.getFieldTypes());
     }
 
     /**
      * Get the Joiner for this context, or {@code null} if none is configured
      */
     public static Joiner getJoiner(AggregationContext context) {
-        return getJoiner(context.getFieldMappers());
+        return getJoiner(context.getFieldTypes());
     }
 
     /**
      * Get the Joiner for this context, or {@code null} if none is configured
      */
-    static Joiner getJoiner(Iterable<Mapper> mappers) {
-        JoinFieldType ft = ParentJoinFieldMapper.getJoinFieldType(mappers);
+    static Joiner getJoiner(Collection<MappedFieldType> fieldTypes) {
+        JoinFieldType ft = ParentJoinFieldMapper.getJoinFieldType(fieldTypes);
         return ft != null ? ft.getJoiner() : null;
     }
 

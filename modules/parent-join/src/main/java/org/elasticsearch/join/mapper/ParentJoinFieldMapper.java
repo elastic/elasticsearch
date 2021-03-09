@@ -36,13 +36,16 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * A {@link FieldMapper} that creates hierarchical joins (parent-join) between documents in the same index.
@@ -292,32 +295,30 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     @Override
     protected void doValidate(MappingLookup mappers) {
-        List<JoinFieldType> fts = getJoinFieldTypes(mappers.fieldMappers());
-        if (fts.size() > 1) {
-            throw new IllegalArgumentException("Only one [parent-join] field can be defined per index, got " + fts);
+        List<String> joinFields = getJoinFieldTypes(mappers.fieldTypes()).stream()
+            .map(JoinFieldType::name)
+            .collect(Collectors.toList());
+        if (joinFields.size() > 1) {
+            throw new IllegalArgumentException("Only one [parent-join] field can be defined per index, got " + joinFields);
         }
     }
 
-    static JoinFieldType getJoinFieldType(Iterable<Mapper> mappers) {
-        for (Mapper mapper : mappers) {
-            if (mapper instanceof FieldMapper
-                    && ((FieldMapper) mapper).fieldType() instanceof JoinFieldType) {
-                FieldMapper fieldMapper = (FieldMapper) mapper;
-                return (JoinFieldType) fieldMapper.fieldType();
+    static JoinFieldType getJoinFieldType(Collection<MappedFieldType> fieldTypes) {
+        for (MappedFieldType ft : fieldTypes) {
+            if (ft instanceof JoinFieldType) {
+                return (JoinFieldType) ft;
             }
         }
         return null;
     }
 
-    private List<JoinFieldType> getJoinFieldTypes(Iterable<Mapper> mappers) {
-        List<JoinFieldType> fieldTypes = new ArrayList<>();
-        for (Mapper mapper : mappers) {
-            if (mapper instanceof FieldMapper
-                    && ((FieldMapper) mapper).fieldType() instanceof JoinFieldType) {
-                FieldMapper fieldMapper = (FieldMapper) mapper;
-                fieldTypes.add((JoinFieldType) fieldMapper.fieldType());
+    private List<JoinFieldType> getJoinFieldTypes(Collection<MappedFieldType> fieldTypes) {
+        final List<JoinFieldType> joinFields = new ArrayList<>();
+        for (MappedFieldType ft : fieldTypes) {
+            if (ft instanceof JoinFieldType) {
+                joinFields.add((JoinFieldType) ft);
             }
         }
-        return fieldTypes;
+        return joinFields;
     }
 }

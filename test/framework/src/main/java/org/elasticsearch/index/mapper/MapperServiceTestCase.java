@@ -370,7 +370,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public Iterable<Mapper> getFieldMappers() {
+            public Collection<MappedFieldType> getFieldTypes() {
                 throw new UnsupportedOperationException();
             }
 

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.MediaType;
@@ -138,16 +137,6 @@ public class SecurityRestFilter implements RestHandler {
         return restHandler.routes();
     }
 
-    @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
-        return restHandler.deprecatedRoutes();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        return restHandler.replacedRoutes();
-    }
-
     private RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {
         if (restHandler instanceof RestRequestFilter) {
             return ((RestRequestFilter)restHandler).getFilteredRequest(restRequest);
@@ -158,10 +147,5 @@ public class SecurityRestFilter implements RestHandler {
     @Override
     public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
         return restHandler.validAcceptMediaTypes();
-    }
-
-    @Override
-    public RestApiVersion compatibleWithVersion() {
-        return restHandler.compatibleWithVersion();
     }
 }

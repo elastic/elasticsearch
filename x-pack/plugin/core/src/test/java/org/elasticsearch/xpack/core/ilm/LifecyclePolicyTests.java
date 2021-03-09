@@ -102,12 +102,15 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
      * that the resulting policy has all valid phases and all valid actions.
      */
     public static LifecyclePolicy randomTimeseriesLifecyclePolicyWithAllPhases(@Nullable String lifecycleName) {
-        List<String> phaseNames = TimeseriesLifecycleType.VALID_PHASES;
+        List<String> phaseNames = TimeseriesLifecycleType.ORDERED_VALID_PHASES;
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
         Function<String, Set<String>> validActions = getPhaseToValidActions();
         Function<String, LifecycleAction> randomAction = getNameToActionFunction();
+        TimeValue prev = null;
         for (String phase : phaseNames) {
-            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+            TimeValue after = prev == null ? TimeValue.parseTimeValue(randomTimeValue(0, 100000, "s", "m", "h", "d"), "test_after") :
+                TimeValue.timeValueSeconds(prev.seconds() + randomIntBetween(60, 600));
+            prev = after;
             Map<String, LifecycleAction> actions = new HashMap<>();
             Set<String> actionNames = validActions.apply(phase);
             if (phase.equals(TimeseriesLifecycleType.HOT_PHASE) == false) {
@@ -125,7 +128,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
     public static LifecyclePolicy randomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
         List<String> phaseNames = randomSubsetOf(
-            between(0, TimeseriesLifecycleType.VALID_PHASES.size() - 1), TimeseriesLifecycleType.VALID_PHASES);
+            between(0, TimeseriesLifecycleType.ORDERED_VALID_PHASES.size() - 1), TimeseriesLifecycleType.ORDERED_VALID_PHASES);
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
         Function<String, Set<String>> validActions = getPhaseToValidActions();
         Function<String, LifecycleAction> randomAction = getNameToActionFunction();
@@ -139,14 +142,17 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         boolean coldPhaseContainsSearchableSnap = false;
         // let's order the phases so we can reason about actions in a previous phase in order to generate a random *valid* policy
         List<String> orderedPhases = new ArrayList<>(phaseNames.size());
-        for (String validPhase : TimeseriesLifecycleType.VALID_PHASES) {
+        for (String validPhase : TimeseriesLifecycleType.ORDERED_VALID_PHASES) {
             if (phaseNames.contains(validPhase)) {
                 orderedPhases.add(validPhase);
             }
         }
 
+        TimeValue prev = null;
         for (String phase : orderedPhases) {
-            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+            TimeValue after = prev == null ? TimeValue.parseTimeValue(randomTimeValue(0, 100000, "s", "m", "h", "d"), "test_after") :
+                TimeValue.timeValueSeconds(prev.seconds() + randomIntBetween(60, 600));
+            prev = after;
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<String> actionNames = randomSubsetOf(validActions.apply(phase));
 
@@ -242,7 +248,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         int numberPhases = randomInt(5);
         Map<String, Phase> phases = new HashMap<>(numberPhases);
         for (int i = 0; i < numberPhases; i++) {
-            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 10000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
             if (randomBoolean()) {
                 MockAction action = new MockAction();
@@ -263,9 +269,10 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 name = name + randomAlphaOfLengthBetween(1, 5);
                 break;
             case 1:
-                String phaseName = randomValueOtherThanMany(phases::containsKey, () -> randomFrom(TimeseriesLifecycleType.VALID_PHASES));
+                String phaseName = randomValueOtherThanMany(phases::containsKey,
+                    () -> randomFrom(TimeseriesLifecycleType.ORDERED_VALID_PHASES));
                 phases = new LinkedHashMap<>(phases);
-                phases.put(phaseName, new Phase(phaseName, TimeValue.timeValueSeconds(randomIntBetween(1, 1000)), Collections.emptyMap()));
+                phases.put(phaseName, new Phase(phaseName, null, Collections.emptyMap()));
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");

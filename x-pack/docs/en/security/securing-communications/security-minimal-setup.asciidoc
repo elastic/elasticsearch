@@ -46,7 +46,7 @@ To communicate with the cluster, you must configure a username for the built-in
 users. Unless you enable anonymous access, all requests that don’t include a
 user name and password are rejected.
 
-NOTE: You only need to set passwords for the `elastic` and `kibana-system` users
+NOTE: You only need to set passwords for the `elastic` and `kibana_system` users
 when enabling minimal or basic security.
 
 . Start Elasticsearch. For example, if you installed Elasticsearch with a

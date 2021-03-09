@@ -30,13 +30,13 @@ public class RestGetBucketsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}"),
+                    + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}"),
             new Route(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}"),
+                    + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}"),
             new Route(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets"),
+                    + "}/results/buckets"),
             new Route(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets")
+                    + "}/results/buckets")
         );
     }
 

@@ -25,7 +25,7 @@ public class RestPutJobAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(PUT, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}")
+            new Route(PUT, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}")
         );
     }
 

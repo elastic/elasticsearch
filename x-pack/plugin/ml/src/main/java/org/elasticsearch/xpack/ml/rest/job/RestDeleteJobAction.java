@@ -30,7 +30,7 @@ public class RestDeleteJobAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}")
+            new Route(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}")
         );
     }
 

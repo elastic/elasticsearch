@@ -24,7 +24,7 @@ public class RestDeleteFilterAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(DELETE, BASE_PATH + "filters/{" + Request.FILTER_ID.getPreferredName() + "}")
+            new Route(DELETE, BASE_PATH + "filters/{" + Request.FILTER_ID + "}")
         );
     }
 

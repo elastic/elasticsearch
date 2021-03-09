@@ -23,7 +23,7 @@ public class RestDeleteCalendarAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"));
+        return List.of(new Route(DELETE, BASE_PATH + "calendars/{" + Calendar.ID + "}"));
     }
 
     @Override

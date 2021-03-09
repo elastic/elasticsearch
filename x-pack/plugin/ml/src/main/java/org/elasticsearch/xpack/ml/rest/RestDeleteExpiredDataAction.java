@@ -24,7 +24,7 @@ public class RestDeleteExpiredDataAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(DELETE, BASE_PATH + "_delete_expired_data/{" + Job.ID.getPreferredName() + "}"),
+            new Route(DELETE, BASE_PATH + "_delete_expired_data/{" + Job.ID + "}"),
             new Route(DELETE, BASE_PATH + "_delete_expired_data")
         );
     }

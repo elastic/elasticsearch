@@ -28,9 +28,9 @@ public class RestGetCalendarsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
+            new Route(GET, BASE_PATH + "calendars/{" + Calendar.ID + "}"),
             new Route(GET, BASE_PATH + "calendars/"),
-            new Route(POST, BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
+            new Route(POST, BASE_PATH + "calendars/{" + Calendar.ID + "}"),
             new Route(POST, BASE_PATH + "calendars/")
         );
     }

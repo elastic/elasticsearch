@@ -31,7 +31,7 @@ public class RestFlushJobAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush")
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_flush")
         );
     }
 

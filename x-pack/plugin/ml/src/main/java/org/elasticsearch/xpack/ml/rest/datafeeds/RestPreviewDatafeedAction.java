@@ -24,7 +24,7 @@ public class RestPreviewDatafeedAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_preview")
+            new Route(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_preview")
         );
     }
 

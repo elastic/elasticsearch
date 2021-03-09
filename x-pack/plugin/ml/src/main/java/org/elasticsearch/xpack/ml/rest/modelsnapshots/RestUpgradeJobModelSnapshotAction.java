@@ -19,6 +19,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Request.DEFAULT_TIMEOUT;
+import static org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Request.SNAPSHOT_ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestUpgradeJobModelSnapshotAction extends BaseRestHandler {
@@ -26,13 +27,7 @@ public class RestUpgradeJobModelSnapshotAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST,
-                    BASE_PATH
-                        + "anomaly_detectors/{"
-                        + Job.ID.getPreferredName()
-                        + "}/model_snapshots/{"
-                        + UpgradeJobModelSnapshotAction.Request.SNAPSHOT_ID.getPreferredName()
-                        + "}/_upgrade")
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}/_upgrade")
         );
     }
 
@@ -45,7 +40,7 @@ public class RestUpgradeJobModelSnapshotAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
 
         String jobId = restRequest.param(Job.ID.getPreferredName());
-        String snapshotId = restRequest.param(UpgradeJobModelSnapshotAction.Request.SNAPSHOT_ID.getPreferredName());
+        String snapshotId = restRequest.param(SNAPSHOT_ID.getPreferredName());
         TimeValue timeout = TimeValue.parseTimeValue(
             restRequest.param(UpgradeJobModelSnapshotAction.Request.TIMEOUT.getPreferredName(), DEFAULT_TIMEOUT.getStringRep()),
             UpgradeJobModelSnapshotAction.Request.TIMEOUT.getPreferredName());

@@ -26,7 +26,7 @@ public class RestGetFiltersAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}"),
+            new Route(GET, BASE_PATH + "filters/{" + MlFilter.ID + "}"),
             new Route(GET, BASE_PATH + "filters/")
         );
     }

@@ -13,12 +13,12 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField.SNAPSHOT_ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestUpdateModelSnapshotAction extends BaseRestHandler {
@@ -26,8 +26,7 @@ public class RestUpdateModelSnapshotAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, BASE_PATH + "anomaly_detectors/{"
-                    + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID +"}/_update")
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID +"}/_update")
         );
     }
 
@@ -41,7 +40,7 @@ public class RestUpdateModelSnapshotAction extends BaseRestHandler {
         XContentParser parser = restRequest.contentParser();
         UpdateModelSnapshotAction.Request updateModelSnapshot = UpdateModelSnapshotAction.Request.parseRequest(
                 restRequest.param(Job.ID.getPreferredName()),
-                restRequest.param(ModelSnapshotField.SNAPSHOT_ID.getPreferredName()),
+                restRequest.param(SNAPSHOT_ID.getPreferredName()),
                 parser);
 
         return channel ->

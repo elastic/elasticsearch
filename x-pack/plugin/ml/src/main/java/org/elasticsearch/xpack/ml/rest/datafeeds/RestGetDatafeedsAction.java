@@ -29,7 +29,7 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
      @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}"),
+            new Route(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}"),
             new Route(GET, BASE_PATH + "datafeeds")
         );
     }

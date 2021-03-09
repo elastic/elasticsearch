@@ -27,7 +27,7 @@ public class RestPutDatafeedAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(PUT, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}")
+            new Route(PUT, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}")
         );
     }
 

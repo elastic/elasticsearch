@@ -25,7 +25,7 @@ public class RestPutDataFrameAnalyticsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(PUT, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}")
+            new Route(PUT, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}")
         );
     }
 

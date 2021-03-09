@@ -28,7 +28,7 @@ public class RestGetJobStatsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_stats"),
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_stats"),
             new Route(GET, BASE_PATH + "anomaly_detectors/_stats")
         );
     }

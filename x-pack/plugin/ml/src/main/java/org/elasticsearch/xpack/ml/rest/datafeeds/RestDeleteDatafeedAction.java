@@ -25,7 +25,7 @@ public class RestDeleteDatafeedAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(DELETE, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}")
+            new Route(DELETE, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}")
         );
     }
 

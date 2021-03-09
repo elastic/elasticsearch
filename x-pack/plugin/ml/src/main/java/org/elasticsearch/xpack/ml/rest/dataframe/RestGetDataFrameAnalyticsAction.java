@@ -30,7 +30,7 @@ public class RestGetDataFrameAnalyticsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, BASE_PATH + "data_frame/analytics"),
-            new Route(GET, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}"));
+            new Route(GET, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}"));
     }
 
     @Override

@@ -25,7 +25,7 @@ public class RestUpdateFilterAction extends BaseRestHandler {
    @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}/_update")
+            new Route(POST, BASE_PATH + "filters/{" + MlFilter.ID + "}/_update")
         );
     }
 

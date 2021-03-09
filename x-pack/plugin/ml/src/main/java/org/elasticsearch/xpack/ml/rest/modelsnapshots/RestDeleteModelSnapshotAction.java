@@ -12,12 +12,12 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField.SNAPSHOT_ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestDeleteModelSnapshotAction extends BaseRestHandler {
@@ -25,8 +25,7 @@ public class RestDeleteModelSnapshotAction extends BaseRestHandler {
    @Override
     public List<Route> routes() {
         return List.of(
-            new Route(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                    "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID.getPreferredName() + "}")
+            new Route(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}")
         );
     }
 
@@ -39,7 +38,7 @@ public class RestDeleteModelSnapshotAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         DeleteModelSnapshotAction.Request deleteModelSnapshot = new DeleteModelSnapshotAction.Request(
                 restRequest.param(Job.ID.getPreferredName()),
-                restRequest.param(ModelSnapshotField.SNAPSHOT_ID.getPreferredName()));
+                restRequest.param(SNAPSHOT_ID.getPreferredName()));
 
         return channel -> client.execute(DeleteModelSnapshotAction.INSTANCE, deleteModelSnapshot, new RestToXContentListener<>(channel));
     }

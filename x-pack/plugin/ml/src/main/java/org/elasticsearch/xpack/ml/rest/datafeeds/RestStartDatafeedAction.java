@@ -33,7 +33,7 @@ public class RestStartDatafeedAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_start")
+            new Route(POST, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_start")
         );
     }
 

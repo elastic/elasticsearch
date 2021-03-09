@@ -26,8 +26,7 @@ public class RestDeleteCalendarEventAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(DELETE, BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events/{" +
-                    ScheduledEvent.EVENT_ID.getPreferredName() + "}")
+            new Route(DELETE, BASE_PATH + "calendars/{" + Calendar.ID + "}/events/{" + ScheduledEvent.EVENT_ID + "}")
         );
     }
 

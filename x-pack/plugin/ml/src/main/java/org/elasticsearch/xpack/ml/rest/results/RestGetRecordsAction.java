@@ -27,8 +27,8 @@ public class RestGetRecordsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/records"),
-            new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/records")
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/records"),
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/records")
         );
     }
 

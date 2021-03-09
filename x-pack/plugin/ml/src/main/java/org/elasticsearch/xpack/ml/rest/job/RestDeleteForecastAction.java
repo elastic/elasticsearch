@@ -26,9 +26,8 @@ public class RestDeleteForecastAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_forecast/"),
-            new Route(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                    "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}")
+            new Route(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/"),
+            new Route(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/{" + Forecast.FORECAST_ID + "}")
         );
     }
 

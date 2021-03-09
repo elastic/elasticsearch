@@ -42,7 +42,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         for (int i = 0; i < size; i++) {
             pipelines.add(PipelineConfiguration.readFrom(in));
         }
-        summary = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false;
+        summary = in.getVersion().onOrAfter(Version.V_7_13_0) ? in.readBoolean() : false;
     }
 
     public GetPipelineResponse(List<PipelineConfiguration> pipelines, boolean summary) {
@@ -69,7 +69,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         for (PipelineConfiguration pipeline : pipelines) {
             pipeline.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
             out.writeBoolean(summary);
         }
     }

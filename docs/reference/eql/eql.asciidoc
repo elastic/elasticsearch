@@ -187,7 +187,9 @@ The API returns the following response.
 ----
 
 You can also use the `fields` parameter to retrieve and format specific fields
-in the response.
+in the response. This field is identical to the search API's
+<<search-fields,`fields` parameter>>.
+
 
 include::{es-repo-dir}/search/search-your-data/retrieve-selected-fields.asciidoc[tag=fields-param-desc]
 

@@ -736,10 +736,6 @@ public class FrozenCacheService implements Releasable {
                 final long writeRangeRelativeStart = rangeToWrite.start() - regionStart;
                 final CacheFileRegion fileRegion = get(cacheKey, fileSize, region, headerCacheLength, footerCacheLength);
                 final StepListener<Integer> listener = new StepListener<>();
-                final RangeMissingHandler rangeWriter = (channels, channelPos, relativePos, length, progressUpdater) -> {
-                    assert regionOwners[fileRegion.sharedPageIndex].get() == fileRegion;
-                    writer.fillCacheRange(channels, channelPos, relativePos - writeRangeRelativeStart, length, progressUpdater);
-                };
                 final RangeAvailableHandler rangeAvailableHandler = (channel, channelPos, relativePos, length) -> {
                     assert regionOwners[fileRegion.sharedPageIndex].get() == fileRegion;
                     return reader.onRangeAvailable(channel, channelPos, relativePos - readRangeRelativeStart, length);
@@ -772,10 +768,10 @@ public class FrozenCacheService implements Releasable {
                                     fileRegion.ensureOpen();
                                     final long start = gap.start();
                                     assert regionOwners[fileRegion.sharedPageIndex].get() == fileRegion;
-                                    rangeWriter.fillCacheRange(
+                                    writer.fillCacheRange(
                                         new SharedBytes.IO[] { fileChannel },
                                         start,
-                                        start,
+                                        start - writeRangeRelativeStart,
                                         gap.end() - start,
                                         progress -> gap.onProgress(start + progress)
                                     );

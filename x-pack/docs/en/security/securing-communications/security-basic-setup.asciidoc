@@ -220,7 +220,7 @@ use TLS cannot communicate with nodes that are using unencrypted (and vice-versa
 ==== Add the built-in users to {kib}
 
 When the {es} security features are enabled, users must log in to
-{kib} with a valid user ID and password.
+{kib} with a valid username and password.
 
 {kib} also performs some background tasks that require use of the built-in
 `kibana_system` user.

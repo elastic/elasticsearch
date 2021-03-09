@@ -113,7 +113,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         if (caps == null) {
             return false;
         }
-        return caps.values().stream().anyMatch(FieldCapabilities::isMetaField);
+        return caps.values().stream().anyMatch(FieldCapabilities::isMetadataField);
     }
 
     private static Map<String, FieldCapabilities> readField(StreamInput in) throws IOException {

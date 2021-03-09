@@ -64,7 +64,7 @@ public class IndexFieldCapabilities implements Writeable {
             FieldCapabilities fieldCaps = new FieldCapabilities(in);
             this.name = fieldCaps.getName();
             this.type = fieldCaps.getType();
-            this.isMetadatafield = fieldCaps.isMetaField();
+            this.isMetadatafield = fieldCaps.isMetadataField();
             this.isSearchable = fieldCaps.isSearchable();
             this.isAggregatable = fieldCaps.isAggregatable();
             this.meta = fieldCaps.meta().entrySet().stream().collect(Collectors.toMap(

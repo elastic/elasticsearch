@@ -712,7 +712,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testFrozenIllegalForRegularIndices() {
         List<String> tierList = new ArrayList<>(randomSubsetOf(DataTier.ALL_DATA_TIERS));
-        tierList.add(DATA_FROZEN);
+        if (tierList.contains(DATA_FROZEN) == false) {
+            tierList.add(DATA_FROZEN);
+        }
         Randomness.shuffle(tierList);
 
         String value = Strings.join(tierList, ",");
@@ -729,7 +731,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testFrozenLegalForPartialSnapshot() {
         List<String> tierList = new ArrayList<>(randomSubsetOf(DataTier.ALL_DATA_TIERS));
-        tierList.add(DATA_FROZEN);
+        if (tierList.contains(DATA_FROZEN) == false) {
+            tierList.add(DATA_FROZEN);
+        }
         Randomness.shuffle(tierList);
 
         String value = Strings.join(tierList, ",");

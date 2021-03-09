@@ -48,7 +48,6 @@ public class SearchableSnapshotDataTierIntegTests extends BaseSearchableSnapshot
         createRepository(repoName, "fs");
         createIndex(indexName);
         createFullSnapshot(repoName, snapshotName);
-        // todo: validate if we need Exception here due to remote?
         expectThrows(
             IllegalArgumentException.class,
             () -> mountSnapshot(

@@ -50,7 +50,7 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
         }
         Request request = new Request(datafeedId);
         if (restRequest.hasParam(Request.ALLOW_NO_DATAFEEDS)) {
-            LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, () -> null, Request.ALLOW_NO_DATAFEEDS, Request.ALLOW_NO_MATCH);
+            LoggingDeprecationHandler.INSTANCE.logRenamedField(null, () -> null, Request.ALLOW_NO_DATAFEEDS, Request.ALLOW_NO_MATCH);
         }
         request.setAllowNoMatch(
             restRequest.paramAsBoolean(

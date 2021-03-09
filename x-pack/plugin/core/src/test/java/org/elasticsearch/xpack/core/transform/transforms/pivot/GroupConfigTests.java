@@ -22,13 +22,12 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource.Type;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
 
@@ -40,10 +39,10 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
     }
 
     public static GroupConfig randomGroupConfig(Version version) {
-        return randomGroupConfig(version, Arrays.asList(SingleGroupSource.Type.values()));
+        return randomGroupConfig(() -> randomSingleGroupSource(version));
     }
 
-    public static GroupConfig randomGroupConfig(Version version, List<Type> allowedTypes) {
+    public static GroupConfig randomGroupConfig(Supplier<SingleGroupSource> singleGroupSourceSupplier) {
         Map<String, Object> source = new LinkedHashMap<>();
         Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
 
@@ -52,30 +51,30 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         for (int i = 0; i < randomIntBetween(1, 20); ++i) {
             String targetFieldName = randomAlphaOfLengthBetween(1, 20);
             if (names.add(targetFieldName)) {
-                SingleGroupSource groupBy = null;
-                Type type = randomFrom(allowedTypes);
-                switch (type) {
-                    case TERMS:
-                        groupBy = TermsGroupSourceTests.randomTermsGroupSource(version);
-                        break;
-                    case HISTOGRAM:
-                        groupBy = HistogramGroupSourceTests.randomHistogramGroupSource(version);
-                        break;
-                    case DATE_HISTOGRAM:
-                        groupBy = DateHistogramGroupSourceTests.randomDateHistogramGroupSource(version);
-                        break;
-                    case GEOTILE_GRID:
-                        groupBy = GeoTileGroupSourceTests.randomGeoTileGroupSource(version);
-                        break;
-                    default:
-                        fail("unknown group source type, please implement tests and add support here");
-                }
-                source.put(targetFieldName, Collections.singletonMap(type.value(), getSource(groupBy)));
+                SingleGroupSource groupBy = singleGroupSourceSupplier.get();
+                source.put(targetFieldName, Collections.singletonMap(groupBy.getType().value(), getSource(groupBy)));
                 groups.put(targetFieldName, groupBy);
             }
         }
 
         return new GroupConfig(source, groups);
+    }
+
+    private static SingleGroupSource randomSingleGroupSource(Version version) {
+        Type type = randomFrom(SingleGroupSource.Type.values());
+        switch (type) {
+            case TERMS:
+                return TermsGroupSourceTests.randomTermsGroupSource(version);
+            case HISTOGRAM:
+                return HistogramGroupSourceTests.randomHistogramGroupSource(version);
+            case DATE_HISTOGRAM:
+                return DateHistogramGroupSourceTests.randomDateHistogramGroupSource(version);
+            case GEOTILE_GRID:
+                return GeoTileGroupSourceTests.randomGeoTileGroupSource(version);
+            default:
+                fail("unknown group source type, please implement tests and add support here");
+        }
+        return null;
     }
 
     @Override

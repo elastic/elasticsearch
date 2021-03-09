@@ -919,7 +919,7 @@ end::source_includes[]
 tag::source-transforms[]
 The source of the data for the {transform}.
 
-INFO: {transforms-cap} support <<modules-cross-cluster-search,{ccs}>>.
+NOTE: {transforms-cap} support <<modules-cross-cluster-search,{ccs}>>.
 end::source-transforms[]
 
 tag::source-index-transforms[]

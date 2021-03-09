@@ -29,8 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ilm.SearchableSnapshotActionTests.randomStorageType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -128,7 +128,10 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
     public static LifecyclePolicy randomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
         List<String> phaseNames = randomSubsetOf(
-            between(0, TimeseriesLifecycleType.ORDERED_VALID_PHASES.size() - 1), TimeseriesLifecycleType.ORDERED_VALID_PHASES);
+            between(0, TimeseriesLifecycleType.ORDERED_VALID_PHASES.size() - 1), TimeseriesLifecycleType.ORDERED_VALID_PHASES).stream()
+            // Remove the frozen phase, we'll randomly re-add it later
+            .filter(pn -> TimeseriesLifecycleType.FROZEN_PHASE.equals(pn) == false)
+            .collect(Collectors.toList());
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
         Function<String, Set<String>> validActions = getPhaseToValidActions();
         Function<String, LifecycleAction> randomAction = getNameToActionFunction();
@@ -189,6 +192,17 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             }
             phases.put(phase, new Phase(phase, after, actions));
         }
+        // Add a frozen phase if neither the hot nor cold phase contains a searchable snapshot action
+        if (hotPhaseContainsSearchableSnap == false && coldPhaseContainsSearchableSnap == false && randomBoolean()) {
+            TimeValue frozenTime = prev == null ? TimeValue.parseTimeValue(randomTimeValue(0, 100000, "s", "m", "h", "d"), "test") :
+                TimeValue.timeValueSeconds(prev.seconds() + randomIntBetween(60, 600));
+            phases.put(TimeseriesLifecycleType.FROZEN_PHASE,
+                new Phase(TimeseriesLifecycleType.FROZEN_PHASE, frozenTime,
+                    Collections.singletonMap(SearchableSnapshotAction.NAME,
+                        new SearchableSnapshotAction(randomAlphaOfLength(10), randomBoolean()))));
+        } else {
+            phases.remove(TimeseriesLifecycleType.FROZEN_PHASE);
+        }
         return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases);
     }
 
@@ -234,7 +248,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     case UnfollowAction.NAME:
                         return new UnfollowAction();
                     case SearchableSnapshotAction.NAME:
-                        return new SearchableSnapshotAction("repo", randomBoolean(), randomStorageType());
+                        return new SearchableSnapshotAction("repo", randomBoolean());
                     case MigrateAction.NAME:
                         return new MigrateAction(false);
                     case RollupILMAction.NAME:
@@ -269,8 +283,16 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 name = name + randomAlphaOfLengthBetween(1, 5);
                 break;
             case 1:
+                // Remove the frozen phase, because it makes a lot of invalid phases when randomly mutating an existing policy
+                phases.remove(TimeseriesLifecycleType.FROZEN_PHASE);
+                // Remove a random phase
+                if (phases.size() > 0) {
+                    phases.remove(new ArrayList<>(phases.keySet()).remove(randomIntBetween(0, phases.size() - 1)));
+                }
                 String phaseName = randomValueOtherThanMany(phases::containsKey,
-                    () -> randomFrom(TimeseriesLifecycleType.ORDERED_VALID_PHASES));
+                        () -> randomFrom(TimeseriesLifecycleType.ORDERED_VALID_PHASES.stream()
+                            .filter(pn -> TimeseriesLifecycleType.FROZEN_PHASE.equals(pn) == false)
+                            .collect(Collectors.toList())));
                 phases = new LinkedHashMap<>(phases);
                 phases.put(phaseName, new Phase(phaseName, null, Collections.emptyMap()));
                 break;

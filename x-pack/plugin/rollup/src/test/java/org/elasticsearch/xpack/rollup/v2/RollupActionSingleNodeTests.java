@@ -424,8 +424,14 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
         for (MetricConfig metricsConfig : config.getMetricsConfig()) {
             assertEquals("aggregate_metric_double", mappings.get(metricsConfig.getField()).get("type"));
-            // TODO: Break avg into sum + value_count
-            // assertEquals(metricsConfig.getMetrics(), mappings.get(metricsConfig.getField()).get("metrics"));
+            List<String> supportedMetrics = (List<String>) mappings.get(metricsConfig.getField()).get("metrics");
+            for (String m : metricsConfig.getMetrics()) {
+                if ("avg".equals(m)) {
+                    assertTrue(supportedMetrics.contains("sum") && supportedMetrics.contains("value_count"));
+                } else {
+                    assertTrue(supportedMetrics.contains(m));
+                }
+            }
         }
 
         HistogramGroupConfig histoConfig = config.getGroupConfig().getHistogram();

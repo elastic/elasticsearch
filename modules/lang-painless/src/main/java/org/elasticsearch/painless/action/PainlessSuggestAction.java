@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.painless.PainlessScriptEngine;
 import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
-import org.elasticsearch.painless.action.PainlessSuggestionsAction.Response.Suggestion;
+import org.elasticsearch.painless.action.PainlessSuggestAction.Response.Suggestion;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -71,21 +71,21 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * }
  * }
  */
-public class PainlessSuggestionsAction extends ActionType<PainlessSuggestionsAction.Response> {
+public class PainlessSuggestAction extends ActionType<PainlessSuggestAction.Response> {
 
-    public static final PainlessSuggestionsAction INSTANCE = new PainlessSuggestionsAction();
+    public static final PainlessSuggestAction INSTANCE = new PainlessSuggestAction();
     private static final String NAME = "cluster:admin/scripts/painless/suggestions";
 
-    private PainlessSuggestionsAction() {
-        super(NAME, PainlessSuggestionsAction.Response::new);
+    private PainlessSuggestAction() {
+        super(NAME, PainlessSuggestAction.Response::new);
     }
 
     public static class Request extends ActionRequest {
 
         private static final ParseField SCRIPT_FIELD = new ParseField("script");
         private static final ParseField CONTEXT_FIELD = new ParseField("context");
-        private static final ConstructingObjectParser<PainlessSuggestionsAction.Request, Void> PARSER = new ConstructingObjectParser<>(
-                "painless_suggestions_request", args -> new PainlessSuggestionsAction.Request((String)args[0], (Script)args[1]));
+        private static final ConstructingObjectParser<PainlessSuggestAction.Request, Void> PARSER = new ConstructingObjectParser<>(
+                "painless_suggestions_request", args -> new PainlessSuggestAction.Request((String)args[0], (Script)args[1]));
 
         static {
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CONTEXT_FIELD);

@@ -6,9 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.painless.action;
+package org.elasticsearch.painless;
 
-public class PainlessSuggestionsGenerator {
+public class PainlessSuggest {
 
     private static class WalkState {
 

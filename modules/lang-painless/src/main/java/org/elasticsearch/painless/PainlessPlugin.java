@@ -27,7 +27,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.painless.action.PainlessContextAction;
 import org.elasticsearch.painless.action.PainlessExecuteAction;
-import org.elasticsearch.painless.action.PainlessSuggestionsAction;
+import org.elasticsearch.painless.action.PainlessSuggestAction;
 import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
@@ -179,7 +179,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
         actions.add(new ActionHandler<>(PainlessExecuteAction.INSTANCE, PainlessExecuteAction.TransportAction.class));
         actions.add(new ActionHandler<>(PainlessContextAction.INSTANCE, PainlessContextAction.TransportAction.class));
-        actions.add(new ActionHandler<>(PainlessSuggestionsAction.INSTANCE, PainlessSuggestionsAction.TransportAction.class));
+        actions.add(new ActionHandler<>(PainlessSuggestAction.INSTANCE, PainlessSuggestAction.TransportAction.class));
         return actions;
     }
 
@@ -191,7 +191,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new PainlessExecuteAction.RestAction());
         handlers.add(new PainlessContextAction.RestAction());
-        handlers.add(new PainlessSuggestionsAction.RestAction());
+        handlers.add(new PainlessSuggestAction.RestAction());
         return handlers;
     }
 }

@@ -241,13 +241,12 @@ public final class FieldPermissions implements Accountable, CacheKey {
         FieldPermissions that = (FieldPermissions) o;
 
         if (permittedFieldsAutomatonIsTotal != that.permittedFieldsAutomatonIsTotal) return false;
-        return fieldPermissionsDefinitions != null ?
-                fieldPermissionsDefinitions.equals(that.fieldPermissionsDefinitions) : that.fieldPermissionsDefinitions == null;
+        return Arrays.equals(fieldPermissionsDefinitions, that.fieldPermissionsDefinitions);
     }
 
     @Override
     public int hashCode() {
-        int result = fieldPermissionsDefinitions != null ? fieldPermissionsDefinitions.hashCode() : 0;
+        int result = fieldPermissionsDefinitions != null ? Arrays.hashCode(fieldPermissionsDefinitions) : 0;
         result = 31 * result + (permittedFieldsAutomatonIsTotal ? 1 : 0);
         return result;
     }

@@ -34,7 +34,7 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     }
 
     @Override
-    void disableFeatures(IndicesRequest indicesRequest, SortedMap<String, IndicesAccessControl.IndexAccessControl> accessControlByIndex,
+    void disableFeatures(IndicesRequest indicesRequest, SortedMap<String, IndicesAccessControl.IndexAccessControl> indicesAccessControlByIndex,
                          ActionListener<Void> listener) {
         final SearchSourceBuilder source;
         if (indicesRequest instanceof SearchRequest) {
@@ -43,7 +43,7 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
         } else {
             final ShardSearchRequest request = (ShardSearchRequest) indicesRequest;
             try {
-                BytesReference bytes = serialise(accessControlByIndex);
+                BytesReference bytes = serialise(indicesAccessControlByIndex);
                 request.cacheModifier(bytes);
             } catch (IOException e) {
                 listener.onFailure(e);
@@ -51,7 +51,7 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
             source = request.source();
         }
 
-        if (accessControlByIndex.values().stream().anyMatch(iac -> iac.getDocumentPermissions().hasDocumentLevelPermissions())) {
+        if (indicesAccessControlByIndex.values().stream().anyMatch(iac -> iac.getDocumentPermissions().hasDocumentLevelPermissions())) {
             if (source != null && source.suggest() != null) {
                 listener.onFailure(new ElasticsearchSecurityException("Suggest isn't supported if document level security is enabled",
                     RestStatus.BAD_REQUEST));

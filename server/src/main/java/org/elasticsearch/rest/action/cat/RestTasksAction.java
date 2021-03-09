@@ -99,7 +99,7 @@ public class RestTasksAction extends AbstractCatAction {
         table.addCell("type", "alias:ty;desc:task type");
         table.addCell("start_time", "alias:start;desc:start time in ms");
         table.addCell("timestamp", "alias:ts,hms,hhmmss;desc:start time in HH:MM:SS");
-        table.addCell("running_time_ns", "default:false;alias:time;desc:running time ns");
+        table.addCell("running_time_ns", "default:false;alias:time_ns;desc:running time ns");
         table.addCell("running_time", "default:true;alias:time;desc:running time");
 
         // Node info

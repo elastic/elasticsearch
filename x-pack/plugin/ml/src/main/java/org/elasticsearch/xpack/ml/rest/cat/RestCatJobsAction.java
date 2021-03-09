@@ -209,7 +209,7 @@ public class RestCatJobsAction extends AbstractCatAction {
                 .build());
         table.addCell("model.frequent_category_count",
             TableColumnAttributeBuilder.builder("count of frequent categories", false)
-                .setAliases("mfcc", "modelFrequentCategoryCount")
+                .setAliases("modelFrequentCategoryCount")
                 .build());
         table.addCell("model.rare_category_count",
             TableColumnAttributeBuilder.builder("count of rare categories", false)

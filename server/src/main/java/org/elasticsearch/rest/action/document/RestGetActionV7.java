@@ -9,8 +9,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -21,10 +20,8 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
 public class RestGetActionV7 extends RestGetAction {
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetActionV7.class);
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
         + "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
-    static final String COMPATIBLE_API_MESSAGE = "[Compatible API usage] Index API with types has been removed, use typeless endpoints.";
 
     @Override
     public String getName() {
@@ -33,13 +30,16 @@ public class RestGetActionV7 extends RestGetAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/{index}/{type}/{id}"), new Route(HEAD, "/{index}/{type}/{id}"));
+        return List.of(Route.builder(GET, "/{index}/{type}/{id}")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(HEAD, "/{index}/{type}/{id}")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build());
     }
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
-        deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "get_with_types", TYPES_DEPRECATION_MESSAGE);
-        deprecationLogger.compatibleApiWarning("get_with_types", COMPATIBLE_API_MESSAGE);
         request.param("type");
         return super.prepareRequest(request, client);
     }

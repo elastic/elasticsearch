@@ -10,8 +10,7 @@ package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -27,12 +26,6 @@ public class RestIndexActionV7 {
         + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
         + "or /{index}/_create/{id}).";
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndexActionV7.class);
-
-    private static void logDeprecationMessage() {
-        deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "index_with_types", TYPES_DEPRECATION_MESSAGE);
-   }
-
     public static class CompatibleRestIndexAction extends RestIndexAction {
         @Override
         public String getName() {
@@ -41,12 +34,16 @@ public class RestIndexActionV7 {
 
         @Override
         public List<Route> routes() {
-            return List.of(new Route(POST, "/{index}/{type}/{id}"), new Route(PUT, "/{index}/{type}/{id}"));
+            return List.of(Route.builder(POST, "/{index}/{type}/{id}")
+                    .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                    .build(),
+                Route.builder(PUT, "/{index}/{type}/{id}")
+                    .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                    .build());
         }
 
         @Override
         public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
-            logDeprecationMessage();
             request.param("type");
             return super.prepareRequest(request, client);
         }
@@ -61,12 +58,16 @@ public class RestIndexActionV7 {
 
         @Override
         public List<Route> routes() {
-            return List.of(new Route(POST, "/{index}/{type}/{id}/_create"), new Route(PUT, "/{index}/{type}/{id}/_create"));
+            return List.of(Route.builder(POST, "/{index}/{type}/{id}/_create")
+                    .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                    .build(),
+                Route.builder(PUT, "/{index}/{type}/{id}/_create")
+                    .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                    .build());
         }
 
         @Override
         public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
-            logDeprecationMessage();
             request.param("type");
             return super.prepareRequest(request, client);
         }
@@ -85,12 +86,13 @@ public class RestIndexActionV7 {
 
         @Override
         public List<Route> routes() {
-            return singletonList(new Route(POST, "/{index}/{type}"));
+            return singletonList(Route.builder(POST, "/{index}/{type}")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build());
         }
 
         @Override
         public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
-            logDeprecationMessage();
             request.param("type");
             return super.prepareRequest(request, client);
         }

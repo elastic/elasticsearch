@@ -170,7 +170,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                 Resolution.MILLISECONDS,
                 null,
-                null
+                Collections.emptyMap()
             )
         );
     }

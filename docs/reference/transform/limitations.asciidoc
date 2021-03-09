@@ -279,9 +279,9 @@ slow the {transform}. Use an indexed field as a time field when using
 
 [discrete]
 [[transforms-ccs-limitation]]
-=== {transforms-cap} supports {ccs} if the remote cluster configured properly
+=== {transforms-cap} support {ccs} if the remote cluster is configured properly
 
 If you use <<modules-cross-cluster-search,{ccs}>>, the remote cluster must 
 support the search and aggregations you use in your {transforms}. 
-{transforms-cap} validate their configuration, if it fails and you use {ccs}, 
+{transforms-cap} validate their configuration; if you use {ccs} and the validation fails, 
 make sure that the remote cluster supports the query and aggregations you use.

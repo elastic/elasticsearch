@@ -370,4 +370,5 @@ tasks.named("yamlRestCompatTest").configure {
 
 tasks.named("transformV7RestTests").configure({ task ->
   task.replaceMatch("_type", "_doc")
+//  task.addWarning("[types removal].*")
 })

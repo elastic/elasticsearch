@@ -41,14 +41,14 @@ public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest
     public GetPipelineRequest(StreamInput in) throws IOException {
         super(in);
         ids = in.readStringArray();
-        summary = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false;
+        summary = in.getVersion().onOrAfter(Version.V_7_13_0) ? in.readBoolean() : false;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(ids);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
             out.writeBoolean(summary);
         }
     }

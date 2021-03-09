@@ -1,7 +1,9 @@
+import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
@@ -92,6 +94,15 @@ tasks.named("yamlRestTest").configure {
   dependsOn "copyKeyCerts"
 }
 
+tasks.named("yamlRestCompatTest").configure {
+  onlyIf {
+    // Skip these tests on Windows since the blacklist exceeds Windows CLI limits
+    OS.current() != OS.WINDOWS
+  }
+  systemProperty 'tests.rest.blacklist', [
+  ].join(',')
+}
+
 testClusters.all {
   testDistribution = 'DEFAULT' // this is important since we use the reindex module in ML
   setting 'xpack.ml.enabled', 'true'
@@ -119,5 +130,3 @@ testClusters.all {
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
 }
-
-

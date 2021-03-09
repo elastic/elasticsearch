@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.info.BuildParams
 
 import java.nio.file.Paths
@@ -7,6 +8,7 @@ apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 archivesBaseName = 'x-pack-core'
@@ -139,6 +141,15 @@ restResources {
   restApi {
     includeCore '*'
   }
+}
+
+tasks.named("yamlRestCompatTest").configure {
+  onlyIf {
+    // Skip these tests on Windows since the blacklist exceeds Windows CLI limits
+    OS.current() != OS.WINDOWS
+  }
+  systemProperty 'tests.rest.blacklist', [
+  ].join(',')
 }
 
 testClusters.yamlRestTest {

@@ -42,7 +42,7 @@ organization, the {security-features} integrate with those systems to perform
 user authentication.
 
 In many cases, authenticating users isn't enough. You also need a way to
-control what data users can access what tasks they can perform. By enabling the
+control what data users can access and what tasks they can perform. By enabling the
 {es-security-features}, you can _authorize_ users by assigning access
 privileges to roles and assigning those roles to users. Using this role-based
 access control mechanism (RBAC), you can limit the user `kandorra` to only

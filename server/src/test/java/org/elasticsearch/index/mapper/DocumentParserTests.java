@@ -1051,7 +1051,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 {
                     b.startObject("points");
                     {
-                        b.field("custom_mapping_type", "geo_point");
+                        b.field("match_mapping_hint", "geo_point");
                         b.startObject("mapping");
                         {
                             b.field("type", "geo_point");
@@ -1117,7 +1117,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 {
                     b.startObject("keywords");
                     {
-                        b.field("custom_mapping_type", "keyword");
+                        b.field("match_mapping_hint", "keyword");
                         b.startObject("mapping");
                         {
                             b.field("type", "keyword");
@@ -1135,7 +1135,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(getFieldTypes(doc, field), arrayWithSize(2));
         MapperParsingException error = expectThrows(MapperParsingException.class, () ->
             mapper.parse(source("1", b -> b.field(field, "hello"), null, Map.of(field, "new_type"))));
-        assertThat(error.getMessage(), containsString("Can't find template for matching type [new_type] of field"));
+        assertThat(error.getMessage(), containsString("Can't find template for matching hint [new_type] of field"));
     }
 
     public void testDynamicDottedFieldNameLongArrayWithExistingParent() throws Exception {

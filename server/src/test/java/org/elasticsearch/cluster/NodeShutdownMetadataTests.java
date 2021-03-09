@@ -37,13 +37,13 @@ public class NodeShutdownMetadataTests extends AbstractDiffableSerializationTest
 
     @Override
     protected NodeShutdownMetadata createTestInstance() {
-        Map<String, NodeShutdownMetadata.NodeShutdownInfo> nodes = randomList(0, 10, this::randomNodeShutdownInfo).stream()
-            .collect(Collectors.toMap(NodeShutdownMetadata.NodeShutdownInfo::getNodeId, Function.identity()));
+        Map<String, NodeShutdownMetadata.SingleNodeShutdownMetadata> nodes = randomList(0, 10, this::randomNodeShutdownInfo).stream()
+            .collect(Collectors.toMap(NodeShutdownMetadata.SingleNodeShutdownMetadata::getNodeId, Function.identity()));
         return new NodeShutdownMetadata(nodes);
     }
 
-    private NodeShutdownMetadata.NodeShutdownInfo randomNodeShutdownInfo() {
-        return new NodeShutdownMetadata.NodeShutdownInfo(
+    private NodeShutdownMetadata.SingleNodeShutdownMetadata randomNodeShutdownInfo() {
+        return new NodeShutdownMetadata.SingleNodeShutdownMetadata(
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),

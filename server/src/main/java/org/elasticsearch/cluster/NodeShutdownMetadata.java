@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,11 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Contains the data about nodes which are currently configured to shut down, either permanently or temporarily.
+ *
+ * Stored in the cluster state as custom metadata.
+ */
 public class NodeShutdownMetadata implements Metadata.Custom {
     public static final String TYPE = "node_shutdown";
     public static final Version NODE_SHUTDOWN_VERSION = Version.V_8_0_0;
@@ -35,15 +41,15 @@ public class NodeShutdownMetadata implements Metadata.Custom {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<NodeShutdownMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE, a -> {
-        final Map<String, NodeShutdownInfo> nodes = ((List<NodeShutdownInfo>) a[0]).stream()
-            .collect(Collectors.toMap(NodeShutdownInfo::getNodeId, Function.identity()));
+        final Map<String, SingleNodeShutdownMetadata> nodes = ((List<SingleNodeShutdownMetadata>) a[0]).stream()
+            .collect(Collectors.toMap(SingleNodeShutdownMetadata::getNodeId, Function.identity()));
         return new NodeShutdownMetadata(nodes);
     });
 
     static {
         PARSER.declareNamedObjects(
             ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> NodeShutdownInfo.parse(p),
+            (p, c, n) -> SingleNodeShutdownMetadata.parse(p),
             v -> { throw new IllegalArgumentException("ordered " + NODES_FIELD.getPreferredName() + " are not supported"); },
             NODES_FIELD
         );
@@ -53,14 +59,14 @@ public class NodeShutdownMetadata implements Metadata.Custom {
         return PARSER.apply(parser, null);
     }
 
-    private final Map<String, NodeShutdownInfo> nodes;
+    private final Map<String, SingleNodeShutdownMetadata> nodes;
 
-    public NodeShutdownMetadata(Map<String, NodeShutdownInfo> nodes) {
+    public NodeShutdownMetadata(Map<String, SingleNodeShutdownMetadata> nodes) {
         this.nodes = nodes;
     }
 
     public NodeShutdownMetadata(StreamInput in) throws IOException {
-        this.nodes = in.readMap(StreamInput::readString, NodeShutdownInfo::new);
+        this.nodes = in.readMap(StreamInput::readString, SingleNodeShutdownMetadata::new);
     }
 
     @Override
@@ -68,8 +74,12 @@ public class NodeShutdownMetadata implements Metadata.Custom {
         out.writeMap(nodes, StreamOutput::writeString, (outStream, v) -> v.writeTo(outStream));
     }
 
-    public Map<String, NodeShutdownInfo> getNodes() {
-        return nodes;
+    /**
+     * Retrieve the data about nodes which are currently in the process of shutting down.
+     * @return A map of node IDs to information about the node's shutdown status.
+     */
+    public Map<String, SingleNodeShutdownMetadata> getPerNodeInfo() {
+        return Collections.unmodifiableMap(nodes);
     }
 
     @Override
@@ -97,12 +107,12 @@ public class NodeShutdownMetadata implements Metadata.Custom {
         if (this == o) return true;
         if ((o instanceof NodeShutdownMetadata) == false) return false;
         NodeShutdownMetadata that = (NodeShutdownMetadata) o;
-        return getNodes().equals(that.getNodes());
+        return getPerNodeInfo().equals(that.getPerNodeInfo());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getNodes());
+        return Objects.hash(getPerNodeInfo());
     }
 
     @Override
@@ -111,9 +121,12 @@ public class NodeShutdownMetadata implements Metadata.Custom {
         return builder;
     }
 
+    /**
+     * Handles diffing and appling diffs for {@link NodeShutdownMetadata} as necessary for the cluster state infrastructure.
+     */
     public static class NodeShutdownMetadataDiff implements NamedDiff<Metadata.Custom> {
 
-        private final Diff<Map<String, NodeShutdownInfo>> nodesDiff;
+        private final Diff<Map<String, SingleNodeShutdownMetadata>> nodesDiff;
 
         NodeShutdownMetadataDiff(NodeShutdownMetadata before, NodeShutdownMetadata after) {
             this.nodesDiff = DiffableUtils.diff(before.nodes, after.nodes, DiffableUtils.getStringKeySerializer());
@@ -123,14 +136,14 @@ public class NodeShutdownMetadata implements Metadata.Custom {
             this.nodesDiff = DiffableUtils.readJdkMapDiff(
                 in,
                 DiffableUtils.getStringKeySerializer(),
-                NodeShutdownInfo::new,
+                SingleNodeShutdownMetadata::new,
                 NodeShutdownMetadataDiff::readNodesDiffFrom
             );
         }
 
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
-            TreeMap<String, NodeShutdownInfo> newNodes = new TreeMap<>(nodesDiff.apply(((NodeShutdownMetadata) part).getNodes()));
+            TreeMap<String, SingleNodeShutdownMetadata> newNodes = new TreeMap<>(nodesDiff.apply(((NodeShutdownMetadata) part).getPerNodeInfo()));
             return new NodeShutdownMetadata(newNodes);
         }
 
@@ -144,15 +157,18 @@ public class NodeShutdownMetadata implements Metadata.Custom {
             nodesDiff.writeTo(out);
         }
 
-        static Diff<NodeShutdownInfo> readNodesDiffFrom(StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(NodeShutdownInfo::new, in);
+        static Diff<SingleNodeShutdownMetadata> readNodesDiffFrom(StreamInput in) throws IOException {
+            return AbstractDiffable.readDiffFrom(SingleNodeShutdownMetadata::new, in);
         }
     }
 
-    public static class NodeShutdownInfo extends AbstractDiffable<NodeShutdownInfo>
+    /**
+     * Contains data about a single node's shutdown readiness.
+     */
+    public static class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutdownMetadata>
         implements
             ToXContentObject,
-            Diffable<NodeShutdownInfo> {
+            Diffable<SingleNodeShutdownMetadata> {
 
         private static final ParseField NODE_ID_FIELD = new ParseField("node_id");
         private static final ParseField TYPE_FIELD = new ParseField("type");
@@ -161,9 +177,9 @@ public class NodeShutdownMetadata implements Metadata.Custom {
         private static final ParseField STARTED_AT_FIELD = new ParseField("shutdown_started");
         private static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField("shutdown_started_millis");
 
-        public static final ConstructingObjectParser<NodeShutdownInfo, Void> PARSER = new ConstructingObjectParser<>(
+        public static final ConstructingObjectParser<SingleNodeShutdownMetadata, Void> PARSER = new ConstructingObjectParser<>(
             "node_shutdown_info",
-            a -> new NodeShutdownInfo((String) a[0], (String) a[1], (String) a[2], (boolean) a[3], (long) a[4])
+            a -> new SingleNodeShutdownMetadata((String) a[0], (String) a[1], (String) a[2], (boolean) a[3], (long) a[4])
         );
 
         static {
@@ -174,7 +190,7 @@ public class NodeShutdownMetadata implements Metadata.Custom {
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), STARTED_AT_MILLIS_FIELD);
         }
 
-        public static NodeShutdownInfo parse(XContentParser parser) {
+        public static SingleNodeShutdownMetadata parse(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
 
@@ -184,7 +200,7 @@ public class NodeShutdownMetadata implements Metadata.Custom {
         private final boolean status; // GWB> Replace with an actual status object
         private final long startedAtDate;
 
-        public NodeShutdownInfo(String nodeId, String type, String reason, boolean status, long startedAtDate) {
+        public SingleNodeShutdownMetadata(String nodeId, String type, String reason, boolean status, long startedAtDate) {
             this.nodeId = Objects.requireNonNull(nodeId, "node ID must not be null");
             this.type = Objects.requireNonNull(type, "shutdown type must not be null");
             this.reason = Objects.requireNonNull(reason, "shutdown reason must not be null");
@@ -192,7 +208,7 @@ public class NodeShutdownMetadata implements Metadata.Custom {
             this.startedAtDate = startedAtDate;
         }
 
-        public NodeShutdownInfo(StreamInput in) throws IOException {
+        public SingleNodeShutdownMetadata(StreamInput in) throws IOException {
             this.nodeId = in.readString();
             this.type = in.readString();
             this.reason = in.readString();
@@ -200,22 +216,37 @@ public class NodeShutdownMetadata implements Metadata.Custom {
             this.startedAtDate = in.readVLong();
         }
 
+        /**
+         * @return The ID of the node this {@link SingleNodeShutdownMetadata} concerns.
+         */
         public String getNodeId() {
             return nodeId;
         }
 
+        /**
+         * @return The type of shutdown this is (shutdown vs. permanent).
+         */
         public String getType() {
             return type;
         }
 
+        /**
+         * @return The user-supplied reason this node is shutting down.
+         */
         public String getReason() {
             return reason;
         }
 
+        /**
+         * @return True if this node is ready to shut down, false otherwise.
+         */
         public boolean isStatus() {
             return status;
         }
 
+        /**
+         * @return The timestamp that this shutdown procedure was started.
+         */
         public long getStartedAtDate() {
             return startedAtDate;
         }
@@ -247,8 +278,8 @@ public class NodeShutdownMetadata implements Metadata.Custom {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if ((o instanceof NodeShutdownInfo) == false) return false;
-            NodeShutdownInfo that = (NodeShutdownInfo) o;
+            if ((o instanceof SingleNodeShutdownMetadata) == false) return false;
+            SingleNodeShutdownMetadata that = (SingleNodeShutdownMetadata) o;
             return isStatus() == that.isStatus()
                 && getStartedAtDate() == that.getStartedAtDate()
                 && getNodeId().equals(that.getNodeId())

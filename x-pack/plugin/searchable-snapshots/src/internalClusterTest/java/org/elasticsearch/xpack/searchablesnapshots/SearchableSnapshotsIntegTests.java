@@ -553,7 +553,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(settings).toString(), equalTo("false"));
         assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings), equalTo(expectedReplicas));
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings), equalTo(expectedDataTiersPreference));
-        assertTrue(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.get(settings));
+        assertTrue(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.get(settings));
         assertTrue(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings));
 
         checkSoftDeletesNotEagerlyLoaded(restoredIndexName);

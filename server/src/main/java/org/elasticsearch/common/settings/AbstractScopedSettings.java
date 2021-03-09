@@ -454,7 +454,7 @@ public abstract class AbstractScopedSettings {
      * Validates that all settings are registered and valid.
      *
      * @param settings                       the settings
-     * @param validateDependencies           true if dependent settings should be validated
+     * @param validateDependencies           true if dependent settings and settings where validation has dependencies should be validated
      * @param ignorePrivateSettings          true if private settings should be ignored during validation
      * @param ignoreArchivedSettings         true if archived settings should be ignored during validation
      * @param validateInternalOrPrivateIndex true if index internal settings should be validated
@@ -489,7 +489,7 @@ public abstract class AbstractScopedSettings {
      *
      * @param key the key of the setting to validate
      * @param settings the settings
-     * @param validateDependencies true if dependent settings should be validated
+     * @param validateDependencies true if dependent settings and settings where validation has dependencies should be validated
      * @throws IllegalArgumentException if the setting is invalid
      */
     void validate(final String key, final Settings settings, final boolean validateDependencies) {
@@ -501,7 +501,7 @@ public abstract class AbstractScopedSettings {
      *
      * @param key                            the key of the setting to validate
      * @param settings                       the settings
-     * @param validateDependencies           true if dependent settings should be validated
+     * @param validateDependencies           true if dependent settings and settings where validation has dependencies should be validated
      * @param validateInternalOrPrivateIndex true if internal index settings should be validated
      * @throws IllegalArgumentException if the setting is invalid
      */
@@ -564,7 +564,11 @@ public abstract class AbstractScopedSettings {
                 }
             }
         }
-        setting.get(settings);
+        if (validateDependencies) {
+            setting.get(settings);
+        } else {
+            setting.validateWithoutDependencies(settings);
+        }
     }
 
     /**

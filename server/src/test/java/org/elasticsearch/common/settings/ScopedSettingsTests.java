@@ -26,9 +26,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -257,6 +259,46 @@ public class ScopedSettingsTests extends ESTestCase {
 
         service.validate(Settings.builder().put("foo.test.name", "test").put("foo.test.bar", 7).build(), true);
         service.validate(Settings.builder().put("fallback.test.name", "test").put("foo.test.bar", 7).build(), true);
+    }
+
+    public void testValidatorWithDependencies() {
+        final boolean nodeSetting = randomBoolean();
+        final String prefix = nodeSetting ? "" : "index.";
+        final Property scopeProperty = nodeSetting ? Property.NodeScope : Property.IndexScope;
+        final Setting<String> baseSetting = Setting.simpleString(prefix + "foo.base", Property.Dynamic, scopeProperty);
+        final Setting.Validator<String> validator = new Setting.Validator<String>() {
+            @Override
+            public void validate(String value) {
+            }
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (Objects.equals(value, settings.get(baseSetting)) == false) {
+                    throw new IllegalArgumentException("must have same value");
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(baseSetting).iterator();
+            }
+        };
+        final Setting<String> dependingSetting = Setting.simpleString(prefix + "foo.depending", validator, scopeProperty);
+
+        final AbstractScopedSettings service = nodeSetting ? new ClusterSettings(Settings.EMPTY, Set.of(baseSetting, dependingSetting)) :
+            new IndexScopedSettings(Settings.EMPTY, Set.of(baseSetting, dependingSetting));
+
+        service.validate(Settings.builder().put(baseSetting.getKey(), "1").put(dependingSetting.getKey(), 1).build(), true);
+        service.validate(Settings.builder().put(dependingSetting.getKey(), "1").build(), false);
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.validate(Settings.builder().put(dependingSetting.getKey(), "1").build(), true));
+        assertThat(e.getMessage(), equalTo("must have same value"));
+
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.validate(Settings.builder().put(baseSetting.getKey(), "2").put(dependingSetting.getKey(), "1").build(), true));
+        assertThat(e2.getMessage(), equalTo("must have same value"));
     }
 
     public void testTupleAffixUpdateConsumer() {

@@ -7,7 +7,10 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.Map;
 
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
@@ -15,9 +18,21 @@ public class SearchableSnapshotsConstants {
     public static final String SNAPSHOT_DIRECTORY_FACTORY_KEY = "snapshot";
 
     public static final String SNAPSHOT_RECOVERY_STATE_FACTORY_KEY = "snapshot_prewarm";
+    public static final Setting<Boolean> SNAPSHOT_PARTIAL_SETTING = Setting.boolSetting(
+        "index.store.snapshot.partial",
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex,
+        Setting.Property.NotCopyableOnResize
+    );
 
     public static boolean isSearchableSnapshotStore(Settings indexSettings) {
         return SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings));
+    }
+
+    public static boolean isPartialSearchableSnapshotIndex(Map<Setting<?>, Object> indexSettings) {
+        return SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(indexSettings.get(INDEX_STORE_TYPE_SETTING))
+            && (boolean) indexSettings.get(SNAPSHOT_PARTIAL_SETTING);
     }
 
     public static final String CACHE_FETCH_ASYNC_THREAD_POOL_NAME = "searchable_snapshots_cache_fetch_async";

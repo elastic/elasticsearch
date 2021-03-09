@@ -477,11 +477,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                     SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
                     MountSearchableSnapshotRequest.Storage.SHARED_CACHE),
                     RolloverAction.NAME, new RolloverAction(null, null, null, 1L))),
-            null,
-            new Phase("cold", TimeValue.ZERO,
+            null, null,
+            new Phase("frozen", TimeValue.ZERO,
                 singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
                     MountSearchableSnapshotRequest.Storage.FULL_COPY))),
-            null,
             null
         );
 
@@ -507,7 +506,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("cold"));
+            assertThat(stepKeyForIndex.getPhase(), is("frozen"));
             assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
 

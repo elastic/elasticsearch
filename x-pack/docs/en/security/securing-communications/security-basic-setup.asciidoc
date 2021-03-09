@@ -7,8 +7,8 @@
 Let's say you want to set up the Elastic Stack with some security, but don't
 need to encrypt all traffic flowing in and out of your cluster. After adding
 password protection in the <<security-minimal-setup,minimal security configuration>>, you'll need to configure Transport Layer Security (TLS). The
-transport layer handles all internal communication between nodes and
-communication with nodes in a remote cluster.
+transport layer handles all internal communication between nodes in your
+cluster.
 
 The transport layer relies on mutual TLS for both encryption and
 authentication. Applying TLS ensures that a malicious node cannot join the

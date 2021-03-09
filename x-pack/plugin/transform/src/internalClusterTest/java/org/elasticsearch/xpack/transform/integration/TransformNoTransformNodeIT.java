@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 
@@ -19,13 +20,21 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
     }
 
     public void testWarning() {
-        GetTransformStatsAction.Request getTransformStatsRequest = new GetTransformStatsAction.Request("_all");
-        GetTransformStatsAction.Response getTransformStatsResponse = client().execute(
-            GetTransformStatsAction.INSTANCE,
-            getTransformStatsRequest
-        ).actionGet();
+        if (randomBoolean()) {
+            GetTransformStatsAction.Request getTransformStatsRequest = new GetTransformStatsAction.Request("_all");
+            GetTransformStatsAction.Response getTransformStatsResponse = client().execute(
+                GetTransformStatsAction.INSTANCE,
+                getTransformStatsRequest
+            ).actionGet();
 
-        assertEquals(0, getTransformStatsResponse.getTransformsStats().size());
+            assertEquals(0, getTransformStatsResponse.getTransformsStats().size());
+        } else {
+            GetTransformAction.Request getTransformRequest = new GetTransformAction.Request("_all");
+            GetTransformAction.Response getTransformResponse = client().execute(GetTransformAction.INSTANCE, getTransformRequest)
+                .actionGet();
+            assertEquals(0, getTransformResponse.getTransformConfigurations().size());
+
+        }
         assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
     }
 }

@@ -13,13 +13,14 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 public class RestUpdateFilterAction extends BaseRestHandler {
 
@@ -31,9 +32,9 @@ public class RestUpdateFilterAction extends BaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.singletonList(
-            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}/_update",
-                POST, MachineLearning.PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}/_update")
+        return org.elasticsearch.common.collect.List.of(
+            new ReplacedRoute(POST, BASE_PATH + "filters/{" + MlFilter.ID + "}/_update",
+                POST, PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID + "}/_update")
         );
     }
 

@@ -15,15 +15,16 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction.Request;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.core.ml.action.GetCategoriesAction.Request.CATEGORY_ID;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 public class RestGetCategoriesAction extends BaseRestHandler {
 
@@ -35,23 +36,20 @@ public class RestGetCategoriesAction extends BaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
+        return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(
-                GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories/{"
-                + Request.CATEGORY_ID.getPreferredName() + "}",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories/{"
-                + Request.CATEGORY_ID.getPreferredName() + "}"),
-            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                "}/results/categories/{" + Request.CATEGORY_ID.getPreferredName() + "}",
-                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                "}/results/categories/{" + Request.CATEGORY_ID.getPreferredName() + "}"),
+                GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}",
+                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}"),
             new ReplacedRoute(
-                GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories"),
+                POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}",
+                POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}"),
             new ReplacedRoute(
-                POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories",
-                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories")
-        ));
+                GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories",
+                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories"),
+            new ReplacedRoute(
+                POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories",
+                POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories")
+        );
     }
 
     @Override
@@ -63,8 +61,8 @@ public class RestGetCategoriesAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Request request;
         String jobId = restRequest.param(Job.ID.getPreferredName());
-        Long categoryId = restRequest.hasParam(Request.CATEGORY_ID.getPreferredName()) ? Long.parseLong(
-                restRequest.param(Request.CATEGORY_ID.getPreferredName())) : null;
+        Long categoryId = restRequest.hasParam(CATEGORY_ID.getPreferredName()) ? Long.parseLong(
+                restRequest.param(CATEGORY_ID.getPreferredName())) : null;
 
         if (restRequest.hasContentOrSourceParam()) {
             XContentParser parser = restRequest.contentOrSourceParamParser();

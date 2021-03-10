@@ -11,8 +11,12 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+
+import java.util.Collections;
+import java.util.function.Function;
 
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.Matchers.anyObject;
@@ -49,7 +53,38 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(docValues, fetchedDocValues);
     }
 
-    private IndexFieldData<?> createFieldData(ScriptDocValues scriptDocValues) {
+    public void testFlattenedField() {
+        ScriptDocValues<?> docValues1 = mock(ScriptDocValues.class);
+        IndexFieldData<?> fieldData1 = createFieldData(docValues1);
+
+        ScriptDocValues<?> docValues2 = mock(ScriptDocValues.class);
+        IndexFieldData<?> fieldData2 = createFieldData(docValues2);
+
+        FlattenedFieldMapper.KeyedFlattenedFieldType fieldType1
+            = new FlattenedFieldMapper.KeyedFlattenedFieldType("field", true, true, "key1", false, Collections.emptyMap());
+        FlattenedFieldMapper.KeyedFlattenedFieldType fieldType2
+            = new FlattenedFieldMapper.KeyedFlattenedFieldType( "field", true, true, "key2", false, Collections.emptyMap());
+
+        Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = fieldType -> {
+            FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) fieldType;
+            return keyedFieldType.key().equals("key1") ? fieldData1 : fieldData2;
+        };
+
+        LeafDocLookup docLookup = new LeafDocLookup(field -> {
+            if (field.equals("json.key1")) {
+                return fieldType1;
+            }
+            if (field.equals("json.key2")) {
+                return fieldType2;
+            }
+            return null;
+        }, fieldDataSupplier, null);
+
+        assertEquals(docValues1, docLookup.get("json.key1"));
+        assertEquals(docValues2, docLookup.get("json.key2"));
+    }
+
+    private IndexFieldData<?> createFieldData(ScriptDocValues<?> scriptDocValues) {
         LeafFieldData leafFieldData = mock(LeafFieldData.class);
         doReturn(scriptDocValues).when(leafFieldData).getScriptValues();
 

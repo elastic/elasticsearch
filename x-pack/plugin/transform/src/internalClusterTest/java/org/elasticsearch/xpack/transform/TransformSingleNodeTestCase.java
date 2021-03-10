@@ -13,7 +13,9 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -30,6 +32,11 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(LocalStateTransform.class, ReindexPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master, data, ingest, transform").build();
     }
 
     protected <T> void assertAsync(Consumer<ActionListener<T>> function, T expected, CheckedConsumer<T, ? extends Exception> onAnswer,

@@ -46,6 +46,7 @@ import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.encodeDecodeLon;
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.geoShapeValue;
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.randomBBox;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class GeoGridTilerTests extends ESTestCase {
     private static final GeoTileGridTiler GEOTILE = new GeoTileGridTiler();
@@ -144,6 +145,8 @@ public class GeoGridTilerTests extends ESTestCase {
             int numTiles = GEOTILE.setValues(unboundedCellValues, value, precision);
             int expected = numTiles(value, precision);
             assertThat(numTiles, equalTo(expected));
+            // make sure we are not over-allocating
+            assertThat(4 * numTiles + 1, greaterThanOrEqualTo(unboundedCellValues.getValues().length));
         }
     }
 

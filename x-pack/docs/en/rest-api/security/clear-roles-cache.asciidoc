@@ -30,7 +30,7 @@ For more information about the native realm, see
 `<roles>`::
 (Required, string)
 Comma-separated list of roles to evict from the native role cache. To evict all
-roles from the cache, use `*`.
+roles from the cache, use `*`. Other wildcard patterns are not supported.
 
 
 [[security-api-clear-role-cache-example]]

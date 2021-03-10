@@ -391,6 +391,28 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
 
+    public void testRolloverDoesntRejectOperationIfValidComposableTemplateOverridesLegacyTemplate() {
+        final IndexTemplateMetadata legacyTemplate = IndexTemplateMetadata.builder("legacy-template")
+            .patterns(Arrays.asList("foo-*", "bar-*"))
+            .putAlias(AliasMetadata.builder("foo-write")).putAlias(AliasMetadata.builder("bar-write").writeIndex(randomBoolean()))
+            .build();
+
+        // v2 template overrides the v1 template and does not define the rollover aliases
+        final ComposableIndexTemplate composableTemplate = new ComposableIndexTemplate.Builder().indexPatterns(Arrays.asList("foo-*",
+            "bar-*")).template(new Template(null, null, null)).build();
+
+        final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
+            .put(legacyTemplate).put("composable-template", composableTemplate).build();
+        String indexName = randomFrom("foo-123", "bar-xyz");
+        String aliasName = randomFrom("foo-write", "bar-write");
+        try {
+            MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomBoolean());
+            // success
+        } catch (Exception e) {
+            fail("the valid v2 template takes priority over the v1 template. was not expecting a failure but got: " + e.getMessage());
+        }
+    }
+
     public void testHiddenAffectsResolvedTemplates() {
         final IndexTemplateMetadata template = IndexTemplateMetadata.builder("test-template")
             .patterns(Collections.singletonList("*"))

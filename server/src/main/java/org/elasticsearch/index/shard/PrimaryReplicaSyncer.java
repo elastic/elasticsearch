@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -45,7 +46,7 @@ public class PrimaryReplicaSyncer {
 
     private static final Logger logger = LogManager.getLogger(PrimaryReplicaSyncer.class);
 
-    private final TaskManager taskManager;
+    private final TransportService transportService;
     private final SyncAction syncAction;
 
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
@@ -54,12 +55,12 @@ public class PrimaryReplicaSyncer {
 
     @Inject
     public PrimaryReplicaSyncer(TransportService transportService, TransportResyncReplicationAction syncAction) {
-        this(transportService.getTaskManager(), syncAction);
+        this(transportService, (SyncAction) syncAction);
     }
 
     // for tests
-    public PrimaryReplicaSyncer(TaskManager taskManager, SyncAction syncAction) {
-        this.taskManager = taskManager;
+    public PrimaryReplicaSyncer(TransportService transportService, SyncAction syncAction) {
+        this.transportService = transportService;
         this.syncAction = syncAction;
     }
 
@@ -145,6 +146,7 @@ public class PrimaryReplicaSyncer {
     private void resync(final ShardId shardId, final String primaryAllocationId, final long primaryTerm, final Translog.Snapshot snapshot,
                         long startingSeqNo, long maxSeqNo, long maxSeenAutoIdTimestamp, ActionListener<ResyncTask> listener) {
         ResyncRequest request = new ResyncRequest(shardId, primaryAllocationId);
+        final TaskManager taskManager = transportService.getTaskManager();
         ResyncTask resyncTask = (ResyncTask) taskManager.register("transport", "resync", request); // it's not transport :-)
         ActionListener<Void> wrappedListener = new ActionListener<Void>() {
             @Override
@@ -163,7 +165,7 @@ public class PrimaryReplicaSyncer {
         };
         try {
             new SnapshotSender(syncAction, resyncTask, shardId, primaryAllocationId, primaryTerm, snapshot, chunkSize.bytesAsInt(),
-                startingSeqNo, maxSeqNo, maxSeenAutoIdTimestamp, wrappedListener).run();
+                startingSeqNo, maxSeqNo, maxSeenAutoIdTimestamp, transportService.getThreadPool().generic(), wrappedListener).run();
         } catch (Exception e) {
             wrappedListener.onFailure(e);
         }
@@ -182,6 +184,7 @@ public class PrimaryReplicaSyncer {
         private final long primaryTerm;
         private final ShardId shardId;
         private final Translog.Snapshot snapshot;
+        private final Executor executor; // executor to fork to for reading and then sending ops from the snapshot
         private final long startingSeqNo;
         private final long maxSeqNo;
         private final long maxSeenAutoIdTimestamp;
@@ -194,7 +197,7 @@ public class PrimaryReplicaSyncer {
 
         SnapshotSender(SyncAction syncAction, ResyncTask task, ShardId shardId, String primaryAllocationId, long primaryTerm,
                        Translog.Snapshot snapshot, int chunkSizeInBytes, long startingSeqNo, long maxSeqNo,
-                       long maxSeenAutoIdTimestamp, ActionListener<Void> listener) {
+                       long maxSeenAutoIdTimestamp, Executor executor, ActionListener<Void> listener) {
             this.logger = PrimaryReplicaSyncer.logger;
             this.syncAction = syncAction;
             this.task = task;
@@ -206,13 +209,14 @@ public class PrimaryReplicaSyncer {
             this.startingSeqNo = startingSeqNo;
             this.maxSeqNo = maxSeqNo;
             this.maxSeenAutoIdTimestamp = maxSeenAutoIdTimestamp;
+            this.executor = executor;
             this.listener = listener;
             task.setTotalOperations(snapshot.totalOperations());
         }
 
         @Override
         public void onResponse(ResyncReplicationResponse response) {
-            run();
+            executor.execute(this);
         }
 
         @Override

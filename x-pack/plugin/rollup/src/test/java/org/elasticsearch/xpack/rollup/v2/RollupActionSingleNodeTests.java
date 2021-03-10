@@ -6,23 +6,16 @@
  */
 package org.elasticsearch.xpack.rollup.v2;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -49,8 +42,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
@@ -59,9 +50,7 @@ import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.rollup.Rollup;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -69,16 +58,14 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/69799")
 public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
@@ -87,13 +74,9 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     private long startTime;
     private int docCount;
 
-    private String timestampFieldName = "@timestamp";
-    private final Set<String> createdDataStreams = new HashSet<>();
-
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(LocalStateCompositeXPackPlugin.class, Rollup.class, AnalyticsPlugin.class,
-            AggregateMetricMapperPlugin.class, DataStreamsPlugin.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, Rollup.class, AnalyticsPlugin.class, AggregateMetricMapperPlugin.class);
     }
 
     @Before
@@ -109,22 +92,11 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "date_1", "type=date",
                 "numeric_1", "type=double",
                 "numeric_2", "type=float",
+                "numeric_nonaggregatable", "type=double,doc_values=false",
                 "categorical_1", "type=keyword").get();
     }
 
-
-    @Override
-    @After
-    public void tearDown() throws Exception {
-        if (createdDataStreams.isEmpty() == false) {
-            for (String createdDataStream : createdDataStreams) {
-                deleteDataStream(createdDataStream);
-            }
-            createdDataStreams.clear();
-        }
-        super.tearDown();
-    }
-
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/69506")
     public void testRollupShardIndexerCleansTempFiles() throws IOException {
         // create rollup config and index documents into source index
         RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
@@ -288,25 +260,19 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertRollupIndex(config);
     }
 
-    public void testRollupDatastream() throws Exception {
-        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig(timestampFieldName);
-        String dataStreamName = createDataStream(false);
-
+    public void testValidationCheck() throws IOException {
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
-            .field(timestampFieldName, randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("numeric_1", randomDouble())
+            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            // use integers to ensure that avg is comparable between rollup and original
+            .field("numeric_nonaggregatable", randomInt())
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
             new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("value_count"))));
-        bulkIndex(dataStreamName, sourceSupplier);
-
-        String oldIndexName = rollover(dataStreamName).getOldIndex();
-        String rollupIndexName = ".rollup-" + oldIndexName;
-        rollup(oldIndexName, rollupIndexName, config);
-        assertRollupIndex(config, oldIndexName, rollupIndexName);
-        rollup(oldIndexName, rollupIndexName + "-2", config);
-        assertRollupIndex(config, oldIndexName, rollupIndexName + "-2");
+            Collections.singletonList(new MetricConfig("numeric_nonaggregatable", Collections.singletonList("avg"))));
+        bulkIndex(sourceSupplier);
+        Exception e = expectThrows(Exception.class, () -> rollup(config));
+        assertThat(e.getMessage(), containsString("The field [numeric_nonaggregatable] must be aggregatable"));
     }
 
     private RollupActionDateHistogramGroupConfig randomRollupActionDateHistogramGroupConfig(String field) {
@@ -327,14 +293,10 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private void bulkIndex(SourceSupplier sourceSupplier) throws IOException {
-        bulkIndex(index, sourceSupplier);
-    }
-
-    private void bulkIndex(String indexName, SourceSupplier sourceSupplier) throws IOException {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < docCount; i++) {
-            IndexRequest indexRequest = new IndexRequest(indexName).opType(DocWriteRequest.OpType.CREATE);
+            IndexRequest indexRequest = new IndexRequest(index);
             XContentBuilder source = sourceSupplier.get();
             indexRequest.source(source);
             bulkRequestBuilder.add(indexRequest);
@@ -343,42 +305,28 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         if (bulkResponse.hasFailures()) {
             fail("Failed to index data: " + bulkResponse.buildFailureMessage());
         }
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docCount);
+        assertHitCount(client().prepareSearch(index).setSize(0).get(), docCount);
     }
 
     private void rollup(RollupActionConfig config) {
-        rollup(index, rollupIndex,config);
-    }
-
-    private void rollup(String sourceIndex, String rollupIndex, RollupActionConfig config) {
         AcknowledgedResponse rollupResponse = client().execute(RollupAction.INSTANCE,
-            new RollupAction.Request(sourceIndex, rollupIndex, config)).actionGet();
+            new RollupAction.Request(index, rollupIndex, config)).actionGet();
         assertTrue(rollupResponse.isAcknowledged());
     }
 
-    private RolloverResponse rollover(String dataStreamName) throws ExecutionException, InterruptedException {
-        RolloverResponse response = client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get();
-        assertTrue(response.isAcknowledged());
-        return response;
-    }
-
     private void assertRollupIndex(RollupActionConfig config) {
-        assertRollupIndex(config, index, rollupIndex);
-    }
-
-    private void assertRollupIndex(RollupActionConfig config, String sourceIndex, String rollupIndex) {
         // TODO(talevy): assert mapping
         // TODO(talevy): assert settings
 
         final CompositeAggregationBuilder aggregation = buildCompositeAggs("resp", config);
         long numBuckets = 0;
-        InternalComposite origResp = client().prepareSearch(sourceIndex).addAggregation(aggregation).get().getAggregations().get("resp");
+        InternalComposite origResp = client().prepareSearch(index).addAggregation(aggregation).get().getAggregations().get("resp");
         InternalComposite rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
         while (origResp.afterKey() != null) {
             numBuckets += origResp.getBuckets().size();
             assertThat(origResp, equalTo(rollupResp));
             aggregation.aggregateAfter(origResp.afterKey());
-            origResp = client().prepareSearch(sourceIndex).addAggregation(aggregation).get().getAggregations().get("resp");
+            origResp = client().prepareSearch(index).addAggregation(aggregation).get().getAggregations().get("resp");
             rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
         }
         assertThat(origResp, equalTo(rollupResp));
@@ -459,50 +407,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     @FunctionalInterface
     public interface SourceSupplier {
         XContentBuilder get() throws IOException;
-    }
-
-    private String createDataStream(boolean hidden) throws Exception {
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
-        Template idxTemplate = new Template(
-            null,
-            new CompressedXContent("{\"properties\":{\"" + timestampFieldName + "\":{\"type\":\"date\"},\"data\":{\"type\":\"keyword\"}}}"),
-            null
-        );
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(dataStreamName + "*"),
-            idxTemplate,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(hidden),
-            null
-        );
-        assertTrue(
-            client().execute(
-                PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(template)
-            ).actionGet().isAcknowledged()
-        );
-        assertTrue(
-            client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).get().isAcknowledged()
-        );
-        createdDataStreams.add(dataStreamName);
-        return dataStreamName;
-    }
-
-    private void deleteDataStream(String dataStreamName) throws InterruptedException, java.util.concurrent.ExecutionException {
-        assertTrue(
-            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { dataStreamName }))
-                .get()
-                .isAcknowledged()
-        );
-        assertTrue(
-            client().execute(
-                DeleteComposableIndexTemplateAction.INSTANCE,
-                new DeleteComposableIndexTemplateAction.Request(dataStreamName + "_template")
-            ).actionGet().isAcknowledged()
-        );
     }
 }
 

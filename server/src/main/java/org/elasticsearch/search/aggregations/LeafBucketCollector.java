@@ -30,6 +30,10 @@ public abstract class LeafBucketCollector implements LeafCollector {
         public void collect(int doc, long bucket) {
             // no-op
         }
+        @Override
+        public boolean isNoop() {
+            return true;
+        }
     };
 
     public static LeafBucketCollector wrap(Iterable<LeafBucketCollector> collectors) {
@@ -90,6 +94,14 @@ public abstract class LeafBucketCollector implements LeafCollector {
      * uses {@link LongKeyedBucketOrds} which amounts to a hash lookup.
      */
     public abstract void collect(int doc, long owningBucketOrd) throws IOException;
+
+    /**
+     * Does this collector collect anything? If this returns true we can safely
+     * just never call {@link #collect}.
+     */
+    public boolean isNoop() {
+        return false;
+    }
 
     @Override
     public final void collect(int doc) throws IOException {

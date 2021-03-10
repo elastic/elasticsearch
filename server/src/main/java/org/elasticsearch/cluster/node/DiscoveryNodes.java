@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,7 +30,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -498,12 +496,12 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             final StringBuilder summary = new StringBuilder();
             if (masterNodeChanged()) {
                 summary.append("master node changed {previous [");
-                if (previousMasterNode() != null) {
-                    summary.append(previousMasterNode());
+                if (previousMasterNode != null) {
+                    previousMasterNode.appendDescriptionWithoutAttributes(summary);
                 }
                 summary.append("], current [");
-                if (newMasterNode() != null) {
-                    summary.append(newMasterNode());
+                if (newMasterNode != null) {
+                    newMasterNode.appendDescriptionWithoutAttributes(summary);
                 }
                 summary.append("]}");
             }
@@ -511,18 +509,22 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 if (summary.length() > 0) {
                     summary.append(", ");
                 }
-                summary.append("removed {").append(Strings.collectionToCommaDelimitedString(removedNodes())).append('}');
+                summary.append("removed {");
+                addCommaSeparatedNodesWithoutAttributes(removedNodes().iterator(), summary);
+                summary.append('}');
             }
             if (added()) {
-                final String addedNodesExceptLocalNode = addedNodes().stream()
-                    .filter(node -> node.getId().equals(localNodeId) == false).map(DiscoveryNode::toString)
-                    .collect(Collectors.joining(","));
-                if (addedNodesExceptLocalNode.length() > 0) {
-                    // ignore ourselves when reporting on nodes being added
+                // ignore ourselves when reporting on nodes being added
+                final Iterator<DiscoveryNode> addedNodesIterator
+                        = addedNodes().stream().filter(node -> node.getId().equals(localNodeId) == false).iterator();
+
+                if (addedNodesIterator.hasNext()) {
                     if (summary.length() > 0) {
                         summary.append(", ");
                     }
-                    summary.append("added {").append(addedNodesExceptLocalNode).append('}');
+                    summary.append("added {");
+                    addCommaSeparatedNodesWithoutAttributes(addedNodesIterator, summary);
+                    summary.append('}');
                 }
             }
             return summary.toString();
@@ -710,6 +712,15 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
         public boolean isLocalNodeElectedMaster() {
             return masterNodeId != null && masterNodeId.equals(localNodeId);
+        }
+    }
+
+    public static void addCommaSeparatedNodesWithoutAttributes(Iterator<DiscoveryNode> iterator, StringBuilder stringBuilder) {
+        while (iterator.hasNext()) {
+            iterator.next().appendDescriptionWithoutAttributes(stringBuilder);
+            if (iterator.hasNext()) {
+                stringBuilder.append(", ");
+            }
         }
     }
 }

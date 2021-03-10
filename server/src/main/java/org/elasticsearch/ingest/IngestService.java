@@ -496,67 +496,61 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final BiConsumer<Thread, Exception> onCompletion,
         final Thread originalThread
     ) {
-        while (it.hasNext()) {
-            final String pipelineId = it.next();
-            try {
-                PipelineHolder holder = pipelines.get(pipelineId);
-                if (holder == null) {
-                    throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
-                }
-                Pipeline pipeline = holder.pipeline;
-                String originalIndex = indexRequest.indices()[0];
-                innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
-                    if (e != null) {
-                        logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}]",
-                            pipelineId, indexRequest.index(), indexRequest.id()), e);
-                        onFailure.accept(slot, e);
-                    }
-
-                    Iterator<String> newIt = it;
-                    boolean newHasFinalPipeline = hasFinalPipeline;
-                    String newIndex = indexRequest.indices()[0];
-
-                    if (Objects.equals(originalIndex, newIndex) == false) {
-                        if (hasFinalPipeline && it.hasNext() == false) {
-                            totalMetrics.ingestFailed();
-                            onFailure.accept(slot, new IllegalStateException("final pipeline [" + pipelineId +
-                                "] can't change the target index"));
-                        } else {
-
-                            //Drain old it so it's not looped over
-                            it.forEachRemaining($ -> {
-                            });
-                            indexRequest.isPipelineResolved(false);
-                            resolvePipelines(null, indexRequest, state.metadata());
-                            if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
-                                newIt = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
-                                newHasFinalPipeline = true;
-                            } else {
-                                newIt = Collections.emptyIterator();
-                            }
-                        }
-                    }
-
-                    if (newIt.hasNext()) {
-                        executePipelines(slot, newIt, newHasFinalPipeline, indexRequest, onDropped, onFailure, counter, onCompletion,
-                            originalThread);
-                    } else {
-                        if (counter.decrementAndGet() == 0) {
-                            onCompletion.accept(originalThread, null);
-                        }
-                        assert counter.get() >= 0;
-                    }
-                });
-            } catch (Exception e) {
-                logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}]",
-                    pipelineId, indexRequest.index(), indexRequest.id()), e);
-                onFailure.accept(slot, e);
-                if (counter.decrementAndGet() == 0) {
-                    onCompletion.accept(originalThread, null);
-                }
-                assert counter.get() >= 0;
-                break;
+        assert it.hasNext();
+        final String pipelineId = it.next();
+        try {
+            PipelineHolder holder = pipelines.get(pipelineId);
+            if (holder == null) {
+                throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
             }
+            Pipeline pipeline = holder.pipeline;
+            String originalIndex = indexRequest.indices()[0];
+            innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
+                if (e != null) {
+                    logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}]",
+                        pipelineId, indexRequest.index(), indexRequest.id()), e);
+                    onFailure.accept(slot, e);
+                }
+
+                Iterator<String> newIt = it;
+                boolean newHasFinalPipeline = hasFinalPipeline;
+                String newIndex = indexRequest.indices()[0];
+
+                if (Objects.equals(originalIndex, newIndex) == false) {
+                    if (hasFinalPipeline && it.hasNext() == false) {
+                        totalMetrics.ingestFailed();
+                        onFailure.accept(slot, new IllegalStateException("final pipeline [" + pipelineId +
+                            "] can't change the target index"));
+                    } else {
+                        indexRequest.isPipelineResolved(false);
+                        resolvePipelines(null, indexRequest, state.metadata());
+                        if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
+                            newIt = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
+                            newHasFinalPipeline = true;
+                        } else {
+                            newIt = Collections.emptyIterator();
+                        }
+                    }
+                }
+
+                if (newIt.hasNext()) {
+                    executePipelines(slot, newIt, newHasFinalPipeline, indexRequest, onDropped, onFailure, counter, onCompletion,
+                        originalThread);
+                } else {
+                    if (counter.decrementAndGet() == 0) {
+                        onCompletion.accept(originalThread, null);
+                    }
+                    assert counter.get() >= 0;
+                }
+            });
+        } catch (Exception e) {
+            logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}]",
+                pipelineId, indexRequest.index(), indexRequest.id()), e);
+            onFailure.accept(slot, e);
+            if (counter.decrementAndGet() == 0) {
+                onCompletion.accept(originalThread, null);
+            }
+            assert counter.get() >= 0;
         }
     }
 

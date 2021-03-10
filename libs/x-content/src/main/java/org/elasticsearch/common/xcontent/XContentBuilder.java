@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
@@ -157,7 +157,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     private boolean humanReadable = false;
 
-    private RestApiCompatibleVersion restApiCompatibilityVersion;
+    private RestApiVersion restApiVersion;
 
     private ParsedMediaType responseContentType;
 
@@ -1008,12 +1008,12 @@ public final class XContentBuilder implements Closeable, Flushable {
 
     /**
      * Sets a version used for serialising a response compatible with a previous version.
-     * @param restApiCompatibleVersion - indicates requested a version of API that the builder will be creating
+     * @param restApiVersion - indicates requested a version of API that the builder will be creating
      */
-    public XContentBuilder withCompatibleVersion(RestApiCompatibleVersion restApiCompatibleVersion) {
-        assert this.restApiCompatibilityVersion == null : "restApiCompatibleVersion has already been set";
-        Objects.requireNonNull(restApiCompatibleVersion, "restApiCompatibleVersion cannot be null");
-        this.restApiCompatibilityVersion = restApiCompatibleVersion;
+    public XContentBuilder withCompatibleVersion(RestApiVersion restApiVersion) {
+        assert this.restApiVersion == null : "restApiVersion has already been set";
+        Objects.requireNonNull(restApiVersion, "restApiVersion cannot be null");
+        this.restApiVersion = restApiVersion;
         return this;
     }
 
@@ -1021,8 +1021,8 @@ public final class XContentBuilder implements Closeable, Flushable {
      * Returns a version used for serialising a response.
      * @return a compatible version
      */
-    public RestApiCompatibleVersion getRestApiCompatibilityVersion() {
-        return restApiCompatibilityVersion;
+    public RestApiVersion getRestApiVersion() {
+        return restApiVersion;
     }
 
     @Override

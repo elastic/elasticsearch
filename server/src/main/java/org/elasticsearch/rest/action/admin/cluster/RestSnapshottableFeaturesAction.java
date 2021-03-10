@@ -21,7 +21,7 @@ import java.util.List;
 public class RestSnapshottableFeaturesAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "/_snapshottable_features"));
+        return List.of(new Route(RestRequest.Method.GET, "/_features"));
     }
 
     @Override

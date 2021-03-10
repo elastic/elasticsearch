@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -51,7 +52,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         }
 
         final String testHeader = HeaderWarning.formatWarning("test");
-        final String anotherHeader = HeaderWarning.formatWarning("another");
+        final String anotherHeader = HeaderWarning.formatWarning("another \"with quotes and \\ backslashes\"");
         final String someMoreHeader = HeaderWarning.formatWarning("some more");
         final String catHeader = HeaderWarning.formatWarning("cat");
         // Any warning headers fail
@@ -80,7 +81,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         }
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
-            section.setExpectedWarningHeaders(Arrays.asList("test", "another", "some more"));
+            section.setExpectedWarningHeaders(Arrays.asList("test", "another \"with quotes and \\ backslashes\"", "some more"));
             section.checkWarningHeaders(Arrays.asList(testHeader, anotherHeader, someMoreHeader), Version.CURRENT);
         }
 
@@ -124,6 +125,82 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             // and don't throw exceptions if we don't receive them
             section.checkWarningHeaders(emptyList(), Version.CURRENT);
         }
+    }
+
+    public void testWarningHeadersRegex() {
+
+        final String testHeader = HeaderWarning.formatWarning("test");
+        final String realisticTestHeader = HeaderWarning.formatWarning("index template [my-it] has index patterns [test-*] matching " +
+            "patterns from existing older templates [global] with patterns (global => [*]); this template [my-it] will take " +
+            "precedence during new index creation");
+        final String testHeaderWithQuotesAndBackslashes = HeaderWarning.formatWarning("test \"with quotes and \\ backslashes\"");
+
+
+        //require header and it matches (basic example)
+        DoSection section = new DoSection(new XContentLocation(1, 1));
+        section.setExpectedWarningHeadersRegex(singletonList(Pattern.compile(".*")));
+        section.checkWarningHeaders(singletonList(testHeader), Version.CURRENT);
+
+        //require header and it matches (realistic example)
+        section = new DoSection(new XContentLocation(1, 1));
+
+
+        section.setExpectedWarningHeadersRegex(
+            singletonList(Pattern.compile("^index template \\[(.+)\\] has index patterns \\[(.+)\\] matching patterns from existing " +
+                "older templates \\[(.+)\\] with patterns \\((.+)\\); this template \\[(.+)\\] will " +
+                "take precedence during new index creation$")));
+        section.checkWarningHeaders(singletonList(realisticTestHeader), Version.CURRENT);
+
+        //require header, but no headers returned
+        section = new DoSection(new XContentLocation(1, 1));
+        section.setExpectedWarningHeadersRegex(singletonList(Pattern.compile("junk")));
+        DoSection finalSection = section;
+        AssertionError error =
+            expectThrows(AssertionError.class, () -> finalSection.checkWarningHeaders(emptyList(), Version.CURRENT));
+        assertEquals("the following regular expression did not match any warning header [\n\tjunk\n]\n", error.getMessage());
+
+        //require multiple header, but none returned (plural error message)
+        section = new DoSection(new XContentLocation(1, 1));
+        section.setExpectedWarningHeadersRegex(List.of(Pattern.compile("junk"), Pattern.compile("junk2")));
+        DoSection finalSection2 = section;
+        error =
+            expectThrows(AssertionError.class, () -> finalSection2.checkWarningHeaders(emptyList(), Version.CURRENT));
+        assertEquals("the following regular expressions did not match any warning header [\n\tjunk\n\tjunk2\n]\n", error.getMessage());
+
+        //require header, got one back, but not matched
+        section = new DoSection(new XContentLocation(1, 1));
+        section.setExpectedWarningHeadersRegex(singletonList(Pattern.compile("junk")));
+        DoSection finalSection3 = section;
+        error = expectThrows(AssertionError.class, () -> finalSection3.checkWarningHeaders(singletonList(testHeader), Version.CURRENT));
+        assertTrue(error.getMessage().contains("got unexpected warning header") && error.getMessage().contains("test"));
+        assertTrue(error.getMessage().contains("the following regular expression did not match any warning header [\n\tjunk\n]\n"));
+
+        //allow header
+        section = new DoSection(new XContentLocation(1, 1));
+        section.setAllowedWarningHeadersRegex(singletonList(Pattern.compile("test")));
+        section.checkWarningHeaders(singletonList(testHeader), Version.CURRENT);
+
+        //allow only one header
+        section = new DoSection(new XContentLocation(1, 1));
+        section.setExpectedWarningHeadersRegex(singletonList(Pattern.compile("test")));
+        DoSection finalSection4 = section;
+        error = expectThrows(AssertionError.class, () ->
+            finalSection4.checkWarningHeaders(List.of(testHeader, realisticTestHeader), Version.CURRENT));
+        assertTrue(error.getMessage().contains("got unexpected warning header") && error.getMessage().contains("precedence during"));
+
+        //the non-regex version does not need to worry about escaping since it is an exact match, and the code ensures that both
+        //sides of the match are escaped the same... however for the regex version, it is done against the raw string minus the
+        //prefix. For example, the raw string looks like this:
+        //299 Elasticsearch-8.0.0-SNAPSHOT-d0ea206e300dab312f47611e22850bf799ca6192 "test"
+        //where 299 Elasticsearch-8.0.0-SNAPSHOT-d0ea206e300dab312f47611e22850bf799ca6192 is the prefix,
+        //so the match is against [test] (no brackets). If the message itself has quotes/backslashes then the raw string will look like:
+        //299 Elasticsearch-8.0.0-SNAPSHOT-d0ea206e300dab312f47611e22850bf799ca6192 "test \"with quotes and \\ backslashes\""
+        //and the match is against [test \"with quotes and \\ backslashes\"] (no brackets) .. so the regex needs account for the extra
+        //backslashes. Escaping escape characters is annoying but it should be very rare and the non-regex version should be preferred
+        section = new DoSection(new XContentLocation(1, 1));
+        section.setAllowedWarningHeadersRegex(singletonList(
+            Pattern.compile("^test \\\\\"with quotes and \\\\\\\\ backslashes\\\\\"$")));
+        section.checkWarningHeaders(singletonList(testHeaderWithQuotesAndBackslashes), Version.CURRENT);
     }
 
     public void testParseDoSectionNoBody() throws Exception {

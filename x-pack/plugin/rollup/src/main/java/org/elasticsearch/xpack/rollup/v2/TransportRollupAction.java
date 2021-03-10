@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -27,15 +28,14 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
+import org.elasticsearch.cluster.metadata.RollupGroup;
+import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.WriteableZoneId;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
@@ -46,12 +46,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
-import org.elasticsearch.xpack.core.rollup.action.RollupAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
 import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -105,6 +106,10 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             return;
         }
 
+        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
+            .indices(originalIndexName)
+            .fields(request.getRollupConfig().getAllFields().toArray(new String[0]));
+        fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         CreateIndexRequest req = new CreateIndexRequest(tmpIndexName, Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build())
             .mapping(mapping);
@@ -116,35 +121,52 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(
             Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build(), tmpIndexName);
 
-        // 1. create hidden temporary index
-        // 2. run rollup indexer
-        // 3. make temp index read-only
-        // 4. shrink index
-        // 5. delete temporary index
+        // 1. validate Rollup Config against Field Caps
+        // 2. create hidden temporary index
+        // 3. run rollup indexer
+        // 4. make temp index read-only
+        // 5. shrink index
+        // 6. delete temporary index
         // at any point if there is an issue, then cleanup temp index
-        client.admin().indices().create(req, ActionListener.wrap(createIndexResponse ->
-            client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
-                if (indexerResp.isCreated()) {
-                    client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
-                        if (updateSettingsResponse.isAcknowledged()) {
-                            client.admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(resizeResponse -> {
-                                if (resizeResponse.isAcknowledged()) {
-                                    publishMetadata(request.getRollupConfig(), originalIndexName, tmpIndexName, rollupIndexName, listener);
-                                } else {
-                                    deleteTmpIndex(originalIndexName, tmpIndexName, listener,
-                                        new ElasticsearchException("Unable to resize temp rollup index [" + tmpIndexName + "]"));
-                                }
-                            }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
-                        } else {
-                            deleteTmpIndex(originalIndexName, tmpIndexName, listener,
-                                new ElasticsearchException("Unable to update settings of temp rollup index [" + tmpIndexName + "]"));
-                        }
-                    }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
-                } else {
-                    deleteTmpIndex(originalIndexName, tmpIndexName, listener,
-                        new ElasticsearchException("Unable to index into temp rollup index [" + tmpIndexName + "]"));
-                }
-            }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e))), listener::onFailure));
+
+        client.fieldCaps(fieldCapsRequest, ActionListener.wrap(fieldCapsResponse -> {
+            RollupActionRequestValidationException validationException = new RollupActionRequestValidationException();
+            if (fieldCapsResponse.get().size() == 0) {
+                validationException.addValidationError("Could not find any fields in the index ["
+                    + originalIndexName + "] that were configured in job");
+                listener.onFailure(validationException);
+                return;
+            }
+            request.getRollupConfig().validateMappings(fieldCapsResponse.get(), validationException);
+            if (validationException.validationErrors().size() > 0) {
+                listener.onFailure(validationException);
+                return;
+            }
+            client.admin().indices().create(req, ActionListener.wrap(createIndexResponse ->
+                client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
+                    if (indexerResp.isCreated()) {
+                        client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
+                            if (updateSettingsResponse.isAcknowledged()) {
+                                client.admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(resizeResponse -> {
+                                    if (resizeResponse.isAcknowledged()) {
+                                        publishMetadata(request.getRollupConfig(), originalIndexName, tmpIndexName,
+                                            rollupIndexName, listener);
+                                    } else {
+                                        deleteTmpIndex(originalIndexName, tmpIndexName, listener,
+                                            new ElasticsearchException("Unable to resize temp rollup index [" + tmpIndexName + "]"));
+                                    }
+                                }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
+                            } else {
+                                deleteTmpIndex(originalIndexName, tmpIndexName, listener,
+                                    new ElasticsearchException("Unable to update settings of temp rollup index [" + tmpIndexName + "]"));
+                            }
+                        }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
+                    } else {
+                        deleteTmpIndex(originalIndexName, tmpIndexName, listener,
+                            new ElasticsearchException("Unable to index into temp rollup index [" + tmpIndexName + "]"));
+                    }
+                }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e))), listener::onFailure));
+        }, listener::onFailure));
     }
 
     @Override
@@ -164,14 +186,14 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      */
     private static XContentBuilder getDynamicTemplates(XContentBuilder builder) throws IOException {
         return builder.startArray("dynamic_templates")
-            .startObject()
-            .startObject("strings")
-            .field("match_mapping_type", "string")
-            .startObject("mapping")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject()
+                .startObject()
+                    .startObject("strings")
+                        .field("match_mapping_type", "string")
+                        .startObject("mapping")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject()
             .endArray();
     }
 
@@ -219,45 +241,46 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) throws IOException {
+            public ClusterState execute(ClusterState currentState) {
                 IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
                 Index rollupIndex = rollupIndexMetadata.getIndex();
                 Map<String, String> idxMetadata = currentState.getMetadata().index(originalIndexName)
-                    .getCustomData(RollupIndexMetadata.TYPE);
-
-                // Add the source index name to the rollup index metadata. If the original index is a rollup index itself
-                // we will add the name of the raw index that we initially rolled up.
-                String rollupSourceIndexName = idxMetadata != null ?
-                    idxMetadata.get(RollupIndexMetadata.SOURCE_INDEX_NAME_META_FIELD) : originalIndexName;
+                    .getCustomData(RollupMetadata.TYPE);
+                String rollupGroupKeyName = (idxMetadata == null) ?
+                    originalIndexName : idxMetadata.get(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD);
                 Map<String, String> rollupIndexRollupMetadata = new HashMap<>();
-                rollupIndexRollupMetadata.put(RollupIndexMetadata.SOURCE_INDEX_NAME_META_FIELD, rollupSourceIndexName);
-                // Add metadata about the rollup configuration
+                rollupIndexRollupMetadata.put(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD, rollupGroupKeyName);
+                final RollupMetadata rollupMetadata = currentState.metadata().custom(RollupMetadata.TYPE);
+                final Map<String, RollupGroup> rollupGroups;
+                if (rollupMetadata == null) {
+                    rollupGroups = new HashMap<>();
+                } else {
+                    rollupGroups = new HashMap<>(rollupMetadata.rollupGroups());
+                }
                 RollupActionDateHistogramGroupConfig dateConfig = config.getGroupConfig().getDateHistogram();
                 WriteableZoneId rollupDateZoneId = WriteableZoneId.of(dateConfig.getTimeZone());
-                Map<String, List<String>> metricsConfig = new HashMap<>();
-                for (MetricConfig mconfig : config.getMetricsConfig()) {
-                    metricsConfig.put(mconfig.getField(), mconfig.getMetrics());
+                if (rollupGroups.containsKey(rollupGroupKeyName)) {
+                    RollupGroup group = rollupGroups.get(rollupGroupKeyName);
+                    group.add(rollupIndexName, dateConfig.getInterval(), rollupDateZoneId);
+                } else {
+                    RollupGroup group = new RollupGroup();
+                    group.add(rollupIndexName, dateConfig.getInterval(), rollupDateZoneId);
+                    rollupGroups.put(rollupGroupKeyName, group);
                 }
-                RollupIndexMetadata rollupInfo = new RollupIndexMetadata(dateConfig.getInterval(), rollupDateZoneId, metricsConfig);
-                // Serialize the metadata as JSON string and store it
-                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    rollupInfo.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    rollupIndexRollupMetadata.put(RollupIndexMetadata.ROLLUP_META_FIELD, Strings.toString(builder));
+                // add rolled up index to backing datastream if rolling up a backing index of a datastream
+                IndexAbstraction originalIndex = currentState.getMetadata().getIndicesLookup().get(originalIndexName);
+                DataStream dataStream = null;
+                if (originalIndex.getParentDataStream() != null) {
+                    DataStream originalDataStream = originalIndex.getParentDataStream().getDataStream();
+                    List<Index> backingIndices = new ArrayList<>(originalDataStream.getIndices());
+                    backingIndices.add(rollupIndex);
+                    dataStream = new DataStream(originalDataStream.getName(), originalDataStream.getTimeStampField(),
+                        backingIndices, originalDataStream.getGeneration(), null);
                 }
                 Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata())
-                    .put(IndexMetadata.builder(rollupIndexMetadata).putCustom(RollupIndexMetadata.TYPE, rollupIndexRollupMetadata));
-
-                IndexAbstraction originalIndex = currentState.getMetadata().getIndicesLookup().get(originalIndexName);
-                if (originalIndex.getParentDataStream() != null) {
-                    // If rolling up a backing index of a data stream, add rolled up index to backing data stream
-                    DataStream originalDataStream = originalIndex.getParentDataStream().getDataStream();
-                    List<Index> backingIndices = new ArrayList<>(originalDataStream.getIndices().size() + 1);
-                    // Adding rollup indices to the beginning of the list will prevent rollup indices from ever being
-                    // considered a write index
-                    backingIndices.add(rollupIndex);
-                    backingIndices.addAll(originalDataStream.getIndices());
-                    DataStream dataStream = new DataStream(originalDataStream.getName(), originalDataStream.getTimeStampField(),
-                        backingIndices, originalDataStream.getGeneration(), originalDataStream.getMetadata());
+                    .put(IndexMetadata.builder(rollupIndexMetadata).putCustom(RollupMetadata.TYPE, rollupIndexRollupMetadata))
+                    .putCustom(RollupMetadata.TYPE, new RollupMetadata(rollupGroups));
+                if (dataStream != null) {
                     metadataBuilder.put(dataStream);
                 }
                 return ClusterState.builder(currentState).metadata(metadataBuilder.build()).build();
@@ -284,7 +307,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
             @Override
             public void onFailure(Exception deleteException) {
-                listener.onFailure(new ElasticsearchException("Unable to delete temp rollup index [" + tmpIndex + "]", e));
+                listener.onFailure(new ElasticsearchException("Unable to delete temp rollup index [" + tmpIndex  + "]", e));
             }
         });
     }

@@ -204,10 +204,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             keepAlive = null;
         }
 
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            cacheModifier = in.readOptionalBytesReference();
-        }
-
         originalIndices = OriginalIndices.readOriginalIndices(in);
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
     }
@@ -274,7 +270,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeOptionalTimeValue(keepAlive);
         }
 
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        // Do not serialise cacheModifier if it is not used for key. If cacheModifier is
+        // needed for a node, the interceptor should do the right job of setting it.
+        // If we allow it to be passed across the wire, the search result on the remote node
+        // may get surprising result, e.g. no dls/fls is applicable to the remote node, but
+        // the search result is limited because the cacheModifier makes it match a limited
+        // result in the cache.
+        if (asKey && out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalBytesReference(cacheModifier);
         }
     }

@@ -210,6 +210,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestI
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ResizeRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;
@@ -519,6 +520,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
             requestInterceptors.addAll(Arrays.asList(
                 new SearchRequestInterceptor(threadPool, getLicenseState()),
+                new ShardSearchRequestInterceptor(threadPool, getLicenseState()),
                 new UpdateRequestInterceptor(threadPool, getLicenseState()),
                 new BulkShardRequestInterceptor(threadPool, getLicenseState())
             ));

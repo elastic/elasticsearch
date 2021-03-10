@@ -213,7 +213,11 @@ public final class FieldPermissions implements Accountable, CacheKey {
 
     @Override
     public void writeCacheKey(StreamOutput out) throws IOException {
-        out.writeArray(this.fieldPermissionsDefinitions);
+        if (fieldPermissionsDefinitions != null) {
+            for (FieldPermissionsDefinition fpd : fieldPermissionsDefinitions) {
+                fpd.writeCacheKey(out);
+            }
+        }
     }
 
     /** Return whether field-level security is enabled, ie. whether any field might be filtered out. */

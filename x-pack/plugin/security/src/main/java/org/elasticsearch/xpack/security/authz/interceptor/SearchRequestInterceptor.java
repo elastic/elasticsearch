@@ -10,24 +10,18 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
-import java.io.IOException;
 import java.util.SortedMap;
 
 /**
  * If field level security is enabled this interceptor disables the request cache for search and shardSearch requests.
  */
 public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
-
-    private static final ThreadLocal<BytesStreamOutput> threadLocalOutput = ThreadLocal.withInitial(BytesStreamOutput::new);
 
     public SearchRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState) {
         super(threadPool.getThreadContext(), licenseState);
@@ -37,20 +31,8 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     void disableFeatures(IndicesRequest indicesRequest,
                          SortedMap<String, IndicesAccessControl.IndexAccessControl> indexAccessControlByIndex,
                          ActionListener<Void> listener) {
-        final SearchSourceBuilder source;
-        if (indicesRequest instanceof SearchRequest) {
-            final SearchRequest request = (SearchRequest) indicesRequest;
-            source = request.source();
-        } else {
-            final ShardSearchRequest request = (ShardSearchRequest) indicesRequest;
-            try {
-                BytesReference bytes = serialise(indexAccessControlByIndex);
-                request.cacheModifier(bytes);
-            } catch (IOException e) {
-                listener.onFailure(e);
-            }
-            source = request.source();
-        }
+        final SearchRequest request = (SearchRequest) indicesRequest;
+        final SearchSourceBuilder source = request.source();
 
         if (indexAccessControlByIndex.values().stream().anyMatch(iac -> iac.getDocumentPermissions().hasDocumentLevelPermissions())) {
             if (source != null && source.suggest() != null) {
@@ -67,21 +49,8 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
         }
     }
 
-    private BytesReference serialise(SortedMap<String, IndicesAccessControl.IndexAccessControl> accessControlByIndex) throws IOException {
-        BytesStreamOutput out = threadLocalOutput.get();
-        try {
-            for (IndicesAccessControl.IndexAccessControl iac : accessControlByIndex.values()) {
-                iac.writeCacheKey(out);
-            }
-            // copy it over since we don't want to share the thread-local bytes in #scratch
-            return out.copyBytes();
-        } finally {
-            out.reset();
-        }
-    }
-
     @Override
     public boolean supports(IndicesRequest request) {
-        return request instanceof SearchRequest || request instanceof ShardSearchRequest;
+        return request instanceof SearchRequest;
     }
 }

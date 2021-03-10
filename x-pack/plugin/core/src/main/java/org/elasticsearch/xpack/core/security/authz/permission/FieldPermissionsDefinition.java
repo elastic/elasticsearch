@@ -8,19 +8,23 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.core.security.support.CacheKey;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
+import java.util.Objects;
 import java.util.Set;
+
+import static java.util.Comparator.comparingInt;
 
 /**
  * Represents the definition of a {@link FieldPermissions}. Field permissions are defined as a
  * collections of grant and exclude definitions where the exclude definition must be a subset of
  * the grant definition.
  */
-public final class FieldPermissionsDefinition implements Writeable {
+public final class FieldPermissionsDefinition implements CacheKey {
 
     private final Set<FieldGrantExcludeGroup> fieldGrantExcludeGroups;
 
@@ -43,9 +47,7 @@ public final class FieldPermissionsDefinition implements Writeable {
 
         FieldPermissionsDefinition that = (FieldPermissionsDefinition) o;
 
-        return fieldGrantExcludeGroups != null ?
-                fieldGrantExcludeGroups.equals(that.fieldGrantExcludeGroups) :
-                that.fieldGrantExcludeGroups == null;
+        return Objects.equals(fieldGrantExcludeGroups, that.fieldGrantExcludeGroups);
     }
 
     @Override
@@ -54,11 +56,20 @@ public final class FieldPermissionsDefinition implements Writeable {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(this.fieldGrantExcludeGroups);
+    public void writeCacheKey(StreamOutput out) throws IOException {
+        if (fieldGrantExcludeGroups != null) {
+            if (1 == fieldGrantExcludeGroups.size()) {
+                fieldGrantExcludeGroups.iterator().next().writeCacheKey(out);
+            } else {
+                for (Iterator<FieldGrantExcludeGroup> i = fieldGrantExcludeGroups.stream()
+                        .sorted(comparingInt(FieldGrantExcludeGroup::hashCode)).iterator(); i.hasNext();) {
+                    i.next().writeCacheKey(out);
+                }
+            }
+        }
     }
 
-    public static final class FieldGrantExcludeGroup implements Writeable {
+    public static final class FieldGrantExcludeGroup implements CacheKey {
         private final String[] grantedFields;
         private final String[] excludedFields;
 
@@ -102,7 +113,7 @@ public final class FieldPermissionsDefinition implements Writeable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void writeCacheKey(StreamOutput out) throws IOException {
             out.writeOptionalStringArray(grantedFields);
             out.writeOptionalStringArray(excludedFields);
         }

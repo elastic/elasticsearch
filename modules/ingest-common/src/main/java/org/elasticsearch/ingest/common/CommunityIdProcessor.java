@@ -170,17 +170,16 @@ public final class CommunityIdProcessor extends AbstractProcessor {
             case Tcp:
             case Udp:
             case Sctp:
-                flow.sourcePort = parseIntFromObjectOrString(d.getFieldValue(sourcePortField, Object.class, ignoreMissing), "source port");
-                if (flow.sourcePort == 0) {
-                    throw new IllegalArgumentException("invalid source port [0]");
+                Object sourcePortValue = d.getFieldValue(sourcePortField, Object.class, ignoreMissing);
+                flow.sourcePort = parseIntFromObjectOrString(sourcePortValue, "source port");
+                if (flow.sourcePort < 1 || flow.sourcePort > 65535) {
+                    throw new IllegalArgumentException("invalid source port [" + sourcePortValue + "]");
                 }
 
-                flow.destinationPort = parseIntFromObjectOrString(
-                    d.getFieldValue(destinationPortField, Object.class, ignoreMissing),
-                    "destination port"
-                );
-                if (flow.destinationPort == 0) {
-                    throw new IllegalArgumentException("invalid destination port [0]");
+                Object destinationPortValue = d.getFieldValue(destinationPortField, Object.class, ignoreMissing);
+                flow.destinationPort = parseIntFromObjectOrString(destinationPortValue, "destination port");
+                if (flow.destinationPort < 1 || flow.sourcePort > 65535) {
+                    throw new IllegalArgumentException("invalid destination port [" + destinationPortValue + "]");
                 }
                 break;
             case Icmp:
@@ -216,7 +215,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         if (o == null) {
             return 0;
         } else if (o instanceof Number) {
-            return (int) o;
+            return ((Number) o).intValue();
         } else if (o instanceof String) {
             try {
                 return Integer.parseInt((String) o);

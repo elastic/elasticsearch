@@ -140,7 +140,7 @@ public class Authentication implements ToXContentObject {
      * or API key of this authentication. The rules are as follows:
      *   * True if the authentications are for the same API key (same API key ID)
      *   * True if they are the same username from the same realm
-     *      - For file/native/kerberos realm, same realm means the same realm type
+     *      - For file and native realm, same realm means the same realm type
      *      - For all other realms, same realm means same realm type plus same realm name
      *   * An user and its API key cannot access each other's resources
      *   * An user and its token can access each other's resources

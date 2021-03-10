@@ -489,11 +489,11 @@ public abstract class AbstractScopedSettings {
      *
      * @param key the key of the setting to validate
      * @param settings the settings
-     * @param validateDependencies true if dependent settings and settings where validation has dependencies should be validated
+     * @param validateValue true if value should be validated, otherwise only keys are validated
      * @throws IllegalArgumentException if the setting is invalid
      */
-    void validate(final String key, final Settings settings, final boolean validateDependencies) {
-        validate(key, settings, validateDependencies, false);
+    void validate(final String key, final Settings settings, final boolean validateValue) {
+        validate(key, settings, validateValue, false);
     }
 
     /**

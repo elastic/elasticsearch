@@ -87,16 +87,19 @@ public class NoticeTask extends DefaultTask {
         // This is a map rather than a set so that the sort order is the 3rd
         // party component names, unaffected by the full path to the various files
         final Map<String, File> seen = new TreeMap<String, File>();
-        for (File file : getNoticeFiles()) {
-            String name = file.getName().replaceFirst(" -NOTICE\\.txt$ ", "");
-            if (seen.containsKey(name)) {
-                File prevFile = seen.get(name);
-                String previousFileText = readFileToString(prevFile, "UTF-8");
-                if (previousFileText.equals(readFileToString(file, "UTF-8")) == false) {
-                    throw new RuntimeException("Two different notices exist for dependency '" + name + "': " + prevFile + " and " + file);
+        FileCollection noticeFiles = getNoticeFiles();
+        if(noticeFiles != null) {
+            for (File file : getNoticeFiles()) {
+                String name = file.getName().replaceFirst(" -NOTICE\\.txt$ ", "");
+                if (seen.containsKey(name)) {
+                    File prevFile = seen.get(name);
+                    String previousFileText = readFileToString(prevFile, "UTF-8");
+                    if (previousFileText.equals(readFileToString(file, "UTF-8")) == false) {
+                        throw new RuntimeException("Two different notices exist for dependency '" + name + "': " + prevFile + " and " + file);
+                    }
+                } else {
+                    seen.put(name, file);
                 }
-            } else {
-                seen.put(name, file);
             }
         }
 

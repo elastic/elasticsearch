@@ -71,7 +71,7 @@ public interface ValueSource {
                 Script script = new Script(
                     ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, (String) value, scriptOptions, org.elasticsearch.common.collect.Map.of()
                 );
-                return new TemplatedValue(scriptService.compile(script, TemplateScript.CONTEXT));
+                return new TemplatedValue(scriptService.compile(script, TemplateScript.INGEST_CONTEXT));
             } else {
                 return new ObjectValue(value);
             }

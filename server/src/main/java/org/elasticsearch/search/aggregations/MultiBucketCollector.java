@@ -142,6 +142,12 @@ public class MultiBucketCollector extends BucketCollector {
         }
         switch (leafCollectors.size()) {
             case 0:
+                // TODO it's probably safer to return noop and let the caller throw if it wants to
+                /*
+                 * See MinAggregator which only throws if it has a parent.
+                 * That is because it doesn't want there to ever drop
+                 * to this case and throw, thus skipping calculating the parent.
+                 */
                 throw new CollectionTerminatedException();
             case 1:
                 return leafCollectors.get(0);

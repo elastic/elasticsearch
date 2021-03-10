@@ -544,9 +544,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testVoidMessageCompressed() {
         try (MockTransportService serviceC = buildService("TS_C", CURRENT_VERSION, Settings.EMPTY)) {
-            serviceC.start();
-            serviceC.acceptIncomingRequests();
-
             serviceA.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, TransportRequest.Empty::new,
                 (request, channel, task) -> {
                     try {
@@ -597,9 +594,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testHelloWorldCompressed() throws IOException {
         try (MockTransportService serviceC = buildService("TS_C", CURRENT_VERSION,  Settings.EMPTY)) {
-            serviceC.start();
-            serviceC.acceptIncomingRequests();
-
             serviceA.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new,
                 (request, channel, task) -> {
                     assertThat("moshe", equalTo(request.message));
@@ -1616,9 +1610,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertTrue(nodeB.getAddress().getAddress().equals(addressB.get().getAddress()));
     }
 
-    public void testBlockingIncomingRequests() throws Exception {
-        try (TransportService service = buildService("TS_TEST", version0, null,
-            Settings.EMPTY, false, false)) {
+    public void testRejectEarlyIncomingRequests() throws Exception {
+        try (TransportService service = buildService("TS_TEST", version0, null, Settings.EMPTY, false, false)) {
             AtomicBoolean requestProcessed = new AtomicBoolean(false);
             service.registerRequestHandler("internal:action", ThreadPool.Names.SAME, TestRequest::new,
                 (request, channel, task) -> {
@@ -1628,8 +1621,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             DiscoveryNode node = service.getLocalNode();
             serviceA.close();
-            serviceA = buildService("TS_A", version0, null,
-                Settings.EMPTY, true, false);
+            serviceA = buildService("TS_A", version0, null, Settings.EMPTY, true, false);
             try (Transport.Connection connection = serviceA.openConnection(node, null)) {
                 CountDownLatch latch = new CountDownLatch(1);
                 serviceA.sendRequest(connection, "internal:action", new TestRequest(), TransportRequestOptions.EMPTY,
@@ -1742,7 +1734,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testSendRandomRequests() throws InterruptedException {
         TransportService serviceC = buildService("TS_C", version0, Settings.EMPTY);
         DiscoveryNode nodeC = serviceC.getLocalNode();
-        serviceC.acceptIncomingRequests();
 
         final CountDownLatch latch = new CountDownLatch(4);
         TransportConnectionListener waitForConnection = new TransportConnectionListener() {
@@ -1972,8 +1963,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         Version version = Version.fromString("2.0.0");
         try (MockTransportService service = buildService("TS_C", version,  Settings.EMPTY)) {
-            service.start();
-            service.acceptIncomingRequests();
             TransportAddress address = service.boundAddress().publishAddress();
             DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", address, emptyMap(), emptySet(), version0);
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
@@ -1991,8 +1980,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
         try (MockTransportService service = buildService("TS_C", version,  Settings.EMPTY)) {
-            service.start();
-            service.acceptIncomingRequests();
             TransportAddress address = service.boundAddress().publishAddress();
             DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", address, emptyMap(), emptySet(), Version.fromString("2.0.0"));
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
@@ -2169,8 +2156,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             (request, channel, task) -> {
                 // do nothing
             });
-        serviceC.start();
-        serviceC.acceptIncomingRequests();
         CountDownLatch latch = new CountDownLatch(1);
         TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
             @Override
@@ -2246,8 +2231,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
             });
-        serviceC.start();
-        serviceC.acceptIncomingRequests();
         CountDownLatch responseLatch = new CountDownLatch(1);
         TransportResponseHandler<TransportResponse.Empty> transportResponseHandler = new TransportResponseHandler.Empty() {
             @Override
@@ -2304,8 +2287,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
             });
-        serviceC.start();
-        serviceC.acceptIncomingRequests();
         CountDownLatch responseLatch = new CountDownLatch(1);
         TransportResponseHandler<TransportResponse.Empty> transportResponseHandler = new TransportResponseHandler.Empty() {
             @Override
@@ -2407,8 +2388,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
             });
-        serviceC.start();
-        serviceC.acceptIncomingRequests();
         CountDownLatch responseLatch = new CountDownLatch(1);
         AtomicReference<TransportException> receivedException = new AtomicReference<>(null);
         TransportResponseHandler<TransportResponse.Empty> transportResponseHandler = new TransportResponseHandler.Empty() {
@@ -2491,8 +2470,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .putList("transport.profiles.some_other_profile.publish_host", "_local:ipv4_")
             .build())) {
 
-            serviceC.start();
-            serviceC.acceptIncomingRequests();
             Map<String, BoundTransportAddress> profileBoundAddresses = serviceC.transport.profileBoundAddresses();
             assertTrue(profileBoundAddresses.containsKey("some_profile"));
             assertTrue(profileBoundAddresses.containsKey("some_other_profile"));
@@ -2742,8 +2719,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
         };
         try (MockTransportService serviceC = buildService("TS_C", CURRENT_VERSION, null, Settings.EMPTY, true, true, interceptor)) {
-            serviceC.start();
-            serviceC.acceptIncomingRequests();
             final CountDownLatch latch = new CountDownLatch(1);
             serviceC.connectToNode(
                 serviceA.getLocalDiscoNode(),

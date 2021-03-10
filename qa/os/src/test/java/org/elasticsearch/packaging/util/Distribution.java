@@ -16,7 +16,6 @@ public class Distribution {
     public final Path path;
     public final Packaging packaging;
     public final Platform platform;
-    public final Flavor flavor;
     public final boolean hasJdk;
     public final String version;
 
@@ -36,21 +35,12 @@ public class Distribution {
         }
 
         this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
-        this.flavor = filename.contains("oss") ? Flavor.OSS : Flavor.DEFAULT;
         this.hasJdk = filename.contains("no-jdk") == false;
         String version = filename.split("-", 3)[1];
         if (filename.contains("-SNAPSHOT")) {
             version += "-SNAPSHOT";
         }
         this.version = version;
-    }
-
-    public boolean isDefault() {
-        return flavor.equals(Flavor.DEFAULT);
-    }
-
-    public boolean isOSS() {
-        return flavor.equals(Flavor.OSS);
     }
 
     public boolean isArchive() {

@@ -121,7 +121,8 @@ public class GeoTileGridTiler implements GeoGridTiler {
                         values.resizeCell(valuesIndex + 1);
                         values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
                     } else {
-                        values.resizeCell(valuesIndex +  1 << ( 2 * (targetPrecision - zTile)) + 1);
+                        final int numTilesAtPrecision  = 1 << (2 * (targetPrecision - zTile));
+                        values.resizeCell(valuesIndex + numTilesAtPrecision + 1);
                         valuesIndex = setValuesForFullyContainedTile(nextX, nextY, zTile, values, valuesIndex, targetPrecision);
                     }
                 } else if (GeoRelation.QUERY_CROSSES == relation) {

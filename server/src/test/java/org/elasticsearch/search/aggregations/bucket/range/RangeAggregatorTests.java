@@ -132,7 +132,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 true,
                 false,
                 null,
-                null,
+                Collections.emptyMap(),
                 null
             )
         );
@@ -147,7 +147,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
-            null
+            Collections.emptyMap()
         );
 
         long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -226,7 +226,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             true,
             false,
             null,
-            null,
+            Collections.emptyMap(),
             null
         );
 
@@ -418,7 +418,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             true,
             false,
             null,
-            null,
+            Collections.emptyMap(),
             null
         );
         RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test_range_agg");

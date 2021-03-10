@@ -52,7 +52,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 import java.util.zip.GZIPInputStream;
 
 import static java.nio.file.StandardOpenOption.CREATE;
@@ -64,8 +63,12 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope = Scope.TEST, maxNumDataNodes = 1)
+// Ensure a single node. Environment#tmpFile() is determined from java.io.tmpdir system property,
+// which is the same for all nodes in the internal test cluster. The geoip tmp dir is located in the java tmp dir and
+// if multiple nodes are started then these nodes will use the same geoip tmp dir, which can cause test failures.
+@ClusterScope(scope = Scope.TEST, numDataNodes = 1, supportsDedicatedMasters = false, numClientNodes = 0)
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     private static final String ENDPOINT = System.getProperty("geoip_endpoint");
@@ -148,7 +151,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69972")
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
         // setup:
@@ -224,6 +226,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertThat(simulateResponse.getPipelineId(), equalTo("_id"));
             assertThat(simulateResponse.getResults().size(), equalTo(1));
             SimulateDocumentBaseResult result = (SimulateDocumentBaseResult) simulateResponse.getResults().get(0);
+            assertThat(result.getFailure(), nullValue());
             assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Tumba"));
             assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
             assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
@@ -233,31 +236,37 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         Settings.Builder settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
-        final List<Path> geoipTmpDirs = StreamSupport.stream(internalCluster().getInstances(Environment.class).spliterator(), false)
-            .map(env -> {
-                Path geoipTmpDir = env.tmpFile().resolve("geoip-databases");
-                assertThat(Files.exists(geoipTmpDir), is(true));
-                return geoipTmpDir;
-            }).collect(Collectors.toList());
-        assertBusy(() -> {
-            for (Path geoipTmpDir : geoipTmpDirs) {
-                try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::toString).collect(Collectors.toList());
-                    assertThat(files, containsInAnyOrder(endsWith("GeoLite2-City.mmdb"), endsWith("GeoLite2-Country.mmdb"),
-                        endsWith("GeoLite2-ASN.mmdb")));
-                }
-            }
-        });
-
         // Verify after updating dbs:
         assertBusy(() -> {
             SimulatePipelineResponse simulateResponse = client().admin().cluster().simulatePipeline(simulateRequest).actionGet();
             assertThat(simulateResponse.getPipelineId(), equalTo("_id"));
             assertThat(simulateResponse.getResults().size(), equalTo(1));
             SimulateDocumentBaseResult result = (SimulateDocumentBaseResult) simulateResponse.getResults().get(0);
+            assertThat(result.getFailure(), nullValue());
             assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Linköping"));
             assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
             assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
+        });
+    }
+
+    @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
+    public void testDatabaseFiles() throws Exception {
+        // Enable downloader:
+        Settings.Builder settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+
+        Environment environment = internalCluster().getDataNodeInstance(Environment.class);
+        final Path geoipTmpDir = environment.tmpFile().resolve("geoip-databases");
+        assertThat(Files.exists(geoipTmpDir), is(true));
+        assertBusy(() -> {
+            // Run reroute with empty commands which always updates cluster state
+            // in order to trigger DatabaseRegistry#checkDatabases(...)
+            client().admin().cluster().prepareReroute().get();
+            try (Stream<Path> list = Files.list(geoipTmpDir)) {
+                List<String> files = list.map(Path::toString).collect(Collectors.toList());
+                assertThat(files, containsInAnyOrder(endsWith("GeoLite2-City.mmdb"), endsWith("GeoLite2-Country.mmdb"),
+                    endsWith("GeoLite2-ASN.mmdb")));
+            }
         });
 
         // Disable downloader:
@@ -265,11 +274,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         assertBusy(() -> {
-            for (Path geoipTmpDir : geoipTmpDirs) {
-                try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::toString).collect(Collectors.toList());
-                    assertThat(files, empty());
-                }
+            // Run reroute with empty commands to trigger DatabaseRegistry#checkDatabases(...)
+            client().admin().cluster().prepareReroute().get();
+            try (Stream<Path> list = Files.list(geoipTmpDir)) {
+                List<String> files = list.map(Path::toString).collect(Collectors.toList());
+                assertThat(files, empty());
             }
         });
     }

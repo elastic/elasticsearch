@@ -6,14 +6,10 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -21,12 +17,10 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
-import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -63,14 +57,6 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
     }
 
     @Override
-    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
-        RestClientBuilder builder = RestClient.builder(hosts);
-        configureClient(builder, settings);
-        builder.setStrictDeprecationMode(false);
-        return builder.build();
-    }
-
-    @Override
     protected boolean preserveClusterUponCompletion() {
         // If this is the first run (security not yet enabled), then don't clean up afterwards because we want to test restart with data
         return securityEnabled == false;
@@ -97,22 +83,6 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
             checkDeniedWrite(otherIndex);
         } else {
             checkAllowedWrite(otherIndex);
-        }
-        checkSecurityDisabledWarning();
-    }
-
-    public void checkSecurityDisabledWarning() throws Exception {
-        final Request request = new Request("GET", "/_cat/indices");
-        Response response = client().performRequest(request);
-        List<String> warningHeaders = response.getWarnings();
-        if (securityEnabled) {
-            assertThat (warningHeaders, Matchers.empty());
-        } else {
-            assertThat (warningHeaders, Matchers.hasSize(1));
-            assertThat (warningHeaders.get(0),
-                containsString("Elasticsearch security features are not enabled, anyone can access your cluster without " +
-                "authentication. Read https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
-                Version.CURRENT.minor + "/get-started-enable-security.html for more information."));
         }
     }
 

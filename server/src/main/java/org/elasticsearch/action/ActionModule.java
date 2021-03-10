@@ -10,6 +10,7 @@ package org.elasticsearch.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
@@ -227,6 +228,8 @@ import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -392,6 +395,7 @@ import static java.util.Collections.unmodifiableMap;
 public class ActionModule extends AbstractModule {
 
     private static final Logger logger = LogManager.getLogger(ActionModule.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -436,6 +440,12 @@ public class ActionModule extends AbstractModule {
                     throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST wrapper");
                 }
                 restWrapper = newRestWrapper;
+                if (restWrapper.getClass().getCanonicalName().startsWith("org.elasticsearch") == false) {
+                    deprecationLogger.deprecate(DeprecationCategory.SECURITY, "3rd_party_sec_deprecation", "Use of third-party " +
+                        "security plugins is deprecated and will not be possible in 8.0. You can use built-in Elasticsearch features " +
+                        "instead. Read https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
+                        Version.CURRENT.minor + "get-started-enable-security.html for more information");
+                }
             }
         }
         mappingRequestValidators = new RequestValidators<>(

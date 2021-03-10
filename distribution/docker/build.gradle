@@ -214,8 +214,6 @@ tasks.named("preProcessFixture").configure {
       "${buildDir}/oss-repo",
       "${buildDir}/logs/default-1",
       "${buildDir}/logs/default-2",
-      "${buildDir}/logs/oss-1",
-      "${buildDir}/logs/oss-2"
     )
   }
 }

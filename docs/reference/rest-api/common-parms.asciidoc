@@ -165,7 +165,7 @@ prior to starting the {transform}.
 end::dest-index[]
 
 tag::dest-pipeline[]
-The unique identifier for a <<pipeline,pipeline>>.
+The unique identifier for an <<ingest,ingest pipeline>>.
 end::dest-pipeline[]
 
 tag::detailed[]

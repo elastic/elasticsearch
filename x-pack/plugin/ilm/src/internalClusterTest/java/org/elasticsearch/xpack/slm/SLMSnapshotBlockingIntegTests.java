@@ -267,6 +267,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         testUnsuccessfulSnapshotRetention(true);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70185")
     public void testRetentionWithMultipleRepositories() throws Exception {
         disableRepoConsistencyCheck("test leaves behind an empty repository");
         final String secondRepo = "other-repo";

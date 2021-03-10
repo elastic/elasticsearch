@@ -181,6 +181,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             }
             return;
         }
+        TransformNodes.warnIfNoTransformNodes(clusterState);
+
         // set headers to run transform as calling user
         Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
 

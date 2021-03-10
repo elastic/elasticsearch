@@ -306,7 +306,7 @@ public final class TestUtils {
     public static class NoopBlobStoreCacheService extends BlobStoreCacheService {
 
         public NoopBlobStoreCacheService() {
-            super(null, null, mock(Client.class), null);
+            super(null, mock(Client.class), null, () -> 0L);
         }
 
         @Override
@@ -337,7 +337,7 @@ public final class TestUtils {
         private final ConcurrentHashMap<String, CachedBlob> blobs = new ConcurrentHashMap<>();
 
         public SimpleBlobStoreCacheService() {
-            super(null, null, mock(Client.class), null);
+            super(null, mock(Client.class), null, () -> 0L);
         }
 
         @Override

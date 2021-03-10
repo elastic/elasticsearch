@@ -262,10 +262,10 @@ separately.
 
   By default, any node in the cluster can act as a cross-cluster client and
   connect to remote clusters. The `remote_cluster_client` role can be excluded
- from the list of <<node-roles,roles> to prevent certain nodes from
-  connecting to remote clusters. Search requests targeting remote clusters must
-  be sent to a node that is allowed to act as a cross-cluster client.
-  Other features such as {ml} <<general-ml-settings,data feeds>>,
+  from the list of <<node-roles,roles> to prevent certain nodes from connecting
+  to remote clusters. Search requests targeting remote clusters must be sent to
+  node that is allowed to act as a cross-cluster client. Other features such as
+  {ml} <<general-ml-settings,data feeds>>,
   <<general-transform-settings,transforms>> and <<ccr-getting-started,{ccr}>>
   have additional requirements around the usage of the `remote_cluster_client`
   role.

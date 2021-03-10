@@ -148,7 +148,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     );
 
     /**
-     * @deprecated Only kept for BWC to nodes < 7.13
+     * @deprecated
+     *
+     * Only kept for BWC to nodes before 7.13
      *
      * Node attributes for transform, automatically created and retrievable via cluster state.
      * These attributes should never be set directly, use the node setting counter parts instead.

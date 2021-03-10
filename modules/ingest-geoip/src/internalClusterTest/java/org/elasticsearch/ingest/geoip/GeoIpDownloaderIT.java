@@ -33,6 +33,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 
 import java.io.BufferedOutputStream;
@@ -93,8 +94,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     public void testGeoIpDatabasesDownload() throws Exception {
-        // use short wait for local fixture, longer when we hit real service
-        int waitTime = ENDPOINT == null ? 120 : 10;
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
@@ -106,7 +105,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             GeoIpTaskState state = (GeoIpTaskState) task.getState();
             assertNotNull(state);
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
-        }, waitTime, TimeUnit.SECONDS);
+        }, 2, TimeUnit.MINUTES);
 
         GeoIpTaskState state = (GeoIpTaskState) getTask().getState();
         for (String id : List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb")) {
@@ -146,6 +145,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69972")
+    @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
         // setup:
         BytesReference bytes;

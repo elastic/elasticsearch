@@ -313,6 +313,8 @@ public class PolicyUtilTests extends ESTestCase {
         "java.lang.RuntimePermission setDefaultUncaughtExceptionHandler",
         "java.lang.RuntimePermission preferences",
         "java.lang.RuntimePermission usePolicy",
+        // blanket runtime permission not allowed
+        "java.lang.RuntimePermission *",
         "java.net.NetPermission setDefaultAuthenticator",
         "java.net.NetPermission specifyStreamHandler",
         "java.net.NetPermission setProxySelector",

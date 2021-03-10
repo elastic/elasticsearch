@@ -227,7 +227,8 @@ public class GeoGridTilerTests extends ESTestCase {
         );
         GeoShapeCellValues values = new GeoShapeCellValues(null, 24, GEOTILE, NOOP_BREAKER);
         int numTiles = new BoundedGeoTileGridTiler(boundingBox).setValues(values, value, 24);
-        int expectedTiles = (int) GeoTileGridTiler.numTilesFromPrecision(24, tile.getMinX(), tile.getMaxX(), tile.getMinY(), tile.getMaxY());
+        int expectedTiles =
+            (int) GeoTileGridTiler.numTilesFromPrecision(24, tile.getMinX(), tile.getMaxX(), tile.getMinY(), tile.getMaxY());
         assertThat(expectedTiles, equalTo(numTiles));
     }
 

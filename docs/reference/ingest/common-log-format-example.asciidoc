@@ -13,7 +13,7 @@ The logs you want to parse look similar to this:
 
 [source,js]
 ----
-212.87.37.154 - - [05/May/2020:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\"
+212.87.37.154 - - [30/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\"
 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6)
 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\"
 ----
@@ -35,7 +35,7 @@ pattern>>:
 +
 [source,js]
 ----
-%{IPORHOST:clientip} %{USER:ident} %{USER:auth} \[%{HTTPDATE:timestamp}\] "%{WORD:verb} %{DATA:request} HTTP/%{NUMBER:httpversion}" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:agent}
+%{IPORHOST:client.ip} %{USER:ident} %{USER:auth} \[%{HTTPDATE:@timestamp}\] "%{WORD:verb} %{DATA:request} HTTP/%{NUMBER:httpversion}" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:user_agent}
 ----
 // NOTCONSOLE
 +
@@ -45,9 +45,9 @@ pattern>>:
 field to each processor type:
 +
 --
-* <<date-processor,**Date**>>: `timestamp`
-* <<geoip-processor,**GeoIP**>>: `clientip`
-* <<user-agent-processor,**User agent**>>: `agent`
+* <<date-processor,**Date**>>: `@timestamp`
+* <<geoip-processor,**GeoIP**>>: `client.ip`
+* <<user-agent-processor,**User agent**>>: `user_agent`
 
 In the **Date** processor, specify the date format you want to use:
 `dd/MMM/YYYY:HH:mm:ss Z`.
@@ -60,36 +60,36 @@ image::images/ingest/ingest-pipeline-processor.png[Processors for Ingest Node Pi
 Alternatively, you can click the **Import processors** link and define the
 processors as JSON:
 +
-[source,js]
+[source,console]
 ----
 {
   "processors": [
     {
       "grok": {
         "field": "message",
-        "patterns": ["%{IPORHOST:clientip} %{USER:ident} %{USER:auth} \\[%{HTTPDATE:timestamp}\\] \"%{WORD:verb} %{DATA:request} HTTP/%{NUMBER:httpversion}\" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:agent}"]
+        "patterns": ["%{IPORHOST:client.ip} %{USER:ident} %{USER:auth} \\[%{HTTPDATE:@timestamp}\\] \"%{WORD:verb} %{DATA:request} HTTP/%{NUMBER:httpversion}\" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:user_agent}"]
       }
     },
     {
       "date": {
-        "field": "timestamp",
+        "field": "@timestamp",
         "formats": [ "dd/MMM/YYYY:HH:mm:ss Z" ]
       }
     },
     {
       "geoip": {
-        "field": "clientip"
+        "field": "client.ip"
       }
     },
     {
       "user_agent": {
-        "field": "agent"
+        "field": "user_agent"
       }
     }
   ]
 }
 ----
-// NOTCONSOLE
+// TEST[s/^/PUT _ingest\/pipeline\/my-pipeline\n/]
 +
 The four processors will run sequentially: +
 grok > date > geoip > user_agent +
@@ -104,7 +104,7 @@ You can reorder processors using the arrow icons.
 [
   {
     "_source": {
-      "message": "212.87.37.154 - - [05/May/2020:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\" 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\""
+      "message": "212.87.37.154 - - [05/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\" 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\""
     }
   }
 ]
@@ -120,29 +120,11 @@ You’re now ready to load the logs data using the <<docs-index_,index API>>.
 
 . Index a document with the pipeline you created.
 +
-////
-// The index request requires a pipeline.
 [source,console]
 ----
-PUT _ingest/pipeline/access_logs
+PUT my-index/_doc/1?pipeline=my-pipeline
 {
-  "processors": [
-    {
-      "set": {
-        "field": "foo",
-        "value": "bar"
-      }
-    }
-  ]
-}
-----
-////
-+
-[source,console]
-----
-PUT my-index/_doc/1?pipeline=access_logs
-{
-  "message": "212.87.37.154 - - [05/May/2020:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\" 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\""
+  "message": "212.87.37.154 - - [05/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\" 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\""
 }
 ----
 // TEST[continued]
@@ -154,3 +136,57 @@ PUT my-index/_doc/1?pipeline=access_logs
 GET my-index/_doc/1
 ----
 // TEST[continued]
+
+////
+[source,console-result]
+----
+{
+  "_index": "my-index",
+  "_id": "1",
+  "_version": 1,
+  "_seq_no": 0,
+  "_primary_term": 1,
+  "found": true,
+  "_source": {
+    "request": "/favicon.ico",
+    "geoip": {
+      "continent_name": "Europe",
+      "region_iso_code": "DE-BE",
+      "city_name": "Berlin",
+      "country_iso_code": "DE",
+      "country_name": "Germany",
+      "region_name": "Land Berlin",
+      "location": {
+        "lon": 13.4978,
+        "lat": 52.411
+      }
+    },
+    "auth": "-",
+    "ident": "-",
+    "verb": "GET",
+    "message": "212.87.37.154 - - [05/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\" 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\"",
+    "referrer": "\"-\"",
+    "@timestamp": "2098-12-29T16:21:15.000Z",
+    "response": 200,
+    "bytes": 3638,
+    "client": {
+      "ip": "212.87.37.154"
+    },
+    "httpversion": "1.1",
+    "user_agent": {
+      "original": "\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\"",
+      "os": {
+        "name": "Mac OS X",
+        "version": "10.11.6",
+        "full": "Mac OS X 10.11.6"
+      },
+      "name": "Chrome",
+      "device": {
+        "name": "Mac"
+      },
+      "version": "52.0.2743.116"
+    }
+  }
+}
+----
+////

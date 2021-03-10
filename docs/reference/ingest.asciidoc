@@ -169,14 +169,15 @@ Use the `pipeline` query parameter to apply a pipeline to documents in
 ----
 POST my-data-stream/_doc?pipeline=my-pipeline
 {
+  "@timestamp": "2099-03-07T11:04:05.000Z",
   "my-keyword-field": "foo"
 }
 
 PUT my-data-stream/_bulk?pipeline=my-pipeline
 { "create":{ } }
-{ "my-keyword-field" : "foo" }
+{ "@timestamp": "2099-03-08T11:04:05.000Z", "my-keyword-field" : "foo" }
 { "create":{ } }
-{ "my-keyword-field" : "bar" }
+{ "@timestamp": "2099-03-08T11:06:07.000Z", "my-keyword-field" : "bar" }
 ----
 
 You can also use the `pipeline` parameter with the <<docs-update-by-query,update
@@ -193,6 +194,7 @@ POST _reindex
   },
   "dest": {
     "index": "my-new-data-stream",
+    "op_type": "create",
     "pipeline": "my-pipeline"
   }
 }

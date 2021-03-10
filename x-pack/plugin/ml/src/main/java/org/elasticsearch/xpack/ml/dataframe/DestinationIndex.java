@@ -185,8 +185,10 @@ public final class DestinationIndex {
         properties.putAll(createAdditionalMappings(config, fieldCapabilitiesResponse));
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
         metadata.putAll(createMetadata(config.getId(), clock, Version.CURRENT));
-        Map<String, Object> runtimeMappings = getOrPutDefault(mappingsAsMap, RUNTIME, HashMap::new);
-        runtimeMappings.putAll(config.getSource().getRuntimeMappings());
+        if (config.getSource().getRuntimeMappings().isEmpty() == false) {
+            Map<String, Object> runtimeMappings = getOrPutDefault(mappingsAsMap, RUNTIME, HashMap::new);
+            runtimeMappings.putAll(config.getSource().getRuntimeMappings());
+        }
         return new CreateIndexRequest(destinationIndex, settings).mapping(mappingsAsMap);
     }
 
@@ -270,8 +272,11 @@ public final class DestinationIndex {
 
                 // Determine mappings to be added to the destination index
                 addedMappings.put(PROPERTIES, createAdditionalMappings(config, fieldCapabilitiesResponse));
+
                 // Also add runtime mappings
-                addedMappings.put(RUNTIME, config.getSource().getRuntimeMappings());
+                if (config.getSource().getRuntimeMappings().isEmpty() == false) {
+                    addedMappings.put(RUNTIME, config.getSource().getRuntimeMappings());
+                }
 
                 // Add the mappings to the destination index
                 PutMappingRequest putMappingRequest =

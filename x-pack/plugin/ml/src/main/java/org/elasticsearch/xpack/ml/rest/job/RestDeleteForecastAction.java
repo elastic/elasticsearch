@@ -28,7 +28,7 @@ public class RestDeleteForecastAction extends BaseRestHandler {
         return List.of(
             new Route(DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_forecast/"),
             new Route(DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}")
+                    "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}")
         );
     }
 

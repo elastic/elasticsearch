@@ -18,7 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
@@ -43,6 +44,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
@@ -91,7 +93,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
-        registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", (request, channel, clnt) ->
+        registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", RestApiVersion.current(),
+            (request, channel, clnt) ->
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE)));
     }
 
@@ -99,83 +102,108 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request.
      *
      * @param method GET, POST, etc.
-     * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
+     * @param path Path to handle (e.g. "/{index}/{type}/_bulk")
+     * @param version API version to handle (e.g. RestApiVersion.V_8)
      * @param handler The handler to actually execute
      * @param deprecationMessage The message to log and send as a header in the response
      */
-    protected void registerAsDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler, String deprecationMessage) {
+    protected void registerAsDeprecatedHandler(RestRequest.Method method, String path, RestApiVersion version,
+                                               RestHandler handler, String deprecationMessage) {
         assert (handler instanceof DeprecationRestHandler) == false;
-
-        registerHandler(method, path, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger));
+        if (version == RestApiVersion.current()) {
+            // e.g. it was marked as deprecated in 8.x, and we're currently running 8.x
+            registerHandler(method, path, version, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger, false));
+        } else if (version == RestApiVersion.minimumSupported()) {
+            // e.g. it was marked as deprecated in 7.x, and we're currently running 8.x
+            registerHandler(method, path, version, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger, true));
+        } else {
+            // e.g. it was marked as deprecated in 7.x, and we're currently running *9.x*
+            logger.debug("Deprecated route [" + method + " " + path + "] for handler [" + handler.getClass() + "] " +
+                "with version [" + version + "], which is less than the minimum supported version [" +
+                RestApiVersion.minimumSupported() + "]");
+        }
     }
 
     /**
      * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request, or when provided
-     * with {@code deprecatedMethod} and {@code deprecatedPath}. Expected usage:
+     * with {@code replacedMethod} and {@code replacedPath}. Expected usage:
      * <pre><code>
      * // remove deprecation in next major release
-     * controller.registerWithDeprecatedHandler(POST, "/_forcemerge", this,
-     *                                          POST, "/_optimize", deprecationLogger);
-     * controller.registerWithDeprecatedHandler(POST, "/{index}/_forcemerge", this,
-     *                                          POST, "/{index}/_optimize", deprecationLogger);
+     * controller.registerAsDeprecatedHandler(POST, "/_forcemerge", RestApiVersion.V_8, someHandler,
+     *                                        POST, "/_optimize", RestApiVersion.V_7);
+     * controller.registerAsDeprecatedHandler(POST, "/{index}/_forcemerge", RestApiVersion.V_8, someHandler,
+     *                                        POST, "/{index}/_optimize", RestApiVersion.V_7);
      * </code></pre>
      * <p>
      * The registered REST handler ({@code method} with {@code path}) is a normal REST handler that is not deprecated and it is
-     * replacing the deprecated REST handler ({@code deprecatedMethod} with {@code deprecatedPath}) that is using the <em>same</em>
+     * replacing the deprecated REST handler ({@code replacedMethod} with {@code replacedPath}) that is using the <em>same</em>
      * {@code handler}.
      * <p>
      * Deprecated REST handlers without a direct replacement should be deprecated directly using {@link #registerAsDeprecatedHandler}
      * and a specific message.
      *
      * @param method GET, POST, etc.
-     * @param path Path to handle (e.g., "/_forcemerge")
+     * @param path Path to handle (e.g. "/_forcemerge")
+     * @param version API version to handle (e.g. RestApiVersion.V_8)
      * @param handler The handler to actually execute
-     * @param deprecatedMethod GET, POST, etc.
-     * @param deprecatedPath <em>Deprecated</em> path to handle (e.g., "/_optimize")
+     * @param replacedMethod GET, POST, etc.
+     * @param replacedPath <em>Replaced</em> path to handle (e.g. "/_optimize")
+     * @param replacedVersion <em>Replaced</em> API version to handle (e.g. RestApiVersion.V_7)
      */
-    protected void registerWithDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler,
-                                              RestRequest.Method deprecatedMethod, String deprecatedPath) {
-        // e.g., [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
-        final String deprecationMessage =
-            "[" + deprecatedMethod.name() + " " + deprecatedPath + "] is deprecated! Use [" + method.name() + " " + path + "] instead.";
+    protected void registerAsReplacedHandler(RestRequest.Method method, String path, RestApiVersion version, RestHandler handler,
+                                             RestRequest.Method replacedMethod, String replacedPath, RestApiVersion replacedVersion) {
+        // e.g. [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
+        final String replacedMessage =
+            "[" + replacedMethod.name() + " " + replacedPath + "] is deprecated! Use [" + method.name() + " " + path + "] instead.";
 
-        registerHandler(method, path, handler);
-        registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage);
+        registerHandler(method, path, version, handler);
+        registerAsDeprecatedHandler(replacedMethod, replacedPath, replacedVersion, handler, replacedMessage);
     }
 
     /**
      * Registers a REST handler to be executed when one of the provided methods and path match the request.
      *
-     * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
-     * @param handler The handler to actually execute
      * @param method GET, POST, etc.
+     * @param path Path to handle (e.g. "/{index}/{type}/_bulk")
+     * @param version API version to handle (e.g. RestApiVersion.V_8)
+     * @param handler The handler to actually execute
      */
-    protected void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
+    protected void registerHandler(RestRequest.Method method, String path, RestApiVersion version, RestHandler handler) {
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
-        registerHandlerNoWrap(method, path, handlerWrapper.apply(handler));
+        registerHandlerNoWrap(method, path, version, handlerWrapper.apply(handler));
     }
 
-    private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
-        final RestApiCompatibleVersion version = maybeWrappedHandler.compatibleWithVersion();
-        assert RestApiCompatibleVersion.minimumSupported() == version || RestApiCompatibleVersion.currentVersion() == version
-            : "REST API compatibility is only supported for version " + RestApiCompatibleVersion.minimumSupported().major;
+    private void registerHandlerNoWrap(RestRequest.Method method, String path, RestApiVersion version, RestHandler handler) {
+        assert RestApiVersion.minimumSupported() == version || RestApiVersion.current() == version
+            : "REST API compatibility is only supported for version " + RestApiVersion.minimumSupported().major;
 
-        handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),
-            (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method));
+        handlers.insertOrUpdate(path,
+            new MethodHandlers(path).addMethod(method, version, handler),
+            (handlers, ignoredHandler) -> handlers.addMethod(method, version, handler));
+    }
+
+    public void registerHandler(final Route route, final RestHandler handler) {
+        if (route.isReplacement()) {
+            Route replaced = route.getReplacedRoute();
+            registerAsReplacedHandler(route.getMethod(), route.getPath(), route.getRestApiVersion(), handler,
+                replaced.getMethod(), replaced.getPath(), replaced.getRestApiVersion());
+        } else if (route.isDeprecated()) {
+            registerAsDeprecatedHandler(route.getMethod(), route.getPath(), route.getRestApiVersion(), handler,
+                route.getDeprecationMessage());
+        } else {
+            // it's just a normal route
+            registerHandler(route.getMethod(), route.getPath(), route.getRestApiVersion(), handler);
+        }
     }
 
     /**
      * Registers a REST handler with the controller. The REST handler declares the {@code method}
      * and {@code path} combinations.
      */
-    public void registerHandler(final RestHandler restHandler) {
-        restHandler.routes().forEach(route -> registerHandler(route.getMethod(), route.getPath(), restHandler));
-        restHandler.deprecatedRoutes().forEach(route ->
-            registerAsDeprecatedHandler(route.getMethod(), route.getPath(), restHandler, route.getDeprecationMessage()));
-        restHandler.replacedRoutes().forEach(route -> registerWithDeprecatedHandler(route.getMethod(), route.getPath(),
-            restHandler, route.getDeprecatedMethod(), route.getDeprecatedPath()));
+    public void registerHandler(final RestHandler handler) {
+        handler.routes().forEach(route -> registerHandler(route, handler));
     }
 
     @Override
@@ -215,7 +243,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler,
-                                 RestApiCompatibleVersion restApiCompatibleVersion)
+                                 RestApiVersion restApiVersion)
         throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
@@ -240,16 +268,26 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, restApiCompatibleVersion);
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, restApiVersion);
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
             }
-            if (handler.allowSystemIndexAccessByDefault() == false && request.header(ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER) == null) {
-                // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product with a plan
-                // to move away from direct access to system indices, and thus deprecation warnings should not be emitted.
+
+            final ThreadContext threadContext = client.threadPool().getThreadContext();
+            if (handler.allowSystemIndexAccessByDefault() == false) {
+                // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product and
+                // therefore we should allow a subset of external system index access.
                 // This header is intended for internal use only.
-                client.threadPool().getThreadContext().putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
+                final String prodOriginValue = request.header(ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+                if (prodOriginValue != null) {
+                    threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
+                    threadContext.putHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, prodOriginValue);
+                } else {
+                    threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
+                }
+            } else {
+                threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
             }
 
             handler.handleRequest(request, responseChannel, client);
@@ -309,7 +347,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // we consume the error_trace parameter first to ensure that it is always consumed
         if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
             channel.sendResponse(
-                    BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled."));
+                BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled."));
             return;
         }
 
@@ -317,7 +355,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
 
-        RestApiCompatibleVersion restApiCompatibleVersion = request.getRestApiCompatibleVersion();
+        RestApiVersion restApiVersion = request.getRestApiVersion();
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();
@@ -329,14 +367,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 if (handlers == null) {
                     handler = null;
                 } else {
-                    handler = handlers.getHandler(requestMethod, restApiCompatibleVersion);
+                    handler = handlers.getHandler(requestMethod, restApiVersion);
                 }
                 if (handler == null) {
-                  if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
-                      return;
-                  }
+                    if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
+                        return;
+                    }
                 } else {
-                    dispatchRequest(request, channel, handler, restApiCompatibleVersion);
+                    dispatchRequest(request, channel, handler, restApiVersion);
                     return;
                 }
             }
@@ -454,40 +492,40 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
-        private final RestApiCompatibleVersion restApiCompatibleVersion;
+        private final RestApiVersion restApiVersion;
         private final AtomicBoolean closed = new AtomicBoolean();
 
         ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength,
-                                    RestApiCompatibleVersion restApiCompatibleVersion) {
+                                    RestApiVersion restApiVersion) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
-            this.restApiCompatibleVersion = restApiCompatibleVersion;
+            this.restApiVersion = restApiVersion;
         }
 
         @Override
         public XContentBuilder newBuilder() throws IOException {
             return delegate.newBuilder()
-                .withCompatibleVersion(restApiCompatibleVersion);
+                .withCompatibleVersion(restApiVersion);
         }
 
         @Override
         public XContentBuilder newErrorBuilder() throws IOException {
             return delegate.newErrorBuilder()
-                .withCompatibleVersion(restApiCompatibleVersion);
+                .withCompatibleVersion(restApiVersion);
         }
 
         @Override
         public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
             return delegate.newBuilder(xContentType, useFiltering)
-                .withCompatibleVersion(restApiCompatibleVersion);
+                .withCompatibleVersion(restApiVersion);
         }
 
         @Override
         public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
-                throws IOException {
+            throws IOException {
             return delegate.newBuilder(xContentType, responseContentType, useFiltering)
-                .withCompatibleVersion(restApiCompatibleVersion);
+                .withCompatibleVersion(restApiVersion);
         }
 
         @Override

@@ -113,13 +113,13 @@ by all the shards, not number of documents).  The `/_cat/indices` API
 is ideal.  You only need to add three things to the API request:
 
 . The `bytes` query string parameter with a value of `b` to get byte-level resolution.
-. The `s` (sort) parameter with a value of `store.size:desc` to sort the output
-by shard storage in descending order.
+. The `s` (sort) parameter with a value of `store.size:desc` and a comma with `index:asc` to sort the output
+by shard storage descending order and then index name in ascending order.
 . The `v` (verbose) parameter to include column headings in the response.
 
 [source,console]
 --------------------------------------------------
-GET /_cat/indices?bytes=b&s=store.size:desc&v=true
+GET /_cat/indices?bytes=b&s=store.size:desc,index:asc&v=true
 --------------------------------------------------
 // TEST[setup:my_index_huge]
 // TEST[s/^/PUT my-index-000002\n{"settings": {"number_of_replicas": 0}}\n/]
@@ -134,7 +134,6 @@ green  open   my-index-000002  nYFWZEO7TUiOjLQXBaYJpA   1   0          0        
 --------------------------------------------------
 // TESTRESPONSE[s/72171|230/\\d+/]
 // TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ non_json]
-// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/51619"]
 
 If you want to change the <<time-units,time units>>, use `time` parameter.
 

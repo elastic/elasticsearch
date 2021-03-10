@@ -15,12 +15,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.url.http.URLHttpClientSettings;
 import org.elasticsearch.common.blobstore.url.URLBlobStore;
+import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.URIPattern;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
@@ -73,12 +76,16 @@ public class URLRepository extends BlobStoreRepository {
 
     private final URL url;
 
+    private final URLHttpClient httpClient;
+
+    private final URLHttpClientSettings httpClientSettings;
+
     /**
      * Constructs a read-only URL-based repository
      */
     public URLRepository(RepositoryMetadata metadata, Environment environment,
                          NamedXContentRegistry namedXContentRegistry, ClusterService clusterService, BigArrays bigArrays,
-                         RecoverySettings recoverySettings) {
+                         RecoverySettings recoverySettings, URLHttpClient.Factory httpClientFactory) {
         super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.cleanPath());
 
         if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(environment.settings()) ==  false) {
@@ -89,12 +96,15 @@ public class URLRepository extends BlobStoreRepository {
         urlWhiteList = ALLOWED_URLS_SETTING.get(environment.settings()).toArray(new URIPattern[]{});
         url = URL_SETTING.exists(metadata.settings())
             ? URL_SETTING.get(metadata.settings()) : REPOSITORIES_URL_SETTING.get(environment.settings());
+
+        this.httpClientSettings = URLHttpClientSettings.fromSettings(metadata.settings());
+        this.httpClient = httpClientFactory.create(httpClientSettings);
     }
 
     @Override
     protected BlobStore createBlobStore() {
         URL normalizedURL = checkURL(url);
-        return new URLBlobStore(environment.settings(), normalizedURL);
+        return new URLBlobStore(environment.settings(), normalizedURL, httpClient, httpClientSettings);
     }
 
     // only use for testing
@@ -155,5 +165,10 @@ public class URLRepository extends BlobStoreRepository {
         } catch (MalformedURLException e) {
             throw new IllegalArgumentException("Unable to parse URL repository setting", e);
         }
+    }
+
+    @Override
+    protected void doClose() {
+        IOUtils.closeWhileHandlingException(httpClient);
     }
 }

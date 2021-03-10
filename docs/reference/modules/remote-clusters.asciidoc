@@ -261,9 +261,10 @@ separately.
 `remote_cluster_client` <<node-roles,role>>::
 
   By default, any node in the cluster can act as a cross-cluster client and
-  connect to remote clusters. The `remote_cluster_client` role can be excluded
-  from the list of <<node-roles,roles> to prevent certain nodes from connecting
-  to remote clusters. Search requests targeting remote clusters must be sent to
+  connect to remote clusters. To prevent a node from connecting to remote
+  clusters, specify the <<node-roles,node.roles>> setting in `elasticsearch.yml`
+  and exclude `remote_cluster_client` from the listed roles. Search requests
+  targeting remote clusters must be sent to a
   node that is allowed to act as a cross-cluster client. Other features such as
   {ml} <<general-ml-settings,data feeds>>,
   <<general-transform-settings,transforms>> and <<ccr-getting-started,{ccr}>>

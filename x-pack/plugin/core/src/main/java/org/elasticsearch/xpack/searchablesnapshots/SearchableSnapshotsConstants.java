@@ -30,7 +30,14 @@ public class SearchableSnapshotsConstants {
         return SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings));
     }
 
+    /**
+     * Based on a map from setting to value, do the settings represent a partial searchable snapshot index?
+     *
+     * Both index.store.type and index.store.snapshot.partial must be supplied.
+     */
     public static boolean isPartialSearchableSnapshotIndex(Map<Setting<?>, Object> indexSettings) {
+        assert indexSettings.containsKey(INDEX_STORE_TYPE_SETTING) : "must include store type in map";
+        assert indexSettings.get(SNAPSHOT_PARTIAL_SETTING) != null : "partial setting must be non-null in map (has default value)";
         return SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(indexSettings.get(INDEX_STORE_TYPE_SETTING))
             && (boolean) indexSettings.get(SNAPSHOT_PARTIAL_SETTING);
     }

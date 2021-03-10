@@ -131,7 +131,8 @@ public class GeoTileGridTiler implements GeoGridTiler {
                         values.resizeCell(getNewSize(valuesIndex, 1));
                         values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
                     } else {
-                        valuesIndex = setValuesByRasterization(nextX, nextY, zTile, values, valuesIndex, targetPrecision, geoValue, maxtiles);
+                        valuesIndex =
+                            setValuesByRasterization(nextX, nextY, zTile, values, valuesIndex, targetPrecision, geoValue, maxtiles);
                     }
                 }
             }

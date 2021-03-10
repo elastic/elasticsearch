@@ -55,18 +55,18 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 ----
 GET _cat/templates/my-template-*?v=true&s=name
 ----
-// TEST[s/^/PUT _index_template\/my-template-0\n{"index_patterns": "te*", "priority": 200}\n/]
-// TEST[s/^/PUT _index_template\/my-template-1\n{"index_patterns": "tea*", "priority": 201}\n/]
-// TEST[s/^/PUT _index_template\/my-template-2\n{"index_patterns": "teak*", "priority": 202, "version": 7}\n/]
+// TEST[s/^/PUT _index_template\/my-template-0\n{"index_patterns": "te*", "priority": 500}\n/]
+// TEST[s/^/PUT _index_template\/my-template-1\n{"index_patterns": "tea*", "priority": 501}\n/]
+// TEST[s/^/PUT _index_template\/my-template-2\n{"index_patterns": "teak*", "priority": 502, "version": 7}\n/]
 
 The API returns the following response:
 
 [source,txt]
 ----
 name          index_patterns order version composed_of
-my-template-0 [te*]          200           []
-my-template-1 [tea*]         201           []
-my-template-2 [teak*]        202   7       []
+my-template-0 [te*]          500           []
+my-template-1 [tea*]         501           []
+my-template-2 [teak*]        502   7       []
 ----
 // TESTRESPONSE[s/\*/\\*/ s/\[/\\[/ s/\]/\\]/ non_json]
 

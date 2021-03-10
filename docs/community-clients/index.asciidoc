@@ -103,7 +103,7 @@ Also see the {client}/go-api/current/index.html[official Elasticsearch Go client
 Also see the {client}/java-api/current/index.html[official Elasticsearch Java client].
 
 * https://github.com/otto-de/flummi[Flummi]:
-  Java Rest client with comprehensive query DSL API
+  Java Rest client with comprehensive Query DSL API
 * https://github.com/searchbox-io/Jest[Jest]:
   Java Rest client.
 

@@ -16,7 +16,6 @@ import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.AbstractMap;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -116,26 +115,16 @@ public class NestedQuery extends Query {
             ihb.setSize(MAX_INNER_HITS);
             ihb.setName(path + "_" + COUNTER++);
 
-            boolean noSourceNeeded = true;
-            List<String> sourceFields = new ArrayList<>();
-
             for (Map.Entry<String, Map.Entry<Boolean, String>> entry : fields.entrySet()) {
                 if (entry.getValue().getKey()) {
-                    ihb.addDocValueField(entry.getKey(), entry.getValue().getValue());
+                    ihb.addFetchField(entry.getKey(), entry.getValue().getValue());
                 }
                 else {
-                    sourceFields.add(entry.getKey());
-                    noSourceNeeded = false;
+                    ihb.addFetchField(entry.getKey());
                 }
             }
-
-            if (noSourceNeeded) {
-                ihb.setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
-                ihb.setStoredFieldNames(NO_STORED_FIELD);
-            }
-            else {
-                ihb.setFetchSourceContext(new FetchSourceContext(true, sourceFields.toArray(new String[sourceFields.size()]), null));
-            }
+            ihb.setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
+            ihb.setStoredFieldNames(NO_STORED_FIELD);
 
             query.innerHit(ihb);
         }

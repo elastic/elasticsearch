@@ -8,9 +8,9 @@
 
 package org.elasticsearch.test.engine;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PostingsEnum;
@@ -20,6 +20,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 
 import java.io.IOException;
 
@@ -28,7 +29,7 @@ import java.io.IOException;
  * are called on is. This allows to test parts of the system under certain
  * error conditions that would otherwise not be possible.
  */
-public class ThrowingLeafReaderWrapper extends FilterLeafReader {
+public class ThrowingLeafReaderWrapper extends SequentialStoredFieldsLeafReader {
 
     private final Thrower thrower;
 
@@ -196,5 +197,10 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
     @Override
     public CacheHelper getReaderCacheHelper() {
         return in.getReaderCacheHelper();
+    }
+
+    @Override
+    protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+        return reader;
     }
 }

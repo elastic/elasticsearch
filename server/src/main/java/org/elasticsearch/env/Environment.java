@@ -300,6 +300,16 @@ public class Environment {
         return new ESFileStore(Files.getFileStore(path));
     }
 
+    public static long getUsableSpace(Path path) throws IOException {
+        long freeSpaceInBytes = Environment.getFileStore(path).getUsableSpace();
+
+        /* See: https://bugs.openjdk.java.net/browse/JDK-8162520 */
+        if (freeSpaceInBytes < 0) {
+            freeSpaceInBytes = Long.MAX_VALUE;
+        }
+        return freeSpaceInBytes;
+    }
+
     /**
      * asserts that the two environments are equivalent for all things the environment cares about (i.e., all but the setting
      * object which may contain different setting)

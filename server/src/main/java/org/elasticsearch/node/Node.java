@@ -99,7 +99,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
-import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexManager;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -404,6 +403,20 @@ public class Node implements Closeable {
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
 
+            final Map<String, SystemIndices.Feature> featuresMap = pluginsService
+                .filterPlugins(SystemIndexPlugin.class)
+                .stream()
+                .peek(plugin -> SystemIndices.validateFeatureName(plugin.getFeatureName(), plugin.getClass().getCanonicalName()))
+                .collect(Collectors.toUnmodifiableMap(
+                    plugin -> plugin.getFeatureName(),
+                    plugin -> new SystemIndices.Feature(
+                        plugin.getFeatureDescription(),
+                        plugin.getSystemIndexDescriptors(settings),
+                        plugin.getAssociatedIndexPatterns()
+                    ))
+                );
+            final SystemIndices systemIndices = new SystemIndices(featuresMap);
+
             ModulesBuilder modules = new ModulesBuilder();
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             final FsHealthService fsHealthService = new FsHealthService(settings, clusterService.getClusterSettings(), threadPool,
@@ -412,7 +425,7 @@ public class Node implements Closeable {
             final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(settings, clusterService,
                 repositoriesServiceReference::get, rerouteServiceReference::get);
             final ClusterModule clusterModule = new ClusterModule(settings, clusterService, clusterPlugins, clusterInfoService,
-                snapshotsInfoService, threadPool.getThreadContext());
+                snapshotsInfoService, threadPool.getThreadContext(), systemIndices);
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
@@ -454,8 +467,7 @@ public class Node implements Closeable {
                     .flatMap(p -> p.getNamedXContent().stream()),
                 ClusterModule.getNamedXWriteables().stream())
                 .flatMap(Function.identity()).collect(toList()),
-                pluginsService.filterPlugins(Plugin.class).stream()
-                    .flatMap(p -> p.getNamedXContentForCompatibility().stream()).collect(toList())
+                getCompatibleNamedXContents()
                 );
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
             final PersistedClusterStateService lucenePersistedStateFactory
@@ -496,14 +508,6 @@ public class Node implements Closeable {
                     .map(IndexStorePlugin::getSnapshotCommitSuppliers)
                     .flatMap(m -> m.entrySet().stream())
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-            final Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap = pluginsService
-                .filterPlugins(SystemIndexPlugin.class)
-                .stream()
-                .collect(Collectors.toUnmodifiableMap(
-                    plugin -> plugin.getClass().getSimpleName(),
-                    plugin -> plugin.getSystemIndexDescriptors(settings)));
-            final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);
 
             final SystemIndexManager systemIndexManager = new SystemIndexManager(systemIndices, client);
             clusterService.addListener(systemIndexManager);
@@ -593,11 +597,13 @@ public class Node implements Closeable {
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             repositoriesServiceReference.set(repositoryService);
             SnapshotsService snapshotsService = new SnapshotsService(settings, clusterService,
-                clusterModule.getIndexNameExpressionResolver(), repositoryService, transportService, actionModule.getActionFilters());
+                clusterModule.getIndexNameExpressionResolver(), repositoryService, transportService, actionModule.getActionFilters(),
+                    systemIndices.getFeatures());
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(settings, clusterService, repositoryService,
                 transportService, indicesService);
             RestoreService restoreService = new RestoreService(clusterService, repositoryService, clusterModule.getAllocationService(),
-                    metadataCreateIndexService, indexMetadataVerifier, shardLimitValidator);
+                    metadataCreateIndexService, clusterModule.getMetadataDeleteIndexService(), indexMetadataVerifier,
+                 shardLimitValidator, systemIndices);
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(settings, clusterService::state,
                 clusterService.getClusterSettings(), client, threadPool::relativeTimeInMillis, rerouteService);
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
@@ -728,6 +734,12 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    // package scope for testing
+    List<NamedXContentRegistry.Entry> getCompatibleNamedXContents() {
+        return pluginsService.filterPlugins(Plugin.class).stream()
+            .flatMap(p -> p.getNamedXContentForCompatibility().stream()).collect(toList());
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,

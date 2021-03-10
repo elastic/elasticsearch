@@ -6,8 +6,6 @@
 <titleabbrev>Mount snapshot</titleabbrev>
 ++++
 
-beta::[]
-
 Mount a snapshot as a searchable snapshot index.
 
 [[searchable-snapshots-api-mount-request]]

@@ -8,13 +8,27 @@
 
 package org.elasticsearch.gradle
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectReader
+import com.fasterxml.jackson.databind.ObjectWriter
+import com.fasterxml.jackson.databind.SequenceWriter
+import com.fasterxml.jackson.databind.node.ObjectNode
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
 import org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin
 import org.gradle.testkit.runner.TaskOutcome
 
+import java.nio.file.Path
+
 class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
-    def intermediateDir = YamlRestCompatTestPlugin.TEST_INTERMEDIATE_DIR_NAME;
+    def compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1
+    def specIntermediateDir = "restResources/v${compatibleVersion}/yamlSpecs"
+    def testIntermediateDir = "restResources/v${compatibleVersion}/yamlTests"
+    def transformTask  = ":transformV${compatibleVersion}RestTests"
+    def YAML_FACTORY = new YAMLFactory()
+    def MAPPER = new ObjectMapper(YAML_FACTORY)
+    def READER = MAPPER.readerFor(ObjectNode.class)
 
     def "yamlRestCompatTest does nothing when there are no tests"() {
         given:
@@ -39,7 +53,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
-        result.task(':transformCompatTests').outcome == TaskOutcome.NO_SOURCE
+        result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
     }
 
     def "yamlRestCompatTest executes and copies api and transforms tests from :bwc:minor"() {
@@ -91,22 +105,24 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SUCCESS
-        result.task(':transformCompatTests').outcome == TaskOutcome.SUCCESS
+        result.task(transformTask).outcome == TaskOutcome.SUCCESS
 
-        file("/build/resources/yamlRestCompatTest/rest-api-spec/api/" + api).exists()
-        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + test).exists()
-        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + test).text.contains("headers") //transformation adds this
-        file("/build/resources/yamlRestCompatTest/" + intermediateDir + "/rest-api-spec/test/" + test).exists()
+        file("/build/${specIntermediateDir}/rest-api-spec/api/" + api).exists()
+        file("/build/${testIntermediateDir}/original/rest-api-spec/test/" + test).exists()
+        file("/build/${testIntermediateDir}/transformed/rest-api-spec/test/" + test).exists()
+        file("/build/${testIntermediateDir}/original/rest-api-spec/test/" + test).exists()
+        file("/build/${testIntermediateDir}/transformed/rest-api-spec/test/" + test).exists()
+        file("/build/${testIntermediateDir}/transformed/rest-api-spec/test/" + test).text.contains("headers") //transformation adds this
         file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + additionalTest).exists()
 
         //additionalTest is not copied from the prior version, and thus not in the intermediate directory, nor transformed
-        file("/build/resources/yamlRestCompatTest/" + intermediateDir + "/rest-api-spec/test/" + additionalTest).exists() == false
+        file("/build/resources/yamlRestCompatTest/" + testIntermediateDir + "/rest-api-spec/test/" + additionalTest).exists() == false
         file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + additionalTest).text.contains("headers") == false
 
         file("/build/classes/java/yamlRestTest/MockIT.class").exists() //The "standard" runner is used to execute the compat test
 
         file("/build/resources/yamlRestCompatTest/rest-api-spec/api/" + wrongApi).exists() == false
-        file("/build/resources/yamlRestCompatTest/" + intermediateDir + "/rest-api-spec/test/" + wrongTest).exists() == false
+        file("/build/resources/yamlRestCompatTest/" + testIntermediateDir + "/rest-api-spec/test/" + wrongTest).exists() == false
         file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + wrongTest).exists() == false
 
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.NO_SOURCE
@@ -119,7 +135,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.UP_TO_DATE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.UP_TO_DATE
-        result.task(':transformCompatTests').outcome == TaskOutcome.UP_TO_DATE
+        result.task(transformTask).outcome == TaskOutcome.UP_TO_DATE
     }
 
     def "yamlRestCompatTest is wired into check and checkRestCompat"() {
@@ -148,7 +164,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
-        result.task(':transformCompatTests').outcome == TaskOutcome.NO_SOURCE
+        result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
 
         when:
         buildFile << """
@@ -162,7 +178,163 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SKIPPED
-        result.task(':transformCompatTests').outcome == TaskOutcome.SKIPPED
-
+        result.task(transformTask).outcome == TaskOutcome.SKIPPED
     }
+
+    def "transform task executes and works as configured"() {
+        given:
+        internalBuild()
+
+        addSubProject(":distribution:bwc:minor") << """
+        configurations { checkout }
+        artifacts {
+            checkout(new File(projectDir, "checkoutDir"))
+        }
+        """
+
+        buildFile << """
+            apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+            // avoids a dependency problem in this test, the distribution in use here is inconsequential to the test
+            import org.elasticsearch.gradle.testclusters.TestDistribution;
+            testClusters {
+              yamlRestCompatTest.setTestDistribution(TestDistribution.INTEG_TEST)
+            }
+
+            dependencies {
+               yamlRestTestImplementation "junit:junit:4.12"
+            }
+            tasks.named("transformV7RestTests").configure({ task ->
+              task.replaceMatch("_type", "_doc")
+              task.replaceMatch("_source.values", ["z", "x", "y"], "one")
+              task.removeMatch("_source.blah")
+              task.removeMatch("_source.junk", "two")
+              task.addMatch("_source.added", [name: 'jake', likes: 'cheese'], "one")
+              task.addWarning("one", "warning1", "warning2")
+              task.addAllowedWarning("added allowed warning")
+              task.removeWarning("one", "warning to remove")
+            })
+            // can't actually spin up test cluster from this test
+           tasks.withType(Test).configureEach{ enabled = false }
+        """
+
+        setupRestResources([], [])
+
+        file("distribution/bwc/minor/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/test.yml" ) << """
+        "one":
+          - do:
+              get:
+                index: test
+                id: 1
+              warnings:
+                - "warning to remove"
+          - match: { _source.values: ["foo"] }
+          - match: { _type: "_foo" }
+          - match: { _source.blah: 1234 }
+          - match: { _source.junk: true }
+        ---
+        "two":
+          - do:
+              get:
+                index: test
+                id: 1
+          - match: { _source.values: ["foo"] }
+          - match: { _type: "_foo" }
+          - match: { _source.blah: 1234 }
+          - match: { _source.junk: true }
+
+        """.stripIndent()
+        when:
+        def result = gradleRunner("yamlRestCompatTest").build()
+
+        then:
+
+        result.task(transformTask).outcome == TaskOutcome.SUCCESS
+
+
+        file("/build/${testIntermediateDir}/transformed/rest-api-spec/test/test.yml" ).exists()
+        List<ObjectNode> actual = READER.readValues(file("/build/${testIntermediateDir}/transformed/rest-api-spec/test/test.yml")).readAll()
+        List<ObjectNode> expectedAll = READER.readValues(
+        """
+        ---
+        setup:
+        - skip:
+            features:
+            - "headers"
+            - "warnings"
+            - "allowed_warnings"
+        ---
+        one:
+        - do:
+            get:
+              index: "test"
+              id: 1
+            warnings:
+            - "warning1"
+            - "warning2"
+            headers:
+              Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+              Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+            allowed_warnings:
+            - "added allowed warning"
+        - match:
+            _source.values:
+            - "z"
+            - "x"
+            - "y"
+        - match:
+            _type: "_doc"
+        - match: {}
+        - match:
+            _source.junk: true
+        - match:
+            _source.added:
+              name: "jake"
+              likes: "cheese"
+        ---
+        two:
+        - do:
+            get:
+              index: "test"
+              id: 1
+            headers:
+              Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+              Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+            allowed_warnings:
+            - "added allowed warning"
+        - match:
+            _source.values:
+            - "foo"
+        - match:
+            _type: "_doc"
+        - match: {}
+        - match: {}
+        """.stripIndent()).readAll()
+
+        expectedAll.eachWithIndex{ ObjectNode expected, int i ->
+            if(expected != actual.get(i)) {
+                println("\nTransformed Test:")
+                SequenceWriter sequenceWriter = WRITER.writeValues(System.out)
+                for (ObjectNode transformedTest : actual) {
+                    sequenceWriter.write(transformedTest)
+                }
+                sequenceWriter.close()
+            }
+           assert expected == actual.get(i)
+        }
+
+        when:
+        result = gradleRunner(transformTask).build()
+
+        then:
+        result.task(transformTask).outcome == TaskOutcome.UP_TO_DATE
+
+        when:
+        buildFile.write(buildFile.text.replace("blah", "baz"))
+        result = gradleRunner(transformTask).build()
+
+        then:
+        result.task(transformTask).outcome == TaskOutcome.SUCCESS
+    }
+
 }

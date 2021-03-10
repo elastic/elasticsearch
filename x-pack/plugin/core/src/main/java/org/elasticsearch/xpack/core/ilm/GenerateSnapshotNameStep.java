@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SystemIndexAccessLevel;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -79,6 +80,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         }
         newCustomData.setSnapshotName(snapshotName);
         newCustomData.setSnapshotRepository(snapshotRepository);
+        newCustomData.setSnapshotIndexName(index.getName());
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetaData);
         indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
@@ -133,7 +135,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         }
 
         public ResolverContext(long startTime) {
-            super(null, null, startTime, false, false, false, false, false);
+            super(null, null, startTime, false, false, false, false, SystemIndexAccessLevel.NONE);
         }
 
         @Override

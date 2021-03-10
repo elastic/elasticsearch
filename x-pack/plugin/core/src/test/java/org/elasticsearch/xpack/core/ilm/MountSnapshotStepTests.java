@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -39,12 +40,22 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         String restoredIndexPrefix = randomAlphaOfLength(10);
-        return new MountSnapshotStep(stepKey, nextStepKey, client, restoredIndexPrefix);
+        MountSearchableSnapshotRequest.Storage storage = randomStorageType();
+        return new MountSnapshotStep(stepKey, nextStepKey, client, restoredIndexPrefix, storage);
+    }
+
+    public static MountSearchableSnapshotRequest.Storage randomStorageType() {
+        if (randomBoolean()) {
+            return MountSearchableSnapshotRequest.Storage.FULL_COPY;
+        } else {
+            return MountSearchableSnapshotRequest.Storage.SHARED_CACHE;
+        }
     }
 
     @Override
     protected MountSnapshotStep copyInstance(MountSnapshotStep instance) {
-        return new MountSnapshotStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getRestoredIndexPrefix());
+        return new MountSnapshotStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getRestoredIndexPrefix(),
+            instance.getStorage());
     }
 
     @Override
@@ -52,7 +63,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         String restoredIndexPrefix = instance.getRestoredIndexPrefix();
-        switch (between(0, 2)) {
+        MountSearchableSnapshotRequest.Storage storage = instance.getStorage();
+        switch (between(0, 3)) {
             case 0:
                 key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
@@ -62,10 +74,19 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             case 2:
                 restoredIndexPrefix = randomValueOtherThan(restoredIndexPrefix, () -> randomAlphaOfLengthBetween(1, 10));
                 break;
+            case 3:
+                if (storage == MountSearchableSnapshotRequest.Storage.FULL_COPY) {
+                    storage = MountSearchableSnapshotRequest.Storage.SHARED_CACHE;
+                } else if (storage == MountSearchableSnapshotRequest.Storage.SHARED_CACHE) {
+                    storage = MountSearchableSnapshotRequest.Storage.FULL_COPY;
+                } else {
+                    throw new AssertionError("unknown storage type: " + storage);
+                }
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new MountSnapshotStep(key, nextKey, instance.getClient(), restoredIndexPrefix);
+        return new MountSnapshotStep(key, nextKey, instance.getClient(), restoredIndexPrefix, storage);
     }
 
     public void testPerformActionFailure() {
@@ -145,8 +166,10 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         ClusterState clusterState =
             ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
-        try (NoOpClient client = getRestoreSnapshotRequestAssertingClient(repository, snapshotName, indexName, RESTORED_INDEX_PREFIX)) {
-            MountSnapshotStep step = new MountSnapshotStep(randomStepKey(), randomStepKey(), client, RESTORED_INDEX_PREFIX);
+        try (NoOpClient client =
+                 getRestoreSnapshotRequestAssertingClient(repository, snapshotName, indexName, RESTORED_INDEX_PREFIX, indexName)) {
+            MountSnapshotStep step =
+                new MountSnapshotStep(randomStepKey(), randomStepKey(), client, RESTORED_INDEX_PREFIX, randomStorageType());
             step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
                 public void onResponse(boolean complete) {
@@ -183,7 +206,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             RestoreSnapshotResponse responseWithOKStatus = new RestoreSnapshotResponse(new RestoreInfo("test", List.of(), 1, 1));
             try (NoOpClient clientPropagatingOKResponse = getClientTriggeringResponse(responseWithOKStatus)) {
                 MountSnapshotStep step = new MountSnapshotStep(randomStepKey(), randomStepKey(), clientPropagatingOKResponse,
-                    RESTORED_INDEX_PREFIX);
+                    RESTORED_INDEX_PREFIX, randomStorageType());
                 step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
                     @Override
                     public void onResponse(boolean complete) {
@@ -202,7 +225,76 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             RestoreSnapshotResponse responseWithACCEPTEDStatus = new RestoreSnapshotResponse((RestoreInfo) null);
             try (NoOpClient clientPropagatingACCEPTEDResponse = getClientTriggeringResponse(responseWithACCEPTEDStatus)) {
                 MountSnapshotStep step = new MountSnapshotStep(randomStepKey(), randomStepKey(), clientPropagatingACCEPTEDResponse,
-                    RESTORED_INDEX_PREFIX);
+                    RESTORED_INDEX_PREFIX, randomStorageType());
+                step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
+                    @Override
+                    public void onResponse(boolean complete) {
+                        assertThat(complete, is(true));
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fail("expecting successful response but got: [" + e.getMessage() + "]");
+                    }
+                });
+            }
+        }
+    }
+
+    public void testBestEffortNameResolution() {
+        assertThat(MountSnapshotStep.bestEffortIndexNameResolution("potato"), equalTo("potato"));
+        assertThat(MountSnapshotStep.bestEffortIndexNameResolution("restored-potato"), equalTo("potato"));
+        assertThat(MountSnapshotStep.bestEffortIndexNameResolution("partial-potato"), equalTo("potato"));
+        assertThat(MountSnapshotStep.bestEffortIndexNameResolution("partial-restored-potato"), equalTo("potato"));
+        assertThat(MountSnapshotStep.bestEffortIndexNameResolution("restored-partial-potato"), equalTo("partial-potato"));
+        assertThat(MountSnapshotStep.bestEffortIndexNameResolution("my-restored-potato"), equalTo("my-restored-potato"));
+        assertThat(MountSnapshotStep.bestEffortIndexNameResolution("my-partial-potato"), equalTo("my-partial-potato"));
+        assertThat(MountSnapshotStep.bestEffortIndexNameResolution("my-partial-restored-potato"), equalTo("my-partial-restored-potato"));
+        assertThat(MountSnapshotStep.bestEffortIndexNameResolution("my-restored-partial-potato"), equalTo("my-restored-partial-potato"));
+    }
+
+    public void testMountWithNoPrefix() {
+        doTestMountWithoutSnapshotIndexNameInState("");
+    }
+
+    public void testMountWithRestorePrefix() {
+        doTestMountWithoutSnapshotIndexNameInState(SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX);
+    }
+
+    public void testMountWithPartialPrefix() {
+        doTestMountWithoutSnapshotIndexNameInState(SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX);
+    }
+
+    public void testMountWithPartialAndRestoredPrefix() {
+        doTestMountWithoutSnapshotIndexNameInState(SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX +
+            SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX);
+    }
+
+    public void doTestMountWithoutSnapshotIndexNameInState(String prefix) {
+        {
+            String indexNameSnippet = randomAlphaOfLength(10);
+            String indexName = prefix + indexNameSnippet;
+            String policyName = "test-ilm-policy";
+            Map<String, String> ilmCustom = new HashMap<>();
+            String snapshotName = indexName + "-" + policyName;
+            ilmCustom.put("snapshot_name", snapshotName);
+            String repository = "repository";
+            ilmCustom.put("snapshot_repository", repository);
+
+            IndexMetadata.Builder indexMetadataBuilder =
+                IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                    .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
+                    .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+            IndexMetadata indexMetadata = indexMetadataBuilder.build();
+
+            ClusterState clusterState =
+                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
+
+            try (NoOpClient client =
+                     getRestoreSnapshotRequestAssertingClient(repository, snapshotName,
+                         indexName, RESTORED_INDEX_PREFIX, indexNameSnippet)) {
+                MountSnapshotStep step =
+                    new MountSnapshotStep(randomStepKey(), randomStepKey(), client, RESTORED_INDEX_PREFIX, randomStorageType());
                 step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
                     @Override
                     public void onResponse(boolean complete) {
@@ -232,7 +324,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
 
     @SuppressWarnings("unchecked")
     private NoOpClient getRestoreSnapshotRequestAssertingClient(String expectedRepoName, String expectedSnapshotName, String indexName,
-                                                                String restoredIndexPrefix) {
+                                                                String restoredIndexPrefix, String expectedSnapshotIndexName) {
         return new NoOpClient(getTestName()) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
@@ -248,6 +340,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 assertThat(mountSearchableSnapshotRequest.ignoreIndexSettings(), is(notNullValue()));
                 assertThat(mountSearchableSnapshotRequest.ignoreIndexSettings()[0], is(LifecycleSettings.LIFECYCLE_NAME));
                 assertThat(mountSearchableSnapshotRequest.mountedIndexName(), is(restoredIndexPrefix + indexName));
+                assertThat(mountSearchableSnapshotRequest.snapshotIndexName(), is(expectedSnapshotIndexName));
             }
         };
     }

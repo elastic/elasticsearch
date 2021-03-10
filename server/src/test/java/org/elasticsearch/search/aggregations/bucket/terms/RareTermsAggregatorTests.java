@@ -261,6 +261,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1, fieldType2);
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                        aggregator.postCollection();
                         RareTerms result = (RareTerms) aggregator.buildTopLevel();
                         assertEquals("_name", result.getName());
                         assertEquals(0, result.getBuckets().size());
@@ -556,7 +557,11 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     document.add(new SortedNumericDocValuesField(LONG_FIELD, value));
                     document.add(new LongPoint(LONG_FIELD, value));
                     document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(Long.toString(value))));
+                    document.add(new Field(KEYWORD_FIELD, new BytesRef(Long.toString(value)), KeywordFieldMapper.Defaults.FIELD_TYPE));
                     document.add(new SortedSetDocValuesField("even_odd", new BytesRef(value % 2 == 0 ? "even" : "odd")));
+                    document.add(
+                        new Field("even_odd", new BytesRef(value % 2 == 0 ? "even" : "odd"), KeywordFieldMapper.Defaults.FIELD_TYPE)
+                    );
                     indexWriter.addDocument(document);
                     document.clear();
                 }

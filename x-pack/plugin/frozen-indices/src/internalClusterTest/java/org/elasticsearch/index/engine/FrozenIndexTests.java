@@ -10,7 +10,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -530,11 +529,6 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertTrue(timestampFieldRange.isComplete());
         assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse("2010-01-05T01:02:03.456Z").toEpochMilli()));
         assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").toEpochMilli()));
-
-        for (ShardStats shardStats : client().admin().indices().prepareStats("index").clear().setRefresh(true).get().getShards()) {
-            assertThat("shard " + shardStats.getShardRouting() + " refreshed to get the timestamp range",
-                    shardStats.getStats().refresh.getTotal(), greaterThanOrEqualTo(1L));
-        }
     }
 
     public void testComputesTimestampRangeFromNanoseconds() throws IOException {
@@ -565,11 +559,6 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             equalTo(resolution.convert(Instant.parse("2010-01-05T01:02:03.456789012Z"))));
         assertThat(timestampFieldRange.getMax(),
             equalTo(resolution.convert(Instant.parse("2010-01-06T02:03:04.567890123Z"))));
-
-        for (ShardStats shardStats : client().admin().indices().prepareStats("index").clear().setRefresh(true).get().getShards()) {
-            assertThat("shard " + shardStats.getShardRouting() + " refreshed to get the timestamp range",
-                    shardStats.getStats().refresh.getTotal(), greaterThanOrEqualTo(1L));
-        }
     }
 
 }

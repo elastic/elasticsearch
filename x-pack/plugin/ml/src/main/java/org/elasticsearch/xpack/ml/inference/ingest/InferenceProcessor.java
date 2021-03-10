@@ -157,7 +157,12 @@ public class InferenceProcessor extends AbstractProcessor {
             throw new ElasticsearchStatusException("Unexpected empty inference response", RestStatus.INTERNAL_SERVER_ERROR);
         }
         assert response.getInferenceResults().size() == 1;
-        InferenceResults.writeResult(response.getInferenceResults().get(0), ingestDocument, targetField, modelId);
+        InferenceResults.writeResult(
+            response.getInferenceResults().get(0),
+            ingestDocument,
+            targetField,
+            response.getModelId() != null ? response.getModelId() : modelId
+        );
     }
 
     @Override
@@ -294,7 +299,7 @@ public class InferenceProcessor extends AbstractProcessor {
                 fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
                 //TODO Remove in 8.x
                 if (fieldMap != null) {
-                    LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, () -> null, FIELD_MAPPINGS, FIELD_MAP);
+                    LoggingDeprecationHandler.INSTANCE.logRenamedField(null, () -> null, FIELD_MAPPINGS, FIELD_MAP);
                 }
             }
             if (fieldMap == null) {

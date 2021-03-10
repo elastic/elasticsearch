@@ -15,6 +15,7 @@ import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
+import org.gradle.api.provider.Provider;
 import org.gradle.internal.logging.progress.ProgressLogger;
 import org.gradle.internal.logging.progress.ProgressLoggerFactory;
 import org.gradle.process.ExecOperations;
@@ -35,17 +36,16 @@ import java.util.function.UnaryOperator;
  */
 public class VagrantMachine {
 
-    private final Project project;
     private final VagrantExtension extension;
-    private final ReaperService reaper;
+    private final Provider<ReaperService> reaperServiceProvider;
+    private ReaperService reaper;
     // pkg private so plugin can set this after construction
     long refs;
     private boolean isVMStarted = false;
 
-    public VagrantMachine(Project project, VagrantExtension extension, ReaperService reaper) {
-        this.project = project;
+    public VagrantMachine(VagrantExtension extension, Provider<ReaperService> reaperServiceProvider) {
         this.extension = extension;
-        this.reaper = reaper;
+        this.reaperServiceProvider = reaperServiceProvider;
     }
 
     @Inject
@@ -97,7 +97,6 @@ public class VagrantMachine {
         if (isVMStarted) {
             return;
         }
-
         execute(spec -> {
             spec.setCommand("box");
             spec.setSubcommand("update");
@@ -114,6 +113,7 @@ public class VagrantMachine {
         }
 
         // register box to be shutdown if gradle dies
+        reaper = reaperServiceProvider.get();
         reaper.registerCommand(extension.getBox(), "vagrant", "halt", "-f", extension.getBox());
 
         // We lock the provider to virtualbox because the Vagrantfile specifies lots of boxes that only work

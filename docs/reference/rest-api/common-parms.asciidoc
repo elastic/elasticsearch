@@ -165,7 +165,7 @@ prior to starting the {transform}.
 end::dest-index[]
 
 tag::dest-pipeline[]
-The unique identifier for a <<pipeline,pipeline>>.
+The unique identifier for an <<ingest,ingest pipeline>>.
 end::dest-pipeline[]
 
 tag::detailed[]
@@ -200,8 +200,8 @@ history of operations on a shard.
 end::docs-deleted[]
 
 tag::docs-deleted-transform[]
-The number of documents that have been deleted from the destination index
-for the {transform}.
+The number of documents that have been deleted from the destination index due to
+the retention policy for this {transform}.
 end::docs-deleted-transform[]
 
 tag::docs-indexed[]
@@ -703,6 +703,7 @@ currently supported:
 * <<search-aggregations-bucket-filter-aggregation,Filter>>
 * <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
+* <<search-aggregations-metrics-geo-line,Geo line>>
 * <<search-aggregations-metrics-max-aggregation,Max>>
 * <<search-aggregations-metrics-median-absolute-deviation-aggregation,Median absolute deviation>>
 * <<search-aggregations-metrics-min-aggregation,Min>>
@@ -922,8 +923,12 @@ end::source-transforms[]
 tag::source-index-transforms[]
 The _source indices_ for the {transform}. It can be a single index, an index
 pattern (for example, `"my-index-*"`), an array of indices (for example,
-`["my-index-000001", "my-index-000002"]`), or an array of index patterns (for example,
-`["my-index-*", "my-other-index-*"]`.
+`["my-index-000001", "my-index-000002"]`), or an array of index patterns (for 
+example, `["my-index-*", "my-other-index-*"]`. For remote indices use the syntax 
+`"remote_name:index_name"`.
+
+NOTE: If any indices are in remote clusters then the master node and at least 
+one transform node must have the `remote_cluster_client` node role.
 end::source-index-transforms[]
 
 tag::source-query-transforms[]
@@ -932,7 +937,9 @@ A query clause that retrieves a subset of data from the source index. See
 end::source-query-transforms[]
 
 tag::source-runtime-mappings-transforms[]
-Definitions of search-time runtime fields that can be used by the transform.
+Definitions of search-time runtime fields that can be used by the transform. For 
+search runtime fields all data nodes, including remote nodes, must be 7.12 or 
+later.
 end::source-runtime-mappings-transforms[]
 
 tag::state-transform[]
@@ -989,6 +996,24 @@ tag::transform-latest[]
 The `latest` method transforms the data by finding the latest document for each
 unique key.
 end::transform-latest[]
+
+tag::transform-retention[]
+Defines a retention policy for the {transform}. Data that meets the defined 
+criteria is deleted from the destination index.
+end::transform-retention[]
+
+tag::transform-retention-time[]
+Specifies that the {transform} uses a time field to set the retention policy.
+end::transform-retention-time[]
+
+tag::transform-retention-time-field[]
+The date field that is used to calculate the age of the document.
+end::transform-retention-time-field[]
+
+tag::transform-retention-time-max-age[]
+Specifies the maximum age of a document in the destination index. Documents that 
+are older than the configured value are removed from the destination index.
+end::transform-retention-time-max-age[]
 
 tag::transform-settings[]
 Defines optional {transform} settings.

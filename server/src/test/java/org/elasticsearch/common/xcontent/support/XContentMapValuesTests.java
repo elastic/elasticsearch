@@ -33,6 +33,7 @@ import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -192,6 +193,17 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
             Map<String, Object> map = parser.map();
             assertThat(XContentMapValues.extractValue("foo.bar", map), equalTo("baz"));
+        }
+    }
+
+    public void testExtractValueMixedDottedObjectNotation() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+            .startObject("foo").field("cat", "meow").endObject()
+            .field("foo.cat", "miau")
+            .endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+            Map<String, Object> map = parser.map();
+            assertThat((List<?>) XContentMapValues.extractValue("foo.cat", map), containsInAnyOrder("meow", "miau"));
         }
     }
 

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
+import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 
@@ -29,7 +31,8 @@ abstract class AbstractStringPattern implements StringPattern {
     }
 
     @Override
-    public boolean isExactMatch() {
-        return Operations.getCommonPrefix(automaton()).equals(asString());
+    public String exactMatch() {
+        IntsRef singleton = Operations.getSingleton(automaton());
+        return singleton != null ? UnicodeUtil.newString(singleton.ints, singleton.offset, singleton.length) : null;
     }
 }

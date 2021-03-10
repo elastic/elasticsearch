@@ -17,7 +17,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.hamcrest.CoreMatchers;
 
@@ -39,7 +38,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             () -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
                 mapperRegistry.getRuntimeFieldTypeParsers()::get, indexSettings.getIndexVersionCreated(),
                 () -> { throw new UnsupportedOperationException(); }, null,
-                scriptService, indexAnalyzers, indexSettings, () -> false, mapperRegistry.getDynamicRuntimeFieldsBuilder() != null);
+                scriptService, indexAnalyzers, indexSettings, () -> false);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
@@ -56,7 +55,7 @@ public class MappingParserTests extends MapperServiceTestCase {
         });
         Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
 
-        Mapper object = mapping.root().getMapper("foo");
+        Mapper object = mapping.getRoot().getMapper("foo");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
         ObjectMapper objectMapper = (ObjectMapper) object;
         assertNotNull(objectMapper.getMapper("bar"));

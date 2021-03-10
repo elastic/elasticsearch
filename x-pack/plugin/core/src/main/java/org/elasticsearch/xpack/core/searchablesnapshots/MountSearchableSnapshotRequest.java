@@ -234,6 +234,22 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         FULL_COPY,
         SHARED_CACHE;
 
+        public static Storage fromString(String type) {
+            if ("full_copy".equals(type)) {
+                return FULL_COPY;
+            } else if ("shared_cache".equals(type)) {
+                return SHARED_CACHE;
+            } else {
+                throw new IllegalArgumentException("unknown searchable snapshot storage type [" + type + "], valid types are: " +
+                    Strings.arrayToCommaDelimitedString(Storage.values()));
+            }
+        }
+
+        @Override
+        public String toString() {
+            return super.toString().toLowerCase(Locale.ROOT);
+        }
+
         public static Storage readFromStream(StreamInput in) throws IOException {
             return in.readEnum(Storage.class);
         }

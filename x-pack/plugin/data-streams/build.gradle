@@ -10,7 +10,7 @@ archivesBaseName = 'x-pack-data-streams'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 addQaCheckDependencies()

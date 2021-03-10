@@ -40,7 +40,7 @@ PUT /_ilm/policy/my-data-stream-policy
       "hot": {
         "actions": {
           "rollover": {
-            "max_size": "25GB"
+            "max_primary_shard_size": "25GB"
           }
         }
       },
@@ -139,7 +139,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
-  "priority": 200,
+  "priority": 500,
   "template": {
     "settings": {
       "index.lifecycle.name": "my-data-stream-policy"

@@ -71,11 +71,9 @@ public class RpmPreservationTests extends PackagingTestCase {
             .map(each -> installation.config(each))
             .forEach(path -> append(path, "# foo"));
         append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
-        if (distribution().isDefault()) {
-            Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
-                .map(each -> installation.config(each))
-                .forEach(path -> append(path, "# foo"));
-        }
+        Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
+            .map(each -> installation.config(each))
+            .forEach(path -> append(path, "# foo"));
 
         remove(distribution());
         assertRemoved(distribution());
@@ -101,9 +99,7 @@ public class RpmPreservationTests extends PackagingTestCase {
         Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties").forEach(this::assertConfFilePreserved);
         assertThat(installation.config(Paths.get("jvm.options.d", "heap.options")), fileExists());
 
-        if (distribution().isDefault()) {
-            Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles").forEach(this::assertConfFilePreserved);
-        }
+        Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles").forEach(this::assertConfFilePreserved);
     }
 
     private void assertConfFilePreserved(String configFile) {

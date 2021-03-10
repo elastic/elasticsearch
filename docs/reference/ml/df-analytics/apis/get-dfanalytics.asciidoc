@@ -128,7 +128,7 @@ to `ml`.
 (string) The unique identifier of the {dfanalytics-job}.
 
 `model_memory_limit`:::
-(string) The `model_memory_limit` that has been set to the {dfanalytics-job}.
+(string) The `model_memory_limit` that has been set for the {dfanalytics-job}.
 
 `source`:::
 (object) The configuration of how the analysis data is sourced. It has an

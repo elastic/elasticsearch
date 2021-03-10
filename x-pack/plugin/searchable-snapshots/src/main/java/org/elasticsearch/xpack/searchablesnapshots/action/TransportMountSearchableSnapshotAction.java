@@ -43,13 +43,17 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.getDataTiersPreference;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
 
 /**
  * Action that mounts a snapshot as a searchable snapshot, by converting the mount request into a restore request with specific settings
@@ -158,6 +162,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         // Retrieve IndexId and SnapshotId instances, which are then used to create a new restore
         // request, which is then sent on to the actual snapshot restore mechanism
         final Repository repository = repositoriesService.repository(repoName);
+        SearchableSnapshots.getSearchableRepository(repository); // just check it's valid
+
         final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
         repository.getRepositoryData(repositoryDataListener);
         repositoryDataListener.whenComplete(repoData -> {
@@ -176,8 +182,34 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             }
             final SnapshotId snapshotId = matchingSnapshotId.get();
 
-            final String[] ignoreIndexSettings = Arrays.copyOf(request.ignoreIndexSettings(), request.ignoreIndexSettings().length + 1);
-            ignoreIndexSettings[ignoreIndexSettings.length - 1] = IndexMetadata.SETTING_DATA_PATH;
+            final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repoData, snapshotId, indexId);
+            if (isSearchableSnapshotStore(indexMetadata.getSettings())) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "index [%s] in snapshot [%s/%s:%s] is a snapshot of a searchable snapshot index "
+                            + "backed by index [%s] in snapshot [%s/%s:%s] and cannot be mounted; did you mean to restore it instead?",
+                        indexName,
+                        repoName,
+                        repository.getMetadata().uuid(),
+                        snapName,
+                        SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING.get(indexMetadata.getSettings()),
+                        SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexMetadata.getSettings()),
+                        SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING.get(indexMetadata.getSettings()),
+                        SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexMetadata.getSettings())
+                    )
+                );
+            }
+
+            final Set<String> ignoreIndexSettings = new LinkedHashSet<>(Arrays.asList(request.ignoreIndexSettings()));
+            ignoreIndexSettings.add(IndexMetadata.SETTING_DATA_PATH);
+            for (final String indexSettingKey : indexMetadata.getSettings().keySet()) {
+                if (indexSettingKey.startsWith(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX)
+                    || indexSettingKey.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX)
+                    || indexSettingKey.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX)) {
+                    ignoreIndexSettings.add(indexSettingKey);
+                }
+            }
 
             client.admin()
                 .cluster()
@@ -201,7 +233,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                                 .build()
                         )
                         // Pass through ignored index settings
-                        .ignoreIndexSettings(ignoreIndexSettings)
+                        .ignoreIndexSettings(ignoreIndexSettings.toArray(new String[0]))
                         // Don't include global state
                         .includeGlobalState(false)
                         // Don't include aliases

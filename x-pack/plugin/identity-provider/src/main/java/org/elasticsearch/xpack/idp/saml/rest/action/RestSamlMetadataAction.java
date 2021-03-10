@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.idp.action.SamlMetadataRequest;
 import org.elasticsearch.xpack.idp.action.SamlMetadataResponse;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -37,7 +36,7 @@ public class RestSamlMetadataAction extends IdpBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(new Route(GET, "/_idp/saml/metadata/{sp_entity_id}"));
+        return List.of(new Route(GET, "/_idp/saml/metadata/{sp_entity_id}"));
     }
 
     @Override

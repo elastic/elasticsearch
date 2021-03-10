@@ -60,6 +60,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -82,6 +83,7 @@ public class AzureBlobStore implements BlobStore {
     private final String clientName;
     private final String container;
     private final LocationMode locationMode;
+    private final ByteSizeValue maxSinglePartUploadSize;
 
     private final Stats stats = new Stats();
     private final BiConsumer<String, URL> statsConsumer;
@@ -92,6 +94,7 @@ public class AzureBlobStore implements BlobStore {
         this.service = service;
         // locationMode is set per repository, not per client
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
+        this.maxSinglePartUploadSize = Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.get(metadata.settings());
 
         List<RequestStatsCollector> requestStatsCollectors = List.of(
             RequestStatsCollector.create(
@@ -447,11 +450,13 @@ public class AzureBlobStore implements BlobStore {
             assert blobSize == (((nbParts - 1) * partSize) + lastPartSize) : "blobSize does not match multipart sizes";
 
             final List<String> blockIds = new ArrayList<>(nbParts);
+            final Base64.Encoder base64Encoder = Base64.getEncoder().withoutPadding();
+            final Base64.Decoder base64UrlDecoder = Base64.getUrlDecoder();
             for (int i = 0; i < nbParts; i++) {
                 final long length = i < nbParts - 1 ? partSize : lastPartSize;
                 Flux<ByteBuffer> byteBufferFlux = convertStreamToByteBuffer(inputStream, length, DEFAULT_UPLOAD_BUFFERS_SIZE);
 
-                final String blockId = UUIDs.base64UUID();
+                final String blockId = base64Encoder.encodeToString(base64UrlDecoder.decode(UUIDs.base64UUID()));
                 blockBlobAsyncClient.stageBlock(blockId, byteBufferFlux, length).block();
                 blockIds.add(blockId);
             }
@@ -549,7 +554,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     long getLargeBlobThresholdInBytes() {
-        return service.getSizeThresholdForMultiBlockUpload();
+        return maxSinglePartUploadSize.getBytes();
     }
 
     long getUploadBlockSize() {

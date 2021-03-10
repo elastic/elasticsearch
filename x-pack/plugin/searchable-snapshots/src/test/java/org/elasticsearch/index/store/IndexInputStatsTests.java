@@ -23,7 +23,7 @@ public class IndexInputStatsTests extends ESTestCase {
 
     public void testReads() {
         final long fileLength = randomLongBetween(1L, 1_000L);
-        final IndexInputStats inputStats = new IndexInputStats(fileLength, FAKE_CLOCK);
+        final IndexInputStats inputStats = new IndexInputStats(1, fileLength, FAKE_CLOCK);
 
         assertCounter(inputStats.getContiguousReads(), 0L, 0L, 0L, 0L);
         assertCounter(inputStats.getNonContiguousReads(), 0L, 0L, 0L, 0L);
@@ -32,9 +32,9 @@ public class IndexInputStatsTests extends ESTestCase {
         final IndexInputStats.Counter nonContiguous = new IndexInputStats.Counter();
 
         for (int i = 0; i < randomIntBetween(1, 50); i++) {
-            final long currentPosition = randomLongBetween(0L, inputStats.getFileLength() - 1L);
-            final long previousPosition = randomBoolean() ? currentPosition : randomLongBetween(0L, inputStats.getFileLength() - 1L);
-            final int bytesRead = randomIntBetween(1, toIntBytes(Math.max(1L, inputStats.getFileLength() - currentPosition)));
+            final long currentPosition = randomLongBetween(0L, inputStats.getTotalSize() - 1L);
+            final long previousPosition = randomBoolean() ? currentPosition : randomLongBetween(0L, inputStats.getTotalSize() - 1L);
+            final int bytesRead = randomIntBetween(1, toIntBytes(Math.max(1L, inputStats.getTotalSize() - currentPosition)));
 
             inputStats.incrementBytesRead(previousPosition, currentPosition, bytesRead);
 
@@ -58,7 +58,7 @@ public class IndexInputStatsTests extends ESTestCase {
     public void testSeeks() {
         final long fileLength = randomLongBetween(1L, 1_000L);
         final long seekingThreshold = randomBoolean() ? randomLongBetween(1L, fileLength) : SEEKING_THRESHOLD.getBytes();
-        final IndexInputStats inputStats = new IndexInputStats(fileLength, seekingThreshold, FAKE_CLOCK);
+        final IndexInputStats inputStats = new IndexInputStats(1, fileLength, seekingThreshold, FAKE_CLOCK);
 
         assertCounter(inputStats.getForwardSmallSeeks(), 0L, 0L, 0L, 0L);
         assertCounter(inputStats.getForwardLargeSeeks(), 0L, 0L, 0L, 0L);
@@ -81,7 +81,7 @@ public class IndexInputStatsTests extends ESTestCase {
                 forwardCounter.add(delta);
             } else if (delta < 0) {
                 IndexInputStats.Counter backwardCounter = (delta >= -1 * seekingThreshold) ? bwSmallSeeks : bwLargeSeeks;
-                backwardCounter.add(delta);
+                backwardCounter.add(-delta);
             }
         }
 
@@ -117,8 +117,8 @@ public class IndexInputStatsTests extends ESTestCase {
     }
 
     public void testSeekToSamePosition() {
-        final IndexInputStats inputStats = new IndexInputStats(randomLongBetween(1L, 1_000L), FAKE_CLOCK);
-        final long position = randomLongBetween(0L, inputStats.getFileLength());
+        final IndexInputStats inputStats = new IndexInputStats(1, randomLongBetween(1L, 1_000L), FAKE_CLOCK);
+        final long position = randomLongBetween(0L, inputStats.getTotalSize());
 
         inputStats.incrementSeeks(position, position);
 

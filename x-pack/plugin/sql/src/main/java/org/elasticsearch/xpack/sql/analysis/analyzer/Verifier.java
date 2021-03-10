@@ -411,7 +411,7 @@ public final class Verifier {
 
         // resolve FunctionAttribute to backing functions
         if (e instanceof ReferenceAttribute) {
-            e = attributeRefs.resolve(e, null);
+            e = attributeRefs.resolve(e);
         }
 
         // scalar functions can be a binary tree
@@ -584,7 +584,7 @@ public final class Verifier {
 
         // resolve FunctionAttribute to backing functions
         if (e instanceof ReferenceAttribute) {
-            e = attributeRefs.resolve(e, null);
+            e = attributeRefs.resolve(e);
         }
 
         // scalar functions can be a binary tree

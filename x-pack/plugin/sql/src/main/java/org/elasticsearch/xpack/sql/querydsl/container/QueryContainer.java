@@ -376,7 +376,7 @@ public class QueryContainer {
     // replace function/operators's input with references
     private Tuple<QueryContainer, FieldExtraction> resolvedTreeComputingRef(ScalarFunction function, Attribute attr) {
         Pipe proc = null;
-        if ((proc = scalarFunctions.resolve(attr, null)) == null) {
+        if ((proc = scalarFunctions.resolve(attr)) == null) {
             proc = function.asPipe();
             scalarFunctions = AttributeMap.builder(scalarFunctions).put(attr, proc).build();
         }

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ql.expression;
 
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
@@ -266,15 +268,25 @@ public class AttributeMap<E> implements Map<Attribute, E> {
         return defaultValue;
     }
 
-    @SuppressWarnings({ "unchecked" })
+    public E resolve(Object key) {
+        return resolve(key, null);
+    }
+
     public E resolve(Object key, E defaultValue) {
-        AttributeMap<Object> map = (AttributeMap<Object>) this;
-        Object candidate = defaultValue;
-        Object value = null;
-        while ((value = map.getOrDefault(key, NOT_FOUND)) != NOT_FOUND && value != key) {
-            key = candidate = value;
+        E value = defaultValue;
+        E candidate = null;
+        int allowedLookups = 1000;
+        while ((candidate = get(key)) != null || containsKey(key)) {
+            // instead of circling around, return
+            if (candidate == key) {
+                return candidate;
+            }
+            if (--allowedLookups == 0) {
+                throw new QlIllegalArgumentException("Potential cycle detected");
+            }
+            key = value = candidate;
         }
-        return (E) candidate;
+        return value;
     }
 
     @Override

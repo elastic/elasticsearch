@@ -710,7 +710,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                     // if it's a reference, get the target expression
                     if (orderExpression instanceof ReferenceAttribute) {
-                        orderExpression = qContainer.aliases().resolve(orderExpression, null);
+                        orderExpression = qContainer.aliases().resolve(orderExpression);
                     }
                     String lookup = Expressions.id(orderExpression);
                     GroupByKey group = qContainer.findGroupForAgg(lookup);

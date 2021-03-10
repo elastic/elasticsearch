@@ -300,7 +300,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         private void findNested(Expression exp, AttributeMap<Function> functions, Consumer<FieldAttribute> onFind) {
             exp.forEachUp(e -> {
                 if (e instanceof ReferenceAttribute) {
-                    Function f = functions.resolve(e, null);
+                    Function f = functions.resolve(e);
                     if (f != null) {
                         findNested(f, functions, onFind);
                     }

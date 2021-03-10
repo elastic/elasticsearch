@@ -46,6 +46,7 @@ public class ScriptModule {
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,
             TemplateScript.CONTEXT,
+            TemplateScript.INGEST_CONTEXT,
             MovingFunctionScript.CONTEXT,
             ScriptedMetricAggContexts.InitScript.CONTEXT,
             ScriptedMetricAggContexts.MapScript.CONTEXT,

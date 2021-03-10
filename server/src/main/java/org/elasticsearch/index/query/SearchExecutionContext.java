@@ -63,6 +63,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -339,6 +340,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public MappedFieldType getFieldType(String name) {
         return failIfFieldMappingNotFound(name, fieldType(name));
+    }
+
+    /**
+     * Returns the registered mapped field types.
+     */
+    public Collection<MappedFieldType> getFieldTypes() {
+        List<MappedFieldType> fields = new ArrayList<>(mappingLookup.fieldTypes());
+        fields.addAll(runtimeMappings.values());
+        return fields;
     }
 
     /**

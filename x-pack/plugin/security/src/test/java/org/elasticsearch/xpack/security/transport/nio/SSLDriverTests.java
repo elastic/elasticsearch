@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
@@ -28,6 +29,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
+
+import static org.hamcrest.Matchers.is;
 
 public class SSLDriverTests extends ESTestCase {
 
@@ -159,20 +162,32 @@ public class SSLDriverTests extends ESTestCase {
         SSLEngine clientEngine = sslContext.createSSLEngine();
         SSLEngine serverEngine = sslContext.createSSLEngine();
 
-        String[] serverProtocols = {"TLSv1.2"};
+        final String[] serverProtocols;
+        final String[] clientProtocols;
+        final String expectedMessage;
+        if (inFipsJvm()) {
+            // fips JSSE does not support TLSv1.3 yet
+            serverProtocols = new String[]{"TLSv1.2"};
+            clientProtocols = new String[]{"TLSv1.1"};
+            expectedMessage = "org.bouncycastle.tls.TlsFatalAlert: protocol_version(70)";
+        } else if (JavaVersion.current().compareTo(JavaVersion.parse("16")) >= 0) {
+            // JDK16 https://jdk.java.net/16/release-notes does not permit protocol TLSv1.1 OOB
+            serverProtocols = new String[]{"TLSv1.3"};
+            clientProtocols = new String[]{"TLSv1.2"};
+            expectedMessage = "The client supported protocol versions [TLSv1.2] are not accepted by server preferences [TLS13]";
+        } else {
+            serverProtocols = new String[]{"TLSv1.2"};
+            clientProtocols = new String[]{"TLSv1.1"};
+            expectedMessage = "The client supported protocol versions [TLSv1.1] are not accepted by server preferences [TLS12]";
+        }
+
         serverEngine.setEnabledProtocols(serverProtocols);
-        String[] clientProtocols = {"TLSv1.1"};
         clientEngine.setEnabledProtocols(clientProtocols);
         SSLDriver clientDriver = getDriver(clientEngine, true);
         SSLDriver serverDriver = getDriver(serverEngine, false);
 
         SSLException sslException = expectThrows(SSLException.class, () -> handshake(clientDriver, serverDriver));
-        String oldExpected = "Client requested protocol TLSv1.1 not enabled or not supported";
-        String jdk11Expected = "The client supported protocol versions [TLSv1.1] are not accepted by server preferences [TLS12]";
-        String bctlsExpected = "org.bouncycastle.tls.TlsFatalAlert: protocol_version(70)";
-        boolean expectedMessage = oldExpected.equals(sslException.getMessage()) || jdk11Expected.equals(sslException.getMessage())
-            || bctlsExpected.equals(sslException.getMessage());
-        assertTrue("Unexpected exception message: " + sslException.getMessage(), expectedMessage);
+        assertThat(sslException.getMessage(), is(expectedMessage));
 
         // Prior to JDK11 we still need to send a close alert
         if (serverDriver.isClosed() == false) {

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.fetch;
 
@@ -26,7 +15,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Sub phase within the fetch phase used to fetch things *about* the documents like highlighting or matched queries.
@@ -37,22 +25,14 @@ public interface FetchSubPhase {
         private final SearchHit hit;
         private final LeafReaderContext readerContext;
         private final int docId;
-        private final SourceLookup sourceLookup;
-        private final Map<String, Object> cache;
+        private SourceLookup sourceLookup;
 
-        public HitContext(
-            SearchHit hit,
-            LeafReaderContext context,
-            int docId,
-            SourceLookup sourceLookup,
-            Map<String, Object> cache
-        ) {
+        public HitContext(SearchHit hit, LeafReaderContext context, int docId) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
-            this.sourceLookup = sourceLookup;
+            this.sourceLookup = new SourceLookup();
             sourceLookup.setSegmentAndDocument(context, docId);
-            this.cache = cache;
         }
 
         public SearchHit hit() {
@@ -85,13 +65,12 @@ public interface FetchSubPhase {
             return sourceLookup;
         }
 
-        public IndexReader topLevelReader() {
-            return ReaderUtil.getTopLevelContext(readerContext).reader();
+        public void setSourceLookup(SourceLookup sourceLookup) {
+            this.sourceLookup = sourceLookup;
         }
 
-        // TODO move this into Highlighter
-        public Map<String, Object> cache() {
-            return cache;
+        public IndexReader topLevelReader() {
+            return ReaderUtil.getTopLevelContext(readerContext).reader();
         }
     }
 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -43,10 +32,14 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchService;
@@ -108,60 +101,73 @@ public class TransportFieldCapabilitiesIndexAction
     }
 
     private FieldCapabilitiesIndexResponse shardOperation(final FieldCapabilitiesIndexRequest request) throws IOException {
-        if (canMatchShard(request) == false) {
-            return new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false);
-        }
-        ShardId shardId = request.shardId();
-        MapperService mapperService = indicesService.indexServiceSafe(shardId.getIndex()).mapperService();
-        Set<String> fieldNames = new HashSet<>();
-        for (String field : request.fields()) {
-            fieldNames.addAll(mapperService.simpleMatchToFullName(field));
-        }
-        Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
-        Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
-        for (String field : fieldNames) {
-            MappedFieldType ft = mapperService.fieldType(field);
-            if (ft != null) {
-                if (indicesService.isMetadataField(mapperService.getIndexSettings().getIndexVersionCreated(), field)
-                    || fieldPredicate.test(ft.name())) {
-                    IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field, ft.familyTypeName(),
-                        ft.isSearchable(), ft.isAggregatable(), ft.meta());
-                    responseMap.put(field, fieldCap);
-                } else {
-                    continue;
-                }
-                // add nested and object fields
-                int dotIndex = ft.name().lastIndexOf('.');
-                while (dotIndex > -1) {
-                    String parentField = ft.name().substring(0, dotIndex);
-                    if (responseMap.containsKey(parentField)) {
-                        // we added this path on another field already
-                        break;
+        final ShardId shardId = request.shardId();
+        final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        final IndexShard indexShard = indexService.getShard(request.shardId().getId());
+        try (Engine.Searcher searcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE)) {
+
+            final SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(shardId.id(), 0,
+                searcher, request::nowInMillis, null, request.runtimeFields());
+
+            if (canMatchShard(request, searchExecutionContext) == false) {
+                return new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false);
+            }
+
+            Set<String> fieldNames = new HashSet<>();
+            for (String field : request.fields()) {
+                fieldNames.addAll(searchExecutionContext.simpleMatchToIndexNames(field));
+            }
+
+            Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
+            Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
+            for (String field : fieldNames) {
+                MappedFieldType ft = searchExecutionContext.getFieldType(field);
+                if (ft != null) {
+                    if (searchExecutionContext.isMetadataField(field)
+                            || fieldPredicate.test(ft.name())) {
+                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field, ft.familyTypeName(),
+                            ft.isSearchable(), ft.isAggregatable(), ft.meta());
+                        responseMap.put(field, fieldCap);
+                    } else {
+                        continue;
                     }
-                    // checks if the parent field contains sub-fields
-                    if (mapperService.fieldType(parentField) == null) {
-                        // no field type, it must be an object field
-                        ObjectMapper mapper = mapperService.getObjectMapper(parentField);
-                        String type = mapper.nested().isNested() ? "nested" : "object";
-                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
-                            false, false, Collections.emptyMap());
-                        responseMap.put(parentField, fieldCap);
+
+                    // Check the ancestor of the field to find nested and object fields.
+                    // Runtime fields are excluded since they can override any path.
+                    if (ft instanceof RuntimeFieldType == false) {
+                        int dotIndex = ft.name().lastIndexOf('.');
+                        while (dotIndex > -1) {
+                            String parentField = ft.name().substring(0, dotIndex);
+                            if (responseMap.containsKey(parentField)) {
+                                // we added this path on another field already
+                                break;
+                            }
+                            // checks if the parent field contains sub-fields
+                            if (searchExecutionContext.getFieldType(parentField) == null) {
+                                // no field type, it must be an object field
+                                ObjectMapper mapper = searchExecutionContext.getObjectMapper(parentField);
+                                String type = mapper.nested().isNested() ? "nested" : "object";
+                                IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
+                                    false, false, Collections.emptyMap());
+                                responseMap.put(parentField, fieldCap);
+                            }
+                            dotIndex = parentField.lastIndexOf('.');
+                        }
                     }
-                    dotIndex = parentField.lastIndexOf('.');
                 }
             }
+            return new FieldCapabilitiesIndexResponse(request.index(), responseMap, true);
         }
-        return new FieldCapabilitiesIndexResponse(request.index(), responseMap, true);
     }
 
-    private boolean canMatchShard(FieldCapabilitiesIndexRequest req) throws IOException {
+    private boolean canMatchShard(FieldCapabilitiesIndexRequest req, SearchExecutionContext searchExecutionContext) throws IOException {
         if (req.indexFilter() == null || req.indexFilter() instanceof MatchAllQueryBuilder) {
             return true;
         }
         assert req.nowInMillis() != 0L;
         ShardSearchRequest searchRequest = new ShardSearchRequest(req.shardId(), req.nowInMillis(), AliasFilter.EMPTY);
         searchRequest.source(new SearchSourceBuilder().query(req.indexFilter()));
-        return searchService.canMatch(searchRequest).canMatch();
+        return SearchService.queryStillMatchesAfterRewrite(searchRequest, searchExecutionContext);
     }
 
     private ClusterBlockException checkGlobalBlock(ClusterState state) {
@@ -269,11 +275,6 @@ public class TransportFieldCapabilitiesIndexAction
                         @Override
                         public FieldCapabilitiesIndexResponse read(StreamInput in) throws IOException {
                             return new FieldCapabilitiesIndexResponse(in);
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
                         }
 
                         @Override

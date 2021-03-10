@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ql.expression.function.scalar.whitelist;
@@ -31,7 +32,7 @@ public class InternalQlScriptUtils {
     public static <T> Object docValue(Map<String, ScriptDocValues<T>> doc, String fieldName) {
         if (doc.containsKey(fieldName)) {
             ScriptDocValues<T> docValues = doc.get(fieldName);
-            if (!docValues.isEmpty()) {
+            if (docValues.isEmpty() == false) {
                 return docValues.get(0);
             }
         }
@@ -114,8 +115,12 @@ public class InternalQlScriptUtils {
     // Regex
     //
     public static Boolean regex(String value, String pattern) {
+        return regex(value, pattern, Boolean.FALSE);
+    }
+
+    public static Boolean regex(String value, String pattern, Boolean caseInsensitive) {
         // TODO: this needs to be improved to avoid creating the pattern on every call
-        return RegexOperation.match(value, pattern);
+        return RegexOperation.match(value, pattern, caseInsensitive);
     }
 
     //
@@ -148,7 +153,7 @@ public class InternalQlScriptUtils {
     //
     // String
     //
-    public static Boolean startsWith(String s, String pattern, Boolean isCaseSensitive) {
-        return (Boolean) StartsWithFunctionProcessor.doProcess(s, pattern, isCaseSensitive);
+    public static Boolean startsWith(String s, String pattern, Boolean caseInsensitive) {
+        return (Boolean) StartsWithFunctionProcessor.doProcess(s, pattern, caseInsensitive);
     }
 }

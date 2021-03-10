@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
@@ -27,8 +16,8 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -42,7 +31,7 @@ import java.util.function.Function;
 /**
  * Base field mapper class for all spatial field types
  */
-public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends ParametrizedFieldMapper {
+public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends FieldMapper {
 
     public static Parameter<Explicit<Boolean>> ignoreMalformedParam(Function<FieldMapper, Explicit<Boolean>> initializer,
                                                                     boolean ignoreMalformedByDefault) {
@@ -83,9 +72,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Par
         /**
          * Parses the given value, then formats it according to the 'format' string.
          *
-         * By default, this method simply parses the value using {@link Parser#parse}, then formats
-         * it with {@link Parser#format}. However some {@link Parser} implementations override this
-         * as they can avoid parsing the value if it is already in the right format.
+         * Used by value fetchers to validate and format geo objects
          */
         public Object parseAndFormatObject(Object value, String format) {
             Parsed geometry;
@@ -117,25 +104,25 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Par
         }
 
         @Override
-        public final Query termQuery(Object value, QueryShardContext context) {
+        public final Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Geometry fields do not support exact searching, use dedicated geometry queries instead: ["
                     + name() + "]");
         }
 
         @Override
-        public final ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public final ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
 
             Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, geoFormat);
             if (parsesArrayValue) {
-                return new ArraySourceValueFetcher(name(), mapperService) {
+                return new ArraySourceValueFetcher(name(), context) {
                     @Override
                     protected Object parseSourceValue(Object value) {
                         return valueParser.apply(value);
                     }
                 };
             } else {
-                return new SourceValueFetcher(name(), mapperService) {
+                return new SourceValueFetcher(name(), context) {
                     @Override
                     protected Object parseSourceValue(Object value) {
                         return valueParser.apply(value);
@@ -151,14 +138,22 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Par
     private final Parser<Parsed> parser;
 
     protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                          Map<String, NamedAnalyzer> indexAnalyzers,
                                           Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
                                           MultiFields multiFields, CopyTo copyTo,
                                           Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
         this.indexer = indexer;
         this.parser = parser;
+    }
+
+    protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                          Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
+                                          MultiFields multiFields, CopyTo copyTo,
+                                          Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
+        this(simpleName, mappedFieldType, Collections.emptyMap(), ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer, parser);
     }
 
     @Override

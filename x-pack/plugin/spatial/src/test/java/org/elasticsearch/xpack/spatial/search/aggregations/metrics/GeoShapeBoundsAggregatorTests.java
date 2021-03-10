@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
@@ -30,8 +31,6 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
-import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
-import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
@@ -193,8 +192,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                     }
                 }
                 Geometry geometry = new MultiPoint(points);
-                doc.add(new BinaryGeoShapeDocValuesField("field", GeoTestUtils.toDecodedTriangles(geometry),
-                    new CentroidCalculator(geometry)));
+                doc.add(GeoTestUtils.binaryGeoShapeDocValuesField("field", geometry));
                 w.addDocument(doc);
             }
             GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")

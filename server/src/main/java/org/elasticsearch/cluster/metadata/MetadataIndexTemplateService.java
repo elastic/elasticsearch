@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -75,11 +64,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
@@ -118,12 +109,8 @@ public class MetadataIndexTemplateService {
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
-        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", new ClusterStateUpdateTask(Priority.URGENT) {
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterTimeout;
-            }
+        clusterService.submitStateUpdateTask(
+                "remove-index-template [" + request.name + "]", new ClusterStateUpdateTask(Priority.URGENT, request.masterTimeout) {
 
             @Override
             public void onFailure(String source, Exception e) {
@@ -157,7 +144,7 @@ public class MetadataIndexTemplateService {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new RemoveResponse(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
             }
         });
     }
@@ -169,12 +156,7 @@ public class MetadataIndexTemplateService {
     public void putComponentTemplate(final String cause, final boolean create, final String name, final TimeValue masterTimeout,
                                      final ComponentTemplate template, final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("create-component-template [" + name + "], cause [" + cause + "]",
-            new ClusterStateUpdateTask(Priority.URGENT) {
-
-                @Override
-                public TimeValue timeout() {
-                    return masterTimeout;
-                }
+            new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -321,12 +303,7 @@ public class MetadataIndexTemplateService {
                                         final ActionListener<AcknowledgedResponse> listener) {
         validateNotInUse(clusterService.state().metadata(), name);
         clusterService.submitStateUpdateTask("remove-component-template [" + name + "]",
-            new ClusterStateUpdateTask(Priority.URGENT) {
-
-                @Override
-                public TimeValue timeout() {
-                    return masterTimeout;
-                }
+            new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -400,12 +377,7 @@ public class MetadataIndexTemplateService {
                                    final ComposableIndexTemplate template, final ActionListener<AcknowledgedResponse> listener) {
         validateV2TemplateRequest(clusterService.state().metadata(), name, template);
         clusterService.submitStateUpdateTask("create-index-template-v2 [" + name + "], cause [" + cause + "]",
-            new ClusterStateUpdateTask(Priority.URGENT) {
-
-                @Override
-                public TimeValue timeout() {
-                    return masterTimeout;
-                }
+            new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -620,7 +592,7 @@ public class MetadataIndexTemplateService {
     static Map<String, List<String>> findConflictingV2Templates(final ClusterState state, final String candidateName,
                                                                 final List<String> indexPatterns, boolean checkPriority, long priority) {
         Automaton v1automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
-        Map<String, List<String>> overlappingTemplates = new HashMap<>();
+        Map<String, List<String>> overlappingTemplates = new TreeMap<>();
         for (Map.Entry<String, ComposableIndexTemplate> entry : state.metadata().templatesV2().entrySet()) {
             String name = entry.getKey();
             ComposableIndexTemplate template = entry.getValue();
@@ -646,12 +618,7 @@ public class MetadataIndexTemplateService {
     public void removeIndexTemplateV2(final String name, final TimeValue masterTimeout,
                                       final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("remove-index-template-v2 [" + name + "]",
-            new ClusterStateUpdateTask(Priority.URGENT) {
-
-                @Override
-                public TimeValue timeout() {
-                    return masterTimeout;
-                }
+            new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -741,12 +708,7 @@ public class MetadataIndexTemplateService {
         final IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder(request.name);
 
         clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]",
-                new ClusterStateUpdateTask(Priority.URGENT) {
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterTimeout;
-            }
+                new ClusterStateUpdateTask(Priority.URGENT, request.masterTimeout) {
 
             @Override
             public void onFailure(String source, Exception e) {
@@ -834,6 +796,11 @@ public class MetadataIndexTemplateService {
             templateBuilder.putAlias(aliasMetadata);
         }
         IndexTemplateMetadata template = templateBuilder.build();
+        IndexTemplateMetadata existingTemplate = currentState.metadata().templates().get(request.name);
+        if (template.equals(existingTemplate)) {
+            // The template is unchanged, therefore there is no need for a cluster state update
+            return currentState;
+        }
 
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(template);
 
@@ -1086,6 +1053,13 @@ public class MetadataIndexTemplateService {
         Optional.ofNullable(template.template())
             .map(Template::aliases)
             .ifPresent(aliases::add);
+
+        // A template that creates data streams can't also create aliases.
+        // (otherwise we end up with aliases pointing to backing indices of data streams)
+        if (aliases.size() > 0 && template.getDataStreamTemplate() != null) {
+            throw new IllegalArgumentException("template [" + templateName + "] has alias and data stream definitions");
+        }
+
         // Aliases are applied in order, but subsequent alias configuration from the same name is
         // ignored, so in order for the order to be correct, alias configuration should be in order
         // of precedence (with the index template first)
@@ -1141,7 +1115,9 @@ public class MetadataIndexTemplateService {
                     new AliasValidator(),
                     // the context is only used for validation so it's fine to pass fake values for the
                     // shard id and the current timestamp
-                    xContentRegistry, tempIndexService.newQueryShardContext(0, null, () -> 0L, null));
+                    xContentRegistry, tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                    tempIndexService.dateMathExpressionResolverAt(System.currentTimeMillis()));
+
 
                 // triggers inclusion of _timestamp field and its validation:
                 String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;
@@ -1434,21 +1410,9 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    public static class RemoveResponse {
-        private final boolean acknowledged;
-
-        public RemoveResponse(boolean acknowledged) {
-            this.acknowledged = acknowledged;
-        }
-
-        public boolean acknowledged() {
-            return acknowledged;
-        }
-    }
-
     public interface RemoveListener {
 
-        void onResponse(RemoveResponse response);
+        void onResponse(AcknowledgedResponse response);
 
         void onFailure(Exception e);
     }

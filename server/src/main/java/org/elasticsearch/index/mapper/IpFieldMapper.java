@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -30,12 +19,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -44,6 +34,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +42,7 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for ip addresses. */
-public class IpFieldMapper extends ParametrizedFieldMapper {
+public class IpFieldMapper extends FieldMapper {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IpFieldMapper.class);
 
@@ -61,7 +52,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         return (IpFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -100,8 +91,8 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                 if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
                 } else {
-                    DEPRECATION_LOGGER.deprecate("ip_mapper_null_field", "Error parsing [" + nullValue.getValue()
-                        + "] as IP in [null_value] on field [" + name() + "]); [null_value] will be ignored");
+                    DEPRECATION_LOGGER.deprecate(DeprecationCategory.MAPPINGS, "ip_mapper_null_field", "Error parsing [" +
+                        nullValue.getValue() + "] as IP in [null_value] on field [" + name() + "]); [null_value] will be ignored");
                     return null;
                 }
             }
@@ -113,11 +104,11 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public IpFieldMapper build(BuilderContext context) {
+        public IpFieldMapper build(ContentPath contentPath) {
             return new IpFieldMapper(name,
-                new IpFieldType(buildFullName(context), indexed.getValue(), stored.getValue(),
+                new IpFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
                     hasDocValues.getValue(), parseNullValue(), meta.getValue()),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
 
     }
@@ -158,11 +149,11 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService, nullValue) {
+            return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     InetAddress address;
@@ -177,7 +168,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable QueryShardContext context) {
+        public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
             failIfNotIndexed();
             if (value instanceof InetAddress) {
                 return InetAddressPoint.newExactQuery(name(), (InetAddress) value);
@@ -196,7 +187,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query termsQuery(List<?> values, QueryShardContext context) {
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             InetAddress[] addresses = new InetAddress[values.size()];
             int i = 0;
             for (Object value : values) {
@@ -220,7 +211,8 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
+                                SearchExecutionContext context) {
             failIfNotIndexed();
             return rangeQuery(
                 lowerTerm,
@@ -388,11 +380,6 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected IpFieldMapper clone() {
-        return (IpFieldMapper) super.clone();
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         Object addressAsObject;
         if (context.externalValueSet()) {
@@ -440,7 +427,8 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion).init(this);
     }
+
 }

@@ -7,3 +7,4 @@ ccruser:
         - monitor
         - read
         - manage_leader_index
+        - view_index_metadata

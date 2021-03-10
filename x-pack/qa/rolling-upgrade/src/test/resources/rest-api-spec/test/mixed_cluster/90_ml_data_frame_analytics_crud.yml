@@ -29,7 +29,6 @@
 
 ---
 "Start and stop old outlier_detection job":
-
   - do:
       ml.start_data_frame_analytics:
         id: "old_cluster_outlier_detection_job"
@@ -119,7 +118,6 @@
 
 ---
 "Put an outlier_detection job on the mixed cluster":
-
   - do:
       ml.put_data_frame_analytics:
         id: "mixed_cluster_outlier_detection_job"

@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-bucket-script-aggregation]]
-=== Bucket Script Aggregation
+=== Bucket script aggregation
+++++
+<titleabbrev>Bucket script</titleabbrev>
+++++
 
 A parent pipeline aggregation which executes a script which can perform per bucket computations on specified metrics
 in the parent multi-bucket aggregation. The specified metric must be numeric and the script must return a numeric value.

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
@@ -12,7 +13,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
@@ -46,7 +47,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -273,7 +274,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(autodetectProcess.isProcessAlive()).thenReturn(true);
         when(autodetectProcess.readAutodetectResults()).thenReturn(Collections.emptyIterator());
 
-        autodetectFactory = (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
+        autodetectFactory = (pid, j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         Settings.Builder settings = Settings.builder();
         settings.put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), 3);
         AutodetectProcessManager manager = createSpyManager(settings.build());
@@ -620,7 +621,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         }).when(jobManager).getJob(eq("my_id"), any());
 
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
-        autodetectFactory = (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
+        autodetectFactory = (pid, j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         AutodetectProcessManager manager = createSpyManager();
         doCallRealMethod().when(manager).create(any(), any(), any(), any());
 
@@ -694,7 +695,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         }).when(jobManager).getJob(eq(jobId), any());
 
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
-        autodetectFactory = (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
+        autodetectFactory = (pid, j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         return createManager(Settings.EMPTY);
     }
 
@@ -722,7 +723,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         return new AutodetectProcessManager(settings,
             client, threadPool, new NamedXContentRegistry(Collections.emptyList()), auditor, clusterService, jobManager, jobResultsProvider,
             jobResultsPersister, jobDataCountsPersister, annotationPersister, autodetectFactory, normalizerFactory, nativeStorageProvider,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+            TestIndexNameExpressionResolver.newInstance());
     }
     private AutodetectProcessManager createSpyManagerAndCallProcessData(String jobId) {
         AutodetectProcessManager manager = createSpyManager();

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.monitoring;
 
@@ -30,8 +31,8 @@ public class MonitoringFeatureSetUsage extends XPackFeatureSet.Usage {
         collectionEnabled = in.readOptionalBoolean();
     }
 
-    public MonitoringFeatureSetUsage(boolean available, boolean collectionEnabled, Map<String, Object> exporters) {
-        super(XPackField.MONITORING, available, true);
+    public MonitoringFeatureSetUsage(boolean collectionEnabled, Map<String, Object> exporters) {
+        super(XPackField.MONITORING, true, true);
         this.exporters = exporters;
         this.collectionEnabled = collectionEnabled;
     }

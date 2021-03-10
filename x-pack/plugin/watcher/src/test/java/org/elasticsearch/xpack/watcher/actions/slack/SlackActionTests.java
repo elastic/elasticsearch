@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.slack;
 
@@ -132,8 +133,8 @@ public class SlackActionTests extends ESTestCase {
         SentMessages sentMessages = new SentMessages(accountName, messages);
         when(account.send(message, eq(any()))).thenReturn(sentMessages);
 
-        Action.Result.Status expectedStatus = !hasError ? Action.Result.Status.SUCCESS :
-                !hasSuccess ? Action.Result.Status.FAILURE :
+        Action.Result.Status expectedStatus = hasError == false ? Action.Result.Status.SUCCESS :
+                hasSuccess == false ? Action.Result.Status.FAILURE :
                         Action.Result.Status.PARTIAL_FAILURE;
 
 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -38,6 +27,7 @@ import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetUsersRequest;
+import org.elasticsearch.client.security.GrantApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -436,23 +426,52 @@ public class SecurityRequestConvertersTests extends ESTestCase {
     }
 
     public void testCreateApiKey() throws IOException {
-        final String name = randomAlphaOfLengthBetween(4, 7);
-        final List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
-                .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
-        final TimeValue expiration = randomBoolean() ? null : TimeValue.timeValueHours(24);
-        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final CreateApiKeyRequest createApiKeyRequest = buildCreateApiKeyRequest();
+
         final Map<String, String> expectedParams;
+        final RefreshPolicy refreshPolicy = createApiKeyRequest.getRefreshPolicy();
         if (refreshPolicy != RefreshPolicy.NONE) {
             expectedParams = Collections.singletonMap("refresh", refreshPolicy.getValue());
         } else {
             expectedParams = Collections.emptyMap();
         }
-        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy);
+
         final Request request = SecurityRequestConverters.createApiKey(createApiKeyRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_security/api_key", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(createApiKeyRequest, request.getEntity());
+    }
+
+    private CreateApiKeyRequest buildCreateApiKeyRequest() {
+        final String name = randomAlphaOfLengthBetween(4, 7);
+        final List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
+                .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
+        final TimeValue expiration = randomBoolean() ? null : TimeValue.timeValueHours(24);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy);
+        return createApiKeyRequest;
+    }
+
+    public void testGrantApiKey() throws IOException {
+        final CreateApiKeyRequest createApiKeyRequest = buildCreateApiKeyRequest();
+        final GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest(randomBoolean()
+            ? GrantApiKeyRequest.Grant.accessTokenGrant(randomAlphaOfLength(24))
+            : GrantApiKeyRequest.Grant.passwordGrant(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(14, 18).toCharArray()),
+            createApiKeyRequest);
+        final Map<String, String> expectedParams;
+        final RefreshPolicy refreshPolicy = createApiKeyRequest.getRefreshPolicy();
+        if (refreshPolicy != RefreshPolicy.NONE) {
+            expectedParams = Collections.singletonMap("refresh", refreshPolicy.getValue());
+        } else {
+            expectedParams = Collections.emptyMap();
+        }
+
+        final Request request = SecurityRequestConverters.grantApiKey(grantApiKeyRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_security/api_key/grant", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(grantApiKeyRequest, request.getEntity());
     }
 
     public void testGetApiKey() throws IOException {

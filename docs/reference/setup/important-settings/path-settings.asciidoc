@@ -2,32 +2,32 @@
 [discrete]
 === Path settings
 
-If you are using the `.zip` or `.tar.gz` archives, the `data` and `logs`
-directories are sub-folders of `$ES_HOME`. If these important folders are left
-in their default locations, there is a high risk of them being deleted while
-upgrading {es} to a new version.
+For <<targz,macOS `.tar.gz`>>, <<targz,Linux `.tar.gz`>>, and
+<<zip-windows,Windows `.zip`>> installations, {es} writes data and logs to the
+respective `data` and `logs` subdirectories of `$ES_HOME` by default.
+However, files in `$ES_HOME` risk deletion during an upgrade.
 
-In production use, you will almost certainly want to change the locations of the
-`path.data` and `path.logs` folders:
+In production, we strongly recommend you set the `path.data` and `path.logs` in
+`elasticsearch.yml` to locations outside of `$ES_HOME`.
 
-[source,yaml]
---------------------------------------------------
-path:
-  logs: /var/log/elasticsearch
-  data: /var/data/elasticsearch
---------------------------------------------------
+TIP: <<docker,Docker>>, <<deb,Debian>>, <<rpm,RPM>>, <<brew,macOS Homebrew>>,
+and <<windows,Windows `.msi`>> installations write data and log to locations
+outside of `$ES_HOME` by default.
 
-The RPM and Debian distributions already use custom paths for `data` and `logs`.
+Supported `path.data` and `path.logs` values vary by platform:
 
-The `path.data` settings can be set to multiple paths, in which case all paths
-will be used to store data. However, the files belonging to a single shard will
-all be stored on the same data path:
+include::{es-repo-dir}/tab-widgets/code.asciidoc[]
 
-[source,yaml]
---------------------------------------------------
-path:
-  data:
-    - /mnt/elasticsearch_1
-    - /mnt/elasticsearch_2
-    - /mnt/elasticsearch_3
---------------------------------------------------
+include::{es-repo-dir}/tab-widgets/customize-data-log-path-widget.asciidoc[]
+
+If needed, you can specify multiple paths in `path.data`. {es} stores the node's
+data across all provided paths but keeps each shard's data on the same path.
+
+WARNING: {es} does not balance shards across a node's data paths. High disk
+usage in a single path can trigger a <<disk-based-shard-allocation,high disk
+usage watermark>> for the entire node. If triggered, {es} will not add shards to
+the node, even if the node’s other paths have available disk space. If you need
+additional disk space, we recommend you add a new node rather than additional
+data paths. 
+
+include::{es-repo-dir}/tab-widgets/multi-data-path-widget.asciidoc[]

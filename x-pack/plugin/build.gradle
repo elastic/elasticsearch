@@ -3,13 +3,14 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 archivesBaseName = 'x-pack'
 
 dependencies {
   testImplementation project(xpackModule('core'))
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))));
   if (false == isEclipse) {
     // let the yamlRestTest see the classpath of test
     // Eclipse doesn't need this because it flattens test deps and gets very, very confused by it
@@ -17,15 +18,9 @@ dependencies {
   }
 }
 
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
-
 restResources {
   restApi {
     includeCore '*'
-    includeXpack '*'
   }
 }
 
@@ -35,10 +30,7 @@ artifacts {
   restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
 }
 
-def testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-
+tasks.named("testJar").configure {
   /*
    * Stick the license and notice file in the jar. This isn't strictly
    * needed because we don't publish it but it makes our super-paranoid
@@ -53,9 +45,6 @@ def testJar = tasks.register("testJar", Jar) {
       include project.noticeFile.name
     }
   }
-}
-artifacts {
-  testArtifacts testJar
 }
 
 // location for keys and certificates
@@ -76,10 +65,14 @@ tasks.register("copyKeyCerts", Copy) {
 }
 // Add keystores to test classpath: it expects it there
 sourceSets.yamlRestTest.resources.srcDir(keystoreDir)
-processYamlRestTestResources.dependsOn("copyKeyCerts")
-processJavaRestTestResources.dependsOn("copyKeyCerts")
+tasks.named("processYamlRestTestResources").configure {
+  dependsOn("copyKeyCerts")
+}
+tasks.named("processJavaRestTestResources").configure {
+  dependsOn("copyKeyCerts")
+}
 
-yamlRestTest {
+tasks.named("yamlRestTest").configure {
   /*
    * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
    * other if we allow them to set the number of available processors as it's set-once in Netty.
@@ -96,7 +89,7 @@ yamlRestTest {
     blacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
   }
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
-  dependsOn copyKeyCerts
+  dependsOn "copyKeyCerts"
 }
 
 testClusters.all {

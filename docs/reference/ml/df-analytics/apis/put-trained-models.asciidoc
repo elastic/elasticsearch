@@ -212,7 +212,7 @@ Indicates the positive value (in other words, when to choose the left node)
 decision type. Supported `lt`, `lte`, `gt`, `gte`. Defaults to `lte`.
 
 `default_left`::
-(Optional, boolean)
+(Optional, Boolean)
 Indicates whether to default to the left when the feature is missing. Defaults
 to `true`.
 

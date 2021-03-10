@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.lucene.store;
 
@@ -83,7 +72,8 @@ public class ESIndexInputTestCase extends ESTestCase {
                 case 3:
                     // Read using slice
                     len = randomIntBetween(1, length - readPos);
-                    IndexInput slice = indexInput.slice("slice (" + readPos + ", " + len + ") of " + indexInput, readPos, len);
+                    final String sliceExtension = randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
+                    IndexInput slice = indexInput.slice(randomAlphaOfLength(10) + sliceExtension, readPos, len);
                     temp = randomReadAndSlice(slice, len);
                     // assert that position in the original input didn't change
                     assertEquals(readPos, indexInput.getFilePointer());
@@ -132,7 +122,8 @@ public class ESIndexInputTestCase extends ESTestCase {
                                     clone = indexInput.clone();
                                 } else {
                                     final int sliceEnd = between(readEnd, length);
-                                    clone = indexInput.slice("concurrent slice (0, " + sliceEnd + ") of " + indexInput, 0L, sliceEnd);
+                                    final String sliceExtension = randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
+                                    clone = indexInput.slice("slice" + randomAlphaOfLength(10) + sliceExtension, 0L, sliceEnd);
                                 }
                                 startLatch.countDown();
                                 startLatch.await();
@@ -189,4 +180,34 @@ public class ESIndexInputTestCase extends ESTestCase {
         return output;
     }
 
+    protected static String randomFileExtension() {
+        return randomFrom(
+            ".cfe",
+            ".cfs",
+            ".dii",
+            ".dim",
+            ".doc",
+            ".dvd",
+            ".dvm",
+            ".fdt",
+            ".fdx",
+            ".fdm",
+            ".fnm",
+            ".kdd",
+            ".kdi",
+            ".kdm",
+            ".liv",
+            ".nvd",
+            ".nvm",
+            ".pay",
+            ".pos",
+            ".tim",
+            ".tip",
+            ".tmd",
+            ".tvd",
+            ".tvx",
+            ".vec",
+            ".vem"
+        );
+    }
 }

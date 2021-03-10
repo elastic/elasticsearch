@@ -28,6 +28,10 @@ The following APIs support {ccs}:
 
 To perform a {ccs}, you must have at least one remote cluster configured.
 
+TIP: If you want to search across clusters in the cloud, you can
+link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. Then, you
+can search across clusters and <<ccr-getting-started,set up {ccr}>>.
+
 The following <<cluster-update-settings,cluster update settings>> API request
 adds three remote clusters:`cluster_one`, `cluster_two`, and `cluster_three`.
 

@@ -50,17 +50,17 @@ specify this parameter, the API returns information about all buckets.
 this value.
 
 `desc`::
-(Optional, boolean) If true, the buckets are sorted in descending order.
+(Optional, Boolean) If true, the buckets are sorted in descending order.
 
 `end`::
 (Optional, string) Returns buckets with timestamps earlier than this time.
 
 `exclude_interim`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
 
 `expand`::
-(Optional, boolean) If true, the output includes anomaly records.
+(Optional, Boolean) If true, the output includes anomaly records.
 
 `page`.`from`::
 (Optional, integer) Skips the specified number of buckets.
@@ -111,7 +111,7 @@ initial value that was calculated at the time the bucket was processed.
 (string) The field value of the influencer. 
 
 `is_interim`:::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=is-interim]
 
 `job_id`:::
@@ -146,7 +146,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-span-results]
 the initial value that was calculated at the time the bucket was processed.
 
 `is_interim`::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=is-interim]
 
 `job_id`::

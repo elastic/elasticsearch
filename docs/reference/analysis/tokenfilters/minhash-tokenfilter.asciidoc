@@ -38,7 +38,7 @@ Hashes are retained by ascending size, starting with the bucket's smallest hash
 first.
 
 `with_rotation`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the filter fills empty buckets with the value of the first non-empty
 bucket to its circular right if the `hash_set_size` is `1`. If the
 `bucket_count` argument is greater than `1`, this parameter defaults to `true`.

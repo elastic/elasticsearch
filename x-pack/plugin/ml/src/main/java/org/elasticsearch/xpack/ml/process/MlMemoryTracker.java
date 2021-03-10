@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
@@ -101,6 +102,11 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     @Override
     public void onMaster() {
         isMaster = true;
+        try {
+            asyncRefresh();
+        } catch (Exception ex) {
+            logger.warn("unexpected failure while attempting asynchronous refresh on new master assignment", ex);
+        }
         logger.trace("ML memory tracker on master");
         asyncRefresh();
     }
@@ -137,9 +143,17 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      * for valid task assignment decisions to be made using it?
      */
     public boolean isRecentlyRefreshed() {
+        return isRecentlyRefreshed(reassignmentRecheckInterval);
+    }
+
+    /**
+     * Is the information in this object sufficiently up to date
+     * for valid task assignment decisions to be made using it?
+     */
+    public boolean isRecentlyRefreshed(Duration customDuration) {
         Instant localLastUpdateTime = lastUpdateTime;
         return localLastUpdateTime != null &&
-            localLastUpdateTime.plus(RECENT_UPDATE_THRESHOLD).plus(reassignmentRecheckInterval).isAfter(Instant.now());
+            localLastUpdateTime.plus(RECENT_UPDATE_THRESHOLD).plus(customDuration).isAfter(Instant.now());
     }
 
     /**

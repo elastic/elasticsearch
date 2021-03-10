@@ -95,7 +95,7 @@ Frozen indices are ordinary indices that use search throttling and a memory effi
 
 [source,console]
 --------------------------------------------------
-GET /_cat/indices/my-index-000001?v&h=i,sth
+GET /_cat/indices/my-index-000001?v=true&h=i,sth
 --------------------------------------------------
 // TEST[s/^/PUT my-index-000001\nPOST my-index-000001\/_freeze\n/]
 

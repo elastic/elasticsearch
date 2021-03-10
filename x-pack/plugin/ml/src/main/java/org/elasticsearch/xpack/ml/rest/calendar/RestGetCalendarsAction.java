@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.calendar;
 
@@ -14,23 +15,23 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetCalendarsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
-            new Route(GET, MachineLearning.BASE_PATH + "calendars/"),
-            new Route(POST, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
-            new Route(POST, MachineLearning.BASE_PATH + "calendars/")
+            new Route(GET, BASE_PATH + "calendars/{" + Calendar.ID + "}"),
+            new Route(GET, BASE_PATH + "calendars/"),
+            new Route(POST, BASE_PATH + "calendars/{" + Calendar.ID + "}"),
+            new Route(POST, BASE_PATH + "calendars/")
         );
     }
 
@@ -51,7 +52,7 @@ public class RestGetCalendarsAction extends BaseRestHandler {
             }
         } else  {
             request = new GetCalendarsAction.Request();
-            if (!Strings.isNullOrEmpty(calendarId)) {
+            if (Strings.isNullOrEmpty(calendarId) == false) {
                 request.setCalendarId(calendarId);
             }
             if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {

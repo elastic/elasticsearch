@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -57,6 +45,17 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         return roleNameAbbreviation;
     }
 
+    private final boolean canContainData;
+
+    /**
+     * Indicates whether a node with this role can contain data.
+     *
+     * @return true if a node with this role can contain data, otherwise false
+     */
+    public final boolean canContainData() {
+        return canContainData;
+    }
+
     private final boolean isKnownRole;
 
     public boolean isEnabledByDefault(final Settings settings) {
@@ -64,33 +63,28 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     }
 
     protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation) {
-        this(true, roleName, roleNameAbbreviation);
+        this(roleName, roleNameAbbreviation, false);
     }
 
-    private DiscoveryNodeRole(final boolean isKnownRole, final String roleName, final String roleNameAbbreviation) {
+    protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation, final boolean canContainData) {
+        this(true, roleName, roleNameAbbreviation, canContainData);
+        assert canContainData == isDataRoleBasedOnNamingConvention(roleName) :
+            "Role '" + roleName + "' not compliant to data role naming convention";
+    }
+
+    private DiscoveryNodeRole(
+        final boolean isKnownRole,
+        final String roleName,
+        final String roleNameAbbreviation,
+        final boolean canContainData
+    ) {
         this.isKnownRole = isKnownRole;
         this.roleName = Objects.requireNonNull(roleName);
         this.roleNameAbbreviation = Objects.requireNonNull(roleNameAbbreviation);
+        this.canContainData = canContainData;
     }
 
     public abstract Setting<Boolean> legacySetting();
-
-    /**
-     * Indicates whether a node with the given role can contain data. Defaults to false and can be overridden
-     */
-    public boolean canContainData() {
-        return false;
-    }
-
-    /**
-     * When serializing a {@link DiscoveryNodeRole}, the role may not be available to nodes of
-     * previous versions, where the role had not yet been added. This method allows overriding
-     * the role that should be serialized when communicating to versions prior to the introduction
-     * of the discovery node role.
-     */
-    public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
-        return this;
-    }
 
     @Override
     public final boolean equals(Object o) {
@@ -99,12 +93,13 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         DiscoveryNodeRole that = (DiscoveryNodeRole) o;
         return roleName.equals(that.roleName) &&
             roleNameAbbreviation.equals(that.roleNameAbbreviation) &&
+            canContainData == that.canContainData &&
             isKnownRole == that.isKnownRole;
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(isKnownRole, roleName(), roleNameAbbreviation());
+        return Objects.hash(isKnownRole, roleName(), roleNameAbbreviation(), canContainData());
     }
 
     @Override
@@ -117,6 +112,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         return "DiscoveryNodeRole{" +
                 "roleName='" + roleName + '\'' +
                 ", roleNameAbbreviation='" + roleNameAbbreviation + '\'' +
+                ", canContainData=" + canContainData +
                 (isKnownRole ? "" : ", isKnownRole=false") +
                 '}';
     }
@@ -124,7 +120,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     /**
      * Represents the role for a data node.
      */
-    public static final DiscoveryNodeRole DATA_ROLE = new DiscoveryNodeRole("data", "d") {
+    public static final DiscoveryNodeRole DATA_ROLE = new DiscoveryNodeRole("data", "d", true) {
 
         @Override
         public Setting<Boolean> legacySetting() {
@@ -132,11 +128,15 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
             return Setting.boolSetting("node.data", true, Property.Deprecated, Property.NodeScope);
         }
 
-        @Override
-        public boolean canContainData() {
-            return true;
-        }
     };
+
+    /**
+     * Allows determining the "data" property without the need to load plugins, but does this purely based on
+     * naming conventions.
+     */
+    static boolean isDataRoleBasedOnNamingConvention(String role) {
+        return role.equals("data") || role.startsWith("data_");
+    }
 
     /**
      * Represents the role for an ingest node.
@@ -191,9 +191,10 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
          *
          * @param roleName             the role name
          * @param roleNameAbbreviation the role name abbreviation
+         * @param canContainData       whether or not nodes with the role can contain data
          */
-        UnknownRole(final String roleName, final String roleNameAbbreviation) {
-            super(false, roleName, roleNameAbbreviation);
+        UnknownRole(final String roleName, final String roleNameAbbreviation, final boolean canContainData) {
+            super(false, roleName, roleNameAbbreviation, canContainData);
         }
 
         @Override

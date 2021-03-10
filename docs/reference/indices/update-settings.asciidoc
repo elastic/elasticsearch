@@ -26,6 +26,12 @@ PUT /my-index-000001/_settings
 
 `PUT /<target>/_settings`
 
+[[update-index-settings-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or index alias.
 
 [[update-index-settings-api-path-params]]
 ==== {api-path-parms-title}
@@ -55,7 +61,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `preserve_existing`::
-(Optional, boolean) If `true`, existing index settings remain unchanged.
+(Optional, Boolean) If `true`, existing index settings remain unchanged.
 Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

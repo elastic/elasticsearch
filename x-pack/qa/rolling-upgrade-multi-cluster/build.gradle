@@ -21,7 +21,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       numberOfNodes = 3
     }
   }
-  testClusters.matching { it.name.startsWith("${baseName}-") }.all {
+  testClusters.matching { it.name.startsWith("${baseName}-") }.configureEach {
     testDistribution = "DEFAULT"
     versions = [bwcVersion.toString(), project.version]
 
@@ -32,7 +32,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     setting 'xpack.license.self_generated.type', 'trial'
   }
 
-  tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.all {
+  tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.configureEach {
     useCluster testClusters."${baseName}-leader"
     useCluster testClusters."${baseName}-follower"
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
@@ -51,9 +51,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     }
   }
 
-  for (kind in ["follower", "leader"]) {
-    // Attention!! Groovy trap: do not pass `kind` to a closure
-
+  ["follower", "leader"].each { kind ->
     tasks.register("${baseName}#${kind}#clusterTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'none'
       systemProperty 'tests.rest.cluster_name', kind
@@ -74,7 +72,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       ext.kindExt = kind
     }
 
-    tasks.create("${baseName}#${kind}#upgradedClusterTest", StandaloneRestIntegTestTask) {
+    tasks.register("${baseName}#${kind}#upgradedClusterTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'all'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#${kind}#twoThirdsUpgradedTest"
@@ -93,4 +91,9 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#leader#upgradedClusterTest"
   }
+}
+
+// Security is explicitly disabled, do not run tests in FIPS mode
+tasks.withType(Test).configureEach {
+  onlyIf { BuildParams.inFipsJvm == false}
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.actions;
 
@@ -113,7 +114,7 @@ public class ActionWrapper implements ToXContentObject {
         if (result != null) {
             return result;
         }
-        if (!ctx.skipThrottling(id)) {
+        if (ctx.skipThrottling(id) == false) {
             Throttler.Result throttleResult = throttler.throttle(id, ctx);
             if (throttleResult.throttle()) {
                 if (throttleResult.type() == Throttler.Type.ACK) {

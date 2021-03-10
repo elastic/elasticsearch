@@ -13,14 +13,19 @@ Returns cluster nodes statistics.
 
 `GET /_nodes/<node_id>/stats` +
 
-`GET/_nodes/stats/<metric>` +
+`GET /_nodes/stats/<metric>` +
 
-`GET/_nodes/<node_id>/stats/<metric>` +
+`GET /_nodes/<node_id>/stats/<metric>` +
 
 `GET /_nodes/stats/<metric>/<index_metric>` +
 
 `GET /_nodes/<node_id>/stats/<metric>/<index_metric>`
 
+[[cluster-nodes-stats-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cluster-nodes-stats-api-desc]]
 ==== {api-description-title}
@@ -136,6 +141,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
+
 [role="child_attributes"]
 [[cluster-nodes-stats-api-response-body]]
 ==== {api-response-body-title}
@@ -190,7 +197,7 @@ Human-readable identifier for the node. Based on the <<node-name>> setting.
 
 `transport_address`::
 (string)
-Host and port for the <<modules-transport,transport layer>>, used for internal
+Host and port for the <<transport-settings,transport layer>>, used for internal
 communication between nodes in a cluster.
 
 `host`::
@@ -312,7 +319,7 @@ Number of deletion operations currently running.
 Total number of noop operations.
 
 `is_throttled`::
-(boolean)
+(Boolean)
 Number of times
 operations were throttled.
 

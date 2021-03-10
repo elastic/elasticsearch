@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
@@ -34,28 +35,27 @@ public class Match extends BaseSurrogateFunction {
 
     private final Expression field;
     private final List<Expression> patterns;
+    private final boolean caseInsensitive;
 
-    public Match(Source source, Expression field, List<Expression> patterns) {
-        this(source, CollectionUtils.combine(singletonList(field), patterns));
+    public Match(Source source, Expression field, List<Expression> patterns, boolean caseInsensitive) {
+        this(source, CollectionUtils.combine(singletonList(field), patterns), caseInsensitive);
     }
 
-    private Match(Source source, List<Expression> children) {
+    private Match(Source source, List<Expression> children, boolean caseInsensitive) {
         super(source, children);
         this.field = children().get(0);
         this.patterns = children().subList(1, children().size());
+        this.caseInsensitive = caseInsensitive;
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Match::new, field, patterns);
+        return NodeInfo.create(this, Match::new, field, patterns, caseInsensitive);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() < 2) {
-            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
-        }
-        return new Match(source(), newChildren);
+        return new Match(source(), newChildren, caseInsensitive);
     }
 
     @Override
@@ -65,7 +65,7 @@ public class Match extends BaseSurrogateFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 
@@ -102,6 +102,6 @@ public class Match extends BaseSurrogateFunction {
             patternStrings.add(regex.fold().toString());
         }
 
-        return new RLike(source(), field, new RLikePattern(String.join("|", patternStrings)));
+        return new RLike(source(), field, new RLikePattern(String.join("|", patternStrings)), caseInsensitive);
     }
 }

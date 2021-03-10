@@ -81,7 +81,7 @@ setup:
       field_caps:
         index: test-*
         fields: "*"
-        body: { index_filter: { range: { timestamp: { gte: 2010 }}}}
+        body: { index_filter: { range: { timestamp: { gte: "2010" }}}}
 
   - match: {indices:                                      ["test-1", "test-2", "test-3"]}
   - length: {fields.field1:                               3}
@@ -90,7 +90,7 @@ setup:
       field_caps:
         index: test-*
         fields: "*"
-        body: { index_filter: { range: { timestamp: { gte: 2019 } } } }
+        body: { index_filter: { range: { timestamp: { gte: "2019" } } } }
 
   - match: {indices:                                      ["test-2", "test-3"]}
   - length: {fields.field1:                               2}
@@ -106,7 +106,7 @@ setup:
       field_caps:
         index: test-*
         fields: "*"
-        body: { index_filter: { range: { timestamp: { lt: 2019 } } } }
+        body: { index_filter: { range: { timestamp: { lt: "2019" } } } }
 
   - match: {indices:                                      ["test-1"]}
   - length: {fields.field1:                               1}

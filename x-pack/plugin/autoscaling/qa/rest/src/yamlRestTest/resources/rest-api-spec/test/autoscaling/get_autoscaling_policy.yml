@@ -4,9 +4,9 @@
       autoscaling.put_autoscaling_policy:
         name: my_autoscaling_policy
         body:
-          policy:
-            deciders:
-              fixed: {}
+          roles: [ master ]
+          deciders:
+            fixed: {}
 
   - match: { "acknowledged": true }
 
@@ -14,7 +14,8 @@
       autoscaling.get_autoscaling_policy:
         name: my_autoscaling_policy
 
-  - match: { policy.deciders.fixed: {} }
+  - match: { roles: [ master ] }
+  - match: { deciders.fixed: {} }
 
   # test cleanup
   - do:

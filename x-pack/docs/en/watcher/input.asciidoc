@@ -1,6 +1,9 @@
 [role="xpack"]
 [[input]]
-== Inputs
+== {watcher} inputs
+++++
+<titleabbrev>Inputs</titleabbrev>
+++++
 
 When a watch is triggered, its _input_ loads data into the execution 
 context. This payload is accessible during the subsequent watch execution 

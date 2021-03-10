@@ -65,6 +65,3 @@ If you need the original value, you should retrieve it from the `_source`
 field instead.
 
 ======================================
-
-Another situation where it can make sense to make a field stored is for those
-that don't appear in the `_source` field (such as <<copy-to,`copy_to` fields>>).

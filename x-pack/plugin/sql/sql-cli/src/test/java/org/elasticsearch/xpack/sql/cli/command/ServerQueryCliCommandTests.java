@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.cli.SqlCliTestCase;
 import org.elasticsearch.xpack.sql.cli.TestTerminal;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
@@ -25,7 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class ServerQueryCliCommandTests extends ESTestCase {
+public class ServerQueryCliCommandTests extends SqlCliTestCase {
 
     public void testExceptionHandling() throws Exception {
         TestTerminal testTerminal = new TestTerminal();

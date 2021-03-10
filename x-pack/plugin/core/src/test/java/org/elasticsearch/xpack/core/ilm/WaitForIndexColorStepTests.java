@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -209,6 +210,88 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         WaitForIndexColorStep.Info info = (WaitForIndexColorStep.Info) result.getInfomationContext();
         assertThat(info, notNullValue());
         assertThat(info.getMessage(), equalTo("index is red; no indexRoutingTable"));
+    }
+
+    public void testStepReturnsFalseIfTargetIndexIsMissing() {
+        IndexMetadata originalIndex = IndexMetadata.builder(randomAlphaOfLength(5))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(2)
+            .build();
+
+        String indexPrefix = randomAlphaOfLengthBetween(5, 10) + "-";
+        ShardRouting shardRouting =
+            TestShardRouting.newShardRouting(originalIndex.getIndex().getName(), 0, "1", true, ShardRoutingState.STARTED);
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(originalIndex.getIndex())
+            .addShard(shardRouting).build();
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().put(originalIndex, true).build())
+            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
+            .build();
+
+        WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.GREEN, indexPrefix);
+        ClusterStateWaitStep.Result result = step.isConditionMet(originalIndex.getIndex(), clusterState);
+        assertThat(result.isComplete(), is(false));
+        WaitForIndexColorStep.Info info = (WaitForIndexColorStep.Info) result.getInfomationContext();
+        String targetIndex = indexPrefix + originalIndex.getIndex().getName();
+        assertThat(info.getMessage(), is("[" + step.getKey().getAction() + "] lifecycle action for index [" +
+            originalIndex.getIndex().getName() + "] executed but the target index [" + targetIndex + "] does not exist"));
+    }
+
+    public void testStepWaitsForTargetIndexHealthWhenPrefixConfigured() {
+        IndexMetadata originalIndex = IndexMetadata.builder(randomAlphaOfLength(5))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(2)
+            .build();
+        ShardRouting originalShardRouting =
+            TestShardRouting.newShardRouting(originalIndex.getIndex().getName(), 0, "1", true, ShardRoutingState.STARTED);
+        IndexRoutingTable originalIndexRoutingTable = IndexRoutingTable.builder(originalIndex.getIndex())
+            .addShard(originalShardRouting).build();
+
+        String indexPrefix = randomAlphaOfLengthBetween(5, 10) + "-";
+        String targetIndexName = indexPrefix + originalIndex.getIndex().getName();
+        IndexMetadata targetIndex = IndexMetadata.builder(targetIndexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(2)
+            .build();
+
+        {
+            ShardRouting targetShardRouting =
+                TestShardRouting.newShardRouting(targetIndexName, 0, "1", true, ShardRoutingState.INITIALIZING);
+            IndexRoutingTable targetIndexRoutingTable = IndexRoutingTable.builder(originalIndex.getIndex())
+                .addShard(targetShardRouting).build();
+
+            ClusterState clusterTargetInitializing = ClusterState.builder(new ClusterName("_name"))
+                .metadata(Metadata.builder().put(originalIndex, true).put(targetIndex, true).build())
+                .routingTable(RoutingTable.builder().add(originalIndexRoutingTable).add(targetIndexRoutingTable).build())
+                .build();
+
+            WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.GREEN);
+            ClusterStateWaitStep.Result result = step.isConditionMet(originalIndex.getIndex(), clusterTargetInitializing);
+            assertThat(result.isComplete(), is(false));
+            WaitForIndexColorStep.Info info = (WaitForIndexColorStep.Info) result.getInfomationContext();
+            assertThat(info.getMessage(), is("index is not green; not all shards are active"));
+        }
+
+        {
+            ShardRouting targetShardRouting =
+                TestShardRouting.newShardRouting(targetIndexName, 0, "1", true, ShardRoutingState.STARTED);
+            IndexRoutingTable targetIndexRoutingTable = IndexRoutingTable.builder(originalIndex.getIndex())
+                .addShard(targetShardRouting).build();
+
+            ClusterState clusterTargetInitializing = ClusterState.builder(new ClusterName("_name"))
+                .metadata(Metadata.builder().put(originalIndex, true).put(targetIndex, true).build())
+                .routingTable(RoutingTable.builder().add(originalIndexRoutingTable).add(targetIndexRoutingTable).build())
+                .build();
+
+            WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.GREEN);
+            ClusterStateWaitStep.Result result = step.isConditionMet(originalIndex.getIndex(), clusterTargetInitializing);
+            assertThat(result.isComplete(), is(true));
+            assertThat(result.getInfomationContext(), nullValue());
+        }
     }
 }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc;
 
@@ -14,6 +15,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.RequestOptions;
@@ -23,7 +25,6 @@ import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -122,7 +123,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             assertEquals(activeKeyHash, tokenService.getActiveKeyHash());
         }
         client().admin().cluster().prepareHealth().execute().get();
-        PlainActionFuture<ClusterStateUpdateResponse> rotateActionFuture = new PlainActionFuture<>();
+        PlainActionFuture<AcknowledgedResponse> rotateActionFuture = new PlainActionFuture<>();
         logger.info("rotate on master: {}", masterName);
         masterTokenService.rotateKeysOnMaster(rotateActionFuture);
         assertTrue(rotateActionFuture.actionGet().isAcknowledged());
@@ -194,11 +195,26 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateAccessTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
         assertThat(invalidateAccessTokenResponse.getErrors(), empty());
 
+        // Weird testing behaviour ahead...
+        // invalidating by access token (above) is a Get, but invalidating by refresh token (below) is a Search
+        // In a multi node cluster, in a small % of cases, the search might find a document that has been invalidated but not yet deleted
+        // from that node's shard.
+        // Our assertion, therefore, is that an attempt to invalidate the (already invalidated) refresh token must not actually invalidate
+        // anything (concurrency controls must prevent that), nor may return any errors,
+        // but it might _temporarily_ find an "already invalidated" token.
+        final InvalidateTokenRequest invalidateRefreshTokenRequest = InvalidateTokenRequest.refreshToken(refreshToken);
         InvalidateTokenResponse invalidateRefreshTokenResponse = restClient.security().invalidateToken(
-            InvalidateTokenRequest.refreshToken(refreshToken), SECURITY_REQUEST_OPTIONS);
+            invalidateRefreshTokenRequest, SECURITY_REQUEST_OPTIONS);
         assertThat(invalidateRefreshTokenResponse.getInvalidatedTokens(), equalTo(0));
-        assertThat(invalidateRefreshTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
         assertThat(invalidateRefreshTokenResponse.getErrors(), empty());
+
+        // 99% of the time, this will already be zero, but if not ensure it goes to zero within the allowed timeframe
+        if (invalidateRefreshTokenResponse.getPreviouslyInvalidatedTokens() > 0) {
+            assertBusy(() -> {
+                var newResponse = restClient.security().invalidateToken(invalidateRefreshTokenRequest, SECURITY_REQUEST_OPTIONS);
+                assertThat(newResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+            });
+        }
     }
 
     public void testInvalidateAllTokensForUser() throws Exception {

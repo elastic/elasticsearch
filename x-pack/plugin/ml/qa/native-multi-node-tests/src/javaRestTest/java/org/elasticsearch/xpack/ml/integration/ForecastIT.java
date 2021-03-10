@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -214,10 +215,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
     public void testOverflowToDisk() throws Exception {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/44609", Constants.WINDOWS);
-        // This test repeatedly fails in encryption-at-rest (EAR) builds, and
-        // the only way to detect such a build appears to be the CI job name
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/58806",
-            System.getenv().getOrDefault("JOB_NAME", "not a CI build").contains("EAR"));
+
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setByFieldName("clientIP");
 

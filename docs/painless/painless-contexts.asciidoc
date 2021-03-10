@@ -6,14 +6,16 @@ are available as local variables, an allowlist that controls the available
 classes, and the methods and fields within those classes (API), and
 if and what type of value is returned.
 
-A Painless script is typically executed within one of the contexts in the table
-below. Note this is not necessarily a comprehensive list as custom plugins and
-specialized code may define new ways to use a Painless script.
+Painless scripts typically run within one of the contexts in the following
+table. Before using a Painless context, <<painless-context-examples,configure the example data>>. Each context example is configured to operate on this data.
 
 [options="header",cols="<1,<1,<1"]
 |====
 | Name                              | Painless Documentation
                                     | Elasticsearch Documentation
+| Runtime field                     | <<painless-runtime-fields-context,Painless Documentation>>
+                                    | {ref}/runtime.html[Elasticsearch Documentation]
+
 | Ingest processor                  | <<painless-ingest-processor-context, Painless Documentation>>
                                     | {ref}/script-processor.html[Elasticsearch Documentation]
 | Update                            | <<painless-update-context, Painless Documentation>>

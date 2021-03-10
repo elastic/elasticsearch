@@ -106,6 +106,6 @@ Enrich policy to execute.
 ==== {api-request-body-title}
 
 `wait_for_completion`::
-(Required, boolean)
+(Required, Boolean)
 If `true`, the request blocks other enrich policy execution requests until
 complete. Defaults to `true`.

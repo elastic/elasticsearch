@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 
 public class TransportPersistJobAction extends TransportJobTaskAction<PersistJobAction.Request, PersistJobAction.Response> {
 
@@ -25,8 +27,7 @@ public class TransportPersistJobAction extends TransportJobTaskAction<PersistJob
     }
 
     @Override
-    protected void taskOperation(PersistJobAction.Request request, TransportOpenJobAction.JobTask task,
-                                 ActionListener<PersistJobAction.Response> listener) {
+    protected void taskOperation(PersistJobAction.Request request, JobTask task, ActionListener<PersistJobAction.Response> listener) {
 
         processManager.persistJob(task, e -> {
             if (e == null) {

@@ -120,11 +120,11 @@ PUT my-index-000001/_doc/4?routing=1&refresh
 <2> `answer` is the name of the join for this document
 <3> The parent id of this child document
 
-==== Parent-join and performance.
+==== Parent-join and performance
 
 The join field shouldn't be used like joins in a relation database. In Elasticsearch the key to good performance
 is to de-normalize your data into documents. Each join field, `has_child` or `has_parent` query adds a
-significant tax to your query performance.
+significant tax to your query performance. It can also trigger <<eager-global-ordinals, global ordinals>> to be built.
 
 The only case where the join field makes sense is if your data contains a one-to-many relationship where
 one entity significantly outnumbers the other entity. An example of such case is a use case with products

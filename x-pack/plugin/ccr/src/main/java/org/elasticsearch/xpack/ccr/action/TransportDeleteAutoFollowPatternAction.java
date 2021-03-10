@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -42,20 +43,14 @@ public class TransportDeleteAutoFollowPatternAction extends AcknowledgedTranspor
     @Override
     protected void masterOperation(Task task, DeleteAutoFollowPatternAction.Request request,
                                    ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
+                                   ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getName(),
-            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-
-            @Override
-            protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                return AcknowledgedResponse.of(acknowledged);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                return innerDelete(request, currentState);
-            }
-        });
+            new AckedClusterStateUpdateTask(request, listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return innerDelete(request, currentState);
+                }
+            });
     }
 
     static ClusterState innerDelete(DeleteAutoFollowPatternAction.Request request, ClusterState currentState) {

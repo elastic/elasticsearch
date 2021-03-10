@@ -39,7 +39,7 @@ privilege is assigned to the user.
 
 `index`::
 `names`::: (list) A list of indices.
-`allow_restricted_indices`::: (boolean) This needs to be set to `true` (default
+`allow_restricted_indices`::: (Boolean) This needs to be set to `true` (default
 is `false`) if using wildcards or regexps for patterns that cover restricted
 indices. Implicitly, restricted indices do not match index patterns because
 restricted indices usually have limited privileges and including them in

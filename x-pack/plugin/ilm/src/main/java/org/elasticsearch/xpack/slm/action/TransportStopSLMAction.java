@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm.action;
@@ -36,18 +37,12 @@ public class TransportStopSLMAction extends AcknowledgedTransportMasterNodeActio
     @Override
     protected void masterOperation(Task task, StopSLMAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("slm_operation_mode_update",
-            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return (OperationModeUpdateTask.slmMode(OperationMode.STOPPING)).execute(currentState);
-                }
-
-                @Override
-                protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                    return AcknowledgedResponse.of(acknowledged);
-                }
-            });
+        clusterService.submitStateUpdateTask("slm_operation_mode_update", new AckedClusterStateUpdateTask(request, listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return (OperationModeUpdateTask.slmMode(OperationMode.STOPPING)).execute(currentState);
+            }
+        });
     }
 
     @Override

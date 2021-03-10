@@ -23,10 +23,10 @@ The +{request}+ supports invalidating
 
 . A specific key or all API keys owned by the current authenticated user
 
-===== Specific API key by API key id
+===== Specific API keys by a list of API key ids
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[invalidate-api-key-id-request]
+include-tagged::{doc-tests-file}[invalidate-api-key-ids-request]
 --------------------------------------------------
 
 ===== Specific API key by API key name

@@ -1,0 +1,84 @@
+---
+"Remove alias with must_exist":
+
+  - skip:
+      version: " - 7.10.99"
+      reason: "must_exist does not work until 7.11"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: test_index
+                aliases: test_alias1
+  - do:
+      indices.exists_alias:
+        name: test_alias1
+  - is_true: ''
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - remove:
+                index: test_index
+                alias: test_alias1
+                must_exist: true
+            - add:
+                index: test_index
+                alias: test_alias2
+  - do:
+      indices.exists_alias:
+        name: test_alias1
+  - is_false: ''
+  - do:
+      indices.exists_alias:
+        name: test_alias2
+  - is_true: ''
+
+  - do:
+      catch: missing
+      indices.update_aliases:
+        body:
+          actions:
+            - remove:
+                index: test_index
+                alias: test_alias1
+                must_exist: true
+            - add:
+                index: test_index
+                alias: test_alias3
+  - do:
+      indices.exists_alias:
+        name: test_alias3
+  - is_false: ''
+
+---
+"Alias must_exist only on remove":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      catch: bad_request
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: test_index
+                aliases: test_alias1
+                must_exist: true
+
+  - do:
+      catch: bad_request
+      indices.update_aliases:
+        body:
+          actions:
+            - remove_index:
+                index: test_index
+                must_exist: true

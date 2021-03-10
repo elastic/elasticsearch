@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -57,7 +46,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -160,9 +148,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
+        final int indexingOps = bulkRequest.numberOfActions();
         final long indexingBytes = bulkRequest.ramBytesUsed();
         final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
-        final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingBytes, isOnlySystem);
+        final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         final String executorName = isOnlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
         try {
@@ -253,8 +242,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     @Override
                     public void onResponse(CreateIndexResponse result) {
                         if (counter.decrementAndGet() == 0) {
-                            threadPool.executor(executorName).execute(
-                                () -> executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
+                            threadPool.executor(executorName).execute(new ActionRunnable<>(listener) {
+
+                                @Override
+                                protected void doRun() {
+                                    executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
+                                }
+                            });
                         }
                     }
 
@@ -262,7 +256,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     public void onFailure(Exception e) {
                         final Throwable cause = ExceptionsHelper.unwrapCause(e);
                         if (cause instanceof IndexNotFoundException) {
-                            indicesThatCannotBeCreated.put(index, (IndexNotFoundException) e);
+                            indicesThatCannotBeCreated.put(index, (IndexNotFoundException) cause);
                         }
                         else if ((cause instanceof ResourceAlreadyExistsException) == false) {
                             // fail all requests involving this index, if create didn't work
@@ -274,11 +268,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             }
                         }
                         if (counter.decrementAndGet() == 0) {
-                            threadPool.executor(executorName).execute(() -> executeBulk(task, bulkRequest, startTime,
-                                ActionListener.wrap(listener::onResponse, inner -> {
-                                    inner.addSuppressed(e);
-                                    listener.onFailure(inner);
-                                }), responses, indicesThatCannotBeCreated));
+                            final ActionListener<BulkResponse> wrappedListener = ActionListener.wrap(listener::onResponse, inner -> {
+                                inner.addSuppressed(e);
+                                listener.onFailure(inner);
+                            });
+                            threadPool.executor(executorName).execute(new ActionRunnable<>(wrappedListener) {
+                                @Override
+                                protected void doRun() {
+                                    executeBulk(task, bulkRequest, startTime, wrappedListener, responses, indicesThatCannotBeCreated);
+                                }
+
+                                @Override
+                                public void onRejection(Exception rejectedException) {
+                                    rejectedException.addSuppressed(e);
+                                    super.onRejection(rejectedException);
+                                }
+                            });
                         }
                     }
                 });
@@ -698,14 +703,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             assert Thread.currentThread().getName().contains(executorName);
                             doInternalExecute(task, bulkRequest, executorName, actionListener);
                         } else {
-                            threadPool.executor(executorName).execute(new AbstractRunnable() {
+                            threadPool.executor(executorName).execute(new ActionRunnable<>(actionListener) {
                                 @Override
-                                public void onFailure(Exception e) {
-                                    listener.onFailure(e);
-                                }
-
-                                @Override
-                                protected void doRun() throws Exception {
+                                protected void doRun() {
                                     doInternalExecute(task, bulkRequest, executorName, actionListener);
                                 }
 
@@ -777,17 +777,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
             if (itemResponses.isEmpty()) {
-                return ActionListener.map(actionListener,
+                return actionListener.map(
                     response -> new BulkResponse(response.getItems(), response.getTook().getMillis(), ingestTookInMillis));
             } else {
-                return ActionListener.delegateFailure(actionListener, (delegatedListener, response) -> {
+                return actionListener.map(response -> {
                     BulkItemResponse[] items = response.getItems();
                     for (int i = 0; i < items.length; i++) {
                         itemResponses.add(originalSlots.get(i), response.getItems()[i]);
                     }
-                    delegatedListener.onResponse(
-                        new BulkResponse(
-                            itemResponses.toArray(new BulkItemResponse[0]), response.getTook().getMillis(), ingestTookInMillis));
+                    return new BulkResponse(
+                            itemResponses.toArray(new BulkItemResponse[0]), response.getTook().getMillis(), ingestTookInMillis);
                 });
             }
         }

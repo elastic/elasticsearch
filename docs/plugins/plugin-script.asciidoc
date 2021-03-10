@@ -182,6 +182,16 @@ purge the configuration files while removing a plugin, use `-p` or `--purge`.
 This can option can be used after a plugin is removed to remove any lingering
 configuration files.
 
+[[removing-multiple-plugins]]
+=== Removing multiple plugins
+
+Multiple plugins can be removed in one invocation as follows:
+
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin remove [pluginname] [pluginname] ... [pluginname]
+-----------------------------------
+
 [discrete]
 === Updating plugins
 

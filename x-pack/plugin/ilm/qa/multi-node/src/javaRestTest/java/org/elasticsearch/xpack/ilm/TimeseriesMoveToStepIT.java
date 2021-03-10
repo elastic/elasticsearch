@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm;
@@ -31,6 +32,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettin
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -124,7 +126,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
 
     public void testMoveToInjectedStep() throws Exception {
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(1), TimeValue.timeValueHours(12));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(1, null), TimeValue.timeValueHours(12));
 
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -158,9 +160,8 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53612")
     public void testMoveToStepRereadsPolicy() throws Exception {
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, TimeValue.timeValueHours(1), null), TimeValue.ZERO);
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, TimeValue.timeValueHours(1), null), TimeValue.ZERO);
 
         createIndexWithSettings(client(), "test-1", alias, Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -170,9 +171,9 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
             true);
 
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), "test-1"),
-            equalTo(new StepKey("hot", "rollover", "check-rollover-ready"))));
+            equalTo(new StepKey("hot", "rollover", "check-rollover-ready"))), 30, TimeUnit.SECONDS);
 
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, TimeValue.timeValueSeconds(1), null), TimeValue.ZERO);
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L), TimeValue.ZERO);
 
         // Move to the same step, which should re-read the policy
         Request moveToStepRequest = new Request("POST", "_ilm/move/test-1");
@@ -188,7 +189,12 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
             "    \"name\": \"check-rollover-ready\"\n" +
             "  }\n" +
             "}");
-        assertOK(client().performRequest(moveToStepRequest));
+        // busy asserting here as ILM moves the index from the `check-rollover-ready` step into the `error` step and back into the
+        // `check-rollover-ready` when retrying. the `_ilm/move` api might fail when the as the `current_step` of the index might be
+        //  the `error` step at execution time.
+        assertBusy(() -> client().performRequest(moveToStepRequest), 30, TimeUnit.SECONDS);
+
+        indexDocument(client(), "test-1", true);
 
         // Make sure we actually rolled over
         assertBusy(() -> {

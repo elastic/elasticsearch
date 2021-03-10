@@ -1,30 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.io.stream;
 
-import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 /**
  * A holder for {@link Writeable}s that delays reading the underlying object
@@ -80,6 +68,11 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      */
     abstract boolean isSerialized();
 
+    /**
+     * Returns the serialized size of the inner {@link Writeable}.
+     */
+    public abstract long getSerializedSize();
+
     private static class Referencing<T extends Writeable> extends DelayableWriteable<T> {
         private final T reference;
 
@@ -113,6 +106,11 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
             return false;
         }
 
+        @Override
+        public long getSerializedSize() {
+            return DelayableWriteable.getSerializedSize(reference);
+        }
+
         private BytesStreamOutput writeToBuffer(Version version) throws IOException {
             try (BytesStreamOutput buffer = new BytesStreamOutput()) {
                 buffer.setVersion(version);
@@ -125,7 +123,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
     /**
      * A {@link Writeable} stored in serialized form.
      */
-    public static class Serialized<T extends Writeable> extends DelayableWriteable<T> implements Accountable {
+    public static class Serialized<T extends Writeable> extends DelayableWriteable<T> {
         private final Writeable.Reader<T> reader;
         private final Version serializedAtVersion;
         private final NamedWriteableRegistry registry;
@@ -184,8 +182,51 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         }
 
         @Override
-        public long ramBytesUsed() {
-            return serialized.ramBytesUsed() + RamUsageEstimator.NUM_BYTES_OBJECT_REF * 3 + RamUsageEstimator.NUM_BYTES_OBJECT_HEADER;
+        public long getSerializedSize() {
+            // We're already serialized
+            return serialized.length();
+        }
+    }
+
+    /**
+     * Returns the serialized size in bytes of the provided {@link Writeable}.
+     */
+    public static long getSerializedSize(Writeable ref) {
+        try (CountingStreamOutput out = new CountingStreamOutput()) {
+            out.setVersion(Version.CURRENT);
+            ref.writeTo(out);
+            return out.size;
+        } catch (IOException exc) {
+            throw new UncheckedIOException(exc);
+        }
+    }
+
+    private static class CountingStreamOutput extends StreamOutput {
+        long size = 0;
+
+        @Override
+        public void writeByte(byte b) throws IOException {
+            ++ size;
+        }
+
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) throws IOException {
+            size += length;
+        }
+
+        @Override
+        public void flush() throws IOException {}
+
+        @Override
+        public void close() throws IOException {}
+
+        @Override
+        public void reset() throws IOException {
+            size = 0;
+        }
+
+        public long length() {
+            return size;
         }
     }
 }

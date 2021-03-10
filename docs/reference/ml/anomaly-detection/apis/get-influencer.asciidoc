@@ -41,14 +41,14 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 == {api-request-body-title}
 
 `desc`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=desc-results]
 
 `end`::
 (Optional, string) Returns influencers with timestamps earlier than this time.
 
 `exclude_interim`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
 
 `influencer_score`::
@@ -96,7 +96,7 @@ the influencer aggregated across detectors. This is the initial value that was
 calculated at the time the bucket was processed.
 
 `is_interim`::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=is-interim]
 
 `job_id`::

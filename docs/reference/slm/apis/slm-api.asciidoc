@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[snapshot-lifecycle-management-api]]
-== {slm-cap} API
+== {slm-cap} APIs
 
 You use the following APIs to set up policies to automatically take snapshots and 
 control how long they are retained. 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -28,7 +17,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -45,24 +33,23 @@ class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new WeightedAvgAggregator(name, null, format, searchContext, parent, metadata);
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new WeightedAvgAggregator(name, null, format, context, parent, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                            Map<String, ValuesSourceConfig> configs,
-                                            DocValueFormat format,
-                                            Aggregator parent,
-                                            CardinalityUpperBound cardinality,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(
+        Map<String, ValuesSourceConfig> configs,
+        DocValueFormat format,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         MultiValuesSource.NumericMultiValuesSource numericMultiVS = new MultiValuesSource.NumericMultiValuesSource(configs);
         if (numericMultiVS.areValuesSourcesEmpty()) {
-            return createUnmapped(searchContext, parent, metadata);
+            return createUnmapped(parent, metadata);
         }
-        return new WeightedAvgAggregator(name, numericMultiVS, format, searchContext, parent, metadata);
+        return new WeightedAvgAggregator(name, numericMultiVS, format, context, parent, metadata);
     }
 
     @Override

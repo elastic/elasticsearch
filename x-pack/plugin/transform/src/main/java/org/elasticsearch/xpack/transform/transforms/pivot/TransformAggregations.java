@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
@@ -65,7 +66,6 @@ public final class TransformAggregations {
         "histogram",
         "ip_range",
         "matrix_stats",
-        "median_absolute_deviation",
         "nested",
         "percentile_ranks",
         "range",
@@ -79,7 +79,8 @@ public final class TransformAggregations {
         "top_metrics", // https://github.com/elastic/elasticsearch/issues/52236
         "t_test", // https://github.com/elastic/elasticsearch/issues/54503,
         "variable_width_histogram", // https://github.com/elastic/elasticsearch/issues/58140
-        "rate" // https://github.com/elastic/elasticsearch/issues/61351
+        "rate", // https://github.com/elastic/elasticsearch/issues/61351
+        "multi_terms" // https://github.com/elastic/elasticsearch/issues/67609
     );
 
     private TransformAggregations() {}
@@ -95,15 +96,17 @@ public final class TransformAggregations {
      */
     enum AggregationType {
         AVG("avg", DOUBLE),
+        MEDIAN_ABSOLUTE_DEVIATION("median_absolute_deviation", DOUBLE),
         CARDINALITY("cardinality", LONG),
         VALUE_COUNT("value_count", LONG),
         MAX("max", SOURCE),
         MIN("min", SOURCE),
         SUM("sum", DOUBLE),
-        GEO_CENTROID("geo_centroid", GEO_POINT),
         GEO_BOUNDS("geo_bounds", GEO_SHAPE),
+        GEO_CENTROID("geo_centroid", GEO_POINT),
+        GEO_LINE("geo_line", GEO_SHAPE),
         SCRIPTED_METRIC("scripted_metric", DYNAMIC),
-        WEIGHTED_AVG("weighted_avg", DYNAMIC),
+        WEIGHTED_AVG("weighted_avg", DOUBLE),
         BUCKET_SELECTOR("bucket_selector", DYNAMIC),
         BUCKET_SCRIPT("bucket_script", DYNAMIC),
         PERCENTILES("percentiles", DOUBLE),

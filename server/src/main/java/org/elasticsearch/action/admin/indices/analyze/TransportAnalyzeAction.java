@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
@@ -180,7 +169,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             MappedFieldType fieldType = indexService.mapperService().fieldType(request.field());
             if (fieldType != null) {
                 if (fieldType instanceof StringFieldType) {
-                    return fieldType.indexAnalyzer();
+                    return indexService.mapperService().indexAnalyzer(fieldType.name(),
+                        f -> { throw new IllegalArgumentException("No analyzer configured for field " + fieldType.name()); });
                 } else {
                     throw new IllegalArgumentException("Can't process field [" + request.field() +
                         "], Analysis requests are only supported on tokenized fields");
@@ -220,10 +210,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         List<AnalyzeAction.AnalyzeToken> tokens = new ArrayList<>();
         int lastPosition = -1;
         int lastOffset = 0;
-        // Note that we always pass "" as the field to the various Analyzer methods, because
-        // the analyzers we use here are all field-specific and so ignore this parameter
         for (String text : request.text()) {
-            try (TokenStream stream = analyzer.tokenStream("", text)) {
+            try (TokenStream stream = analyzer.tokenStream(request.field(), text)) {
                 stream.reset();
                 CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
                 PositionIncrementAttribute posIncr = stream.addAttribute(PositionIncrementAttribute.class);
@@ -244,8 +232,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 lastOffset += offset.endOffset();
                 lastPosition += posIncr.getPositionIncrement();
 
-                lastPosition += analyzer.getPositionIncrementGap("");
-                lastOffset += analyzer.getOffsetGap("");
+                lastPosition += analyzer.getPositionIncrementGap(request.field());
+                lastOffset += analyzer.getOffsetGap(request.field());
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to analyze", e);
             }
@@ -345,13 +333,16 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             if (analyzer instanceof NamedAnalyzer) {
                 name = ((NamedAnalyzer) analyzer).name();
             } else {
-                name = analyzer.getClass().getName();
+                name = request.field();
             }
 
             TokenListCreator tokenListCreator = new TokenListCreator(maxTokenCount);
             for (String text : request.text()) {
-                tokenListCreator.analyze(analyzer.tokenStream("", text), includeAttributes, analyzer.getPositionIncrementGap(""),
-                        analyzer.getOffsetGap(""));
+                tokenListCreator.analyze(
+                    analyzer.tokenStream(request.field(), text),
+                    includeAttributes,
+                    analyzer.getPositionIncrementGap(request.field()),
+                    analyzer.getOffsetGap(request.field()));
             }
             detailResponse
                 = new AnalyzeAction.DetailAnalyzeResponse(new AnalyzeAction.AnalyzeTokenList(name, tokenListCreator.getArrayTokens()));

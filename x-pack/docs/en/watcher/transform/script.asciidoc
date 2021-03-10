@@ -1,6 +1,9 @@
 [role="xpack"]
 [[transform-script]]
-=== Script {watcher-transform}
+=== {watcher} script {watcher-transform}
+++++
+<titleabbrev>Script {watcher-transform}</titleabbrev>
+++++
 
 A <<transform,{watcher-transform}>> that executes a script on the current
 payload in the watch execution context and replaces it with a newly generated

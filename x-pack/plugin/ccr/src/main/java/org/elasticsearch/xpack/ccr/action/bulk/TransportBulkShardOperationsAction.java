@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action.bulk;
@@ -77,7 +78,8 @@ public class TransportBulkShardOperationsAction
     @Override
     protected void doExecute(Task task, BulkShardOperationsRequest request, ActionListener<BulkShardOperationsResponse> listener) {
         // This is executed on the follower coordinator node and we need to mark the bytes.
-        Releasable releasable = indexingPressure.markCoordinatingOperationStarted(primaryOperationSize(request), false);
+        Releasable releasable = indexingPressure.markCoordinatingOperationStarted(primaryOperationCount(request),
+            primaryOperationSize(request), false);
         ActionListener<BulkShardOperationsResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         try {
             super.doExecute(task, request, releasingListener);
@@ -99,6 +101,11 @@ public class TransportBulkShardOperationsAction
     @Override
     protected long primaryOperationSize(BulkShardOperationsRequest request) {
         return request.getOperations().stream().mapToLong(Translog.Operation::estimateSize).sum();
+    }
+
+    @Override
+    protected int primaryOperationCount(BulkShardOperationsRequest request) {
+        return request.getOperations().size();
     }
 
     public static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {
@@ -203,6 +210,11 @@ public class TransportBulkShardOperationsAction
     @Override
     protected long replicaOperationSize(BulkShardOperationsRequest request) {
         return request.getOperations().stream().mapToLong(Translog.Operation::estimateSize).sum();
+    }
+
+    @Override
+    protected int replicaOperationCount(BulkShardOperationsRequest request) {
+        return request.getOperations().size();
     }
 
     // public for testing purposes only

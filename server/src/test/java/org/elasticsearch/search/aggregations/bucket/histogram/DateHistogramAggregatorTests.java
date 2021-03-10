@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -30,13 +19,19 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,9 +39,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCase {
     /**
@@ -1140,6 +1138,126 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             "hard bounds: [2010-01-01--2020-01-01], extended bounds: [2009-01-01--2021-01-01]"));
     }
 
+    public void testFewRoundingPointsUsesFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            IntStream.range(2000, 2010).mapToObj(Integer::toString).collect(toList()),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR),
+            true
+        );
+    }
+
+    public void testManyRoundingPointsDoesNotUseFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            IntStream.range(2000, 3000).mapToObj(Integer::toString).collect(toList()),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR),
+            false
+        );
+    }
+
+    /**
+     * Nanos doesn't use from range, but we don't get the fancy compile into
+     * filters because of potential loss of precision.
+     */
+    public void testNanosDoesUseFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(true, true, DateFormatter.forPattern("yyyy")),
+            List.of("2017", "2018"),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR),
+            true
+        );
+    }
+
+    public void testFarFutureDoesNotUseFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyyyy")),
+            List.of("402017", "402018"),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR),
+            false
+        );
+    }
+
+    public void testMissingValueDoesNotUseFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            List.of("2017", "2018"),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR).missing("2020"),
+            false
+        );
+    }
+
+    public void testExtendedBoundsUsesFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            List.of("2017", "2018"),
+            List.of("2016", "2017", "2018", "2019"),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
+                .calendarInterval(DateHistogramInterval.YEAR)
+                .extendedBounds(new LongBounds("2016", "2019"))
+                .minDocCount(0),
+            true
+        );
+    }
+
+    public void testHardBoundsUsesFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            List.of("2016", "2017", "2018", "2019"),
+            List.of("2017", "2018"),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
+                .calendarInterval(DateHistogramInterval.YEAR)
+                .hardBounds(new LongBounds("2017", "2019")),
+            true
+        );
+    }
+
+    private void aggregationImplementationChoiceTestCase(
+        DateFieldMapper.DateFieldType ft,
+        List<String> data,
+        DateHistogramAggregationBuilder builder,
+        boolean usesFromRange
+    ) throws IOException {
+        aggregationImplementationChoiceTestCase(ft, data, data, builder, usesFromRange);
+    }
+
+    private void aggregationImplementationChoiceTestCase(
+        DateFieldMapper.DateFieldType ft,
+        List<String> data,
+        List<String> resultingBucketKeys,
+        DateHistogramAggregationBuilder builder,
+        boolean usesFromRange
+    ) throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            for (String d : data) {
+                long instant = asLong(d, ft);
+                indexWriter.addDocument(
+                    List.of(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant), new LongPoint(AGGREGABLE_DATE, instant))
+                );
+            }
+            try (IndexReader reader = indexWriter.getReader()) {
+                AggregationContext context = createAggregationContext(new IndexSearcher(reader), new MatchAllDocsQuery(), ft);
+                Aggregator agg = createAggregator(builder, context);
+                Matcher<Aggregator> matcher = instanceOf(DateHistogramAggregator.FromDateRange.class);
+                if (usesFromRange == false) {
+                    matcher = not(matcher);
+                }
+                assertThat(agg, matcher);
+                agg.preCollection();
+                context.searcher().search(context.query(), agg);
+                InternalDateHistogram result = (InternalDateHistogram) agg.buildTopLevel();
+                result = (InternalDateHistogram) result.reduce(
+                    List.of(result),
+                    ReduceContext.forFinalReduction(context.bigArrays(), null, context.multiBucketConsumer(), PipelineTree.EMPTY)
+                );
+                assertThat(
+                    result.getBuckets().stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(toList()),
+                    equalTo(resultingBucketKeys)
+                );
+            }
+        }
+    }
+
     public void testIllegalInterval() throws IOException {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testSearchCase(new MatchAllDocsQuery(),
             Collections.emptyList(),
@@ -1148,6 +1266,25 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         ));
         assertThat(e.getMessage(), equalTo("Unable to parse interval [foobar]"));
         assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+    }
+
+    public void testBuildEmpty() throws IOException {
+        withAggregator(
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR).offset(10),
+            new MatchAllDocsQuery(),
+            iw -> {},
+            (searcher, aggregator) -> {
+                InternalDateHistogram histo = (InternalDateHistogram) aggregator.buildEmptyAggregation();
+                /*
+                 * There was a time where we including the offset in the
+                 * rounding in the emptyBucketInfo which would cause us to
+                 * include the offset twice. This verifies that we don't do
+                 * that.
+                 */
+                assertThat(histo.emptyBucketInfo.rounding.prepareForUnknown().round(0), equalTo(0L));
+            },
+            aggregableDateFieldType(false, true)
+        );
     }
 
     private void testSearchCase(Query query, List<String> dataset,

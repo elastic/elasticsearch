@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.client;
 
@@ -67,11 +68,11 @@ public class SslConfig {
         boolean isSchemaPresent = baseURI.getScheme() != null;
         boolean isSSLPropertyPresent = settings.getProperty(SSL) != null;
         boolean isHttpsScheme = "https".equals(baseURI.getScheme());
-        
-        if (!isSSLPropertyPresent && !isSchemaPresent) {
+
+        if (isSSLPropertyPresent == false && isSchemaPresent == false) {
             enabled = StringUtils.parseBoolean(SSL_DEFAULT);
         } else {
-            if (isSSLPropertyPresent && isHttpsScheme && !StringUtils.parseBoolean(settings.getProperty(SSL))) {
+            if (isSSLPropertyPresent && isHttpsScheme && StringUtils.parseBoolean(settings.getProperty(SSL)) == false) {
                 throw new ClientException("Cannot enable SSL: HTTPS protocol being used in the URL and SSL disabled in properties");
             }
             enabled = isHttpsScheme || StringUtils.parseBoolean(settings.getProperty(SSL, SSL_DEFAULT));
@@ -109,7 +110,7 @@ public class SslConfig {
     }
 
     private KeyManager[] loadKeyManagers() throws GeneralSecurityException, IOException {
-        if (!StringUtils.hasText(keystoreLocation)) {
+        if (StringUtils.hasText(keystoreLocation) == false) {
             return null;
         }
 
@@ -125,7 +126,7 @@ public class SslConfig {
         KeyStore keyStore = KeyStore.getInstance(keyStoreType);
         Path path = Paths.get(source);
 
-        if (!Files.exists(path)) {
+        if (Files.exists(path) == false) {
            throw new ClientException(
                     "Expected to find keystore file at [" + source + "] but was unable to. Make sure you have specified a valid URI.");
         }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.datastreams.action;
@@ -25,7 +26,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -36,7 +36,10 @@ import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.datastreams.action.DataStreamsActionUtil.getDataStreamNames;
 
 public class DeleteDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<DeleteDataStreamAction.Request> {
 
@@ -75,12 +78,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
     ) throws Exception {
         clusterService.submitStateUpdateTask(
             "remove-data-stream [" + Strings.arrayToCommaDelimitedString(request.getNames()) + "]",
-            new ClusterStateUpdateTask(Priority.HIGH) {
-
-                @Override
-                public TimeValue timeout() {
-                    return request.masterNodeTimeout();
-                }
+            new ClusterStateUpdateTask(Priority.HIGH, request.masterNodeTimeout()) {
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -106,9 +104,8 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
         ClusterState currentState,
         DeleteDataStreamAction.Request request
     ) {
-        Set<String> dataStreams = new HashSet<>(
-            indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.getNames())
-        );
+        List<String> names = getDataStreamNames(indexNameExpressionResolver, currentState, request.getNames(), request.indicesOptions());
+        Set<String> dataStreams = new HashSet<>(names);
         Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(currentState, dataStreams);
 
         if (dataStreams.isEmpty()) {

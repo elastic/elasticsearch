@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.node;
@@ -31,16 +20,19 @@ import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class DiscoveryNodeTests extends ESTestCase {
 
@@ -95,20 +87,12 @@ public class DiscoveryNodeTests extends ESTestCase {
         InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
 
-        DiscoveryNodeRole customRole = new DiscoveryNodeRole("custom_role", "z") {
+        DiscoveryNodeRole customRole = new DiscoveryNodeRole("data_custom_role", "z", true) {
             @Override
             public Setting<Boolean> legacySetting() {
                 return null;
             }
 
-            @Override
-            public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
-                if (nodeVersion.equals(Version.CURRENT)) {
-                    return this;
-                } else {
-                    return DiscoveryNodeRole.DATA_ROLE;
-                }
-            }
         };
 
         DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(),
@@ -120,20 +104,30 @@ public class DiscoveryNodeTests extends ESTestCase {
             node.writeTo(streamOutput);
 
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
+            in.setVersion(Version.CURRENT);
             DiscoveryNode serialized = new DiscoveryNode(in);
-            assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining()),
-                equalTo("custom_role"));
+            final Set<DiscoveryNodeRole> roles = serialized.getRoles();
+            assertThat(roles, hasSize(1));
+            @SuppressWarnings("OptionalGetWithoutIsPresent") final DiscoveryNodeRole role = roles.stream().findFirst().get();
+            assertThat(role.roleName(), equalTo("data_custom_role"));
+            assertThat(role.roleNameAbbreviation(), equalTo("z"));
+            assertTrue(role.canContainData());
         }
 
         {
             BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setVersion(Version.V_7_10_0);
+            streamOutput.setVersion(Version.V_7_11_0);
             node.writeTo(streamOutput);
 
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
+            in.setVersion(Version.V_7_11_0);
             DiscoveryNode serialized = new DiscoveryNode(in);
-            assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining()),
-                equalTo("data"));
+            final Set<DiscoveryNodeRole> roles = serialized.getRoles();
+            assertThat(roles, hasSize(1));
+            @SuppressWarnings("OptionalGetWithoutIsPresent") final DiscoveryNodeRole role = roles.stream().findFirst().get();
+            assertThat(role.roleName(), equalTo("data_custom_role"));
+            assertThat(role.roleNameAbbreviation(), equalTo("z"));
+            assertTrue(role.canContainData());
         }
 
     }
@@ -158,6 +152,16 @@ public class DiscoveryNodeTests extends ESTestCase {
         } else {
             assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)));
         }
+    }
+
+    public void testDiscoveryNodeDescriptionWithoutAttributes() {
+        final DiscoveryNode node = new DiscoveryNode("test-id", buildNewFakeTransportAddress(),
+                Collections.singletonMap("test-attr", "val"), DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+        final StringBuilder stringBuilder = new StringBuilder();
+        node.appendDescriptionWithoutAttributes(stringBuilder);
+        final String descriptionWithoutAttributes = stringBuilder.toString();
+        assertThat(node.toString(), allOf(startsWith(descriptionWithoutAttributes), containsString("test-attr=val")));
+        assertThat(descriptionWithoutAttributes, not(containsString("test-attr")));
     }
 
 }

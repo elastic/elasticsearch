@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test;
 
@@ -36,14 +25,13 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
-import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -82,6 +70,7 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -126,6 +115,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
@@ -539,7 +529,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private void ensureOpen() {
-        if (!open.get()) {
+        if (open.get() == false) {
             throw new RuntimeException("Cluster is already closed");
         }
     }
@@ -622,7 +612,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         stopNodesAndClients(nodesToRemove);
-        if (!nodesToRemove.isEmpty() && size() > 0) {
+        if (nodesToRemove.isEmpty() == false && size() > 0) {
             validateClusterFormed();
         }
     }
@@ -1170,22 +1160,22 @@ public final class InternalTestCluster extends TestCluster {
         assertBusy(() -> {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 IndexingPressure indexingPressure = getInstance(IndexingPressure.class, nodeAndClient.name);
-                final long combinedBytes = indexingPressure.getCurrentCombinedCoordinatingAndPrimaryBytes();
+                final long combinedBytes = indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes();
                 if (combinedBytes > 0) {
                     throw new AssertionError("pending combined bytes [" + combinedBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");
                 }
-                final long coordinatingBytes = indexingPressure.getCurrentCoordinatingBytes();
+                final long coordinatingBytes = indexingPressure.stats().getCurrentCoordinatingBytes();
                 if (coordinatingBytes > 0) {
                     throw new AssertionError("pending coordinating bytes [" + coordinatingBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");
                 }
-                final long primaryBytes = indexingPressure.getCurrentPrimaryBytes();
+                final long primaryBytes = indexingPressure.stats().getCurrentPrimaryBytes();
                 if (primaryBytes > 0) {
                     throw new AssertionError("pending primary bytes [" + primaryBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");
                 }
-                final long replicaWriteBytes = indexingPressure.getCurrentReplicaBytes();
+                final long replicaWriteBytes = indexingPressure.stats().getCurrentReplicaBytes();
                 if (replicaWriteBytes > 0) {
                     throw new AssertionError("pending replica write bytes [" + combinedBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");
@@ -1393,7 +1383,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public synchronized void wipePendingDataDirectories() {
-        if (!dataDirToClean.isEmpty()) {
+        if (dataDirToClean.isEmpty() == false) {
             try {
                 for (Path path : dataDirToClean) {
                     try {
@@ -1519,6 +1509,20 @@ public final class InternalTestCluster extends TestCluster {
         if (nodeAndClient != null) {
             logger.info("Closing random node [{}] ", nodeAndClient.name);
             stopNodesAndClient(nodeAndClient);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Stops a specific node in the cluster. Returns true if the node was found to stop, false otherwise.
+     */
+    public synchronized boolean stopNode(String nodeName) throws IOException {
+        ensureOpen();
+        Optional<NodeAndClient> nodeToStop = nodes.values().stream().filter(n -> n.getName().equals(nodeName)).findFirst();
+        if (nodeToStop.isPresent()) {
+            logger.info("Closing node [{}]", nodeToStop.get().name);
+            stopNodesAndClient(nodeToStop.get());
             return true;
         }
         return false;
@@ -2048,7 +2052,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized void publishNode(NodeAndClient nodeAndClient) {
-        assert !nodeAndClient.node().isClosed();
+        assert nodeAndClient.node().isClosed() == false;
         final NavigableMap<String, NodeAndClient> newNodes = new TreeMap<>(nodes);
         newNodes.put(nodeAndClient.name, nodeAndClient);
         nodes = Collections.unmodifiableNavigableMap(newNodes);
@@ -2320,7 +2324,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private void assertRequestsFinished() {
+    public void assertRequestsFinished() {
         assert Thread.holdsLock(this);
         if (size() > 0) {
             for (NodeAndClient nodeAndClient : nodes.values()) {

@@ -1,0 +1,69 @@
+==== Request tracing
+
+You can trace individual requests made on the HTTP and transport layers.
+
+WARNING: Tracing can generate extremely high log volumes that can destabilize
+your cluster. Do not enable request tracing on busy or important clusters.
+
+[[http-rest-request-tracer]]
+===== REST request tracer
+
+The HTTP layer has a dedicated tracer that logs incoming requests and the
+corresponding outgoing responses. Activate the tracer by setting the level of
+the `org.elasticsearch.http.HttpTracer` logger to `TRACE`:
+
+[source,console]
+--------------------------------------------------
+PUT _cluster/settings
+{
+   "transient" : {
+      "logger.org.elasticsearch.http.HttpTracer" : "TRACE"
+   }
+}
+--------------------------------------------------
+
+You can also control which URIs will be traced, using a set of include and
+exclude wildcard patterns. By default every request will be traced.
+
+[source,console]
+--------------------------------------------------
+PUT _cluster/settings
+{
+   "transient" : {
+      "http.tracer.include" : "*",
+      "http.tracer.exclude" : ""
+   }
+}
+--------------------------------------------------
+
+[[transport-tracer]]
+===== Transport tracer
+
+The transport layer has a dedicated tracer that logs incoming and outgoing
+requests and responses. Activate the tracer by setting the level of the
+`org.elasticsearch.transport.TransportService.tracer` logger to `TRACE`:
+
+[source,console]
+--------------------------------------------------
+PUT _cluster/settings
+{
+   "transient" : {
+      "logger.org.elasticsearch.transport.TransportService.tracer" : "TRACE"
+   }
+}
+--------------------------------------------------
+
+You can also control which actions will be traced, using a set of include and
+exclude wildcard patterns. By default every request will be traced except for
+fault detection pings:
+
+[source,console]
+--------------------------------------------------
+PUT _cluster/settings
+{
+   "transient" : {
+      "transport.tracer.include" : "*",
+      "transport.tracer.exclude" : "internal:coordination/fault_detection/*"
+   }
+}
+--------------------------------------------------

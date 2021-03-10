@@ -31,8 +31,8 @@
       indices.rollover:
         alias: "simple-data-stream1"
 
-  - match: { old_index: .ds-simple-data-stream1-000001 }
-  - match: { new_index: .ds-simple-data-stream1-000002 }
+  - match: { old_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { new_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
   - match: { rolled_over: true }
   - match: { dry_run: false }
 
@@ -48,8 +48,8 @@
       indices.rollover:
         alias: "simple-data-stream1"
 
-  - match: { old_index: .ds-simple-data-stream1-000002 }
-  - match: { new_index: .ds-simple-data-stream1-000003 }
+  - match: { old_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
+  - match: { new_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000003/" }
   - match: { rolled_over: true }
   - match: { dry_run: false }
 
@@ -95,9 +95,9 @@
         index: simple-data-stream1
         body: { query: { range: { number: { gte: 5 } } } }
   - length:   { hits.hits: 2  }
-  - match: { hits.hits.0._index: .ds-simple-data-stream1-000001 }
+  - match: { hits.hits.0._index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: { hits.hits.0._source.number: 5 }
-  - match: { hits.hits.1._index: .ds-simple-data-stream1-000003 }
+  - match: { hits.hits.1._index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000003/" }
   - match: { hits.hits.1._source.number: 6 }
 
   - do:

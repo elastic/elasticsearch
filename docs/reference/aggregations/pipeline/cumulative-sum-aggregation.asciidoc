@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-cumulative-sum-aggregation]]
-=== Cumulative Sum Aggregation
+=== Cumulative sum aggregation
+++++
+<titleabbrev>Cumulative sum</titleabbrev>
+++++
 
 A parent pipeline aggregation which calculates the cumulative sum of a specified metric in a parent histogram (or date_histogram)
 aggregation. The specified metric must be numeric and the enclosing histogram must have `min_doc_count` set to `0` (default

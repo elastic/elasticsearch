@@ -1,6 +1,9 @@
 [role="xpack"]
 [[schedule-weekly]]
-==== Weekly schedule
+==== {watcher} weekly schedule
+++++
+<titleabbrev>Weekly schedule</titleabbrev>
+++++
 
 A <<trigger-schedule,`schedule`>> that triggers at a specific day and time
 every week. To use the `weekly` schedule, you specify the day and time (or days

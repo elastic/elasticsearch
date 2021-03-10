@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -29,12 +18,13 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -48,7 +38,7 @@ import java.util.function.Supplier;
 /**
  * A field mapper for boolean fields.
  */
-public class BooleanFieldMapper extends ParametrizedFieldMapper {
+public class BooleanFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "boolean";
 
@@ -72,7 +62,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         return (BooleanFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues,  true);
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
@@ -94,10 +84,10 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public BooleanFieldMapper build(BuilderContext context) {
-            MappedFieldType ft = new BooleanFieldType(buildFullName(context), indexed.getValue(), stored.getValue(),
+        public BooleanFieldMapper build(ContentPath contentPath) {
+            MappedFieldType ft = new BooleanFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
                 docValues.getValue(), nullValue.getValue(), meta.getValue());
-            return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
@@ -127,12 +117,12 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), mapperService, nullValue) {
+            return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected Boolean parseSourceValue(Object value) {
                     if (value instanceof Boolean) {
@@ -204,7 +194,8 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
+                                SearchExecutionContext context) {
             failIfNotIndexed();
             return new TermRangeQuery(name(),
                 lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
@@ -220,7 +211,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
     protected BooleanFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                  MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
         this.nullValue = builder.nullValue.getValue();
         this.stored = builder.stored.getValue();
         this.indexed = builder.indexed.getValue();
@@ -267,7 +258,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 

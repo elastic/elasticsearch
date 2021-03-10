@@ -12,6 +12,11 @@ Provides explanations for shard allocations in the cluster.
 
 `GET /_cluster/allocation/explain`
 
+[[cluster-allocation-explain-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cluster-allocation-explain-api-desc]]
 ==== {api-description-title}
@@ -30,11 +35,11 @@ you might expect otherwise.
 ==== {api-query-parms-title}
 
 `include_disk_info`::
-    (Optional, boolean) If `true`, returns information about disk usage and 
+    (Optional, Boolean) If `true`, returns information about disk usage and 
     shard sizes. Defaults to `false`.
     
 `include_yes_decisions`::
-    (Optional, boolean) If `true`, returns 'YES' decisions in explanation. 
+    (Optional, Boolean) If `true`, returns 'YES' decisions in explanation. 
     Defaults to `false`.
 
 
@@ -50,7 +55,7 @@ you might expect otherwise.
     explanation for.
 
 `primary`::
-    (Optional, boolean) If `true`, returns explanation for the primary shard 
+    (Optional, Boolean) If `true`, returns explanation for the primary shard 
     for the given shard ID.
 
 `shard`::

@@ -5,6 +5,10 @@
       "description":"Retrieves usage information for transforms."
     },
     "stability":"beta",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

@@ -1,11 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -22,10 +26,13 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
+
+    private static final Logger logger = LogManager.getLogger(SetStepInfoUpdateTask.class);
+
     private final Index index;
     private final String policy;
     private final Step.StepKey currentStepKey;
-    private ToXContentObject stepInfo;
+    private final ToXContentObject stepInfo;
 
     public SetStepInfoUpdateTask(Index index, String policy, Step.StepKey currentStepKey, ToXContentObject stepInfo) {
         this.index = index;
@@ -72,8 +79,8 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public void onFailure(String source, Exception e) {
-        throw new ElasticsearchException("policy [" + policy + "] for index [" + index.getName()
-                + "] failed trying to set step info for step [" + currentStepKey + "].", e);
+        logger.warn(new ParameterizedMessage("policy [{}] for index [{}] failed trying to set step info for step [{}].",
+                policy, index.getName(), currentStepKey), e);
     }
 
     public static class ExceptionWrapper implements ToXContentObject {

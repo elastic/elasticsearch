@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.replication;
@@ -169,7 +158,7 @@ public abstract class TransportReplicationAction<
         transportService.registerRequestHandler(transportReplicaAction, executor, true, true,
             in -> new ConcreteReplicaRequest<>(replicaRequestReader, in), this::handleReplicaRequest);
 
-        this.transportOptions = transportOptions(settings);
+        this.transportOptions = transportOptions();
 
         this.syncGlobalCheckpointAfterOperation = syncGlobalCheckpointAfterOperation;
 
@@ -248,7 +237,7 @@ public abstract class TransportReplicationAction<
         return null;
     }
 
-    protected TransportRequestOptions transportOptions(Settings settings) {
+    protected TransportRequestOptions transportOptions() {
         return TransportRequestOptions.EMPTY;
     }
 
@@ -424,7 +413,7 @@ public abstract class TransportReplicationAction<
                     }, e -> handleException(primaryShardReference, e));
 
                     new ReplicationOperation<>(primaryRequest.getRequest(), primaryShardReference,
-                        ActionListener.map(responseListener, result -> result.finalResponseIfSuccessful),
+                        responseListener.map(result -> result.finalResponseIfSuccessful),
                         newReplicasProxy(), logger, threadPool, actionName, primaryRequest.getPrimaryTerm(), initialRetryBackoffBound,
                         retryTimeout)
                         .execute();
@@ -802,11 +791,6 @@ public abstract class TransportReplicationAction<
                 }
 
                 @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
-
-                @Override
                 public void handleResponse(Response response) {
                     finishOnSuccess(response);
                 }
@@ -959,7 +943,7 @@ public abstract class TransportReplicationAction<
         @Override
         public void perform(Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
             if (Assertions.ENABLED) {
-                listener = ActionListener.map(listener, result -> {
+                listener = listener.map(result -> {
                     assert result.replicaRequest() == null || result.finalFailure == null : "a replica request [" + result.replicaRequest()
                         + "] with a primary failure [" + result.finalFailure + "]";
                     return result;

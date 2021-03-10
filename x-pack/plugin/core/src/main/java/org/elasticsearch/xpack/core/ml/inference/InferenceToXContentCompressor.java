@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -70,8 +73,9 @@ public final class InferenceToXContentCompressor {
 
             if (streamSizeCause != null) {
                 // The root cause is that the model is too big.
-                throw new IOException("Cannot parse model definition as the content is larger than the maximum stream size of ["
-                + streamSizeCause.getMaxBytes() + "] bytes. Max stream size is 10% of the JVM heap or 1GB whichever is smallest");
+                throw new CircuitBreakingException("Cannot parse model definition as the content is larger than the maximum stream size " +
+                    "of [" + streamSizeCause.getMaxBytes() + "] bytes. Max stream size is 10% of the JVM heap or 1GB whichever is smallest",
+                    CircuitBreaker.Durability.PERMANENT);
             } else {
                 throw parseException;
             }
@@ -92,7 +96,8 @@ public final class InferenceToXContentCompressor {
         // If the compressed length is already too large, it make sense that the inflated length would be as well
         // In the extremely small string case, the compressed data could actually be longer than the compressed stream
         if (compressedBytes.length > Math.max(100L, streamSize)) {
-            throw new IOException("compressed stream is longer than maximum allowed bytes [" + streamSize + "]");
+            throw new CircuitBreakingException("compressed stream is longer than maximum allowed bytes [" + streamSize + "]",
+                CircuitBreaker.Durability.PERMANENT);
         }
         InputStream gzipStream = new GZIPInputStream(new BytesArray(compressedBytes).streamInput(), BUFFER_SIZE);
         return new SimpleBoundedInputStream(gzipStream, streamSize);

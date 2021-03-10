@@ -18,7 +18,7 @@ Updates certain properties of a {transform}.
 [[update-transform-prereqs]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
+If the {es} {security-features} are enabled, you must have the following
 built-in roles and privileges:
 
 * `transform_admin`
@@ -40,8 +40,8 @@ When the {transform} is updated, a series of validations occur to ensure its
 success. You can use the `defer_validation` parameter to skip these checks.
 
 All updated properties except description do not take effect until after the
-{transform} starts the next checkpoint. This is so there is consistency with the
-pivoted data in each checkpoint.
+{transform} starts the next checkpoint. This is so there is data consistency in
+each checkpoint.
 
 [IMPORTANT]
 ====
@@ -68,7 +68,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 == {api-query-parms-title}
 
 `defer_validation`::
-  (Optional, boolean) When `true`, deferrable validations are not run. This
+  (Optional, Boolean) When `true`, deferrable validations are not run. This
   behavior may be desired if the source index does not exist until after the
   {transform} is updated.
 
@@ -102,6 +102,32 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 (Optional, <<time-units, time units>>)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
 
+//Begin retention policy
+`retention_policy`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention]
++
+.Properties of `retention_policy`
+[%collapsible%open]
+====
+`time`:::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time]
++
+.Properties of `time`
+[%collapsible%open]
+=====
+`field`:::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-field]
+
+`max_age`:::
+(Required, <<time-units, time units>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-max-age]
+=====
+====
+//End retention policy
+
 //Begin settings
 `settings`::
 (Optional, object)
@@ -110,6 +136,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
 .Properties of `settings`
 [%collapsible%open]
 ====
+`dates_as_epoch_millis`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dates-as-epoch-milli]
 `docs_per_second`:::
 (Optional, float)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
@@ -131,7 +160,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-transforms]
 `index`:::
 (Required, string or array)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
-    
+
 `query`:::
 (Optional, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]

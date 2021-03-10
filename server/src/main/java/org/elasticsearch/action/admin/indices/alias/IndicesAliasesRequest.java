@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.alias;
@@ -177,6 +166,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         }
 
         private static final ObjectParser<AliasActions, Void> ADD_PARSER = parser(ADD.getPreferredName(), AliasActions::add);
+        private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
+        private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser(REMOVE_INDEX.getPreferredName(),
+            AliasActions::removeIndex);
         static {
             ADD_PARSER.declareObject(AliasActions::filter, (parser, m) -> {
                 try {
@@ -191,11 +183,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             ADD_PARSER.declareField(AliasActions::searchRouting, XContentParser::text, SEARCH_ROUTING, ValueType.INT);
             ADD_PARSER.declareField(AliasActions::writeIndex, XContentParser::booleanValue, IS_WRITE_INDEX, ValueType.BOOLEAN);
             ADD_PARSER.declareField(AliasActions::isHidden, XContentParser::booleanValue, IS_HIDDEN, ValueType.BOOLEAN);
-            ADD_PARSER.declareField(AliasActions::mustExist, XContentParser::booleanValue, MUST_EXIST, ValueType.BOOLEAN);
+            REMOVE_PARSER.declareField(AliasActions::mustExist, XContentParser::booleanValue, MUST_EXIST, ValueType.BOOLEAN);
         }
-        private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
-        private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser(REMOVE_INDEX.getPreferredName(),
-                AliasActions::removeIndex);
 
         /**
          * Parser for any one {@link AliasAction}.
@@ -524,6 +513,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (null != isHidden) {
                 builder.field(IS_HIDDEN.getPreferredName(), isHidden);
             }
+            if (null != mustExist) {
+                builder.field(MUST_EXIST.getPreferredName(), mustExist);
+            }
             builder.endObject();
             builder.endObject();
             return builder;
@@ -544,6 +536,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     + ",indexRouting=" + indexRouting
                     + ",searchRouting=" + searchRouting
                     + ",writeIndex=" + writeIndex
+                    + ",mustExist=" + mustExist
                     + "]";
         }
 
@@ -562,12 +555,13 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     && Objects.equals(indexRouting, other.indexRouting)
                     && Objects.equals(searchRouting, other.searchRouting)
                     && Objects.equals(writeIndex, other.writeIndex)
-                    && Objects.equals(isHidden, other.isHidden);
+                    && Objects.equals(isHidden, other.isHidden)
+                    && Objects.equals(mustExist, other.mustExist);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex, isHidden);
+            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex, isHidden, mustExist);
         }
     }
 

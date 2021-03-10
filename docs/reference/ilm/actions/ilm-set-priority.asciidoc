@@ -2,10 +2,10 @@
 [[ilm-set-priority]]
 === Set priority
 
-Phases allowed: hot, warm, cold.
+Phases allowed: hot, warm, cold, frozen.
 
 Sets the <<recovery-prioritization, priority>> of the index as
-soon as the policy enters the hot, warm, or cold phase. 
+soon as the policy enters the hot, warm, cold, or frozen phase.
 Higher priority indices are recovered before indices with lower priorities following a node restart. 
 
 Generally, indexes in the hot phase should have the highest value and

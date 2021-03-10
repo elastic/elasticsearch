@@ -8,7 +8,7 @@ if your cluster is impacted and, if so, prepare for the upgrade.
 
 [discrete]
 [[java-time-convert-date-formats]]
-=== Convert date formats
+==== Convert date formats
 
 To upgrade to {es} 8, you'll need to convert any joda-time date formats
 to their java-time equivalents.
@@ -22,8 +22,8 @@ The switch to java time only impacts custom <<date,`date`>> and
 These formats are commonly used in:
 
 * <<mapping,Index mappings>>
-* <<indices-templates,Index templates>>
-* <<pipeline,Ingest pipelines>>
+* <<index-templates,Index templates>>
+* <<ingest,Ingest pipelines>>
 
 If you don't use custom date formats, you can skip the rest of this guide.
 Most custom date formats are compatible. However, several require
@@ -315,4 +315,3 @@ POST /_aliases
 }
 --------------------------------------------------
 // TEST[continued]
-

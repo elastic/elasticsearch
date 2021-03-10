@@ -1,0 +1,91 @@
+[[advanced-configuration]]
+=== Advanced configuration settings
+
+The settings below are considered advanced and for expert users only. In
+most cases the {es}-provided default settings should be used. Take caution
+when modifying these settings as this could result in undesired behavior or
+reduced system performance.
+
+[[setting-jvm-heap-size]]
+==== Setting JVM heap size
+
+If you need to override the default <<heap-size-settings,heap size settings>>,
+follow the best practices below.
+
+{es} assigns the entire heap specified in
+<<jvm-options,jvm.options>> via the `Xms` (minimum heap size) and `Xmx` (maximum
+heap size) settings. These two settings must be equal to each other.
+
+The value for these settings depends on the amount of RAM available on your
+server:
+
+* Set `Xmx` and `Xms` to no more than 50% of your total system memory. {es} requires
+memory for purposes other than the JVM heap and it is important to leave
+space for this. For instance, {es} uses off-heap buffers for efficient
+network communication, relies on the operating system's filesystem cache for
+efficient access to files, and the JVM itself requires some memory too. It is
+normal to observe the {es} process using more memory than the limit
+configured with the `Xmx` setting.
+
+* Set `Xmx` and `Xms` to no more than the threshold that the JVM uses for
+compressed object pointers (compressed oops). The exact threshold varies but
+is near 32 GB. You can verify that you are under the threshold by looking for a line in the logs like the following:
++
+[source,txt]
+----
+heap size [1.9gb], compressed ordinary object pointers [true]
+----
+
+* Set `Xmx` and `Xms` to no more than the threshold for zero-based
+compressed oops. The exact threshold varies but 26GB is safe on most
+systems and can be as large as 30GB on some systems. You can verify that
+you are under this threshold by starting {es} with the JVM options
+`-XX:+UnlockDiagnosticVMOptions -XX:+PrintCompressedOopsMode` and looking for
+a line like the following:
++
+[source,txt]
+----
+heap address: 0x000000011be00000, size: 27648 MB, zero based Compressed Oops
+----
++
+This line shows that zero-based compressed oops are enabled. If zero-based
+compressed oops are not enabled, you'll see a line like the following instead:
++
+[source,txt]
+----
+heap address: 0x0000000118400000, size: 28672 MB, Compressed Oops with base: 0x00000001183ff000
+----
+
+The more heap available to {es}, the more memory it can use for its internal
+caches. This leaves less memory for the operating system to use
+for the filesystem cache. Larger heaps can also cause longer garbage
+collection pauses.
+
+Here is an example of how to set the heap size via a `jvm.options.d/` file:
+
+[source,txt]
+------------------
+-Xms2g <1>
+-Xmx2g <2>
+------------------
+<1> Set the minimum heap size to 2g.
+<2> Set the maximum heap size to 2g.
+
+In production, we recommend using `jvm.options.d` to configure heap sizes.
+
+For testing, you can also set the heap sizes using the `ES_JAVA_OPTS`
+environment variable. The `ES_JAVA_OPTS` variable overrides all other JVM
+options. We do not recommend using `ES_JAVA_OPTS` in production.
+
+[source,sh]
+------------------
+ES_JAVA_OPTS="-Xms2g -Xmx2g" ./bin/elasticsearch <1>
+ES_JAVA_OPTS="-Xms4000m -Xmx4000m" ./bin/elasticsearch <2>
+------------------
+<1> Set the minimum and maximum heap size to 2 GB.
+<2> Set the minimum and maximum heap size to 4000 MB.
+
+NOTE: Configuring the heap for the <<windows-service,Windows service>> is
+different than the above. The values initially populated for the Windows
+service can be configured as above but are different after the service has been
+installed. See <<windows-service>>.

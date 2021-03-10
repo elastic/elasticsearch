@@ -1,6 +1,9 @@
 [role="xpack"]
 [[condition]]
-== Conditions
+== {watcher} conditions
+++++
+<titleabbrev>Conditions</titleabbrev>
+++++
 
 When a watch is triggered, its condition determines whether or not to execute
 the watch actions. {watcher} supports the following condition types: 

@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[search-aggregations-pipeline-moving-percentiles-aggregation]]
-=== Moving Percentiles Aggregation
+=== Moving percentiles aggregation
+++++
+<titleabbrev>Moving percentiles</titleabbrev>
+++++
 
 Given an ordered series of <<search-aggregations-metrics-percentile-aggregation, percentiles>>, the Moving Percentile aggregation
 will slide a window across those percentiles and allow the user to compute the cumulative percentile.

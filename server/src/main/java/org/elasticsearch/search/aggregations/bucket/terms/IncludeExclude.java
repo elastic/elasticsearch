@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -164,7 +153,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
         @Override
         public boolean accept(long value) {
-            return ((valids == null) || (valids.contains(value))) && ((invalids == null) || (!invalids.contains(value)));
+            return (valids == null || valids.contains(value)) && (invalids == null || invalids.contains(value) == false);
         }
 
         private void addAccept(long val) {
@@ -400,7 +389,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             include = includeString == null ? null : new RegExp(includeString);
             String excludeString = in.readOptionalString();
             exclude = excludeString == null ? null : new RegExp(excludeString);
-            if (in.getVersion().before(Version.V_8_0_0)) {
+            if (in.getVersion().before(Version.V_7_11_0)) {
                 incZeroBasedPartition = 0;
                 incNumPartitions = 0;
                 includeValues = null;
@@ -440,7 +429,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (regexBased) {
             out.writeOptionalString(include == null ? null : include.getOriginalString());
             out.writeOptionalString(exclude == null ? null : exclude.getOriginalString());
-            if (out.getVersion().before(Version.V_8_0_0)) {
+            if (out.getVersion().before(Version.V_7_11_0)) {
                 return;
             }
         }
@@ -561,7 +550,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             throw new ElasticsearchParseException("Missing start of array in include/exclude clause");
         }
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            if (!parser.currentToken().isValue()) {
+            if (parser.currentToken().isValue() == false) {
                 throw new ElasticsearchParseException("Array elements in include/exclude clauses should be string values");
             }
             set.add(new BytesRef(parser.text()));

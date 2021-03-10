@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.store;
@@ -121,7 +110,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (!event.routingTableChanged()) {
+        if (event.routingTableChanged() == false) {
             return;
         }
 
@@ -134,7 +123,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         // remove entries from cache that don't exist in the routing table anymore (either closed or deleted indices)
         // - removing shard data of deleted indices is handled by IndicesClusterStateService
         // - closed indices don't need to be removed from the cache but we do it anyway for code simplicity
-        folderNotFoundCache.removeIf(shardId -> !routingTable.hasIndex(shardId.getIndex()));
+        folderNotFoundCache.removeIf(shardId -> routingTable.hasIndex(shardId.getIndex()) == false);
         // remove entries from cache which are allocated to this node
         final String localNodeId = event.state().nodes().getLocalNodeId();
         RoutingNode localRoutingNode = event.state().getRoutingNodes().node(localNodeId);
@@ -260,11 +249,6 @@ public class IndicesStore implements ClusterStateListener, Closeable {
             }
         }
 
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
         private void allNodesResponded() {
             if (activeCopies.get() != expectedActiveCopies) {
                 logger.trace("not deleting shard {}, expected {} active copies, but only {} found active copies",
@@ -369,7 +353,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
         private IndexShard getShard(ShardActiveRequest request) {
             ClusterName thisClusterName = clusterService.getClusterName();
-            if (!thisClusterName.equals(request.clusterName)) {
+            if (thisClusterName.equals(request.clusterName) == false) {
                 logger.trace("shard exists request meant for cluster[{}], but this is cluster[{}], ignoring request",
                     request.clusterName, thisClusterName);
                 return null;

@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-significanttext-aggregation]]
-=== Significant Text Aggregation
+=== Significant text aggregation
+++++
+<titleabbrev>Significant text</titleabbrev>
+++++
 
 An aggregation that returns interesting or unusual occurrences of free-text terms in a set.
 It is like the <<search-aggregations-bucket-significantterms-aggregation,significant terms>> aggregation but differs in that:

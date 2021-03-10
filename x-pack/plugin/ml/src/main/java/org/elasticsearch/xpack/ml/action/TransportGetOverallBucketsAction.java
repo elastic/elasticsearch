@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -126,7 +127,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     }
 
     private static boolean requiresAggregation(GetOverallBucketsAction.Request request, TimeValue maxBucketSpan) {
-        return request.getBucketSpan() != null && !request.getBucketSpan().equals(maxBucketSpan);
+        return request.getBucketSpan() != null && request.getBucketSpan().equals(maxBucketSpan) == false;
     }
 
     private static void checkValidBucketSpan(TimeValue bucketSpan, TimeValue maxBucketSpan) {

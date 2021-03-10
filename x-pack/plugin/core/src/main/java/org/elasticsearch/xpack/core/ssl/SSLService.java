@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl;
 
@@ -410,7 +411,7 @@ public class SSLService {
                 }
             }
 
-            if (!found) {
+            if (found == false) {
                 unsupportedCiphers.add(requestedCipher);
             }
         }
@@ -420,7 +421,7 @@ public class SSLService {
                     + " are supported by this JVM");
         }
 
-        if (log && !unsupportedCiphers.isEmpty()) {
+        if (log && unsupportedCiphers.isEmpty() == false) {
             logger.error("unsupported ciphers [{}] were requested but cannot be used in this JVM, however there are supported ciphers " +
                     "that will be used [{}]. If you are trying to use ciphers with a key length greater than 128 bits on an Oracle JVM, " +
                     "you will need to install the unlimited strength JCE policy files.", unsupportedCiphers, supportedCiphersList);

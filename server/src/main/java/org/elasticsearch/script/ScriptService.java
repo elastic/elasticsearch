@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script;
@@ -421,16 +410,9 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]", exception);
         }
 
-        clusterService.submitStateUpdateTask("put-script-" + request.id(),
-            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-
+        clusterService.submitStateUpdateTask("put-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
             @Override
-            protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                return AcknowledgedResponse.of(acknowledged);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState) {
                 ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
                 smd = ScriptMetadata.putStoredScript(smd, request.id(), source);
                 Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
@@ -443,22 +425,16 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request,
                                    ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete-script-" + request.id(),
-            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
+            new AckedClusterStateUpdateTask(request, listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
+                    smd = ScriptMetadata.deleteStoredScript(smd, request.id());
+                    Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
 
-            @Override
-            protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                return AcknowledgedResponse.of(acknowledged);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
-                smd = ScriptMetadata.deleteStoredScript(smd, request.id());
-                Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
-
-                return ClusterState.builder(currentState).metadata(mdb).build();
-            }
-        });
+                    return ClusterState.builder(currentState).metadata(mdb).build();
+                }
+            });
     }
 
     public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {

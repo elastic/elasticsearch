@@ -40,7 +40,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 == {api-query-parms-title}
 
 `force`::
-  (Optional, boolean) If `true`, it deletes a job that is not stopped; this method is
+  (Optional, Boolean) If `true`, it deletes a job that is not stopped; this method is
   quicker than stopping and deleting the job.
 
 `timeout`::

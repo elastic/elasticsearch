@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
@@ -15,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.yaml.snakeyaml.util.UriEncoder;
 
-import javax.print.attribute.standard.JobStateReason;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
@@ -31,6 +32,10 @@ import static org.hamcrest.Matchers.is;
 public class MlBasicMultiNodeIT extends ESRestTestCase {
 
     private static final String BASE_PATH = "/_ml/";
+
+    private static final RequestOptions POST_DATA_OPTIONS = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
+            "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
 
     public void testMachineLearningInstalled() throws Exception {
         Response response = client().performRequest(new Request("GET", "/_xpack"));
@@ -66,6 +71,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
                 "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n" +
                 "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}",
                 randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))));
+        addData.setOptions(POST_DATA_OPTIONS);
         Response addDataResponse = client().performRequest(addData);
         assertEquals(202, addDataResponse.getStatusLine().getStatusCode());
         Map<String, Object> responseBody = entityAsMap(addDataResponse);
@@ -165,6 +171,8 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
                 "{\"airline\":\"KLM\",\"responsetime\":\"1355.4812\",\"sourcetype\":\"farequote\",\"time\":\"1403481900\"}\n" +
                 "{\"airline\":\"NKS\",\"responsetime\":\"9991.3981\",\"sourcetype\":\"farequote\",\"time\":\"1403482000\"}",
                 randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))));
+        // Post data is deprecated, so expect a deprecation warning
+        addDataRequest.setOptions(POST_DATA_OPTIONS);
         Response addDataResponse = client().performRequest(addDataRequest);
         assertEquals(202, addDataResponse.getStatusLine().getStatusCode());
         Map<String, Object> responseBody = entityAsMap(addDataResponse);
@@ -205,6 +213,8 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
                 "{\"airline\":\"UAL\",\"responsetime\":\"8.4275\",\"sourcetype\":\"farequote\",\"time\":\"1407081900\"}\n" +
                 "{\"airline\":\"FFT\",\"responsetime\":\"221.8693\",\"sourcetype\":\"farequote\",\"time\":\"1407082000\"}",
                 randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))));
+        // Post data is deprecated, so expect a deprecation warning
+        addDataRequest2.setOptions(POST_DATA_OPTIONS);
         Response addDataResponse2 = client().performRequest(addDataRequest2);
         assertEquals(202, addDataResponse2.getStatusLine().getStatusCode());
         Map<String, Object> responseBody2 = entityAsMap(addDataResponse2);

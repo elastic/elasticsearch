@@ -546,3 +546,46 @@
   - match: {hits.hits.0.highlight.company.0: "<em>ABC</em> company"}
   - match: {hits.hits.1.highlight.company.0: "<em>ABC</em> <em>ABCD</em> company"}
   - match: {hits.hits.2.highlight.company.0: "<em>ABCD</em> company"}
+
+---
+# This test guards against a subtle edge case in the fetch phase related to source-loading and
+# scripting. See {@link https://github.com/elastic/elasticsearch/issues/31000}.
+"Explain nested script_score within rescore":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              object:
+                type: "nested"
+                properties:
+                  field:
+                    type: text
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          object:
+            field: "some text"
+        refresh: true
+
+  - do:
+      search:
+        body:
+          explain: true
+          rescore:
+            query:
+              rescore_query:
+                nested:
+                  path: object
+                  query:
+                    script_score:
+                      query:
+                        match_all: {}
+                      script:
+                        source: "42.0"
+
+  - match: {hits.hits.0._id: "1"}
+  - is_true: hits.hits.0._source

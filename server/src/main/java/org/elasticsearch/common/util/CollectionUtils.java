@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util;
@@ -83,7 +72,7 @@ public class CollectionUtils {
             sort(array);
             int uniqueCount = 1;
             for (int i = 1; i < len; ++i) {
-                if (!Arrays.equals(array.get(i), array.get(i - 1))) {
+                if (Arrays.equals(array.get(i), array.get(i - 1)) == false) {
                     array.set(uniqueCount++, array.get(i));
                 }
             }
@@ -191,7 +180,7 @@ public class CollectionUtils {
             if (distance < 0 || distance >= list.size()) {
                 throw new IllegalArgumentException();
             }
-            if (!(list instanceof RandomAccess)) {
+            if ((list instanceof RandomAccess) == false) {
                 throw new IllegalArgumentException();
             }
             this.in = list;
@@ -256,7 +245,7 @@ public class CollectionUtils {
         bytes.get(previous, indices[0]);
         for (int i = 1; i < numValues; ++i) {
             bytes.get(current, indices[i]);
-            if (!previous.get().equals(current.get())) {
+            if (previous.get().equals(current.get()) == false) {
                 indices[uniqueCount++] = indices[i];
             }
             BytesRefBuilder tmp = previous;
@@ -315,6 +304,20 @@ public class CollectionUtils {
         list.add(second);
         list.addAll(Arrays.asList(other));
         return list;
+    }
+
+    /**
+     * Creates a copy of the given collection with the given element appended.
+     *
+     * @param collection collection to copy
+     * @param element    element to append
+     */
+    @SuppressWarnings("unchecked")
+    public static <E> List<E> appendToCopy(Collection<E> collection, E element) {
+        final int size = collection.size() + 1;
+        final E[] array = collection.toArray((E[]) new Object[size]);
+        array[size - 1] = element;
+        return Arrays.asList(array);
     }
 
     public static <E> ArrayList<E> newSingletonArrayList(E element) {

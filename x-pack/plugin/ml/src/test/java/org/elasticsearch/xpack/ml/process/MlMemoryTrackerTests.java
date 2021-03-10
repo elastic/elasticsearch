@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
@@ -267,7 +268,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
     PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>
     makeTestDataFrameAnalyticsTask(String id, boolean allowLazyStart) {
         return new PersistentTasksCustomMetadata.PersistentTask<>(MlTasks.dataFrameAnalyticsTaskId(id),
-            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT,
-            Collections.emptyList(), allowLazyStart), 0, PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT);
+            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT, allowLazyStart),
+            0, PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT);
     }
 }

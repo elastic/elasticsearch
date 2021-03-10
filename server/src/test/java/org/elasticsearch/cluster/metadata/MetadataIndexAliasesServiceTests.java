@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -138,7 +128,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
         // Show that removing non-existing alias with mustExist == true fails
         final ClusterState finalCS = after;
-        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+        final ResourceNotFoundException iae = expectThrows(ResourceNotFoundException.class,
             () -> service.applyAliasActions(finalCS, singletonList(new AliasAction.Remove(index, "test_2", true))));
         assertThat(iae.getMessage(), containsString("required alias [test_2] does not exist"));
     }
@@ -490,8 +480,9 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
     }
 
     public void testAliasesForDataStreamBackingIndicesNotSupported() {
+        long epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
         String dataStreamName = "foo-stream";
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis);
         IndexMetadata indexMetadata = IndexMetadata.builder(backingIndexName)
             .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build();
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
@@ -503,8 +494,8 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.applyAliasActions(state,
             singletonList(new AliasAction.Add(backingIndexName, "test", null, null, null, null, null))));
-        assertThat(exception.getMessage(), is("The provided index [ .ds-foo-stream-000001] is a backing index belonging to data stream " +
-            "[foo-stream]. Data streams and their backing indices don't support alias operations."));
+        assertThat(exception.getMessage(), is("The provided index [" + backingIndexName + "] is a backing index belonging to data " +
+            "stream [foo-stream]. Data streams and their backing indices don't support alias operations."));
     }
 
     private ClusterState applyHiddenAliasMix(ClusterState before, Boolean isHidden1, Boolean isHidden2) {

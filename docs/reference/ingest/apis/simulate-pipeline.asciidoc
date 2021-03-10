@@ -62,6 +62,12 @@ POST /_ingest/pipeline/my-pipeline-id/_simulate
 
 `GET /_ingest/pipeline/_simulate`
 
+[[simulate-pipeline-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`read_pipeline`, `manage_pipeline`, `manage_ingest_pipelines`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[simulate-pipeline-api-desc]]
 ==== {api-description-title}
@@ -86,7 +92,7 @@ Pipeline ID used to simulate an ingest.
 ==== {api-query-parms-title}
 
 `verbose`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 the response includes output data
 for each processor in the executed pipeline.
@@ -294,7 +300,7 @@ you can add the `verbose` parameter to the request.
 
 [source,console]
 ----
-POST /_ingest/pipeline/_simulate?verbose
+POST /_ingest/pipeline/_simulate?verbose=true
 {
   "pipeline" :
   {

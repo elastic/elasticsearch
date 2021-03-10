@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm;
@@ -246,7 +247,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
 
             // Assert that the history document has been written for taking the snapshot and deleting it
             assertBusy(() -> {
-                SearchResponse resp = client().prepareSearch("slm-history*")
+                SearchResponse resp = client().prepareSearch(".slm-history*")
                     .setQuery(QueryBuilders.matchQuery("snapshot_name", completedSnapshotName)).get();
                 logger.info("--> checking history written for {}, got: {}",
                     completedSnapshotName, Strings.arrayToCommaDelimitedString(resp.getHits().getHits()));
@@ -266,13 +267,27 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         testUnsuccessfulSnapshotRetention(true);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70185")
+    public void testRetentionWithMultipleRepositories() throws Exception {
+        disableRepoConsistencyCheck("test leaves behind an empty repository");
+        final String secondRepo = "other-repo";
+        createRepository(secondRepo, "fs");
+        final String policyId = "some-policy-id";
+        createSnapshotPolicy(policyId, "snap", NEVER_EXECUTE_CRON_SCHEDULE, secondRepo,
+                "*", true,
+                true, new SnapshotRetentionConfiguration(null, 1, 2));
+        logger.info("-->  start snapshot");
+        client().execute(ExecuteSnapshotLifecycleAction.INSTANCE, new ExecuteSnapshotLifecycleAction.Request(policyId)).get();
+        testUnsuccessfulSnapshotRetention(randomBoolean());
+    }
+
     private void testUnsuccessfulSnapshotRetention(boolean partialSuccess) throws Exception {
         final String indexName = "test-idx";
         final String policyId = "test-policy";
         final SnapshotState expectedUnsuccessfulState = partialSuccess ? SnapshotState.PARTIAL : SnapshotState.FAILED;
         // Setup
         createAndPopulateIndex(indexName);
-        createRepository(REPO, "mock");
+        createRepositoryNoVerify(REPO, "mock");
 
         createSnapshotPolicy(policyId, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true,
             partialSuccess, new SnapshotRetentionConfiguration(null, 1, 2));

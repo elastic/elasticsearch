@@ -1,0 +1,30 @@
+{
+  "watcher.query_watches":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-query-watches.html",
+      "description":"Retrieves stored watches."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_watcher/_query/watches",
+          "methods":[
+            "GET",
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"From, size, query, sort and search_after",
+      "required":false
+    }
+  }
+}

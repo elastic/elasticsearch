@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -108,7 +97,7 @@ public final class SearchPhaseController {
 
             }
 
-            assert !lEntry.fieldStatistics().containsKey(null);
+            assert lEntry.fieldStatistics().containsKey(null) == false;
             final Object[] keys = lEntry.fieldStatistics().keys;
             final Object[] values = lEntry.fieldStatistics().values;
             for (int i = 0; i < keys.length; i++) {
@@ -275,7 +264,7 @@ public final class SearchPhaseController {
         ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResults, resultsLookup);
         if (reducedQueryPhase.suggest != null) {
-            if (!fetchResults.isEmpty()) {
+            if (fetchResults.isEmpty() == false) {
                 int currentOffset = hits.getHits().length;
                 for (CompletionSuggestion suggestion : reducedQueryPhase.suggest.filter(CompletionSuggestion.class)) {
                     final List<CompletionSuggestion.Entry.Option> suggestionOptions = suggestion.getOptions();
@@ -330,7 +319,7 @@ public final class SearchPhaseController {
         numSearchHits = Math.min(sortedTopDocs.scoreDocs.length, numSearchHits);
         // merge hits
         List<SearchHit> hits = new ArrayList<>();
-        if (!fetchResults.isEmpty()) {
+        if (fetchResults.isEmpty() == false) {
             for (int i = 0; i < numSearchHits; i++) {
                 ScoreDoc shardDoc = sortedTopDocs.scoreDocs[i];
                 SearchPhaseResult fetchResultProvider = resultsLookup.apply(shardDoc.shardIndex);
@@ -428,9 +417,8 @@ public final class SearchPhaseController {
             throw new IllegalStateException(errorMsg);
         }
         validateMergeSortValueFormats(queryResults);
-        final QuerySearchResult firstResult = queryResults.stream().findFirst().get().queryResult();
-        final boolean hasSuggest = firstResult.suggest() != null;
-        final boolean hasProfileResults = firstResult.hasProfileResults();
+        final boolean hasSuggest = queryResults.stream().anyMatch(res -> res.queryResult().suggest() != null);
+        final boolean hasProfileResults =  queryResults.stream().anyMatch(res -> res.queryResult().hasProfileResults());
 
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         final Map<String, List<Suggestion>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
@@ -438,11 +426,16 @@ public final class SearchPhaseController {
             : Collections.emptyMap();
         int from = 0;
         int size = 0;
+        DocValueFormat[] sortValueFormats = null;
         for (SearchPhaseResult entry : queryResults) {
             QuerySearchResult result = entry.queryResult();
             from = result.from();
             // sorted queries can set the size to 0 if they have enough competitive hits.
             size = Math.max(result.size(), size);
+            if (result.sortValueFormats() != null) {
+                sortValueFormats = result.sortValueFormats();
+            }
+
             if (hasSuggest) {
                 assert result.suggest() != null;
                 for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
@@ -477,7 +470,7 @@ public final class SearchPhaseController {
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
             topDocsStats.timedOut, topDocsStats.terminatedEarly, reducedSuggest, aggregations, shardResults, sortedTopDocs,
-            firstResult.sortValueFormats(), numReducePhases, size, from, false);
+            sortValueFormats, numReducePhases, size, from, false);
     }
 
     private static InternalAggregations reduceAggs(InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
@@ -655,7 +648,7 @@ public final class SearchPhaseController {
                 }
             }
             fetchHits += topDocs.topDocs.scoreDocs.length;
-            if (!Float.isNaN(topDocs.maxScore)) {
+            if (Float.isNaN(topDocs.maxScore) == false) {
                 maxScore = Math.max(maxScore, topDocs.maxScore);
             }
             if (timedOut) {

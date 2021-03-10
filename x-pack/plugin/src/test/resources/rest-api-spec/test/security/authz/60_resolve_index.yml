@@ -104,6 +104,12 @@ teardown:
         name: s-data-stream1
   - is_true: acknowledged
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: simple-data-stream1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
   # should return a single data stream because test_user is authorized only for the simple* namespace
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
@@ -113,7 +119,7 @@ teardown:
   - length: { indices: 0 }
   - length: { aliases: 0 }
   - match: { data_streams.0.name: simple-data-stream1 }
-  - match: { data_streams.0.backing_indices.0: .ds-simple-data-stream1-000001 }
+  - match: { data_streams.0.backing_indices.0: $idx0name }
   - match: { data_streams.0.timestamp_field: "@timestamp" }
 
   # should fail because no_authz_user is not authorized for view_index_metadata

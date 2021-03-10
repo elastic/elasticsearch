@@ -1,5 +1,8 @@
 [[search-aggregations-metrics-percentile-aggregation]]
-=== Percentiles Aggregation
+=== Percentiles aggregation
+++++
+<titleabbrev>Percentiles</titleabbrev>
+++++
 
 A `multi-value` metrics aggregation that calculates one or more percentiles
 over numeric values extracted from the aggregated documents. These values can be

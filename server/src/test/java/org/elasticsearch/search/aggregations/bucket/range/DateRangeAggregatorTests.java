@@ -1,24 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -37,6 +28,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -51,14 +43,16 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class DateRangeAggregatorTests extends AggregatorTestCase {
 
     private static final String NUMBER_FIELD_NAME = "number";
     private static final String DATE_FIELD_NAME = "date";
 
-    private Instant t1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant();
-    private Instant t2 = ZonedDateTime.of(2016, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant();
+    private static final Instant T1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant();
+    private static final Instant T2 = ZonedDateTime.of(2016, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant();
 
     public void testNoMatchingField() throws IOException {
         testBothResolutions(new MatchAllDocsQuery(), (iw, resolution) -> {
@@ -76,8 +70,18 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
 
     public void testMatchesSortedNumericDocValues() throws IOException {
         testBothResolutions(new MatchAllDocsQuery(), (iw, resolution) -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, resolution.convert(t1))));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, resolution.convert(t2))));
+            iw.addDocument(
+                List.of(
+                    new SortedNumericDocValuesField(DATE_FIELD_NAME, resolution.convert(T1)),
+                    new LongPoint(DATE_FIELD_NAME, resolution.convert(T1))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new SortedNumericDocValuesField(DATE_FIELD_NAME, resolution.convert(T2)),
+                    new LongPoint(DATE_FIELD_NAME, resolution.convert(T2))
+                )
+            );
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(2, ranges.size());
@@ -89,8 +93,18 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
 
     public void testMatchesNumericDocValues() throws IOException {
         testBothResolutions(new MatchAllDocsQuery(), (iw, resolution) -> {
-            iw.addDocument(singleton(new NumericDocValuesField(DATE_FIELD_NAME, resolution.convert(t1))));
-            iw.addDocument(singleton(new NumericDocValuesField(DATE_FIELD_NAME, resolution.convert(t2))));
+            iw.addDocument(
+                List.of(
+                    new NumericDocValuesField(DATE_FIELD_NAME, resolution.convert(T1)),
+                    new LongPoint(DATE_FIELD_NAME, resolution.convert(T1))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new NumericDocValuesField(DATE_FIELD_NAME, resolution.convert(T2)),
+                    new LongPoint(DATE_FIELD_NAME, resolution.convert(T2))
+                )
+            );
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(2, ranges.size());
@@ -109,8 +123,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             .addRange("2015-11-13", "2015-11-14");
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, t1.toEpochMilli())));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, t2.toEpochMilli())));
+            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, T1.toEpochMilli())));
+            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, T2.toEpochMilli())));
             // Missing will apply to this document
             iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7)));
         }, range -> {
@@ -119,6 +133,46 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             assertEquals(2, ranges.get(0).getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(range));
         }, fieldType);
+    }
+
+    public void testUnboundedRanges() throws IOException {
+        testCase(
+            new RangeAggregationBuilder("name").field(DATE_FIELD_NAME).addUnboundedTo(5).addUnboundedFrom(5),
+            new MatchAllDocsQuery(),
+            iw -> {
+                iw.addDocument(
+                    List.of(new NumericDocValuesField(DATE_FIELD_NAME, Long.MIN_VALUE), new LongPoint(DATE_FIELD_NAME, Long.MIN_VALUE))
+                );
+                iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 7), new LongPoint(DATE_FIELD_NAME, 7)));
+                iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 2), new LongPoint(DATE_FIELD_NAME, 2)));
+                iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 3), new LongPoint(DATE_FIELD_NAME, 3)));
+                iw.addDocument(
+                    List.of(new NumericDocValuesField(DATE_FIELD_NAME, Long.MAX_VALUE), new LongPoint(DATE_FIELD_NAME, Long.MAX_VALUE))
+                );
+            },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertThat(ranges, hasSize(2));
+                assertThat(ranges.get(0).getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+                assertThat(ranges.get(0).getTo(), equalTo(5d));
+                assertThat(ranges.get(0).getDocCount(), equalTo(3L));
+                assertThat(ranges.get(1).getFrom(), equalTo(5d));
+                assertThat(ranges.get(1).getTo(), equalTo(Double.POSITIVE_INFINITY));
+                assertThat(ranges.get(1).getDocCount(), equalTo(2L));
+                assertTrue(AggregationInspectionHelper.hasValue(range));
+            },
+            new DateFieldMapper.DateFieldType(
+                DATE_FIELD_NAME,
+                randomBoolean(),
+                randomBoolean(),
+                true,
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                Resolution.MILLISECONDS,
+                null,
+                Collections.emptyMap()
+            )
+        );
     }
 
     public void  testNumberFieldDateRanges() throws IOException {
@@ -145,8 +199,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
-            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
+            iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 7), new IntPoint(NUMBER_FIELD_NAME, 7)));
+            iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 1), new IntPoint(NUMBER_FIELD_NAME, 1)));
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(1, ranges.size());

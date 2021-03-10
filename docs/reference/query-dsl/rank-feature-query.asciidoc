@@ -27,6 +27,7 @@ query supports the following mathematical functions:
 * <<rank-feature-query-saturation,Saturation>>
 * <<rank-feature-query-logarithm,Logarithm>>
 * <<rank-feature-query-sigmoid,Sigmoid>>
+* <<rank-feature-query-linear,Linear>>
 
 If you don't know where to start, we recommend using the `saturation` function.
 If no function is provided, the `rank_feature` query uses the `saturation`
@@ -126,7 +127,7 @@ The following query searches for `2016` and boosts relevance scores based on
 
 [source,console]
 ----
-GET /test/_search 
+GET /test/_search
 {
   "query": {
     "bool": {
@@ -190,7 +191,7 @@ value of the rank feature `field`. If no function is provided, the `rank_feature
 query defaults to the `saturation` function. See
 <<rank-feature-query-saturation,Saturation>> for more information.
 
-Only one function `saturation`, `log`, or `sigmoid` can be provided.
+Only one function `saturation`, `log`, `sigmoid` or `linear` can be provided.
 --
 
 `log`::
@@ -201,7 +202,7 @@ function used to boost <<relevance-scores,relevance scores>> based on the
 value of the rank feature `field`. See
 <<rank-feature-query-logarithm,Logarithm>> for more information.
 
-Only one function `saturation`, `log`, or `sigmoid` can be provided.
+Only one function `saturation`, `log`, `sigmoid` or `linear` can be provided.
 --
 
 `sigmoid`::
@@ -212,7 +213,18 @@ to boost <<relevance-scores,relevance scores>> based on the value of the
 rank feature `field`. See <<rank-feature-query-sigmoid,Sigmoid>> for more
 information.
 
-Only one function `saturation`, `log`, or `sigmoid` can be provided.
+Only one function `saturation`, `log`, `sigmoid` or `linear` can be provided.
+--
+
+`linear`::
++
+--
+(Optional, <<rank-feature-query-linear,function object>>) Linear function used
+to boost <<relevance-scores,relevance scores>> based on the value of the
+rank feature `field`. See <<rank-feature-query-linear,Linear>> for more
+information.
+
+Only one function `saturation`, `log`, `sigmoid` or `linear` can be provided.
 --
 
 
@@ -307,6 +319,30 @@ GET /test/_search
         "pivot": 7,
         "exponent": 0.6
       }
+    }
+  }
+}
+--------------------------------------------------
+[[rank-feature-query-linear]]
+===== Linear
+The `linear` function is the simplest function, and gives a score equal
+to the indexed value of `S`, where `S` is the value of the rank feature
+field.
+If a rank feature field is indexed with `"positive_score_impact": true`,
+its indexed value is equal to `S` and rounded to preserve only
+9 significant bits for the precision.
+If a rank feature field is indexed with `"positive_score_impact": false`,
+its indexed value is equal to `1/S` and rounded to preserve only 9 significant
+bits for the precision.
+
+[source,console]
+--------------------------------------------------
+GET /test/_search
+{
+  "query": {
+    "rank_feature": {
+      "field": "pagerank",
+      "linear": {}
     }
   }
 }

@@ -57,6 +57,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -647,8 +648,10 @@ public class MetadataIndexTemplateService {
                 if (currentState.metadata().templatesV2().containsKey(name)) {
                     templateNames.add(name);
                 } else {
+                    // wildcards are not supported, so if a name with a wildcard is specified then
+                    // the else clause gets executed, because template names can't contain a wildcard.
                     if (missingNames == null) {
-                        missingNames = new HashSet<>();
+                        missingNames = new LinkedHashSet<>();
                     }
                     missingNames.add(name);
                 }

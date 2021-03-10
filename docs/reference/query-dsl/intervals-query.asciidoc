@@ -189,7 +189,7 @@ edit distance defined by <<fuzziness>>.  If the fuzzy expansion matches more tha
 (Required, string) The term to match
 
 `prefix_length`::
-(Optional, string) Number of beginning characters left unchanged when creating
+(Optional, integer) Number of beginning characters left unchanged when creating
 expansions. Defaults to `0`.
 
 `transpositions`::

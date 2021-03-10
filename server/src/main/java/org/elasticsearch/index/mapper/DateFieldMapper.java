@@ -39,6 +39,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.text.NumberFormat;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -345,6 +346,23 @@ public final class DateFieldMapper extends FieldMapper {
             return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant());
         }
 
+        /**
+         * Format to use to resolve {@link Number}s from the source. Its valid
+         * to send the numbers with up to six digits after the decimal place
+         * and we'll parse them as {@code millis.nanos}. The source
+         * deseralization code isn't particularly careful here and can return
+         * {@link double} instead of the exact string in the {@code _source}.
+         * So we have to *get* that string.
+         * <p>
+         * Nik chose not to use {@link String#format} for this because it feels
+         * a little wasteful. It'd probably be fine but this makes Nik feel a
+         * less bad about the {@code instanceof} and the string allocation.
+         */
+        private static final NumberFormat NUMBER_FORMAT = NumberFormat.getInstance(Locale.ROOT);
+        static {
+            NUMBER_FORMAT.setGroupingUsed(false);
+            NUMBER_FORMAT.setMaximumFractionDigits(6);
+        }
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             DateFormatter defaultFormatter = dateTimeFormatter();
@@ -355,7 +373,8 @@ public final class DateFieldMapper extends FieldMapper {
             return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 public String parseSourceValue(Object value) {
-                    String date = value.toString();
+                    String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
+                    // TODO can we emit a warning if we're losing precision here? I'm not sure we can.
                     long timestamp = parse(date);
                     ZonedDateTime dateTime = resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
                     return formatter.format(dateTime);

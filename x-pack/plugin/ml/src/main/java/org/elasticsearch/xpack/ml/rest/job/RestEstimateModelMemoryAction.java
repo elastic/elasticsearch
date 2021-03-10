@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -23,7 +22,7 @@ public class RestEstimateModelMemoryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(new Route(POST, MachineLearning.BASE_PATH + "anomaly_detectors/_estimate_model_memory"));
+        return List.of(new Route(POST, MachineLearning.BASE_PATH + "anomaly_detectors/_estimate_model_memory"));
     }
 
     @Override

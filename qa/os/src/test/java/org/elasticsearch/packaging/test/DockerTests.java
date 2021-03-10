@@ -60,7 +60,6 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -108,12 +107,7 @@ public class DockerTests extends PackagingTestCase {
     public void test011PresenceOfXpack() throws Exception {
         waitForElasticsearch(installation);
         final int statusCode = Request.Get("http://localhost:9200/_xpack").execute().returnResponse().getStatusLine().getStatusCode();
-
-        if (distribution.isOSS()) {
-            assertThat(statusCode, greaterThanOrEqualTo(400));
-        } else {
-            assertThat(statusCode, equalTo(200));
-        }
+        assertThat(statusCode, equalTo(200));
     }
 
     /**
@@ -286,9 +280,6 @@ public class DockerTests extends PackagingTestCase {
      * Check that the elastic user's password can be configured via a file and the ELASTIC_PASSWORD_FILE environment variable.
      */
     public void test080ConfigurePasswordThroughEnvironmentVariableFile() throws Exception {
-        // Test relies on configuring security
-        assumeTrue(distribution.isDefault());
-
         final String xpackPassword = "hunter2";
         final String passwordFilename = "password.txt";
 
@@ -335,8 +326,6 @@ public class DockerTests extends PackagingTestCase {
      * are followed.
      */
     public void test081SymlinksAreFollowedWithEnvironmentVariableFiles() throws Exception {
-        // Test relies on configuring security
-        assumeTrue(distribution.isDefault());
         // Test relies on symlinks
         assumeFalse(Platforms.WINDOWS);
 
@@ -429,8 +418,6 @@ public class DockerTests extends PackagingTestCase {
      * are followed, and that invalid target permissions are detected.
      */
     public void test084SymlinkToFileWithInvalidPermissionsIsRejected() throws Exception {
-        // Test relies on configuring security
-        assumeTrue(distribution.isDefault());
         // Test relies on symlinks
         assumeFalse(Platforms.WINDOWS);
 
@@ -478,10 +465,6 @@ public class DockerTests extends PackagingTestCase {
      * `docker exec`, where the Docker image's entrypoint is not executed.
      */
     public void test085EnvironmentVariablesAreRespectedUnderDockerExec() throws Exception {
-        // This test relies on a CLI tool attempting to connect to Elasticsearch, and the
-        // tool in question is only in the default distribution.
-        assumeTrue(distribution.isDefault());
-
         installation = runContainer(
             distribution(),
             builder().envVars(Map.of("xpack.security.enabled", "true", "ELASTIC_PASSWORD", "hunter2"))
@@ -508,19 +491,15 @@ public class DockerTests extends PackagingTestCase {
 
         final Path securityCli = installation.lib.resolve("tools").resolve("security-cli");
 
-        if (distribution().isDefault()) {
-            assertTrue(existsInContainer(securityCli));
+        assertTrue(existsInContainer(securityCli));
 
-            Result result = sh.run(bin.certutilTool + " --help");
-            assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
+        Result result = sh.run(bin.certutilTool + " --help");
+        assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
 
-            // Ensure that the exit code from the java command is passed back up through the shell script
-            result = sh.runIgnoreExitCode(bin.certutilTool + " invalid-command");
-            assertThat(result.isSuccess(), is(false));
-            assertThat(result.stdout, containsString("Unknown command [invalid-command]"));
-        } else {
-            assertFalse(existsInContainer(securityCli));
-        }
+        // Ensure that the exit code from the java command is passed back up through the shell script
+        result = sh.runIgnoreExitCode(bin.certutilTool + " invalid-command");
+        assertThat(result.isSuccess(), is(false));
+        assertThat(result.stdout, containsString("Unknown command [invalid-command]"));
     }
 
     /**

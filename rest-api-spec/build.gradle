@@ -321,9 +321,6 @@ tasks.named("yamlRestCompatTest").configure {
     'mtermvectors/30_mix_typeless_typeful/mtermvectors without types on an index that has types',
     'search.aggregation/10_histogram/Deprecated _time order',
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
-    'search.aggregation/20_terms/string profiler via global ordinals',
-    'search.aggregation/20_terms/string profiler via global ordinals filters implementation',
-    'search.aggregation/20_terms/string profiler via global ordinals native implementation',
     'search.aggregation/20_terms/Deprecated _term order',
     'search.aggregation/280_geohash_grid/Basic test',
     'search.aggregation/290_geotile_grid/Basic test',
@@ -338,6 +335,7 @@ tasks.named("yamlRestCompatTest").configure {
     'search/110_field_collapsing/field collapsing, inner_hits and maxConcurrentGroupRequests',
     'search/110_field_collapsing/field collapsing, inner_hits and seq_no',
     'search/110_field_collapsing/field collapsing, inner_hits and version',
+    'search/110_field_collapsing/field collapsing and inner_hits',
     'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once',
     'search/160_exists_query/Test exists query on _type field',
     'search/171_terms_query_with_types/Terms Query with No.of terms exceeding index.max_terms_count should FAIL',
@@ -374,7 +372,6 @@ tasks.named("yamlRestCompatTest").configure {
     'update/61_refresh_with_types/refresh=wait_for waits until changes are visible in search',
     'update/81_source_filtering_with_types/Source filtering',
     'update/90_mix_typeless_typeful/Update call that introduces new field mappings',
-    'update/90_mix_typeless_typeful/Update with typeless API on an index that has types',
-    'napshot.features/10_basic/Get Features' // Temporary until https://github.com/elastic/elasticsearch/pull/69755 is backported
+    'update/90_mix_typeless_typeful/Update with typeless API on an index that has types'
   ].join(',')
 }

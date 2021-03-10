@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,18 +24,19 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig.ID;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics/_explain"),
-            new Route(POST, MachineLearning.BASE_PATH + "data_frame/analytics/_explain"),
-            new Route(
-                GET, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain"),
-            new Route(POST,
-                MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain"));
+            new Route(GET, BASE_PATH + "data_frame/analytics/_explain"),
+            new Route(POST, BASE_PATH + "data_frame/analytics/_explain"),
+            new Route(GET, BASE_PATH + "data_frame/analytics/{" + ID.getPreferredName() + "}/_explain"),
+            new Route(POST, BASE_PATH + "data_frame/analytics/{" + ID.getPreferredName() + "}/_explain")
+        );
     }
 
     @Override
@@ -46,16 +46,16 @@ public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        final String jobId = restRequest.param(DataFrameAnalyticsConfig.ID.getPreferredName());
+        final String jobId = restRequest.param(ID.getPreferredName());
 
         if (Strings.isNullOrEmpty(jobId) && restRequest.hasContentOrSourceParam() == false) {
             throw ExceptionsHelper.badRequestException("Please provide a job [{}] or the config object",
-                DataFrameAnalyticsConfig.ID.getPreferredName());
+                ID.getPreferredName());
         }
 
         if (Strings.isNullOrEmpty(jobId) == false && restRequest.hasContentOrSourceParam()) {
             throw ExceptionsHelper.badRequestException("Please provide either a job [{}] or the config object but not both",
-                DataFrameAnalyticsConfig.ID.getPreferredName());
+                ID.getPreferredName());
         }
 
         // We need to consume the body before returning

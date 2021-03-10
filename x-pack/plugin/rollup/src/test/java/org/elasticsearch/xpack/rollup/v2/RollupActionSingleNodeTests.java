@@ -167,9 +167,9 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
             Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max"))));
         bulkIndex(sourceSupplier);
-        rollup(config);
-        assertRollupIndex(config);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(config));
+        rollup(index, rollupIndex, config);
+        assertRollupIndex(config, index, rollupIndex);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(index, rollupIndex, config));
         assertThat(exception.getMessage(), containsString("Unable to rollup index [" + index + "]"));
     }
 
@@ -184,7 +184,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
             Collections.singletonList(new MetricConfig("numeric_non_existent", Collections.singletonList("max"))));
         bulkIndex(sourceSupplier);
-        expectThrows(ElasticsearchException.class,  () -> rollup(config));
+        expectThrows(ElasticsearchException.class,  () -> rollup(index, rollupIndex, config));
         // assert that temporary index was removed
         expectThrows(IndexNotFoundException.class,
             () -> client().admin().indices().prepareGetIndex().addIndices(".rolluptmp-" + rollupIndex).get());
@@ -202,7 +202,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max"))));
         bulkIndex(sourceSupplier);
         client().execute(RollupAction.INSTANCE, new RollupAction.Request(index, rollupIndex, config), ActionListener.wrap(() -> {}));
-        ResourceAlreadyExistsException exception = expectThrows(ResourceAlreadyExistsException.class, () -> rollup(config));
+        ResourceAlreadyExistsException exception = expectThrows(ResourceAlreadyExistsException.class,
+            () -> rollup(index, rollupIndex, config));
         assertThat(exception.getMessage(), containsString(".rolluptmp-" + rollupIndex));
     }
 
@@ -217,8 +218,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
             Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max"))));
         bulkIndex(sourceSupplier);
-        rollup(config);
-        assertRollupIndex(config);
+        rollup(index, rollupIndex, config);
+        assertRollupIndex(config, index, rollupIndex);
     }
 
     public void testHistogramGrouping() throws IOException {
@@ -233,8 +234,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             new RollupActionGroupConfig(dateHistogramGroupConfig, new HistogramGroupConfig(interval, "numeric_1"), null),
             Collections.singletonList(new MetricConfig("numeric_2", Collections.singletonList("max"))));
         bulkIndex(sourceSupplier);
-        rollup(config);
-        assertRollupIndex(config);
+        rollup(index, rollupIndex, config);
+        assertRollupIndex(config, index, rollupIndex);
     }
 
     public void testMaxMetric() throws IOException {
@@ -247,8 +248,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
             Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max"))));
         bulkIndex(sourceSupplier);
-        rollup(config);
-        assertRollupIndex(config);
+        rollup(index, rollupIndex, config);
+        assertRollupIndex(config, index, rollupIndex);
     }
 
     public void testMinMetric() throws IOException {
@@ -261,8 +262,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
             Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("min"))));
         bulkIndex(sourceSupplier);
-        rollup(config);
-        assertRollupIndex(config);
+        rollup(index, rollupIndex, config);
+        assertRollupIndex(config, index, rollupIndex);
     }
 
     public void testValueCountMetric() throws IOException {
@@ -275,8 +276,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
             Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("value_count"))));
         bulkIndex(sourceSupplier);
-        rollup(config);
-        assertRollupIndex(config);
+        rollup(index, rollupIndex, config);
+        assertRollupIndex(config, index, rollupIndex);
     }
 
     public void testAvgMetric() throws IOException {
@@ -290,8 +291,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
             Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("avg"))));
         bulkIndex(sourceSupplier);
-        rollup(config);
-        assertRollupIndex(config);
+        rollup(index, rollupIndex, config);
+        assertRollupIndex(config, index, rollupIndex);
     }
 
     public void testValidationCheck() throws IOException {
@@ -305,7 +306,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
             Collections.singletonList(new MetricConfig("numeric_nonaggregatable", Collections.singletonList("avg"))));
         bulkIndex(sourceSupplier);
-        Exception e = expectThrows(Exception.class, () -> rollup(config));
+        Exception e = expectThrows(Exception.class, () -> rollup(index, rollupIndex, config));
         assertThat(e.getMessage(), containsString("The field [numeric_nonaggregatable] must be aggregatable"));
     }
 
@@ -367,10 +368,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docCount);
     }
 
-    private void rollup(RollupActionConfig config) {
-        rollup(index, rollupIndex, config);
-    }
-
     private void rollup(String sourceIndex, String rollupIndex, RollupActionConfig config) {
         AcknowledgedResponse rollupResponse = client().execute(RollupAction.INSTANCE,
             new RollupAction.Request(sourceIndex, rollupIndex, config)).actionGet();
@@ -381,10 +378,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         RolloverResponse response = client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get();
         assertTrue(response.isAcknowledged());
         return response;
-    }
-
-    private void assertRollupIndex(RollupActionConfig config) {
-        assertRollupIndex(config, index, rollupIndex);
     }
 
     @SuppressWarnings("unchecked")

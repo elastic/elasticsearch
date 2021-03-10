@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle;
 
-import groovy.lang.Reference;
 import org.apache.commons.io.FileUtils;
 import org.codehaus.groovy.runtime.ResourceGroovyMethods;
 import org.codehaus.groovy.runtime.StringGroovyMethods;
@@ -151,15 +150,15 @@ public class NoticeTask extends DefaultTask {
     @InputFiles
     @Optional
     public FileCollection getNoticeFiles() {
-        final Reference<FileTree> tree = new Reference<>();
-        licensesDirs.forEach(dir -> {
-            if (tree.get() == null) {
-                tree.set(getProject().fileTree(dir));
+        FileTree tree = null;
+        for (File dir : licensesDirs) {
+            if (tree == null) {
+                tree = getProject().fileTree(dir);
             } else {
-                tree.set(tree.get().plus(getProject().fileTree(dir)));
+                tree = tree.plus(getProject().fileTree(dir));
             }
-        });
-        return tree.get().matching(patternFilterable -> patternFilterable.include("**/*-NOTICE.txt"));
+        }
+        return tree == null ? null : tree.matching(patternFilterable -> patternFilterable.include("**/*-NOTICE.txt"));
     }
 
     @InputFiles

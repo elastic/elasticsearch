@@ -60,11 +60,12 @@ In this guide, you'll learn how to:
 
 [IMPORTANT]
 ====
-* In the local cluster, the <<remote-node,`remote_cluster_client`>>
-  <<node-roles,role>> must be configured on nodes with the `master` role, and on
-  at least one data node in the local cluster. Note that individual tasks for
-  coordinating replication scales with the number of data nodes in the local
-  cluster that have the `remote_cluster_client` role.
+In the local cluster, all nodes with the `master` <<node-roles,node role>> must
+also have the <<remote-node,`remote_cluster_client`>> role. The local cluster
+must also have at least one node with both a data role and the
+<<remote-node,`remote_cluster_client`>> role. Individual tasks for coordinating
+replication scale based on the number of data nodes with the `remote_cluster_client`
+role in the local cluster.
 ====
 
 * Create a follower index on a local cluster

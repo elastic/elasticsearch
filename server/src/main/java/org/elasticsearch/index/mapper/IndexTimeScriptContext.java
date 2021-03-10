@@ -58,7 +58,7 @@ public class IndexTimeScriptContext {
     private IndexTimeScriptContext(MappingLookup mappingLookup, ParseContext pc) {
         this.searchLookup = new SearchLookup(
             mappingLookup::getFieldType,
-            (ft, s) -> ft.fielddataBuilder("", s).build(
+            (ft, s) -> ft.fielddataBuilder(pc.indexSettings().getIndex().getName(), s).build(
                 new IndexFieldDataCache.None(),
                 new NoneCircuitBreakerService())
         );

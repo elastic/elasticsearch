@@ -17,6 +17,7 @@ import org.elasticsearch.runtimefields.mapper.DoubleFieldScript;
 import org.elasticsearch.runtimefields.mapper.LongFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -109,6 +110,40 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
         assertEquals(doc.rootDoc().getField("message_length_plus_four").numericValue(), 21d);
     }
 
+    public void testCannotIndexDirectlyIntoScriptMapper() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("message").field("type", "text").endObject();
+            b.startObject("message_length");
+            b.field("type", "long");
+            b.field("script", "length");
+            b.endObject();
+        }));
+
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+            b.field("message", "foo");
+            b.field("message_length", 3);
+        })));
+        assertEquals("failed to parse field [message_length] of type [long] in document with id '1'. Preview of field's value: '3'",
+            e.getMessage());
+        Throwable original = e.getCause();
+        assertEquals("Cannot index data directly into scripted field", original.getMessage());
+    }
+
+    @Ignore("This currently doesn't fail properly - should it?")
+    public void testCannotReferToRuntimeFields() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startObject("runtime");
+            b.startObject("runtime-field").field("type", "long").endObject();
+            b.endObject();
+            b.startObject("properties");
+            b.startObject("index-field").field("type", "long").field("script", "refer_to_runtime").endObject();
+            b.endObject();
+        }));
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source(b -> {})));
+        assertEquals("Cannot reference runtime field [runtime-field] in an index-time script", e.getMessage());
+    }
+
     public static class TestScriptPlugin extends Plugin implements ScriptPlugin {
 
         @Override
@@ -152,6 +187,13 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
                                     public void execute() {
                                         long input = (long) getDoc().get("message_length").get(0);
                                         emit(input + 2);
+                                    }
+                                };
+                            case "refer_to_runtime":
+                                return (FactoryType) (LongFieldScript.Factory) (n, p, l) -> ctx -> new LongFieldScript(n, p, l, ctx) {
+                                    @Override
+                                    public void execute() {
+                                        emit((long) getDoc().get("runtime-field").get(0));
                                     }
                                 };
                         }

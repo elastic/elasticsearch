@@ -1134,6 +1134,11 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
+
+        if (this.script != null) {
+            throw new IllegalArgumentException("Cannot index data directly into scripted field");
+        }
+
         XContentParser parser = context.parser();
         Object value;
         Number numericValue = null;

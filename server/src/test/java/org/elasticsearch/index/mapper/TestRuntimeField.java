@@ -20,7 +20,7 @@ public class TestRuntimeField extends RuntimeFieldType {
     private final String type;
 
     public TestRuntimeField(String name, String type) {
-        super(name, Collections.emptyMap(), null);
+        super(name, Collections.emptyMap(), (b, p) -> {});
         this.type = type;
     }
 

@@ -151,7 +151,7 @@ public class TransformStats implements Writeable, ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeString(id);
             // 7.13 introduced the waiting state, in older version report the state as started
-            if (out.getVersion().before(Version.V_8_0_0) && state.equals(State.WAITING)) {   // TODO: V_7_13_0
+            if (out.getVersion().before(Version.V_7_13_0) && state.equals(State.WAITING)) {
                 out.writeEnum(State.STARTED);
             } else {
                 out.writeEnum(state);

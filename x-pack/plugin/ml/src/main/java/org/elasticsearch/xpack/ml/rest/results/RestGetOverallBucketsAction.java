@@ -14,13 +14,13 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction.Request;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.core.ml.job.config.Job.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetOverallBucketsAction extends BaseRestHandler {
@@ -28,8 +28,8 @@ public class RestGetOverallBucketsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() + "}/results/overall_buckets"),
-            new Route(POST, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() + "}/results/overall_buckets")
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/overall_buckets"),
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/overall_buckets")
         );
     }
 
@@ -40,7 +40,7 @@ public class RestGetOverallBucketsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String jobId = restRequest.param(ID.getPreferredName());
+        String jobId = restRequest.param(Job.ID.getPreferredName());
         final Request request;
         if (restRequest.hasContentOrSourceParam()) {
             XContentParser parser = restRequest.contentOrSourceParamParser();

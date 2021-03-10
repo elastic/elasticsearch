@@ -59,7 +59,7 @@ public class JobNodeSelector {
     private static String createReason(String job, String node, String msg, Object... params) {
         String preamble =  String.format(
             Locale.ROOT,
-            "Not opening job [%s] on node [%s], because ",
+            "Not opening job [%s] on node [%s]. Reason: ",
             job,
             node);
         return preamble + ParameterizedMessage.format(msg, params);
@@ -93,7 +93,7 @@ public class JobNodeSelector {
             if (MachineLearning.isMlNode(node)) {
                 return (nodeFilter != null) ? nodeFilter.apply(node) : null;
             }
-            return createReason(jobId, nodeNameOrId(node), "this node isn't a ml node.");
+            return createReason(jobId, nodeNameOrId(node), "This node isn't a machine learning node.");
         };
     }
 
@@ -177,7 +177,7 @@ public class JobNodeSelector {
             if (currentLoad.getNumAllocatingJobs() >= maxConcurrentJobAllocations) {
                 reason = createReason(jobId,
                     nodeNameAndMlAttributes(node),
-                    "node exceeds [{}] the maximum number of jobs [{}] in opening state",
+                    "Node exceeds [{}] the maximum number of jobs [{}] in opening state.",
                     currentLoad.getNumAllocatingJobs(),
                     maxConcurrentJobAllocations);
                 logger.trace(reason);
@@ -189,7 +189,7 @@ public class JobNodeSelector {
             if (availableCount == 0) {
                 reason = createReason(jobId,
                     nodeNameAndMlAttributes(node),
-                    "this node is full. Number of opened jobs [{}], {} [{}]",
+                    "This node is full. Number of opened jobs [{}], {} [{}].",
                     currentLoad.getNumAssignedJobs(),
                     MAX_OPEN_JOBS_PER_NODE.getKey(),
                     maxNumberOfOpenJobs);
@@ -216,9 +216,9 @@ public class JobNodeSelector {
                         if (estimatedMemoryFootprint > availableMemory) {
                             reason = createReason(jobId,
                                 nodeNameAndMlAttributes(node),
-                                "this node has insufficient available memory. Available memory for ML [{} ({})], "
+                                "This node has insufficient available memory. Available memory for ML [{} ({})], "
                                     + "memory required by existing jobs [{} ({})], "
-                                    + "estimated memory required for this job [{} ({})]",
+                                    + "estimated memory required for this job [{} ({})].",
                                 currentLoad.getMaxMlMemory(),
                                 ByteSizeValue.ofBytes(currentLoad.getMaxMlMemory()).toString(),
                                 currentLoad.getAssignedJobMemory(),

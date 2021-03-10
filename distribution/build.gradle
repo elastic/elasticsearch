@@ -61,10 +61,6 @@ def buildDefaultNoticeTaskProvider = tasks.register("buildDefaultNotice", Notice
   licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
 
-def buildOssNoticeTaskProvider = tasks.register("buildOssNotice", NoticeTask) {
-  licensesDir new File(project(':distribution').projectDir, 'licenses')
-}
-
 def buildDefaultNoJdkNoticeTaskProvider = tasks.register("buildDefaultNoJdkNotice", NoticeTask)
 
 def buildOssNoJdkNoticeTaskProvider = tasks.register("buildOssNoJdkNotice", NoticeTask)
@@ -88,13 +84,8 @@ String systemdOutputs = 'build/outputs/systemd'
 String transportOutputs = 'build/outputs/transport-only'
 String externalTestOutputs = 'build/outputs/external-test'
 
-def processOssOutputsTaskProvider = tasks.register("processOssOutputs", Sync) {
-  into ossOutputs
-}
-
 def processDefaultOutputsTaskProvider = tasks.register("processDefaultOutputs", Sync) {
   into defaultOutputs
-  from processOssOutputsTaskProvider
 }
 
 def processSystemdOutputsTaskProvider = tasks.register("processSystemdOutputs", Sync) {
@@ -111,35 +102,21 @@ def processTransportOutputsTaskProvider = tasks.register("processTransportOutput
   into transportOutputs
 }
 
-// these are dummy tasks that can be used to depend on the relevant sub output dir
-def buildOssModulesTaskProvider = tasks.register("buildOssModules") {
-  dependsOn processOssOutputsTaskProvider
-  outputs.dir "${ossOutputs}/modules"
+def defaultModulesFiles = fileTree("${defaultOutputs}/modules") {
+  builtBy processDefaultOutputsTaskProvider
 }
-tasks.register("buildOssBin") {
-  dependsOn "processOssOutputs"
-  outputs.dir "${ossOutputs}/bin"
+
+def defaultBinFiles = fileTree("${defaultOutputs}/bin") {
+  builtBy processDefaultOutputsTaskProvider
 }
-tasks.register("buildOssConfig") {
-  dependsOn "processOssOutputs"
-  outputs.dir "${ossOutputs}/config"
+def defaultConfigFiles = fileTree("${defaultOutputs}/config") {
+  builtBy processDefaultOutputsTaskProvider
 }
-def buildDefaultModulesTaskProvider = tasks.register("buildDefaultModules") {
-  dependsOn processDefaultOutputsTaskProvider
-  outputs.dir "${defaultOutputs}/modules"
+
+def systemdModuleFiles = fileTree("${systemdOutputs}/modules") {
+  builtBy processSystemdOutputsTaskProvider
 }
-tasks.register("buildDefaultBin") {
-  dependsOn processDefaultOutputsTaskProvider
-  outputs.dir "${defaultOutputs}/bin"
-}
-def buildDefaultConfigTaskProvider = tasks.register("buildDefaultConfig") {
-  dependsOn processOssOutputsTaskProvider
-  outputs.dir "${defaultOutputs}/config"
-}
-def buildSystemdModuleTaskProvider = tasks.register("buildSystemdModule") {
-  dependsOn "processSystemdOutputs"
-  outputs.dir "${systemdOutputs}/modules"
-}
+
 def buildTransportModulesTaskProvider = tasks.register("buildTransportModules") {
   dependsOn processTransportOutputsTaskProvider
   outputs.dir "${transportOutputs}/modules"
@@ -185,7 +162,6 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
 
 // log4j config could be contained in modules, so we must join it together using these tasks
 def buildOssLog4jConfigTaskProvider = tasks.register("buildOssLog4jConfig") {
-  dependsOn "processOssOutputs"
   ext.contents = []
   ext.log4jFile = file("${ossOutputs}/log4j2.properties")
   outputs.file log4jFile
@@ -198,7 +174,8 @@ def buildDefaultLog4jConfigTaskProvider = tasks.register("buildDefaultLog4jConfi
 }
 
 Closure writeLog4jProperties = {
-  String mainLog4jProperties = file('src/config/log4j2.properties').getText('UTF-8')
+  def file = file('src/config/log4j2.properties')
+  String mainLog4jProperties = file.getText('UTF-8')
   it.log4jFile.setText(mainLog4jProperties, 'UTF-8')
   for (String moduleLog4jProperties : it.contents.reverse()) {
     it.log4jFile.append(moduleLog4jProperties, 'UTF-8')
@@ -248,13 +225,9 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
       licensesDir licenses
       source module.file('src/main/java')
     }
-    buildOssNoticeTaskProvider.configure {
-      licensesDir licenses
-      source module.file('src/main/java')
-    }
   }
 
-  copyModule(processOssOutputsTaskProvider, module)
+  copyModule(processDefaultOutputsTaskProvider, module)
   if (module.name.startsWith('transport-')) {
     copyModule(processTransportOutputsTaskProvider, module)
   }
@@ -337,7 +310,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles = { oss ->
+    libFiles = { testDistro ->
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from(configurations.libs)
@@ -347,7 +320,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         into('tools/keystore-cli') {
           from(configurations.libsKeystoreCli)
         }
-        if (oss == false) {
+        if (testDistro == false) {
           into('tools/security-cli') {
             from(configurations.libsSecurityCli)
           }
@@ -372,7 +345,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         } else {
           excludePlatforms = []
         }
-        from(buildDefaultModulesTaskProvider) {
+        from(defaultModulesFiles) {
           // geo registers the geo_shape mapper that is overridden by
           // the geo_shape mapper registered in the x-pack-spatial plugin
           exclude "**/geo/**"
@@ -385,7 +358,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from(buildExternalTestModulesTaskProvider)
         }
         if (project.path.startsWith(':distribution:packages')) {
-          from(buildSystemdModuleTaskProvider)
+          from(systemdModuleFiles)
         }
       }
     }
@@ -394,25 +367,24 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       from buildTransportModulesTaskProvider
     }
 
-    configFiles = { distributionType, oss, jdk ->
+    configFiles = { distributionType, testDistro, jdk ->
       copySpec {
         with copySpec {
           // main config files, processed with distribution specific substitutions
           from '../src/config'
           exclude 'log4j2.properties' // this is handled separately below
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, testDistro, jdk))
         }
-        if (oss) {
-          from project(':distribution').buildOssLog4jConfig
-          from project(':distribution').buildOssConfig
+        if (testDistro) {
+          from buildOssLog4jConfigTaskProvider
         } else {
-          from project(':distribution').buildDefaultLog4jConfig
-          from project(':distribution').buildDefaultConfig
+          from buildDefaultLog4jConfigTaskProvider
+          from defaultConfigFiles
         }
       }
     }
 
-    binFiles = { distributionType, oss, jdk ->
+    binFiles = { distributionType, testDistro, jdk ->
       copySpec {
         // non-windows files, for all distributions
         with copySpec {
@@ -420,7 +392,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           exclude '*.exe'
           exclude '*.bat'
           eachFile { it.setMode(0755) }
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, testDistro, jdk))
         }
         // windows files, only for zip
         if (distributionType == 'zip') {
@@ -428,7 +400,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             from '../src/bin'
             include '*.bat'
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
+            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, testDistro, jdk))
           }
           with copySpec {
             from '../src/bin'
@@ -438,10 +410,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // module provided bin files
         with copySpec {
           eachFile { it.setMode(0755) }
-          if (oss) {
-            from project(':distribution').buildOssBin
-          } else {
-            from project(':distribution').buildDefaultBin
+          if(testDistro == false) {
+            from(defaultBinFiles)
           }
           if (distributionType != 'zip') {
             exclude '*.bat'
@@ -450,9 +420,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    noticeFile = { oss, jdk ->
+    noticeFile = { testDistro, jdk ->
       copySpec {
-        if (project.name == 'integ-test-zip') {
+        if (testDistro) {
           from buildServerNoticeTaskProvider
         } else {
          if (jdk) {
@@ -517,14 +487,14 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
  * </dl>
  */
 subprojects {
-  ext.expansionsForDistribution = { distributionType, oss, jdk ->
+  ext.expansionsForDistribution = { distributionType, testDistro, jdk ->
     final String packagingPathData = "path.data: /var/lib/elasticsearch"
     final String pathLogs = "/var/log/elasticsearch"
     final String packagingPathLogs = "path.logs: ${pathLogs}"
     final String packagingLoggc = "${pathLogs}/gc.log"
 
     String licenseText
-    if (oss) {
+    if (testDistro) {
       licenseText = rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
     } else {
       licenseText = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
@@ -595,7 +565,7 @@ subprojects {
       ],
 
       'es.distribution.flavor': [
-        'def': oss ? 'oss' : 'default'
+        'def': testDistro ? 'oss' : 'default'
       ],
 
       'es.distribution.type': [
@@ -610,7 +580,7 @@ subprojects {
       ],
 
       'license.name': [
-        'deb': oss ? 'ASL-2.0' : 'Elastic-License'
+        'deb': testDistro ? 'ASL-2.0' : 'Elastic-License'
       ],
 
       'license.text': [

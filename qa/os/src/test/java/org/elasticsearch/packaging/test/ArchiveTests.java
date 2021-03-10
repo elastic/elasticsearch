@@ -26,7 +26,6 @@ import static java.nio.file.StandardOpenOption.CREATE;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
-import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
@@ -364,22 +363,18 @@ public class ArchiveTests extends PackagingTestCase {
     public void test90SecurityCliPackaging() throws Exception {
         final Installation.Executables bin = installation.executables();
 
-        if (distribution().isDefault()) {
-            assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileExists());
-            final Platforms.PlatformAction action = () -> {
-                Result result = sh.run(bin.certutilTool + " --help");
-                assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
+        assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileExists());
+        final Platforms.PlatformAction action = () -> {
+            Result result = sh.run(bin.certutilTool + " --help");
+            assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
 
-                // Ensure that the exit code from the java command is passed back up through the shell script
-                result = sh.runIgnoreExitCode(bin.certutilTool + " invalid-command");
-                assertThat(result.exitCode, is(not(0)));
-                assertThat(result.stderr, containsString("Unknown command [invalid-command]"));
-            };
-            Platforms.onLinux(action);
-            Platforms.onWindows(action);
-        } else {
-            assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileDoesNotExist());
-        }
+            // Ensure that the exit code from the java command is passed back up through the shell script
+            result = sh.runIgnoreExitCode(bin.certutilTool + " invalid-command");
+            assertThat(result.exitCode, is(not(0)));
+            assertThat(result.stderr, containsString("Unknown command [invalid-command]"));
+        };
+        Platforms.onLinux(action);
+        Platforms.onWindows(action);
     }
 
     public void test91ElasticsearchShardCliPackaging() throws Exception {
@@ -390,11 +385,8 @@ public class ArchiveTests extends PackagingTestCase {
             assertThat(result.stdout, containsString("A CLI tool to remove corrupted parts of unrecoverable shards"));
         };
 
-        // TODO: this should be checked on all distributions
-        if (distribution().isDefault()) {
-            Platforms.onLinux(action);
-            Platforms.onWindows(action);
-        }
+        Platforms.onLinux(action);
+        Platforms.onWindows(action);
     }
 
     public void test92ElasticsearchNodeCliPackaging() throws Exception {
@@ -405,11 +397,8 @@ public class ArchiveTests extends PackagingTestCase {
             assertThat(result.stdout, containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
         };
 
-        // TODO: this should be checked on all distributions
-        if (distribution().isDefault()) {
-            Platforms.onLinux(action);
-            Platforms.onWindows(action);
-        }
+        Platforms.onLinux(action);
+        Platforms.onWindows(action);
     }
 
     public void test93ElasticsearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
@@ -446,10 +435,7 @@ public class ArchiveTests extends PackagingTestCase {
             assertThat(result.stdout, containsString("Manages elasticsearch file users"));
         };
 
-        // TODO: this should be checked on all distributions
-        if (distribution().isDefault()) {
-            Platforms.onLinux(action);
-            Platforms.onWindows(action);
-        }
+        Platforms.onLinux(action);
+        Platforms.onWindows(action);
     }
 }

@@ -332,6 +332,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public Settings additionalSettings() {
+        // TODO: TRANSFORM_ENABLED_NODE_ATTR has been deprecated in 7.x, remove for 8.0
         String transformEnabledNodeAttribute = "node.attr." + TRANSFORM_ENABLED_NODE_ATTR;
 
         if (settings.get(transformEnabledNodeAttribute) != null) {

@@ -262,8 +262,10 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 new DiscoveryNode(
                     "dedicated-transform-node",
                     buildNewFakeTransportAddress(),
-                    transformNodeAttributes,
-                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)),
+                    Collections.emptyMap(),
+                    new HashSet<>(
+                        Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE, Transform.TRANSFORM_ROLE)
+                    ),
                     Version.CURRENT
                 )
             );
@@ -274,10 +276,12 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 new DiscoveryNode(
                     "past-data-node-1",
                     buildNewFakeTransportAddress(),
-                    transformNodeAttributes,
+                    Collections.emptyMap(),
                     new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE,
                         DiscoveryNodeRole.MASTER_ROLE,
-                        DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)),
+                        DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+                        Transform.TRANSFORM_ROLE)
+                        ),
                     Version.V_7_7_0
                 )
             );
@@ -288,8 +292,10 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 new DiscoveryNode(
                     "current-data-node-with-2-tasks",
                     buildNewFakeTransportAddress(),
-                    transformNodeAttributes,
-                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)),
+                    Collections.emptyMap(),
+                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+                        Transform.TRANSFORM_ROLE
+                        )),
                     Version.CURRENT
                 )
             )
@@ -297,8 +303,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     new DiscoveryNode(
                         "current-data-node-with-1-tasks",
                         buildNewFakeTransportAddress(),
-                        transformNodeAttributes,
-                        new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)),
+                        Collections.emptyMap(),
+                        new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE, Transform.TRANSFORM_ROLE)),
                         Version.CURRENT
                     )
                 );
@@ -309,8 +315,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 new DiscoveryNode(
                     "current-data-node-with-0-tasks-transform-remote-disabled",
                     buildNewFakeTransportAddress(),
-                    transformNodeAttributes,
-                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
+                    Collections.emptyMap(),
+                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, Transform.TRANSFORM_ROLE)),
                     Version.CURRENT
                 )
             );
@@ -321,7 +327,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 new DiscoveryNode(
                     "current-data-node-with-transform-disabled",
                     buildNewFakeTransportAddress(),
-                    transformNodeAttributesDisabled,
+                    Collections.emptyMap(),
                     Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE),
                     Version.CURRENT
                 )

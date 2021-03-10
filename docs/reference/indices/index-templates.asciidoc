@@ -31,7 +31,7 @@ templates.
 * If a new data stream or index matches more than one index template, the index
 template with the highest priority is used.
 
-.Using index templates with {fleet} or the {agent}
+.Using index templates with {fleet} or {agent}
 ****
 // tag::built-in-index-templates[]
 [IMPORTANT]
@@ -70,12 +70,11 @@ for `logs-*-*`.
 
 [discrete]
 [[create-index-templates]]
-== Create composable index templates
+== Create index template
 
-To create a component template from Stack Management in {kib}, select
-*Index Management* in the side navigation and choose *Component Templates*. You
-can then define the index settings, mappings, and alias configurations for the
-component template.
+To create an index template from Stack Management in {kib}, select
+*Index Management* in the side navigation, choose *Index Templates*, and click *Create Template*. You
+can then select the component templates you want to use, or define the index settings, mappings, and alias configurations directly.
 
 When defining mappings, you can add mapped fields and create
 <<runtime-mapping-fields,runtime fields>>. These fields work like any other
@@ -85,9 +84,9 @@ and add the runtime field to the mappings. When you create the runtime field,
 you optionally specify a Painless script. If you don't include a script,
 runtime fields retrieve values from `_source`.
 
-You can also use the <<indices-component-template,put component template API>>
-to create or update a component template. The following requests create two
-composable templates.
+You can also use the <<indices-put-template, index template>> and <<indices-component-template,put component template>> APIs to create and update index templates.
+The following requests create two
+component templates.
 
 [source,console]
 ----
@@ -125,12 +124,11 @@ PUT _component_template/runtime_component_template
   }
 }
 ----
-<1> This composable template adds a runtime field named `day_of_week` to the
+<1> This component template adds a runtime field named `day_of_week` to the
 mappings when a new index matches the template.
 
-The following request creates an index template that contains the previous
-composable templates. Specify `"composed_of"` in the request to indicate the
-component templates that this index template contains.
+The following request creates an index template that is _composed of_  these
+component templates. 
 
 [source,console]
 ----

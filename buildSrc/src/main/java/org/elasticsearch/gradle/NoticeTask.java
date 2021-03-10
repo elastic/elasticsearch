@@ -90,7 +90,8 @@ public class NoticeTask extends DefaultTask {
         FileCollection noticeFiles = getNoticeFiles();
         if(noticeFiles != null) {
             for (File file : getNoticeFiles()) {
-                String name = file.getName().replaceFirst(" -NOTICE\\.txt$ ", "");
+                String name = file.getName().replaceFirst("-NOTICE\\.txt$", "");
+                System.out.println("name = " + name);
                 if (seen.containsKey(name)) {
                     File prevFile = seen.get(name);
                     String previousFileText = readFileToString(prevFile, "UTF-8");

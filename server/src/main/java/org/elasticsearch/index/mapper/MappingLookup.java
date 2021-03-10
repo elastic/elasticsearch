@@ -161,7 +161,7 @@ public class MappingLookup {
         return fieldMappers.get(field);
     }
 
-    FieldTypeLookup fieldTypes() {
+    FieldTypeLookup fieldTypesLookup() {
         return fieldTypeLookup;
     }
 
@@ -177,6 +177,13 @@ public class MappingLookup {
      */
     public Iterable<Mapper> fieldMappers() {
         return fieldMappers.values();
+    }
+
+    /**
+     * Returns the registered mapped field types.
+     */
+    public Collection<MappedFieldType> fieldTypes() {
+        return fieldTypeLookup.get();
     }
 
     void checkLimits(IndexSettings settings) {
@@ -268,14 +275,14 @@ public class MappingLookup {
     }
 
     public Set<String> simpleMatchToFullName(String pattern) {
-        return fieldTypes().simpleMatchToFullName(pattern);
+        return fieldTypesLookup().simpleMatchToFullName(pattern);
     }
 
     /**
      * Returns the mapped field type for the given field name.
      */
     public MappedFieldType getFieldType(String field) {
-        return fieldTypes().get(field);
+        return fieldTypesLookup().get(field);
     }
 
     /**
@@ -291,7 +298,7 @@ public class MappingLookup {
      * @return A set of paths in the _source that contain the field's values.
      */
     public Set<String> sourcePaths(String field) {
-        return fieldTypes().sourcePaths(field);
+        return fieldTypesLookup().sourcePaths(field);
     }
 
     public ParsedDocument parseDocument(SourceToParse source) {
@@ -314,6 +321,6 @@ public class MappingLookup {
     }
 
     public String getType() {
-        return fieldTypes().getType();
+        return fieldTypesLookup().getType();
     }
 }

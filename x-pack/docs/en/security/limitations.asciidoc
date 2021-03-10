@@ -98,7 +98,7 @@ group membership.
 
 The result of <<async-search,async search>> and <<scroll-api,scroll>> requests can be retrieved later
 by the same user or API key that submitted the initial request. The verification process involves comparing
-the username, authentication realm type, and (for realms other than file, native or kerberos) realm name.
+the username, authentication realm type, and (for realms other than file or native) realm name.
 If you used an API key to submit the request, only that key can retrieve the results.
 This logic also has a few limitations:
 

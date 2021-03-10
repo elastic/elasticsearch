@@ -247,21 +247,20 @@ public abstract class RollupActionDateHistogramGroupConfig implements Writeable,
                     if (fieldCaps.get(dateType).isAggregatable()) {
                         return;
                     } else {
-                        validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
+                        validationException.addValidationError("The field [" + field + "] must be aggregatable, " +
                             "but is not.");
                     }
                 }
             }
             if (matchesDateType == false) {
                 validationException.addValidationError("The field referenced by a date_histo group must be one of type [" +
-                    Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES) + "] across all " +
-                    "indices in the index pattern.  Found: " + fieldCaps.keySet().toString() + " for field [" + field + "]");
+                    Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES) + "]." +
+                    " Found: " + fieldCaps.keySet().toString() + " for field [" + field + "]");
             }
         } else {
             validationException.addValidationError("Could not find one of [" +
                 Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES) + "] fields with name [" +
-                field + "] in any of the indices matching " +
-                "the index pattern.");
+                field + "].");
         }
     }
 

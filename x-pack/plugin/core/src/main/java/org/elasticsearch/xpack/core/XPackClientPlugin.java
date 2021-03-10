@@ -158,6 +158,7 @@ import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
+import org.elasticsearch.xpack.core.rollup.migration.RollupMigrationAction;
 import org.elasticsearch.xpack.core.runtimefields.RuntimeFieldsFeatureSetUsage;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -421,6 +422,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
         if (RollupV2.isEnabled()) {
             actions.add(RollupIndexerAction.INSTANCE);
             actions.add(RollupAction.INSTANCE);
+            actions.add(RollupMigrationAction.INSTANCE);
         }
 
         return actions;

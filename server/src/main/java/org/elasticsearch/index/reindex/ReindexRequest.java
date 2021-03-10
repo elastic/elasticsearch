@@ -63,7 +63,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         this(new SearchRequest(), new IndexRequest(), true);
     }
 
-    ReindexRequest(SearchRequest search, IndexRequest destination) {
+    public ReindexRequest(SearchRequest search, IndexRequest destination) {
         this(search, destination, true);
     }
 

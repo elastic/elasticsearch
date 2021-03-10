@@ -48,6 +48,8 @@ import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
+import org.elasticsearch.xpack.core.rollup.migration.RollupMigrationAction;
+import org.elasticsearch.xpack.core.rollup.migration.TransportRollupMigrationAction;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.rollup.action.TransportDeleteRollupJobAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupCapsAction;
@@ -149,6 +151,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         if (RollupV2.isEnabled()) {
             actions.add(new ActionHandler<>(RollupIndexerAction.INSTANCE, TransportRollupIndexerAction.class));
             actions.add(new ActionHandler<>(RollupAction.INSTANCE, TransportRollupAction.class));
+            actions.add(new ActionHandler<>(RollupMigrationAction.INSTANCE, TransportRollupMigrationAction.class));
         }
 
         return actions;

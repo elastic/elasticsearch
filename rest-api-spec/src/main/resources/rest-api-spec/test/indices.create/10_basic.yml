@@ -136,8 +136,8 @@
 ---
 "Create with alias containing date math":
   - skip:
-      version: " - 7.99.99"
-      reason: "set skip version to 7.12.99 when backported"
+      version: " - 7.12.99"
+      reason: "date math support for aliases was added in 7.13"
   - do:
       indices.create:
         index: <logs_http_{2022-12-31||/d{yyyy-MM-dd}}>

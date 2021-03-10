@@ -9,7 +9,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
@@ -260,8 +260,8 @@ public class XContentSubParser implements XContentParser {
     }
 
     @Override
-    public RestApiCompatibleVersion getRestApiCompatibleVersion() {
-        return parser.getRestApiCompatibleVersion();
+    public RestApiVersion getRestApiVersion() {
+        return parser.getRestApiVersion();
     }
 
     @Override

@@ -53,8 +53,10 @@ POST /my-index-000001/_rollup/rollup-my-index-000001
 
 * You can only roll up an index that contains:
 
-** A <<date,`date`>> or <<date_nanos,`date_nanos`>> timestamp field
-** One or more <<number,numeric>> fields
+** A <<date,`date`>> or <<date_nanos,`date_nanos`>> timestamp field.
+** At least one metric to roll up. This field must be a <<number,numeric>>,
+  `date`, or `date_nanos` field other than the timestamp field. This field
+  cannot be an `unsigned_long`.
 
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-indices,index privilege>> for the index you roll up.
@@ -85,7 +87,7 @@ for the same stream.
 // tag::rollup-config[]
 `groups`::
 (Required, object)
-Aggregates and stores fields in the rollup.
+Aggregates and groups documents in the rollup.
 +
 .Properties of `groups`
 [%collapsible%open]
@@ -104,6 +106,9 @@ Groups documents based on a provided time interval.
 <<date,`date`>> or <<date_nanos,`date_nanos`>> field containing a timestamp. If
 you're rolling up a backing index or using the {ecs-ref}[Elastic Common Schema
 (ECS)], we recommend using `@timestamp`.
++
+WARNING: Do not use this field in `metrics`. If you do, the rollup attempt will
+fail.
 
 `calendar_interval` or `fixed_interval`::
 (Required, <<time-units,time units>>)
@@ -125,18 +130,18 @@ Defaults to `+00:00` (UTC).
 `histogram`::
 (Optional, <<search-aggregations-bucket-histogram-aggregation,`histogram`
 aggregation>> object)
-Groups and stores <<number,numeric>> field values based on a provided interval.
+Groups documents based on a numeric interval.
 +
 .Properties of `histogram`
 [%collapsible%open]
 ======
 `fields`::
 (Required*, string or array of strings)
-<<number,Numeric>> fields to group. If you specify a `histogram` object, this
-property is required.
+<<number,Numeric>> fields to group. `unsigned_long` fields are not supported. If
+you specify a `histogram` object, this property is required.
 +
-WARNING: Do not use the same fields in `histogram` and `metrics`. If you specify
-the same field in both `histogram` and `metrics`, the rollup attempt will fail.
+WARNING: Do not use these fields in `metrics`. If you do, the rollup attempt
+will fail.
 
 `interval`::
 (Required*, integer)
@@ -147,36 +152,44 @@ object, this property is required.
 `terms`::
 (Optional, <<search-aggregations-bucket-terms-aggregation,`terms`
 aggregation>> object)
-Groups and stores unique values for <<keyword,keyword family>> and
-<<number,numeric>> fields.
+Groups documents based on unique field values.
 +
 .Properties of `terms`
 [%collapsible%open]
 ======
 `fields`::
-(Required*, string or array of strings)
-<<keyword,Keyword family>> and <<number,numeric>> fields to store. If you
-specify a `terms` object, this property is required.
 +
+--
+(Required*, string or array of strings)
+Fields to store unique values for. Supports the following field types:
+
+* <<keyword,Keyword family>> types
+* <<number,Numeric>> types, excluding `unsigned_long`
+* <<text,`text`>> fields with <<fielddata-mapping-param,`fielddata`>> enabled
+
+If you specify a `terms` object, this property is required.
+
 TIP: Avoid storing high-cardinality fields. High-cardinality fields can greatly
 increase the size of the resulting rollup index.
+--
 ======
 =====
 
 `metrics`::
 (Required, object or array of objects)
-Collects and stores metrics for <<number,numeric>> fields. You must specify at
-least one `metrics` object.
+Collects and stores metrics for fields. You must specify at least one `metrics`
+object.
 +
 .Properties of `metrics` objects
 [%collapsible%open]
 =====
 `field`::
 (Required, string)
-<<number,Numeric>> field to collect metrics for.
+<<number,Numeric>>, <<date,`date`>>, or <<date_nanos,`date_nanos`>> field to
+collect metrics for. `unsigned_long` fields are not supported.
 +
-WARNING: Do not use the same fields in `histogram` and `metrics`. If you specify
-the same field in both `histogram` and `metrics`, the rollup attempt will fail.
+WARNING: Do not use fields specified in `histogram` or `date_histogram`. If you
+do, the rollup attempt will fail.
 
 `metrics`::
 (Required, string or array of strings)
@@ -186,8 +199,9 @@ Metrics to collect. Each value corresponds to a
 <<search-aggregations-metrics-max-aggregation,`max`>>,
 <<search-aggregations-metrics-sum-aggregation,`sum`>>,
 <<search-aggregations-metrics-avg-aggregation,`avg`>>, and
-<<search-aggregations-metrics-valuecount-aggregation,`value_count`>>. You must
-specify at least one value.
+<<search-aggregations-metrics-valuecount-aggregation,`value_count`>>. <<date,`date`>> and <<date_nanos,`date_nanos`>>
+fields only support the `max`, `min`, and `value_count` metrics. You must specify
+at least one value.
 +
 NOTE: The rollup index stores these metrics in an
 <<aggregate-metric-double,`aggregate_metric_double`>> field. The `avg` metric

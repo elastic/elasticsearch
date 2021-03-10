@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
@@ -38,7 +39,6 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
 public class RestSqlQueryAction extends BaseRestHandler {
 
     private final SqlMediaTypeParser sqlMediaTypeParser = new SqlMediaTypeParser();
-    MediaType responseMediaType;
 
     @Override
     public List<Route> routes() {
@@ -59,12 +59,24 @@ public class RestSqlQueryAction extends BaseRestHandler {
             sqlRequest = SqlQueryRequest.fromXContent(parser);
         }
 
-        responseMediaType = sqlMediaTypeParser.getResponseMediaType(request, sqlRequest);
+        MediaType responseMediaType = sqlMediaTypeParser.getResponseMediaType(request, sqlRequest);
         if (responseMediaType == null) {
             String msg = String.format(Locale.ROOT, "Invalid response content type: Accept=[%s], Content-Type=[%s], format=[%s]",
                 request.header("Accept"), request.header("Content-Type"), request.param("format"));
             throw new IllegalArgumentException(msg);
         }
+
+        /*
+         * Special handling for the "delimiter" parameter which should only be
+         * checked for being present or not in the case of CSV format. We cannot
+         * override {@link BaseRestHandler#responseParams()} because this
+         * parameter should only be checked for CSV, not always.
+         */
+        if ((responseMediaType instanceof XContentType || ((TextFormat) responseMediaType) != TextFormat.CSV)
+            && request.hasParam(URL_PARAM_DELIMITER)) {
+            throw new IllegalArgumentException(unrecognized(request, Collections.singleton(URL_PARAM_DELIMITER), emptySet(), "parameter"));
+        }
+
         long startNanos = System.nanoTime();
         return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
             @Override
@@ -78,11 +90,10 @@ public class RestSqlQueryAction extends BaseRestHandler {
                     response.toXContent(builder, request);
                     restResponse = new BytesRestResponse(RestStatus.OK, builder);
                 } else { // TextFormat
-                    TextFormat type = (TextFormat)responseMediaType;
+                    TextFormat type = (TextFormat) responseMediaType;
                     final String data = type.format(request, response);
 
-                    restResponse = new BytesRestResponse(RestStatus.OK, type.contentType(request),
-                        data.getBytes(StandardCharsets.UTF_8));
+                    restResponse = new BytesRestResponse(RestStatus.OK, type.contentType(request), data.getBytes(StandardCharsets.UTF_8));
 
                     if (response.hasCursor()) {
                         restResponse.addHeader("Cursor", response.cursor());
@@ -97,7 +108,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return responseMediaType == TextFormat.CSV ? Collections.singleton(URL_PARAM_DELIMITER) : Collections.emptySet();
+        return Collections.singleton(URL_PARAM_DELIMITER);
     }
 
     @Override

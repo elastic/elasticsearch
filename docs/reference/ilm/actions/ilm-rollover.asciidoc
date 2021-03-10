@@ -84,6 +84,29 @@ shard is a primary (`p`) or a replica (`r`).
 [[ilm-rollover-ex]]
 ==== Example
 
+[[ilm-rollover-primar-shardsize-ex]]
+===== Roll over based on largest primary shard size
+
+This example rolls the index over when its largest primary shard is at least 50 gigabytes.
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover" : {
+            "max_primary_shard_size": "50GB"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
 [[ilm-rollover-size-ex]]
 ===== Roll over based on index size
 

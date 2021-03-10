@@ -87,8 +87,8 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
-    private List<Job.Builder> jobs = new ArrayList<>();
-    private List<DatafeedConfig> datafeeds = new ArrayList<>();
+    private final List<Job.Builder> jobs = new ArrayList<>();
+    private final List<DatafeedConfig> datafeeds = new ArrayList<>();
 
     @Override
     protected void cleanUpResources() {
@@ -290,17 +290,25 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     }
 
     protected void waitForecastToFinish(String jobId, String forecastId) throws Exception {
-        waitForecastStatus(jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
+        // Forecasts can take an eternity to complete in the FIPS JVM
+        waitForecastStatus(inFipsJvm() ? 300 : 60, jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
     }
 
     protected void waitForecastStatus(String jobId,
+                                      String forecastId,
+                                      ForecastRequestStats.ForecastRequestStatus... status) throws Exception {
+        waitForecastStatus(30, jobId, forecastId, status);
+    }
+
+    protected void waitForecastStatus(int maxWaitTimeSeconds,
+                                      String jobId,
                                       String forecastId,
                                       ForecastRequestStats.ForecastRequestStatus... status) throws Exception {
         assertBusy(() -> {
             ForecastRequestStats forecastRequestStats = getForecastStats(jobId, forecastId);
             assertThat(forecastRequestStats, is(notNullValue()));
             assertThat(forecastRequestStats.getStatus(), in(status));
-        }, 60, TimeUnit.SECONDS);
+        }, maxWaitTimeSeconds, TimeUnit.SECONDS);
     }
 
     protected void assertThatNumberOfAnnotationsIsEqualTo(int expectedNumberOfAnnotations) throws IOException {

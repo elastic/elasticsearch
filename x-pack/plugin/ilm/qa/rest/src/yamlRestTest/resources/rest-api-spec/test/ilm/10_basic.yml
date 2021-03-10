@@ -276,3 +276,32 @@ setup:
                }
              }
            }
+
+---
+"Test increasing phase timings validated":
+
+  - do:
+      catch: /phases \[delete\] configure a \[min_age\] value less than the \[min_age\] of \[10s\] for the \[warm\] phase/
+      ilm.put_lifecycle:
+        policy: "bad_policy"
+        body: |
+           {
+             "policy": {
+               "phases": {
+                 "warm": {
+                   "min_age": "10s",
+                   "actions": {
+                     "forcemerge": {
+                       "max_num_segments": 10000
+                     }
+                   }
+                 },
+                 "delete": {
+                   "min_age": "5s",
+                   "actions": {
+                     "delete": {}
+                   }
+                 }
+               }
+             }
+           }

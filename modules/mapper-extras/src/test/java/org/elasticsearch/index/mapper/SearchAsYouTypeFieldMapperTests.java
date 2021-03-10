@@ -56,6 +56,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -744,5 +745,11 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         final Mapper mapper = defaultMapper.mappers().getMapper(fieldName);
         assertThat(mapper, instanceOf(PrefixFieldMapper.class));
         return (PrefixFieldMapper) mapper;
+    }
+
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        assumeFalse("We don't have doc values or fielddata", true);
+        return null;
     }
 }

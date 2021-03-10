@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.analytics.mapper;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -292,5 +294,11 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         );
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("[counts] elements must be >= 0 but got -3"));
+    }
+
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

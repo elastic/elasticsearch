@@ -984,4 +984,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
         return sb.toString();
     }
+
+    @Override
+    protected Supplier<Comparable<?>> randomFetchTestValueVendor(MappedFieldType ft) {
+        return () -> randomAlphaOfLengthBetween(1, 100);
+    }
 }

@@ -67,7 +67,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1078,5 +1080,19 @@ public class TextFieldMapperTests extends MapperTestCase {
         merge(mapperService, newField);
         assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
         assertThat(mapperService.documentMapper().mappers().getMapper("other_field"), instanceOf(KeywordFieldMapper.class));
+    }
+
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        /*
+         * We only expect fetching text fields to line up with their fieldata
+         * if the field data if the analysis chain doesn't modiy it at all.
+         */
+        return () -> randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", "text").field("fielddata", true); // Enable field data so we can compare
     }
 }

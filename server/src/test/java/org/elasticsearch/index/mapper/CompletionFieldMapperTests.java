@@ -41,6 +41,7 @@ import org.hamcrest.core.CombinableMatcher;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -778,4 +779,9 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         };
     }
 
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        assumeFalse("We don't have doc values or fielddata", true);
+        return null;
+    }
 }

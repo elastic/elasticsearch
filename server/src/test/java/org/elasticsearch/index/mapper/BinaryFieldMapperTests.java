@@ -16,10 +16,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -117,5 +119,24 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             Object originalValue = fieldType.valueForDisplay(indexedValue);
             assertEquals(new BytesArray(value), originalValue);
         }
+    }
+
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        assumeFalse("We can't parse the binary doc values we send", true);
+        // AwaitsFix https://github.com/elastic/elasticsearch/issues/70244
+        // One of these two should work:
+//        return () -> Base64.getEncoder().encode(randomByteArrayOfLength(between(1, 30)));
+        return () -> DocValueFormat.BINARY.format(new BytesRef(randomByteArrayOfLength(between(1, 30))));
+        /*
+         * but they don't produce the same results. DocValueFormat.BINARY doesn't
+         * include trailing padding (looks like `=`) while Base64.getEncoder does.
+         * The parser needs the padding.
+         */
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", "binary").field("doc_values", true); // enable doc_values so the test is happy
     }
 }

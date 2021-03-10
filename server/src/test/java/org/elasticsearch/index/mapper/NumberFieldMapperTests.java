@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.index.termvectors.TermVectorsService;
@@ -23,6 +24,7 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -286,5 +288,45 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             source(b -> b.rawField("field", new BytesArray("9223372036854775808").streamInput(), XContentType.JSON))
         );
         assertEquals(0, doc.rootDoc().getFields("field").length);
+    }
+
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        return randomFetchValueVendor(((NumberFieldType) ft).numericType());
+    }
+
+    @Override
+    protected String randomFetchTestFormat() {
+        return null;
+        /*
+         * Fetching docvalues supports a format here but the native fields
+         * fetcher doesn't.
+         */
+        // https://github.com/elastic/elasticsearch/issues/70263
+//        if (randomBoolean()) {
+//            return null;
+//        }
+//        String format = (randomBoolean() ? "#" : "0").repeat(between(1, 100));
+//        if (randomBoolean()) {
+//            format += "." + (randomBoolean() ? "#" : "0").repeat(between(1, 100));
+//        }
+//        return format;
+    }
+
+    public void testFetchShort() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> b.startObject("field").field("type", "short").endObject()));
+        MappedFieldType ft = mapperService.fieldType("field");
+        assertFetch(mapperService, "field", randomFetchTestValueVendor(ft).get(), randomFetchTestFormat());
+    }
+
+    public void testFetchHalfFloat() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> b.startObject("field").field("type", "half_float").endObject()));
+        MappedFieldType ft = mapperService.fieldType("field");
+        assertFetch(mapperService, "field", randomFetchTestValueVendor(ft).get(), randomFetchTestFormat());
+    }
+
+    public void testFetchFloat() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> b.startObject("field").field("type", "float").endObject()));
+        MappedFieldType ft = mapperService.fieldType("field");
+        assertFetch(mapperService, "field", randomFetchTestValueVendor(ft).get(), randomFetchTestFormat());
     }
 }

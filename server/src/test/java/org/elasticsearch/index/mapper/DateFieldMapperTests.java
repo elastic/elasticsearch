@@ -15,6 +15,7 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.search.DocValueFormat;
 
@@ -25,6 +26,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -487,6 +489,49 @@ public class DateFieldMapperTests extends MapperTestCase {
             new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION)),
             "strict_date_optional_time_nanos"
         );
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", randomBoolean() ? "date" : "date_nanos");
+    }
+
+    @Override
+    protected String randomFetchTestFormat() {
+        switch (randomInt(2)) {
+            case 0:
+                return null;
+            case 1:
+                return "epoch_millis";
+            case 2:
+                return "iso8601";
+            default:
+                throw new IllegalStateException();
+        }
+    }
+
+    @Override
+    protected Supplier<Comparable<?>> randomFetchTestValueVendor(MappedFieldType ft) {
+        switch (((DateFieldType) ft).resolution()) {
+            case MILLISECONDS:
+                if (randomBoolean()) {
+                    return () -> randomIs8601Nanos(MAX_ISO_DATE);
+                }
+                return () -> randomLongBetween(0, Long.MAX_VALUE);
+            case NANOSECONDS:
+                switch (randomInt(2)) {
+                    case 0:
+                        return () -> randomLongBetween(0, MAX_NANOS);
+                    case 1:
+                        return () -> randomIs8601Nanos(MAX_NANOS);
+                    case 2:
+                        return () -> new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION));
+                    default:
+                        throw new IllegalStateException();
+                }
+            default:
+                throw new IllegalStateException();
+        }
     }
 
     private MapperService dateNanosMapperService() throws IOException {

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -26,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -127,5 +129,29 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
                 + "Preview of field's value: '{array_name=[inner_field_first, inner_field_second]}'",
             ex.getMessage()
         );
+    }
+
+    @Override
+    protected Supplier<String> randomFetchTestValueVendor(MappedFieldType ft) {
+        if (randomBoolean()) {
+            return this::randomVersionNumber;
+        }
+        return () -> randomVersionNumber() + randomPrerelease();
+    }
+
+    private String randomVersionNumber() {
+        int numbers = between(1, 3);
+        String v = Integer.toString(between(0, 100));
+        for (int i = 1; i < numbers; i++) {
+            v += "." + between(0, 100);
+        }
+        return v;
+    }
+
+    private String randomPrerelease() {
+        if (rarely()) {
+            return randomFrom("alpha", "beta", "prerelease", "whatever");
+        }
+        return randomFrom("alpha", "beta", "") + randomVersionNumber();
     }
 }

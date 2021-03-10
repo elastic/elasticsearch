@@ -18,8 +18,10 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 public class BooleanFieldMapperTests extends MapperTestCase {
 
@@ -161,5 +163,10 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         fields = doc.getFields("bool3");
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
         assertEquals(DocValuesType.SORTED_NUMERIC, fields[1].fieldType().docValuesType());
+    }
+
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        return ESTestCase::randomBoolean;
     }
 }

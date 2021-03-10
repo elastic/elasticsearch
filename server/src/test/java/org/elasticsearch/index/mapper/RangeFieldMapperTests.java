@@ -17,12 +17,14 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
@@ -343,5 +345,30 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             () -> createMapperService(fieldMapping(b -> b.field("type", "date_range").array("format", "test_format")))
         );
         assertThat(e.getMessage(), containsString("Invalid format: [[test_format]]: Unknown pattern letter: t"));
+    }
+
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        RangeType rt = ((RangeFieldType) ft).rangeType();
+        // Doc value fetching crashes.
+        // https://github.com/elastic/elasticsearch/issues/70269
+        assumeFalse("DocValuesFetcher doesn't work", true);
+        if (rt.isNumeric()) {
+            Supplier<Number> numbers = randomFetchValueVendor(rt.numberType().numericType());
+            return () -> {
+                Number lhs = numbers.get();
+                Number rhs = numbers.get();
+                // All the number subclasses we get are comparable to each other
+                @SuppressWarnings("unchecked")
+                Comparable<Number> hack = (Comparable<Number>) lhs;
+                if (hack.compareTo(rhs) > 0) {
+                    Number swap = lhs;
+                    lhs = rhs;
+                    rhs = swap;
+                }
+                return Map.of(randomBoolean() ? "gt" : "gte", lhs, randomBoolean() ? "lt" : "lte", rhs);
+            };
+        }
+        throw new UnsupportedOperationException("unsupported field type: " + ft);
     }
 }

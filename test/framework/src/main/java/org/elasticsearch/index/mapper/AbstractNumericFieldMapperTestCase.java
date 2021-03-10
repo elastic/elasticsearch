@@ -7,8 +7,14 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.HalfFloatPoint;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.test.ESTestCase;
+
 import java.io.IOException;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.hasItem;
 
@@ -77,4 +83,44 @@ public abstract class AbstractNumericFieldMapperTestCase extends MapperTestCase 
     }
 
     protected abstract void doTestNullValue(String type) throws IOException;
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", randomFrom(types()));
+    }
+
+    protected Supplier<Number> randomFetchValueVendor(NumericType nt) {
+        switch (nt) {
+            case BYTE:
+                return ESTestCase::randomByte;
+            case SHORT:
+                return ESTestCase::randomShort;
+            case INT:
+                return ESTestCase::randomInt;
+            case LONG:
+                return ESTestCase::randomLong;
+            case HALF_FLOAT:
+                /*
+                 * The native valueFetcher returns 32 bits of precision but the
+                 * doc values fetcher returns 16 bits of precision. To make it
+                 * all line up we round 
+                 */
+                // https://github.com/elastic/elasticsearch/issues/70260
+                return () -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
+            case FLOAT:
+                /*
+                 * The source parser and doc values round trip will both reduce
+                 * the precision to 32 bits if the value is more precise.
+                 */
+                return randomBoolean() ? () -> randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true) : ESTestCase::randomFloat;
+            case DOUBLE:
+                /*
+                 * The source parser and doc values round trip will both increase
+                 * the precision to 64 bits if the value is less precise.
+                 */
+                return randomBoolean() ? () -> randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : ESTestCase::randomFloat;
+            default:
+                throw new UnsupportedOperationException();
+        }
+    }
 }

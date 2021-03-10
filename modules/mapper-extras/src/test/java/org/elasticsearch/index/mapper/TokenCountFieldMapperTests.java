@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -176,5 +177,23 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     private ParseContext.Document parseDocument(DocumentMapper mapper, SourceToParse request) {
         return mapper.parse(request)
             .docs().stream().findFirst().orElseThrow(() -> new IllegalStateException("Test object not parsed"));
+    }
+
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        return () -> {
+            int words = between(1, 1000);
+            StringBuilder b = new StringBuilder(words * 5);
+            b.append(randomAlphaOfLength(4));
+            for (int w = 1; w < words; w++) {
+                b.append(' ').append(randomAlphaOfLength(4));
+            }
+            return b.toString();
+        };
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", "token_count").field("analyzer", "standard");
     }
 }

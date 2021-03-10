@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
@@ -107,5 +108,11 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
         })));
         assertEquals("[rank_features] fields do not support indexing multiple values for the same rank feature [foo.field.bar] in " +
                 "the same document", e.getCause().getMessage());
+    }
+
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -225,5 +226,11 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
     protected void assertSearchable(MappedFieldType fieldType) {
         //always searchable even if it uses TextSearchInfo.NONE
         assertTrue(fieldType.isSearchable());
+    }
+
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

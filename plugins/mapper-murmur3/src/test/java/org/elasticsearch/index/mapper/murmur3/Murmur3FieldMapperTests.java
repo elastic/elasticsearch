@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugin.mapper.MapperMurmur3Plugin;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Supplier;
 
 public class Murmur3FieldMapperTests extends MapperTestCase {
 
@@ -56,4 +58,9 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
     }
 
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
+    }
 }

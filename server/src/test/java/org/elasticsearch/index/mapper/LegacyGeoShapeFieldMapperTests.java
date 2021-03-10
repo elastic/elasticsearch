@@ -28,6 +28,7 @@ import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
@@ -608,5 +609,16 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     protected void assertSearchable(MappedFieldType fieldType) {
         //always searchable even if it uses TextSearchInfo.NONE
         assertTrue(fieldType.isSearchable());
+    }
+
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
+    }
+
+    @Override
+    protected void assertFetchWarnings() {
+        assertFieldWarnings("strategy");
     }
 }

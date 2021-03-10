@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -280,4 +281,13 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         assertEquals(0, fields.length);
     }
 
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        assumeFalse("docvalue_fields is broken", true);
+        // https://github.com/elastic/elasticsearch/issues/70276
+        /*
+         * docvalue_fields loads garbage bytes.
+         */
+        return () -> randomAlphaOfLength(5);
+    }
 }

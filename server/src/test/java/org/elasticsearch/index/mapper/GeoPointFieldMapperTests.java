@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -330,5 +331,11 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     protected void assertSearchable(MappedFieldType fieldType) {
         //always searchable even if it uses TextSearchInfo.NONE
         assertTrue(fieldType.isSearchable());
+    }
+
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

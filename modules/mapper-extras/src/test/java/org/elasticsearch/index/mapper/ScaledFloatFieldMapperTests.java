@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
@@ -271,4 +272,14 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             containsString("Failed to parse mapping: unknown parameter [index_options] on mapper [field] of type [scaled_float]"));
     }
 
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        // Large floats are a terrible idea but the round trip should still work no matter how badly you configure the field
+        b.field("type", "scaled_float").field("scaling_factor", randomDoubleBetween(0, Float.MAX_VALUE, true));
+    }
+
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        return () -> randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+    }
 }

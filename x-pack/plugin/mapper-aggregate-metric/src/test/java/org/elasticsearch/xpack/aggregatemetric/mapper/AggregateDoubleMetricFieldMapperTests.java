@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.IGNORE_MALFORMED;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.METRICS;
@@ -527,5 +528,11 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         assertEquals("field." + defaultMetric, fieldExistsQuery.getField());
         assertDocValuesField(fields, "field." + defaultMetric);
         assertNoFieldNamesField(fields);
+    }
+
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

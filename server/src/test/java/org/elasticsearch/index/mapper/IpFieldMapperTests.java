@@ -17,11 +17,13 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -201,5 +203,10 @@ public class IpFieldMapperTests extends MapperTestCase {
             b.field("null_value", ":1");
         }));
         assertWarnings("Error parsing [:1] as IP in [null_value] on field [field]); [null_value] will be ignored");
+    }
+
+    @Override
+    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        return () -> NetworkAddress.format(randomIp(randomBoolean()));
     }
 }

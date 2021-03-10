@@ -372,7 +372,6 @@ tasks.named("yamlRestCompatTest").configure {
     'update/61_refresh_with_types/refresh=wait_for waits until changes are visible in search',
     'update/81_source_filtering_with_types/Source filtering',
     'update/90_mix_typeless_typeful/Update call that introduces new field mappings',
-    'update/90_mix_typeless_typeful/Update with typeless API on an index that has types',
-    'napshot.features/10_basic/Get Features' // Temporary until https://github.com/elastic/elasticsearch/pull/69755 is backported
+    'update/90_mix_typeless_typeful/Update with typeless API on an index that has types'
   ].join(',')
 }

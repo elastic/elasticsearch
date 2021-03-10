@@ -8,9 +8,11 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
@@ -33,12 +35,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.ingest.geoip.GeoIpProcessorFactoryTests.copyDatabaseFiles;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
+@LuceneTestCase.SuppressFileSystems(value = "ExtrasFS") // Don't randomly add 'extra' files to directory.
 public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
 
     /**
@@ -48,10 +52,11 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
      * This failure can be avoided by ensuring that a database is only closed when no
      * geoip processor instance is using the related {@link DatabaseReaderLazyLoader} instance
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69980")
     public void test() throws Exception {
+        Path geoIpModulesDir = createTempDir();
+        Path geoIpConfigDir = createTempDir();
         Path geoIpTmpDir = createTempDir();
-        DatabaseRegistry databaseRegistry = createDatabaseRegistry(geoIpTmpDir);
+        DatabaseRegistry databaseRegistry = createRegistry(geoIpModulesDir, geoIpConfigDir, geoIpTmpDir);
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
         Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
             geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
@@ -101,6 +106,13 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                     DatabaseReaderLazyLoader previous1 = databaseRegistry.get("GeoLite2-City.mmdb");
                     if (Files.exists(geoIpTmpDir.resolve("GeoLite2-City.mmdb"))) {
                         databaseRegistry.removeStaleEntries(List.of("GeoLite2-City.mmdb"));
+                        assertBusy(() -> {
+                            // lazy loader may still be in use by an ingest thread,
+                            // wait for any potential ingest thread to release the lazy loader (DatabaseReaderLazyLoader#postLookup(...)),
+                            // this will do clean it up and actually deleting the underlying file
+                            assertThat(Files.exists(geoIpTmpDir.resolve("GeoLite2-City.mmdb")), is(false));
+                            assertThat(previous1.current(), equalTo(-1));
+                        });
                     } else {
                         Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
                             geoIpTmpDir.resolve("GeoLite2-City.mmdb"), StandardCopyOption.REPLACE_EXISTING);
@@ -146,13 +158,14 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         for (DatabaseReaderLazyLoader lazyLoader : databaseRegistry.getAllDatabases()) {
             assertThat(lazyLoader.current(), equalTo(0));
         }
+        // Avoid accumulating many temp dirs while running with -Dtests.iters=X
+        IOUtils.rm(geoIpModulesDir, geoIpConfigDir, geoIpTmpDir);
     }
 
-    private static DatabaseRegistry createDatabaseRegistry(Path geoIpTmpDir) throws IOException {
-        Path geoIpDir = createTempDir();
-        copyDatabaseFiles(geoIpDir);
+    private static DatabaseRegistry createRegistry(Path geoIpModulesDir, Path geoIpConfigDir, Path geoIpTmpDir) throws IOException {
+        copyDatabaseFiles(geoIpModulesDir);
         GeoIpCache cache = new GeoIpCache(0);
-        LocalDatabases localDatabases = new LocalDatabases(geoIpDir, createTempDir(), cache);
+        LocalDatabases localDatabases = new LocalDatabases(geoIpModulesDir, geoIpConfigDir, cache);
         DatabaseRegistry databaseRegistry =
             new DatabaseRegistry(geoIpTmpDir, mock(Client.class), cache, localDatabases, Runnable::run);
         databaseRegistry.initialize(mock(ResourceWatcherService.class), mock(IngestService.class));

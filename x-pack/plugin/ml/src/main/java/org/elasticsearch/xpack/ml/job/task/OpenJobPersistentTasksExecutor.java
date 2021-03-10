@@ -114,7 +114,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             return AWAITING_MIGRATION;
         }
         boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
-        Optional<Assignment> optionalAssignment = getPotentialAssignment(params, clusterState);
+        Optional<Assignment> optionalAssignment = getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
         if (optionalAssignment.isPresent()) {
             return optionalAssignment.get();
         }

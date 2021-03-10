@@ -1,9 +1,14 @@
 [role="xpack"]
 [testenv="basic"]
 [[logstash-api-delete-pipeline]]
-=== Delete Pipeline API
+=== Delete {ls} pipeline API
+++++
+<titleabbrev>Delete {ls} pipeline</titleabbrev>
+++++
 
-This API deletes Pipelines used for Logstash Central Management.
+This API deletes a pipeline used for
+{logstash-ref}/logstash-centralized-pipeline-management.html[{ls} Central
+Management].
 
 [[logstash-api-delete-pipeline-request]]
 ==== {api-request-title}
@@ -19,7 +24,7 @@ This API deletes Pipelines used for Logstash Central Management.
 [[logstash-api-delete-pipeline-desc]]
 ==== {api-description-title}
 
-Delete a Logstash Pipelines.
+Deletes a {ls} pipeline.
 
 [[logstash-api-delete-pipeline-params]]
 ==== {api-path-parms-title}

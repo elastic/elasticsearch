@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
@@ -68,6 +69,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -106,6 +108,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.action.support.IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -121,16 +124,37 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static final Version INDEX_GEN_IN_REPO_DATA_VERSION = Version.V_7_9_0;
 
-    public static final Version REPOSITORY_UUID_IN_REPO_DATA_VERSION = Version.V_7_12_0;
-
-    // TODO: fold this into #REPOSITORY_UUID_IN_REPO_DATA_VERSION and remove separate handling of uuid and clusterUUID BwC where possible
-    public static final Version CLUSTER_UUID_IN_REPO_DATA_VERSION = Version.V_8_0_0;
+    public static final Version UUIDS_IN_REPO_DATA_VERSION = Version.V_7_12_0;
 
     public static final Version OLD_SNAPSHOT_FORMAT = Version.V_7_5_0;
+
+    public static final Version FEATURE_STATES_VERSION = Version.V_7_12_0;
 
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
     public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
+
+    public static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
+
+    public static final Setting<ByteSizeValue> SHARED_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "range_size",
+        ByteSizeValue.ofMb(16),                                 // default
+        Setting.Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "region_size",
+        SHARED_CACHE_RANGE_SIZE_SETTING,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "size",
+        ByteSizeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
+    public static final String CACHE_FILE_NAME = "shared_snapshot_cache";
+
+    public static final String NO_FEATURE_STATES_VALUE = "none";
 
     private final ClusterService clusterService;
 
@@ -163,6 +187,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final OngoingRepositoryOperations repositoryOperations = new OngoingRepositoryOperations();
 
+    private final Map<String, SystemIndices.Feature> systemIndexDescriptorMap;
+
     /**
      * Setting that specifies the maximum number of allowed concurrent snapshot create and delete operations in the
      * cluster state. The number of concurrent operations in a cluster state is defined as the sum of the sizes of
@@ -174,7 +200,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private volatile int maxConcurrentOperations;
 
     public SnapshotsService(Settings settings, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
-                            RepositoriesService repositoriesService, TransportService transportService, ActionFilters actionFilters) {
+                            RepositoriesService repositoriesService, TransportService transportService, ActionFilters actionFilters,
+                            Map<String, SystemIndices.Feature> systemIndexDescriptorMap) {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.repositoriesService = repositoriesService;
@@ -191,6 +218,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
                 i -> maxConcurrentOperations = i);
         }
+        this.systemIndexDescriptorMap = systemIndexDescriptorMap;
     }
 
     /**
@@ -227,6 +255,44 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             return;
         }
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
+
+        // We should only use the feature states logic if we're sure we'll be able to finish the snapshot without a lower-version
+        // node taking over and causing problems. Therefore, if we're in a mixed cluster with versions that don't know how to handle
+        // feature states, skip all feature states logic, and if `feature_states` is explicitly configured, throw an exception.
+        final List<String> requestedStates = Arrays.asList(request.featureStates());
+        final Version initialMinNodeVersion = clusterService.state().nodes().getMinNodeVersion();
+        final Set<String> featureStatesSet;
+        if (initialMinNodeVersion.onOrAfter(FEATURE_STATES_VERSION)) {
+            if (request.includeGlobalState() || requestedStates.isEmpty() == false) {
+                if (request.includeGlobalState() && requestedStates.isEmpty()) {
+                    // If we're including global state and feature states aren't specified, include all of them
+                    featureStatesSet = systemIndexDescriptorMap.keySet();
+                } else if (requestedStates.size() == 1 && NO_FEATURE_STATES_VALUE.equalsIgnoreCase(requestedStates.get(0))) {
+                    // If there's exactly one value and it's "none", include no states
+                    featureStatesSet = Collections.emptySet();
+                } else {
+                    // Otherwise, check for "none" then use the list of requested states
+                    if (requestedStates.contains(NO_FEATURE_STATES_VALUE)) {
+                        listener.onFailure(new IllegalArgumentException("the feature_states value [" +
+                                SnapshotsService.NO_FEATURE_STATES_VALUE + "] indicates that no feature states should be snapshotted, " +
+                                "but other feature states were requested: " + requestedStates));
+                        return;
+                    }
+                    featureStatesSet = new HashSet<>(requestedStates);
+                    featureStatesSet.retainAll(systemIndexDescriptorMap.keySet());
+                }
+            } else {
+                featureStatesSet = Collections.emptySet();
+            }
+        } else if (requestedStates.isEmpty() == false) {
+            listener.onFailure(new SnapshotException(snapshot, "feature_states can only be used when all nodes in cluster are version ["
+                    + FEATURE_STATES_VERSION + "] or higher, but at least one node in this cluster is on version ["
+                    + initialMinNodeVersion + "]"));
+            return;
+        } else {
+            featureStatesSet = Collections.emptySet();
+        }
+
         final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
@@ -245,6 +311,34 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 ensureBelowConcurrencyLimit(repositoryName, snapshotName, snapshots, deletionsInProgress);
                 // Store newSnapshot here to be processed in clusterStateProcessed
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
+
+                final List<SnapshotFeatureInfo> featureStates;
+                // if we have any feature states in the snapshot, we add their required indices to the snapshot indices if they haven't
+                // been requested by the request directly
+                if (featureStatesSet.isEmpty()) {
+                    featureStates = Collections.emptyList();
+                } else {
+                    final Set<String> indexNames = new HashSet<>(indices);
+                    featureStates = featureStatesSet.stream()
+                            .map(feature -> new SnapshotFeatureInfo(feature,
+                                    systemIndexDescriptorMap.get(feature).getIndexDescriptors().stream()
+                                            .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
+                                            .collect(Collectors.toList())))
+                            .filter(featureInfo -> featureInfo.getIndices().isEmpty() == false) // Omit any empty featureStates
+                            .collect(Collectors.toList());
+                    for (SnapshotFeatureInfo featureState : featureStates) {
+                        indexNames.addAll(featureState.getIndices());
+                    }
+
+                    // Add all resolved indices from the feature states to the list of indices
+                    for (String feature : featureStatesSet) {
+                        for (String pattern : systemIndexDescriptorMap.get(feature).getAssociatedIndexPatterns()) {
+                            Collections.addAll(indexNames, indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(
+                                    currentState, LENIENT_EXPAND_OPEN_CLOSED_HIDDEN, pattern));
+                        }
+                    }
+                    indices = List.copyOf(indexNames);
+                }
 
                 final List<String> dataStreams =
                         indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices());
@@ -270,7 +364,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 newEntry = SnapshotsInProgress.startedEntry(
                         new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), request.partial(),
-                        indexIds, dataStreams, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards, userMeta, version);
+                        indexIds, dataStreams, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
+                        userMeta, version, featureStates);
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
                         SnapshotsInProgress.of(CollectionUtils.appendToCopy(runningSnapshots, newEntry))).build();
             }
@@ -687,8 +782,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         break;
                     }
                 }
-                if (missingIndex == false) {
-                    dataStreams.put(dataStreamName, dataStream);
+                final DataStream reconciled = missingIndex ? dataStream.snapshot(indicesInSnapshot) : dataStream;
+                if (reconciled != null) {
+                    dataStreams.put(dataStreamName, reconciled);
                 }
             }
         }
@@ -1146,9 +1242,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             final String failure = entry.failure();
             final Snapshot snapshot = entry.snapshot();
             logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
+            final ShardGenerations shardGenerations = buildGenerations(entry, metadata);
+            final List<String> finalIndices = shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList());
+            final Set<String> indexNames = new HashSet<>(finalIndices);
             ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardStatus : entry.shards()) {
                 ShardId shardId = shardStatus.key;
+                if (indexNames.contains(shardId.getIndexName()) == false) {
+                    assert entry.partial() : "only ignoring shard failures for concurrently deleted indices for partial snapshots";
+                    continue;
+                }
                 ShardSnapshotStatus status = shardStatus.value;
                 final ShardState state = status.state();
                 if (state.failed()) {
@@ -1159,7 +1262,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     assert state == ShardState.SUCCESS;
                 }
             }
-            final ShardGenerations shardGenerations = buildGenerations(entry, metadata);
             final String repository = snapshot.getRepository();
             final StepListener<Metadata> metadataListener = new StepListener<>();
             final Repository repo = repositoriesService.repository(snapshot.getRepository());
@@ -1190,13 +1292,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             metadataListener.whenComplete(meta -> {
                         final Metadata metaForSnapshot = metadataForSnapshot(entry, meta);
                         final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshot.getSnapshotId(),
-                                shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
+                                finalIndices,
                                 entry.partial() ? entry.dataStreams().stream()
                                         .filter(metaForSnapshot.dataStreams()::containsKey)
                                         .collect(Collectors.toList()) : entry.dataStreams(),
-                                entry.startTime(), failure, threadPool.absoluteTimeInMillis(),
+                                entry.partial() ? onlySuccessfulFeatureStates(entry, finalIndices) : entry.featureStates(),
+                                failure, threadPool.absoluteTimeInMillis(),
                                 entry.partial() ? shardGenerations.totalShards() : entry.shards().size(), shardFailures,
-                                entry.includeGlobalState(), entry.userMetadata());
+                                entry.includeGlobalState(), entry.userMetadata(), entry.startTime());
                         repo.finalizeSnapshot(
                                 shardGenerations,
                                 repositoryData.getGenId(),
@@ -1216,6 +1319,31 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             assert false : new AssertionError(e);
             handleFinalizationFailure(e, entry, repositoryData);
         }
+    }
+
+    /**
+     * Removes all feature states which have missing or failed shards, as they are no longer safely restorable.
+     * @param entry The "in progress" entry with a list of feature states and one or more failed shards.
+     * @param finalIndices The final list of indices in the snapshot, after any indices that were concurrently deleted are removed.
+     * @return The list of feature states which were completed successfully in the given entry.
+     */
+    private List<SnapshotFeatureInfo> onlySuccessfulFeatureStates(SnapshotsInProgress.Entry entry, List<String> finalIndices) {
+        assert entry.partial() : "should not try to filter feature states from a non-partial entry";
+
+        // Figure out which indices have unsuccessful shards
+        Set<String> indicesWithUnsuccessfulShards = new HashSet<>();
+        entry.shards().keysIt().forEachRemaining(shardId -> {
+            final ShardState shardState = entry.shards().get(shardId).state();
+            if (shardState.failed() || shardState.completed() == false) {
+                indicesWithUnsuccessfulShards.add(shardId.getIndexName());
+            }
+        });
+
+        // Now remove any feature states which contain any of those indices, as the feature state is not intact and not safely restorable
+        return entry.featureStates().stream()
+            .filter(stateInfo -> finalIndices.containsAll(stateInfo.getIndices()))
+            .filter(stateInfo -> stateInfo.getIndices().stream().anyMatch(indicesWithUnsuccessfulShards::contains) == false)
+            .collect(Collectors.toList());
     }
 
     /**
@@ -1750,23 +1878,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Checks whether the metadata version supports writing a repository uuid to the repository.
+     * Checks whether the metadata version supports writing the cluster- and repository-uuid to the repository.
      *
      * @param repositoryMetaVersion version to check
-     * @return true if version supports writing repository uuid to the repository
+     * @return true if version supports writing cluster- and repository-uuid to the repository
      */
-    public static boolean includesRepositoryUuid(Version repositoryMetaVersion) {
-        return repositoryMetaVersion.onOrAfter(REPOSITORY_UUID_IN_REPO_DATA_VERSION);
-    }
-
-    /**
-     * Checks whether the metadata version supports writing the cluster uuid to the repository.
-     *
-     * @param repositoryMetaVersion version to check
-     * @return true if version supports {@link ShardGenerations}
-     */
-    public static boolean includesClusterUUID(Version repositoryMetaVersion) {
-        return repositoryMetaVersion.onOrAfter(CLUSTER_UUID_IN_REPO_DATA_VERSION);
+    public static boolean includesUUIDs(Version repositoryMetaVersion) {
+        return repositoryMetaVersion.onOrAfter(UUIDS_IN_REPO_DATA_VERSION);
     }
 
     /** Deletes snapshot from repository

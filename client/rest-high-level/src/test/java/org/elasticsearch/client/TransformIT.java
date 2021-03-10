@@ -200,7 +200,7 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
 
         String id = "test-update";
         TransformConfig transform = validDataFrameTransformConfigBuilder(id, sourceIndex, "pivot-dest").setSyncConfig(
-            new TimeSyncConfig("timefield", TimeValue.timeValueSeconds(60))
+            TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(60)).build()
         ).build();
 
         TransformClient client = highLevelClient().transform();

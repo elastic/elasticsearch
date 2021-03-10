@@ -56,6 +56,6 @@ user-dls:
           }
         }
 
-user-manage:
+user-cancel:
   cluster:
-    - manage
+    - cancel_task

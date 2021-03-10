@@ -139,6 +139,34 @@ public final class ConfigurationUtils {
         return readStringOrInt(processorType, processorTag, propertyName, value);
     }
 
+    private static String readStringOrLong(String processorType, String processorTag,
+                                           String propertyName, Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String) {
+            return (String) value;
+        } else if (value instanceof Long || value instanceof Integer) {
+            return String.valueOf(value);
+        }
+        throw newConfigurationException(processorType, processorTag, propertyName,
+            "property isn't a string or long, but of type [" + value.getClass().getName() + "]");
+    }
+
+    /**
+     * Returns and removes the specified property from the specified configuration map.
+     *
+     * If the property value isn't of type string or long a {@link ElasticsearchParseException} is thrown.
+     */
+    public static String readOptionalStringOrLongProperty(String processorType, String processorTag,
+                                                         Map<String, Object> configuration, String propertyName) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            return null;
+        }
+        return readStringOrLong(processorType, processorTag, propertyName, value);
+    }
+
     public static Boolean readBooleanProperty(String processorType, String processorTag, Map<String, Object> configuration,
                                              String propertyName, boolean defaultValue) {
         Object value = configuration.remove(propertyName);

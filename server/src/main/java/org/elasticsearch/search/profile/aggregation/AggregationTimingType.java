@@ -14,6 +14,7 @@ public enum AggregationTimingType {
     INITIALIZE,
     BUILD_LEAF_COLLECTOR,
     COLLECT,
+    POST_COLLECTION,
     BUILD_AGGREGATION,
     REDUCE;
 

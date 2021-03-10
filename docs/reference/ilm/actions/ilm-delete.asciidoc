@@ -10,7 +10,6 @@ Permanently removes the index.
 ==== Options
 
 `delete_searchable_snapshot`::
-beta:[]
 (Optional, Boolean)
 Deletes the searchable snapshot created in a previous phase.
 Defaults to `true`.

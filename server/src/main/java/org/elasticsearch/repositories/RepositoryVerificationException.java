@@ -35,5 +35,11 @@ public class RepositoryVerificationException extends RepositoryException {
     public RepositoryVerificationException(StreamInput in) throws IOException{
         super(in);
     }
+
+    @Override
+    public synchronized Throwable fillInStackTrace() {
+        // stack trace for a verification failure is uninteresting, the message has all the information we need
+        return this;
+    }
 }
 

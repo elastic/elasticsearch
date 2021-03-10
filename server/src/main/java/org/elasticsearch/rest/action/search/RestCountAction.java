@@ -72,11 +72,7 @@ public class RestCountAction extends BaseRestHandler {
         countRequest.preference(request.param("preference"));
 
         final int terminateAfter = request.paramAsInt("terminate_after", DEFAULT_TERMINATE_AFTER);
-        if (terminateAfter < 0) {
-            throw new IllegalArgumentException("terminateAfter must be > 0");
-        } else if (terminateAfter > 0) {
-            searchSourceBuilder.terminateAfter(terminateAfter);
-        }
+        searchSourceBuilder.terminateAfter(terminateAfter);
         return channel -> client.search(countRequest, new RestBuilderListener<SearchResponse>(channel) {
             @Override
             public RestResponse buildResponse(SearchResponse response, XContentBuilder builder) throws Exception {

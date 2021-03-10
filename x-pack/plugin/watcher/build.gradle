@@ -28,7 +28,7 @@ dependencies {
   compileOnly project(path: ':modules:transport-netty4')
   compileOnly project(path: ':plugins:transport-nio')
 
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ilm'))
   testImplementation project(xpackModule('data-streams'))
 

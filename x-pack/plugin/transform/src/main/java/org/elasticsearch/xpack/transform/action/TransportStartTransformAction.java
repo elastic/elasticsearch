@@ -148,6 +148,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         ClusterState state,
         ActionListener<StartTransformAction.Response> listener
     ) throws Exception {
+        TransformNodes.warnIfNoTransformNodes(state);
+
         final AtomicReference<TransformTaskParams> transformTaskHolder = new AtomicReference<>();
         final AtomicReference<TransformConfig> transformConfigHolder = new AtomicReference<>();
 
@@ -257,7 +259,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 config.getSource().getIndex(),
                 config.getDestination().getIndex(),
                 config.getDestination().getPipeline(),
-                SourceDestValidations.ALL_VALIDATIONS,
+                SourceDestValidations.getValidations(false, config.getAdditionalValidations()),
                 validationListener
             );
         }, listener::onFailure);

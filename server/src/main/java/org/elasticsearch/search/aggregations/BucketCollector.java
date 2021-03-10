@@ -31,6 +31,10 @@ public abstract class BucketCollector implements Collector {
             // no-op
         }
         @Override
+        public void postCollection() throws IOException {
+            // no-op
+        }
+        @Override
         public ScoreMode scoreMode() {
             return ScoreMode.COMPLETE_NO_SCORES;
         }
@@ -43,4 +47,10 @@ public abstract class BucketCollector implements Collector {
      * Pre collection callback.
      */
     public abstract void preCollection() throws IOException;
+
+    /**
+     * Post-collection callback.
+     */
+    public abstract void postCollection() throws IOException;
+
 }

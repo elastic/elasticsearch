@@ -131,6 +131,31 @@ SELECT WEEK(birth_date) week, birth_date FROM test_emp ORDER BY WEEK(birth_date)
 44             |1961-11-02T00:00:00.000Z
 ;
 
+isoWeekOfYear
+schema::birth_date:ts|iso_week:i|week:i
+SELECT birth_date, IW(birth_date) iso_week, WEEK(birth_date) week FROM test_emp WHERE IW(birth_date) < 8 AND week >2 ORDER BY iso_week;
+
+       birth_date       |   iso_week    |     week      
+------------------------+---------------+---------------
+1955-01-21T00:00:00.000Z|3              |4              
+1953-01-23T00:00:00.000Z|4              |4              
+1958-01-21T00:00:00.000Z|4              |4              
+1959-01-27T00:00:00.000Z|5              |5              
+1956-02-12T00:00:00.000Z|6              |7              
+1953-02-08T00:00:00.000Z|6              |7              
+1960-02-20T00:00:00.000Z|7              |8              
+;
+
+isoWeekOfYearFilterEquality
+SELECT ISO_WEEK_OF_YEAR(CONCAT(CONCAT('2021-01-22T14:26:06.', (salary % 2)::text), 'Z')::datetime) AS iso_week 
+FROM test_emp WHERE iso_week = 3 LIMIT 2;
+
+   iso_week:i  
+---------------
+3              
+3              
+;
+
 weekOfYearVsIsoWeekOfYearEdgeCases
 SELECT ISO_WEEK_OF_YEAR('2005-01-01T00:00:00.000Z'::datetime) AS "isow2005", WEEK('2005-01-01T00:00:00.000Z'::datetime) AS "w2005",
 ISO_WEEK_OF_YEAR('2007-12-31T00:00:00.000Z'::datetime) AS "isow2007", WEEK('2007-12-31T00:00:00.000Z'::datetime) AS "w2007";
@@ -1313,24 +1338,25 @@ null           |null           |10
 dateTimeAggByIsoWeekOfYear
 SELECT IW(birth_date) iso_week, WEEK(birth_date) week FROM test_emp WHERE IW(birth_date) < 20 GROUP BY iso_week, week ORDER BY iso_week;
 
- iso_week:i    |    week:i      
+   iso_week:i  |     week:i    
 ---------------+---------------
-1              |2              
+2              |2              
 3              |4              
 4              |4              
-4              |5              
+5              |5              
 6              |7              
-7              |7              
+7              |8              
 8              |8              
 8              |9              
 9              |9              
 10             |11             
 12             |12             
 14             |14             
-14             |15             
+15             |15             
 15             |16             
 16             |16             
-16             |17             
+17             |17             
+17             |18             
 18             |18             
 ;
 

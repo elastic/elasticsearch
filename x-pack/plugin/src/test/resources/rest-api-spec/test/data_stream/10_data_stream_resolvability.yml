@@ -675,7 +675,8 @@
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: {hits.hits.0._id: "123" }
-  - match: {hits.hits.0.sort: [22, 123] }
+  - match: {hits.hits.0.sort.0: 22}
+  - match: {hits.hits.0.sort.1: 123}
 
   - do:
       search:
@@ -693,7 +694,8 @@
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: {hits.hits.0._id: "5" }
-  - match: {hits.hits.0.sort: [18, 5] }
+  - match: {hits.hits.0.sort.0: 18}
+  - match: {hits.hits.0.sort.1: 5}
 
   - do:
       search:
@@ -712,7 +714,8 @@
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: {hits.hits.0._id: "1" }
-  - match: {hits.hits.0.sort: [18, 1] }
+  - match: {hits.hits.0.sort.0: 18}
+  - match: {hits.hits.0.sort.1: 1}
 
   - do:
       search:

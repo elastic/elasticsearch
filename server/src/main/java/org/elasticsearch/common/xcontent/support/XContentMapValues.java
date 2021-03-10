@@ -180,19 +180,27 @@ public class XContentMapValues {
             Map<?, ?> map = (Map<?, ?>) currentValue;
             String key = pathElements[index];
             int nextIndex = index + 1;
+            List<Object> extractedValues = new ArrayList<>();
             while (true) {
                 if (map.containsKey(key)) {
                     Object mapValue = map.get(key);
                     if (mapValue == null) {
-                        return nullValue;
-                    }
-                    Object val = extractValue(pathElements, nextIndex, mapValue, nullValue);
-                    if (val != null) {
-                        return val;
+                        extractedValues.add(nullValue);
+                    } else {
+                        Object val = extractValue(pathElements, nextIndex, mapValue, nullValue);
+                        if (val != null) {
+                            extractedValues.add(val);
+                        }
                     }
                 }
                 if (nextIndex == pathElements.length) {
-                    return null;
+                    if (extractedValues.size() == 0) {
+                        return null;
+                    } else if (extractedValues.size() == 1) {
+                        return extractedValues.get(0);
+                    } else {
+                        return extractedValues;
+                    }
                 }
                 key += "." + pathElements[nextIndex];
                 nextIndex++;

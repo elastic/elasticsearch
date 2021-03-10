@@ -200,6 +200,12 @@ public class TransportEstimateModelMemoryAction
             return 0;
         }
 
+        // 10MB is a pretty conservative estimate of the memory requirement for categorization,
+        // providing categorization is working well and not creating large numbers of inappropriate
+        // categories.  Often it is considerably less, but it's very hard to predict from simple
+        // statistics.
+        long memoryPerPartitionMb = 10;
+
         long relevantPartitionFieldCardinalityEstimate = 1;
         if (analysisConfig.getPerPartitionCategorizationConfig().isEnabled()) {
             // It is enforced that only one partition field name be configured when per-partition categorization
@@ -212,11 +218,15 @@ public class TransportEstimateModelMemoryAction
                     break;
                 }
             }
+            // If per-partition categorization is in use and stop-on-warn is not being used
+            // then there is a high risk that one or more of the partitions will turn out to
+            // categorize badly, so bump up the estimate.
+            if (analysisConfig.getPerPartitionCategorizationConfig().isStopOnWarn() == false) {
+                memoryPerPartitionMb *= 2;
+            }
         }
 
-        // 5MB is a pretty conservative estimate of the memory requirement for categorization.
-        // Often it is considerably less, but it's very hard to predict from simple statistics.
-        return ByteSizeValue.ofMb(5 * relevantPartitionFieldCardinalityEstimate).getBytes();
+        return ByteSizeValue.ofMb(memoryPerPartitionMb * relevantPartitionFieldCardinalityEstimate).getBytes();
     }
 
     static long cardinalityEstimate(String description, String fieldName, Map<String, Long> suppliedCardinailityEstimates,

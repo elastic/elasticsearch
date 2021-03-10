@@ -15,7 +15,7 @@ import org.xmlunit.builder.Input
 
 class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
-    def "published pom takes es project description into account"() {
+    def "artifacts and tweaked pom is published"() {
         given:
         buildFile << """
             plugins {
@@ -33,6 +33,9 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.task(":generatePom").outcome == TaskOutcome.SUCCESS
+        file("build/distributions/hello-world-1.0.jar").exists()
+        file("build/distributions/hello-world-1.0-javadoc.jar").exists()
+        file("build/distributions/hello-world-1.0-sources.jar").exists()
         file("build/distributions/hello-world-1.0.pom").exists()
         assertXmlEquals(file("build/distributions/hello-world-1.0.pom").text, """
             <project xmlns="http://maven.apache.org/POM/4.0.0" 
@@ -48,7 +51,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         )
     }
 
-    def "generates pom for shadowed elasticsearch plugin"() {
+    def "generates artifacts for shadowed elasticsearch plugin"() {
         given:
         file('license.txt') << "License file"
         file('notice.txt') << "Notice file"
@@ -64,6 +67,14 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                 classname 'org.acme.HelloWorldPlugin'
                 description = "custom project description"
             }
+            
+            publishing {
+                 repositories {
+                    maven {
+                        url = "\$buildDir/repo"
+                    }
+                 }
+            }
                     
             // requires elasticsearch artifact available
             tasks.named('bundlePlugin').configure { enabled = false }
@@ -74,10 +85,14 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def result = gradleRunner('generatePom').build()
+        def result = gradleRunner('assemble', '--stacktrace').build()
 
         then:
         result.task(":generatePom").outcome == TaskOutcome.SUCCESS
+        file("build/distributions/hello-world-plugin-1.0-original.jar").exists()
+        file("build/distributions/hello-world-plugin-1.0.jar").exists()
+        file("build/distributions/hello-world-plugin-1.0-javadoc.jar").exists()
+        file("build/distributions/hello-world-plugin-1.0-sources.jar").exists()
         file("build/distributions/hello-world-plugin-1.0.pom").exists()
         assertXmlEquals(file("build/distributions/hello-world-plugin-1.0.pom").text, """
             <project xmlns="http://maven.apache.org/POM/4.0.0" 
@@ -180,7 +195,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def result = gradleRunner('generatePom', 'validateNebulaPom').build()
+        def result = gradleRunner('generatePom', 'validatElasticPom').build()
 
         then:
         result.task(":generatePom").outcome == TaskOutcome.SUCCESS
@@ -226,6 +241,16 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                 .build()
         diff.differences.each { difference ->
             println difference
+        }
+        if(diff.differences.size() > 0) {
+            println """ given:
+$toTest
+"""
+            println """ expected:
+$expected
+"""
+
+
         }
         assert diff.hasDifferences() == false
         true

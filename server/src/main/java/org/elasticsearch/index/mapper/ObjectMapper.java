@@ -219,10 +219,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
                 }  else if (value.equalsIgnoreCase("runtime")) {
-                    if (parserContext.supportsDynamicRuntimeMappings() == false) {
-                        throw new IllegalArgumentException("unable to set dynamic:runtime as there is " +
-                            "no registered dynamic runtime fields builder");
-                    }
                     builder.dynamic(Dynamic.RUNTIME);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");

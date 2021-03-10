@@ -105,7 +105,7 @@ public class EqlSearchIT extends ESRestTestCase {
             String filterPath = "filter_path=hits.events._source.@timestamp,hits.events._source.event_type,hits.events._source.sequence";
 
             Request request = new Request("POST", index + "/_eql/search?" + filterPath);
-            request.setJsonEntity("{\"query\":\"" + event + " where true\"}");
+            request.setJsonEntity("{\"query\":\"" + event + " where true\",\"size\":15}");
             assertBusy(() -> { assertResponse(expectedResponse, runEql(client, request)); });
         }
     }
@@ -134,15 +134,16 @@ public class EqlSearchIT extends ESRestTestCase {
     private Map<String, Object> prepareEventsTestData(String event) throws IOException {
         List<Map<String, Object>> sourceEvents = new ArrayList<Map<String, Object>>();
         Map<String, Object> expectedResponse = singletonMap("hits", singletonMap("events", sourceEvents));
+        StringBuilder builder = new StringBuilder();
 
         for (int i = 0; i < numDocs; i++) {
-            StringBuilder builder = new StringBuilder();
             final String randomEvent = randomEvent();
+            builder.append("{\"index\":{\"_id\":" + i + "}}\n");
             builder.append("{");
             builder.append("\"@timestamp\":" + i + ",");
             builder.append("\"event_type\":\"" + randomEvent + "\",");
             builder.append("\"sequence\":" + i);
-            builder.append("}");
+            builder.append("}\n");
             if (randomEvent.equals(event)) {
                 Map<String, Object> eventSource = new HashMap<>();
                 eventSource.put("@timestamp", i);
@@ -150,11 +151,10 @@ public class EqlSearchIT extends ESRestTestCase {
                 eventSource.put("sequence", i);
                 sourceEvents.add(singletonMap("_source", eventSource));
             }
-            
-            Request request = new Request("PUT", index + "/_doc/" + i);
-            request.setJsonEntity(builder.toString());
-            assertOK(client().performRequest(request));
         }
+        Request request = new Request("PUT", index + "/_bulk?refresh");
+        request.setJsonEntity(builder.toString());
+        assertOK(client().performRequest(request));
         if (sourceEvents.isEmpty()) {
             return emptyMap();
         }

@@ -77,7 +77,7 @@ public class Packages {
     public static Installation installPackage(Shell sh, Distribution distribution) throws IOException {
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         if (distribution.hasJdk == false) {
-            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            sh.getEnv().put("ES_JAVA_HOME", systemJavaHome);
         }
         final Result result = runPackageManager(distribution, sh, PackageManagerCommand.INSTALL);
         if (result.exitCode != 0) {
@@ -87,7 +87,7 @@ public class Packages {
         Installation installation = Installation.ofPackage(sh, distribution);
 
         if (distribution.hasJdk == false) {
-            Files.write(installation.envFile, List.of("JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
+            Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
         }
         return installation;
     }
@@ -112,7 +112,7 @@ public class Packages {
 
     private static Result runPackageManager(Distribution distribution, Shell sh, PackageManagerCommand command) {
         final String distributionArg = command == PackageManagerCommand.QUERY || command == PackageManagerCommand.REMOVE
-            ? distribution.flavor.name
+            ? "elasticsearch"
             : distribution.path.toString();
 
         if (Platforms.isRPM()) {
@@ -150,9 +150,7 @@ public class Packages {
 
     public static void verifyPackageInstallation(Installation installation, Distribution distribution, Shell sh) {
         verifyOssInstallation(installation, distribution, sh);
-        if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation, distribution);
-        }
+        verifyDefaultInstallation(installation, distribution);
     }
 
     private static void verifyOssInstallation(Installation es, Distribution distribution, Shell sh) {
@@ -194,7 +192,7 @@ public class Packages {
         if (distribution.packaging == Distribution.Packaging.RPM) {
             assertThat(es.home.resolve("LICENSE.txt"), file(File, "root", "root", p644));
         } else {
-            Path copyrightDir = Paths.get(sh.run("readlink -f /usr/share/doc/" + distribution.flavor.name).stdout.trim());
+            Path copyrightDir = Paths.get(sh.run("readlink -f /usr/share/doc/elasticsearch").stdout.trim());
             assertThat(copyrightDir, file(Directory, "root", "root", p755));
             assertThat(copyrightDir.resolve("copyright"), file(File, "root", "root", p644));
         }

@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -31,7 +32,6 @@ import java.io.EOFException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -47,6 +47,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.CacheService.resolveSnapshotCache;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -62,12 +63,13 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             ShardId shardId = new ShardId("_name", "_uuid", 0);
 
             for (int i = 0; i < 5; i++) {
-                final String fileName = randomAlphaOfLength(10);
+                final String fileName = randomAlphaOfLength(5) + randomFileExtension();
+                final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 100_000));
 
-                final byte[] input = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
-
+                final byte[] input = bytes.v2();
+                final String checksum = bytes.v1();
                 final String blobName = randomUnicodeOfLength(10);
-                final StoreFileMetadata metadata = new StoreFileMetadata(fileName, input.length, "_na", Version.CURRENT.luceneVersion);
+                final StoreFileMetadata metadata = new StoreFileMetadata(fileName, input.length, checksum, Version.CURRENT.luceneVersion);
 
                 final int partSize = randomBoolean() ? input.length : randomIntBetween(1, input.length);
 
@@ -127,7 +129,8 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                     assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
                     assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());
 
-                    try (IndexInput indexInput = directory.openInput(fileName, newIOContext(random()))) {
+                    try (IndexInput indexInput = directory.openInput(fileName, randomIOContext())) {
+                        assertThat(indexInput, instanceOf(CachedBlobContainerIndexInput.class));
                         assertEquals(input.length, indexInput.length());
                         assertEquals(0, indexInput.getFilePointer());
                         byte[] output = randomReadAndSlice(indexInput, input.length);
@@ -175,11 +178,14 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             IndexId indexId = new IndexId("_name", "_uuid");
             ShardId shardId = new ShardId("_name", "_uuid", 0);
 
-            final String fileName = randomAlphaOfLength(10);
-            final byte[] input = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
+            final String fileName = randomAlphaOfLength(5) + randomFileExtension();
+            final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 1000));
 
+            final byte[] input = bytes.v2();
+            final String checksum = bytes.v1();
             final String blobName = randomUnicodeOfLength(10);
-            final StoreFileMetadata metadata = new StoreFileMetadata(fileName, input.length + 1, "_na", Version.CURRENT.luceneVersion);
+            final StoreFileMetadata metadata = new StoreFileMetadata(fileName, input.length, checksum, Version.CURRENT.luceneVersion);
+
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                 snapshotId.getName(),
                 0L,
@@ -225,7 +231,8 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 assertThat("Snapshot should be loaded", searchableSnapshotDirectory.snapshot(), notNullValue());
                 assertThat("BlobContainer should be loaded", searchableSnapshotDirectory.blobContainer(), notNullValue());
 
-                try (IndexInput indexInput = searchableSnapshotDirectory.openInput(fileName, newIOContext(random()))) {
+                try (IndexInput indexInput = searchableSnapshotDirectory.openInput(fileName, randomIOContext())) {
+                    assertThat(indexInput, instanceOf(CachedBlobContainerIndexInput.class));
                     final byte[] buffer = new byte[input.length + 1];
                     final IOException exception = expectThrows(IOException.class, () -> indexInput.readBytes(buffer, 0, buffer.length));
                     if (containsEOFException(exception, new HashSet<>()) == false) {

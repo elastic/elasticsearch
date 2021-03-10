@@ -121,6 +121,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
+import static org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants.AUDIT_INDEX_PATTERN;
+
 public class Transform extends Plugin implements SystemIndexPlugin, PersistentTaskPlugin {
 
     public static final String NAME = "transform";
@@ -369,5 +371,19 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    @Override public Collection<String> getAssociatedIndexPatterns() {
+        return List.of(AUDIT_INDEX_PATTERN);
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "transform";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages configuration and state for transforms";
     }
 }

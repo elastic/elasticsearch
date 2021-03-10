@@ -100,13 +100,13 @@ public class TermEnumResponse extends BroadcastResponse {
 
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
+        builder.startArray(TERMS_FIELD);
         if (getTerms() != null && getTerms().isEmpty() == false) {
-            builder.startArray(TERMS_FIELD);
             for (String term : getTerms()) {
                 builder.value(term);
             }
-            builder.endArray();
         }
+        builder.endArray();
         builder.field(COMPLETE_FIELD, complete);
     }
 

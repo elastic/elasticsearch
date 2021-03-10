@@ -20,6 +20,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.blobstore.cache.CachedBlob;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -40,7 +41,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
@@ -226,24 +226,17 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                             cachedRange,
                             cachedRange,
                             (channel, channelPos, relativePos, len) -> Math.toIntExact(len),
-                            (channels, channelPos, relativePos, len, progressUpdater) -> {
+                            (cacheWriter, relativePos, len) -> {
                                 assert len <= cachedBlob.to() - cachedBlob.from();
                                 final long startTimeNanos = stats.currentTimeNanos();
                                 final BytesRefIterator iterator = cachedBlob.bytes()
                                     .slice(toIntBytes(relativePos), toIntBytes(len))
                                     .iterator();
-                                long writePosition = channelPos;
-                                long bytesCopied = 0L;
                                 BytesRef current;
                                 while ((current = iterator.next()) != null) {
                                     final ByteBuffer byteBuffer = ByteBuffer.wrap(current.bytes, current.offset, current.length);
-                                    positionalWrite(channels, writePosition, byteBuffer);
-                                    bytesCopied += current.length;
-                                    writePosition += current.length;
-                                    progressUpdater.accept(bytesCopied);
+                                    cacheWriter.accept(byteBuffer);
                                 }
-                                long channelTo = channelPos + len;
-                                assert writePosition == channelTo : writePosition + " vs " + channelTo;
                                 final long endTimeNanos = stats.currentTimeNanos();
                                 stats.addCachedBytesWritten(len, endTimeNanos - startTimeNanos);
                                 logger.trace(
@@ -307,14 +300,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                     luceneByteBufLock,
                     stopAsyncReads
                 ),
-                (channels, channelPos, relativePos, len, progressUpdater) -> this.writeCacheFile(
-                    channels,
-                    channelPos,
-                    relativePos,
-                    len,
-                    rangeToWrite.start(),
-                    progressUpdater
-                ),
+                (cacheWriter, relativePos, len) -> this.writeCacheFile(cacheWriter, relativePos, len, rangeToWrite.start()),
                 directory.cacheFetchAsyncExecutor()
             );
 
@@ -479,26 +465,6 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         return ByteRange.EMPTY;
     }
 
-    private static void positionalWrite(SharedBytes.IO[] fcs, long start, ByteBuffer byteBuffer) throws IOException {
-        assert assertCurrentThreadMayWriteCacheFile();
-        int firstIndex = -1;
-        for (int i = 0; i < fcs.length; i++) {
-            if (start < fcs[i].size()) {
-                firstIndex = i;
-                break;
-            } else {
-                start -= fcs[i].size();
-            }
-        }
-        assert firstIndex >= 0 : "no index found for offset";
-
-        for (int i = firstIndex; i < fcs.length && byteBuffer.hasRemaining(); i++) {
-            fcs[i].write(byteBuffer, start);
-            start = 0;
-        }
-        assert byteBuffer.hasRemaining() == false;
-    }
-
     /**
      * Perform a single {@code read()} from {@code inputStream} into {@code copyBuffer}, handling an EOF by throwing an {@link EOFException}
      * rather than returning {@code -1}. Returns the number of bytes read, which is always positive.
@@ -600,20 +566,13 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         return bytesRead;
     }
 
-    private void writeCacheFile(
-        SharedBytes.IO[] fcs,
-        long fileChannelPos,
-        long relativePos,
-        long length,
-        long logicalPos,
-        final Consumer<Long> progressUpdater
-    ) throws IOException {
+    private void writeCacheFile(CheckedConsumer<ByteBuffer, IOException> cacheWriter, long relativePos, long length, long logicalPos)
+        throws IOException {
         assert assertCurrentThreadMayWriteCacheFile();
         logger.trace(
-            "{}: writing logical {} channel {} pos {} length {} (details: {})",
+            "{}: writing logical {} pos {} length {} (details: {})",
             fileInfo.physicalName(),
             logicalPos,
-            fileChannelPos,
             relativePos,
             length,
             frozenCacheFile
@@ -628,10 +587,9 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         try (InputStream input = openInputStreamFromBlobStore(logicalPos + relativePos + compoundFileOffset, length)) {
             while (remaining > 0L) {
                 final int bytesRead = readSafe(input, copyBuffer, relativePos, end, remaining, frozenCacheFile);
-                positionalWrite(fcs, fileChannelPos + bytesCopied, ByteBuffer.wrap(copyBuffer, 0, bytesRead));
+                cacheWriter.accept(ByteBuffer.wrap(copyBuffer, 0, bytesRead));
                 bytesCopied += bytesRead;
                 remaining -= bytesRead;
-                progressUpdater.accept(bytesCopied);
             }
             final long endTimeNanos = stats.currentTimeNanos();
             assert bytesCopied == length;

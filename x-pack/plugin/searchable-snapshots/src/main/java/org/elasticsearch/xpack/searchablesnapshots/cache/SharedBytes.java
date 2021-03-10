@@ -150,15 +150,8 @@ public class SharedBytes extends AbstractRefCounted {
         @SuppressForbidden(reason = "Use positional writes on purpose")
         public void write(ByteBuffer src, long position) throws IOException {
             assert refCount() > 0;
-            final long regionSize = sharedCacheConfiguration.regionSizeBySharedPageIndex(pageIndex);
-            final int oldLimit = src.limit();
-            final int remainingInPage = Math.toIntExact(regionSize - position);
-            if (src.remaining() > remainingInPage) {
-                src.limit(Math.toIntExact(src.position() + remainingInPage));
-            }
             checkOffsets(position, src.remaining());
             fileChannel.write(src, pageStart + position);
-            src.limit(oldLimit);
         }
 
         /**

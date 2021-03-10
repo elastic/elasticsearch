@@ -13,6 +13,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -36,6 +37,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -43,7 +45,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
@@ -674,103 +675,6 @@ public class FrozenCacheService implements Releasable {
         protected void alreadyClosed() {
             throwAlreadyEvicted();
         }
-
-        @Override
-        public String toString() {
-            return "CacheFileRegion{" + regionKey + "}{" + refCount() + "}{" + sharedPageIndex + "}";
-        }
-    }
-
-    private static final class NullIO implements SharedBytes.IO {
-
-        private final long size;
-
-        NullIO(long size) {
-            this.size = size;
-        }
-
-        @Override
-        public void incRef() {}
-
-        @Override
-        public boolean tryIncRef() {
-            return true;
-        }
-
-        @Override
-        public boolean decRef() {
-            return false;
-        }
-
-        @Override
-        public int read(ByteBuffer dst, long position) throws IOException {
-            throw new AssertionError("This implementation is for dropping bytes while writing");
-        }
-
-        @Override
-        public void write(ByteBuffer src, long position) throws IOException {
-            final int remaining = Math.toIntExact(size() - position);
-            src.position(Math.min(src.position() + remaining, src.limit()));
-        }
-
-        @Override
-        public long size() {
-            return size;
-        }
-    }
-
-    private final class PartialRegionIO implements SharedBytes.IO {
-
-        private final SharedBytes.IO io;
-
-        private final CacheFileRegion region;
-
-        PartialRegionIO(SharedBytes.IO io, CacheFileRegion region) {
-            this.io = io;
-            this.region = region;
-        }
-
-        @Override
-        public int read(ByteBuffer dst, long position) throws IOException {
-            assert region.refCount() > 0;
-            assert regionOwners[region.sharedPageIndex].get() == region;
-            return io.read(dst, position);
-        }
-
-        @Override
-        public void write(ByteBuffer src, long position) throws IOException {
-            assert region.refCount() > 0;
-            assert regionOwners[region.sharedPageIndex].get() == region;
-            final int oldLimit = src.limit();
-            final int remainingInPage = Math.toIntExact(size() - position);
-            if (src.remaining() > remainingInPage) {
-                src.limit(Math.toIntExact(src.position() + remainingInPage));
-            }
-            io.write(src, position);
-            src.limit(oldLimit);
-        }
-
-        @Override
-        public long size() {
-            assert region.refCount() > 0;
-            return region.tracker.getLength();
-        }
-
-        @Override
-        public void incRef() {
-            assert region.refCount() > 0;
-            io.incRef();
-        }
-
-        @Override
-        public boolean tryIncRef() {
-            return io.tryIncRef();
-        }
-
-        @Override
-        public boolean decRef() {
-            return io.decRef();
-        }
     }
 
     public class FrozenCacheFile {
@@ -854,10 +758,7 @@ public class FrozenCacheService implements Releasable {
                     fileRegion.incRef();
                     fileRegion.ensureOpen();
                     final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(fileRegion.sharedPageIndex);
-                    decrementRef = Releasables.releaseOnce(() -> {
-                        fileChannel.decRef();
-                        fileRegion.decRef();
-                    });
+                    decrementRef = Releasables.releaseOnce(() -> Releasables.close(fileChannel::decRef, fileRegion::decRef));
                     final Releasable finalReleasable = decrementRef;
                     fileRegion.incRef();
                     fileChannel.incRef();
@@ -873,7 +774,7 @@ public class FrozenCacheService implements Releasable {
                         stepListener = stepListener.thenCombine(listener, Math::addExact);
                     }
                     if (gaps.isEmpty() == false) {
-                        gapsList.add(gaps);
+                        gapsList.add(new ArrayList<>(gaps));
                         if (writeStart < 0) {
                             firstWriteRegion = region;
                             if (regionStart < rangeToWrite.start()) {
@@ -939,56 +840,80 @@ public class FrozenCacheService implements Releasable {
                 final long length = writeEnd - (startingRegionStart + writeStart);
 
                 final SharedBytes.IO[] ios = new SharedBytes.IO[channels.size()];
-                for (int i = 0; i < channels.size(); i++) {
-                    final CacheFileRegion region = regions.get(i);
-                    SharedBytes.IO io = channels.get(i);
-                    if (io == null) {
-                        final long regionLength = sharedBytes.sharedCacheConfiguration.getRegionSize(
-                            fileSize,
-                            firstRegion + i,
-                            headerCacheLength,
-                            footerCacheLength
-                        );
-                        assert i > 0 && i != channels.size() - 1 : "first or last region should not be a redundant read";
-                        ios[i] = new NullIO(regionLength);
-                    } else if (region.tracker.getLength() != io.size()) {
-                        ios[i] = new PartialRegionIO(io, region);
-                    } else {
-                        ios[i] = io;
-                    }
-                }
+                final long[] lengths = new long[ios.length];
 
+                for (int i = 0; i < channels.size(); i++) {
+                    lengths[i] = sharedBytes.sharedCacheConfiguration.getRegionSize(
+                        fileSize,
+                        firstWriteRegion + i,
+                        headerCacheLength,
+                        footerCacheLength
+                    );
+                    ios[i] = channels.get(i);
+                }
                 executor.execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
                         final long relativeWritePos = startingRegionStart + startingOffset - rangeToWrite.start();
-                        writer.fillCacheRange(ios, startingOffset, relativeWritePos, length, progress -> {
-                            // logger.info("--> wrote [{}] for [{}]", progress, regions);
-                        });
-                        IOUtils.close(() -> {
-                            for (int i = 0; i < gapsList.size(); i++) {
-                                List<SparseFileTracker.Gap> gaps = gapsList.get(i);
-                                if (gaps == null) {
-                                    continue;
-                                }
-                                try {
-                                    regions.get(i).ensureOpen();
-                                } catch (Exception e) {
-                                    for (SparseFileTracker.Gap gap : gaps) {
-                                        gap.onFailure(e);
+                        writer.fillCacheRange(new CheckedConsumer<>() {
+
+                            private long written = 0L;
+
+                            private int regionIndex = 0;
+
+                            private long regionStart = 0L;
+
+                            @Override
+                            public void accept(ByteBuffer bb) throws IOException {
+                                int firstIndex = regionIndex;
+                                long offsetInRegion = startingOffset + written - regionStart;
+
+                                for (int i = firstIndex; i < ios.length && bb.hasRemaining(); i++) {
+                                    if (offsetInRegion == 0) {
+                                        regionStart = written + startingOffset;
+                                        regionIndex = i;
                                     }
-                                    continue;
+                                    int remainingBefore = bb.remaining();
+                                    if (ios[i] == null) {
+                                        bb.position(Math.min(bb.position() + Math.toIntExact(lengths[i] - offsetInRegion), bb.limit()));
+                                    } else if (offsetInRegion + bb.remaining() > lengths[i]) {
+                                        final int oldLimit = bb.limit();
+                                        final int remainingInPage = Math.toIntExact(lengths[i] - offsetInRegion);
+                                        if (bb.remaining() > remainingInPage) {
+                                            bb.limit(bb.position() + remainingInPage);
+                                        }
+                                        ios[i].write(bb, offsetInRegion);
+                                        bb.limit(oldLimit);
+                                    } else {
+                                        ios[i].write(bb, offsetInRegion);
+                                    }
+                                    final int writtenJustNow = remainingBefore - bb.remaining();
+                                    written += writtenJustNow;
+                                    // we filled the region at index i so we can resolve all of its gaps
+                                    List<SparseFileTracker.Gap> gaps = gapsList.get(i);
+                                    if (gaps != null) {
+                                        for (Iterator<SparseFileTracker.Gap> iterator = gaps.iterator(); iterator.hasNext();) {
+                                            SparseFileTracker.Gap gap = iterator.next();
+                                            if (gap.end() <= offsetInRegion + writtenJustNow) {
+                                                gap.onProgress(gap.end());
+                                                gap.onCompletion();
+                                                iterator.remove();
+                                            }
+                                        }
+                                    } else {
+                                        assert ios[i] == null;
+                                    }
+                                    assert written <= length;
+                                    offsetInRegion = 0;
                                 }
-                                for (SparseFileTracker.Gap gap : gaps) {
-                                    gap.onProgress(gap.end());
-                                    gap.onCompletion();
+                                if (written == length) {
+                                    for (List<SparseFileTracker.Gap> gaps : gapsList) {
+                                        assert gaps == null || gaps.isEmpty();
+                                    }
                                 }
+                                assert bb.hasRemaining() == false;
                             }
-                        }, () -> {
-                            for (SharedBytes.IO io : ios) {
-                                io.decRef();
-                            }
-                        });
+                        }, relativeWritePos, length);
                     }
 
                     @Override
@@ -996,6 +921,15 @@ public class FrozenCacheService implements Releasable {
                         for (List<SparseFileTracker.Gap> gaps : gapsList) {
                             for (SparseFileTracker.Gap gap : gaps) {
                                 gap.onFailure(e);
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onAfter() {
+                        for (SharedBytes.IO io : ios) {
+                            if (io != null) {
+                                io.decRef();
                             }
                         }
                     }
@@ -1073,20 +1007,10 @@ public class FrozenCacheService implements Releasable {
         /**
          * Fills given shared bytes channel instance with the requested number of bytes at the given {@code channelPos}.
          *
-         * @param channels           channels to write bytes to be cached to
-         * @param channelRelativePos position relative to the start of the first channel in {@code channels} to write to
-         *                           subsequent channels in the array will be written to from index 0
+         * @param cacheWriter        consumer that writes the bytes in the consumed buffer to the cache
          * @param relativePos        position on the cached file that should be written to the channel at the given position
          * @param length             number of bytes to read and cache
-         * @param progressUpdater    progress updater that is called with the number of bytes already written to the cache channel by the
-         *                           implementation during cache writes
          */
-        void fillCacheRange(
-            SharedBytes.IO[] channels,
-            long channelRelativePos,
-            long relativePos,
-            long length,
-            Consumer<Long> progressUpdater
-        ) throws IOException;
+        void fillCacheRange(CheckedConsumer<ByteBuffer, IOException> cacheWriter, long relativePos, long length) throws IOException;
     }
 }

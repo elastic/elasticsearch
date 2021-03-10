@@ -4,7 +4,7 @@
 [discrete]
 === Monitoring
 
-Elastic stack monitoring collects metrics from the Elasticsearch nodes, Logstash, Kibana instances, and Beats in your deployment.  You can also configure Filebeat to collect the logs from the same components of your deployment.  See the <<monitoring-production,monitoring production>> docs and configure monitoring.
+Elastic stack monitoring collects metrics from the Elasticsearch nodes, Logstash, Kibana instances, and Beats in your deployment.  You can also configure Filebeat to collect the logs from the same components of your deployment.  See the <<managing-alerts-and-actions,alerts and actions>> docs and configure connectors.
 
 [discrete]
 === Alerting

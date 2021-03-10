@@ -148,10 +148,13 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     );
 
     /**
+     * @deprecated Only kept for BWC to nodes < 7.13
+     *
      * Node attributes for transform, automatically created and retrievable via cluster state.
      * These attributes should never be set directly, use the node setting counter parts instead.
      */
-    public static final String TRANSFORM_ENABLED_NODE_ATTR = "transform.node";
+    @Deprecated
+    private static final String TRANSFORM_ENABLED_NODE_ATTR = "transform.node";
 
     /**
      * Setting whether transform (the coordinator task) can run on this node.

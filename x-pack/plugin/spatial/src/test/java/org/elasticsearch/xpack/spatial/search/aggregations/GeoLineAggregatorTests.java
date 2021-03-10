@@ -388,7 +388,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
 
         try {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("value_field");
-            MappedFieldType groupFieldType = new KeywordFieldMapper.KeywordFieldType("group_id", false, true, null);
+            MappedFieldType groupFieldType = new KeywordFieldMapper.KeywordFieldType("group_id", false, true, Collections.emptyMap());
             MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("sort_field", fieldNumberType);
 
             Terms terms = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder,

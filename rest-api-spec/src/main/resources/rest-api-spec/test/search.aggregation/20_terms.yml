@@ -756,8 +756,8 @@ setup:
 ---
 "string profiler via global ordinals filters implementation":
   - skip:
-      version: " - 7.99.99"
-      reason: filters implementation first supported with sub-aggregators in 8.0.0, being backported to 7.13.0
+      version: " - 7.12.99"
+      reason: filters implementation first supported with sub-aggregators in 7.13.0
   - do:
       bulk:
         index: test_1

@@ -39,7 +39,7 @@ pattern>>:
 ----
 // NOTCONSOLE
 +
-.. Click **Update** to save the processor.
+.. Click **Add** to save the processor.
 
 . Add processors to map the date, IP, and user agent fields. Map the appropriate
 field to each processor type:

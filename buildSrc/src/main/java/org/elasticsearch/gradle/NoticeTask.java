@@ -88,15 +88,16 @@ public class NoticeTask extends DefaultTask {
         // party component names, unaffected by the full path to the various files
         final Map<String, File> seen = new TreeMap<String, File>();
         FileCollection noticeFiles = getNoticeFiles();
-        if(noticeFiles != null) {
+        if (noticeFiles != null) {
             for (File file : getNoticeFiles()) {
                 String name = file.getName().replaceFirst("-NOTICE\\.txt$", "");
-                System.out.println("name = " + name);
                 if (seen.containsKey(name)) {
                     File prevFile = seen.get(name);
                     String previousFileText = readFileToString(prevFile, "UTF-8");
                     if (previousFileText.equals(readFileToString(file, "UTF-8")) == false) {
-                        throw new RuntimeException("Two different notices exist for dependency '" + name + "': " + prevFile + " and " + file);
+                        throw new RuntimeException(
+                            "Two different notices exist for dependency '" + name + "': " + prevFile + " and " + file
+                        );
                     }
                 } else {
                     seen.put(name, file);

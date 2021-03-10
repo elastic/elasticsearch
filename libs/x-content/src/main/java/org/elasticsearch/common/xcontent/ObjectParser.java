@@ -368,16 +368,23 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
 
             if (RestApiVersion.minimumSupported().matches(parseField.getForRestApiVersion())) {
-                fieldParserMap.computeIfAbsent(RestApiVersion.minimumSupported(), (v)-> new HashMap<>())
+                FieldParser previousValue = fieldParserMap.computeIfAbsent(RestApiVersion.minimumSupported(), (v) -> new HashMap<>())
                     .putIfAbsent(fieldValue, fieldParser);
+                validateIfFieldAlreadyRegistered(previousValue, fieldValue);
             }
             if (RestApiVersion.current().matches(parseField.getForRestApiVersion())) {
-                fieldParserMap.computeIfAbsent(RestApiVersion.current(), (v)-> new HashMap<>())
+                FieldParser previousValue = fieldParserMap.computeIfAbsent(RestApiVersion.current(), (v)-> new HashMap<>())
                     .putIfAbsent(fieldValue, fieldParser);
-
+                validateIfFieldAlreadyRegistered(previousValue, fieldValue);
             }
         }
 
+    }
+
+    private void validateIfFieldAlreadyRegistered(FieldParser previousValue, String key) {
+        if(previousValue != null){
+            throw new IllegalArgumentException("Parser already registered for name=["+key+"]. "+previousValue);
+        }
     }
 
     @Override

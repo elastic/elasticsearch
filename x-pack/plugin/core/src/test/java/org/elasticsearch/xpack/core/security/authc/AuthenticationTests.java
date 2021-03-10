@@ -140,7 +140,7 @@ public class AuthenticationTests extends ESTestCase {
             randomValueOtherThan(AuthenticationType.API_KEY, () -> randomFrom(AuthenticationType.values()));
         final Map<String, Object> metadata;
         if (randomBoolean()) {
-            metadata = Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+            metadata = org.elasticsearch.common.collect.Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
         } else {
             metadata = Arrays.stream(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)))
                 .collect(Collectors.toMap(s -> s, s -> randomAlphaOfLengthBetween(3, 8)));
@@ -160,10 +160,10 @@ public class AuthenticationTests extends ESTestCase {
             null,
             VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT),
             AuthenticationType.API_KEY,
-            Map.of(API_KEY_ID_KEY, apiKeyId));
+            org.elasticsearch.common.collect.Map.of(API_KEY_ID_KEY, apiKeyId));
     }
 
     private boolean realmIsSingleton(RealmRef realmRef) {
-        return Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE).contains(realmRef.getType());
+        return org.elasticsearch.common.collect.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE).contains(realmRef.getType());
     }
 }

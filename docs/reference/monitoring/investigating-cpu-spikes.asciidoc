@@ -4,13 +4,11 @@
 [discrete]
 === Monitoring
 
-Elastic stack monitoring collects metrics from the Elasticsearch nodes, Logstash, Kibana instances, and Beats in your deployment.  You can also configure Filebeat to collect the logs from the same components of your deployment.  See the monitoring overview and configure monitoring.
-https://www.elastic.co/guide/en/elasticsearch/reference/7.11/monitoring-production.html
+Elastic stack monitoring collects metrics from the Elasticsearch nodes, Logstash, Kibana instances, and Beats in your deployment.  You can also configure Filebeat to collect the logs from the same components of your deployment.  See the <<monitoring-production,monitoring production>> docs and configure monitoring.
 
 [discrete]
 === Alerting
-When you set up monitoring, several stack monitoring alerts are available from Stack Management > Alerts and actions.  You should consider adding connectors to send the alerts to you, the default is to write the alerts to the Kibana log file.
-https://www.elastic.co/guide/en/kibana/current/alerting-getting-started.html
+When you set up monitoring, several stack monitoring alerts become available in Stack Management > Alerts and actions.  You should consider <<alerting-getting-started,adding connectors>> to send the alerts to you, the default is to write the alerts to the Kibana log file.
 
 [discrete]
 === Detecting high CPU utilization

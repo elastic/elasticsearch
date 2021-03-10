@@ -150,7 +150,12 @@ public class TransformStats implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeString(id);
-            out.writeEnum(state);
+            // 7.13 introduced the waiting state, in older version report the state as started
+            if (out.getVersion().before(Version.V_8_0_0) && state.equals(State.WAITING)) {   // TODO: V_7_13_0
+                out.writeEnum(State.STARTED);
+            } else {
+                out.writeEnum(state);
+            }
             out.writeOptionalString(reason);
             if (node != null) {
                 out.writeBoolean(true);
@@ -247,7 +252,8 @@ public class TransformStats implements Writeable, ToXContentObject {
         ABORTING,
         STOPPING,
         STOPPED,
-        FAILED;
+        FAILED,
+        WAITING;
 
         public static State fromString(String name) {
             return valueOf(name.trim().toUpperCase(Locale.ROOT));
@@ -299,6 +305,7 @@ public class TransformStats implements Writeable, ToXContentObject {
             return name().toLowerCase(Locale.ROOT);
         }
 
+        // only used when speaking to nodes < 7.4 (can be removed for 8.0)
         public Tuple<TransformTaskState, IndexerState> toComponents() {
 
             switch (this) {

@@ -13,7 +13,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -21,6 +20,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 public class RestDeleteCalendarEventAction extends BaseRestHandler {
 
@@ -35,7 +35,7 @@ public class RestDeleteCalendarEventAction extends BaseRestHandler {
         return Collections.singletonList(
             new ReplacedRoute(DELETE, BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events/{" +
                 ScheduledEvent.EVENT_ID.getPreferredName() + "}",
-                DELETE, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events/{" +
+                DELETE, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events/{" +
                 ScheduledEvent.EVENT_ID.getPreferredName() + "}")
         );
     }

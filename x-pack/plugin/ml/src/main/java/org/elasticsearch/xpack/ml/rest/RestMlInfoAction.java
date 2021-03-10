@@ -11,7 +11,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -19,6 +18,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 public class RestMlInfoAction extends BaseRestHandler {
 
@@ -32,7 +32,7 @@ public class RestMlInfoAction extends BaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
             new ReplacedRoute(GET, BASE_PATH + "info",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "info")
+                GET, PRE_V7_BASE_PATH + "info")
         );
     }
 

@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,6 +25,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 public class RestGetBucketsAction extends BaseRestHandler {
 
@@ -40,19 +40,19 @@ public class RestGetBucketsAction extends BaseRestHandler {
         return Collections.unmodifiableList(Arrays.asList(
             new ReplacedRoute(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                 + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                 + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}"),
             new ReplacedRoute(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                 + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}",
-                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                 + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}"),
             new ReplacedRoute(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                 + "}/results/buckets",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                 + "}/results/buckets"),
             new ReplacedRoute(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                 + "}/results/buckets",
-                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                 + "}/results/buckets")
         ));
     }

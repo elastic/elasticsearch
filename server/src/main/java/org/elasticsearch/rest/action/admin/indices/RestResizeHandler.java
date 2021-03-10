@@ -111,13 +111,13 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         @Override
         public List<Route> routes() {
             return List.of(
-                new Route(POST, "/{index}/_prepare_clone/{target}"),
-                new Route(PUT, "/{index}/_prepare_clone/{target}"));
+                new Route(POST, "/{index}/_prepare_reindex_target/{target}"),
+                new Route(PUT, "/{index}/_prepare_reindex_target/{target}"));
         }
 
         @Override
         public String getName() {
-            return "prepare_clone_index_action";
+            return "prepare_reindex_target_action";
         }
 
         @Override

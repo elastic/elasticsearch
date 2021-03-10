@@ -85,10 +85,10 @@ public class TransportPrepareReindexTargetActionTests extends ESTestCase {
                 .getMessage(), equalTo("index already present"));
     }
 
-    public void testFailToCloneIndex() throws Exception {
+    public void testFailToPrepareReindexTarget() throws Exception {
         ClusterState state = createClusterWithIndexAndSettings("source", randomIntBetween(2, 42),
             randomIntBetween(0, 10), Settings.builder().put("index.blocks.write", true).build());
-        PrepareReindexRequest prepareAndCloneIndexRequest = new PrepareReindexRequest("target", "source");
+        PrepareReindexRequest prepareReindexRequest = new PrepareReindexRequest("target", "source");
         TransportPrepareReindexTargetAction mockInstance =  getMockInstance();
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
@@ -101,7 +101,7 @@ public class TransportPrepareReindexTargetActionTests extends ESTestCase {
         }).when(mockInstance.getCreateIndexService()).createIndex(any(), any());
 
         PlainActionFuture<CreateIndexResponse> future = new PlainActionFuture<>();
-        mockInstance.masterOperation(mock(Task.class), prepareAndCloneIndexRequest, state, future);
+        mockInstance.masterOperation(mock(Task.class), prepareReindexRequest, state, future);
         CreateIndexResponse response = future.actionGet();
         assertFalse(response.isAcknowledged());
         assertFalse(response.isShardsAcknowledged());
@@ -111,7 +111,7 @@ public class TransportPrepareReindexTargetActionTests extends ESTestCase {
         ClusterState state =
             createClusterWithIndexAndSettings("source", randomIntBetween(2, 42), randomIntBetween(0, 10),
             Settings.builder().put("index.blocks.write", true).build());
-        PrepareReindexRequest prepareAndCloneIndexRequest = new PrepareReindexRequest("target", "source");
+        PrepareReindexRequest prepareReindexRequest = new PrepareReindexRequest("target", "source");
         TransportPrepareReindexTargetAction mockInstance =  getMockInstance();
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
@@ -124,17 +124,17 @@ public class TransportPrepareReindexTargetActionTests extends ESTestCase {
         }).when(mockInstance.getCreateIndexService()).createIndex(any(), any());
 
         PlainActionFuture<CreateIndexResponse> future = new PlainActionFuture<>();
-        mockInstance.masterOperation(mock(Task.class), prepareAndCloneIndexRequest, state, future);
+        mockInstance.masterOperation(mock(Task.class), prepareReindexRequest, state, future);
         CreateIndexResponse response = future.actionGet();
         assertTrue(response.isAcknowledged());
         assertFalse(response.isShardsAcknowledged());
     }
 
-    public void testPrepareAndCloneIndexResponse() throws Exception {
+    public void testPrepareReindexTargetResponse() throws Exception {
         ClusterState state =
             createClusterWithIndexAndSettings("source", randomIntBetween(2, 42), randomIntBetween(0, 10),
             Settings.builder().put("index.blocks.write", true).build());
-        PrepareReindexRequest prepareAndCloneIndexRequest = new PrepareReindexRequest("target", "source");
+        PrepareReindexRequest prepareReindexRequest = new PrepareReindexRequest("target", "source");
         TransportPrepareReindexTargetAction mockInstance =  getMockInstance();
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
@@ -148,7 +148,7 @@ public class TransportPrepareReindexTargetActionTests extends ESTestCase {
         }).when(mockInstance.getCreateIndexService()).createIndex(any(), any());
 
         PlainActionFuture<CreateIndexResponse> future = new PlainActionFuture<>();
-        mockInstance.masterOperation(mock(Task.class), prepareAndCloneIndexRequest, state, future);
+        mockInstance.masterOperation(mock(Task.class), prepareReindexRequest, state, future);
         CreateIndexResponse response = future.actionGet();
         assertTrue(response.isAcknowledged());
         assertTrue(response.isShardsAcknowledged());

@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionType;
 
 public class PrepareReindexTargetAction extends ActionType<CreateIndexResponse> {
     public static final PrepareReindexTargetAction INSTANCE = new PrepareReindexTargetAction();
-    public static final String NAME = "indices:admin/prepare_clone";
+    public static final String NAME = "indices:admin/prepare_reindex_target";
 
     private PrepareReindexTargetAction() {
         super(NAME, CreateIndexResponse::new);

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.rollup.v2;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
@@ -33,10 +32,13 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -75,8 +77,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                                  ClusterService clusterService,
                                  TransportService transportService,
                                  ThreadPool threadPool,
-                                 ActionFilters actionFilters,
                                  MetadataCreateIndexService metadataCreateIndexService,
+                                 ActionFilters actionFilters,
                                  IndexNameExpressionResolver indexNameExpressionResolver) {
         super(RollupAction.NAME, transportService, clusterService, threadPool, actionFilters, RollupAction.Request::new,
             indexNameExpressionResolver, ThreadPool.Names.SAME);
@@ -87,7 +89,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
     @Override
     protected void masterOperation(Task task, RollupAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+                                   ActionListener<AcknowledgedResponse> listener) throws IOException {
         String originalIndexName = request.getSourceIndex();
 
         final String rollupIndexName;
@@ -119,14 +121,10 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         String sourceIndexUuid = IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.exists(originalIndexMetadata.getSettings()) ?
             IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.get(originalIndexMetadata.getSettings()) : originalIndexMetadata.getIndexUUID();
 
-        CreateIndexRequest req = new CreateIndexRequest(tmpIndexName, Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
-            .build())
-            .mapping(mapping);
-
         CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest =
-            new CreateIndexClusterStateUpdateRequest("rollup", req.index(), req.index())
-                .settings(req.settings()).mappings(req.mappings());
+            new CreateIndexClusterStateUpdateRequest("rollup", tmpIndexName, tmpIndexName)
+                .settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build())
+                .mappings(XContentHelper.convertToJson(BytesReference.bytes(mapping), false, XContentType.JSON));
 
         RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(request);
         ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
@@ -178,8 +176,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                                 if (updateSettingsResponse.isAcknowledged()) {
                                     client.admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(resizeResponse -> {
                                         if (resizeResponse.isAcknowledged()) {
-                                            publishMetadata(request.getRollupConfig(), originalIndexName, tmpIndexName,
-                                                rollupIndexName, listener);
+                                            publishMetadata(originalIndexName, tmpIndexName, rollupIndexName, listener);
                                         } else {
                                             deleteTmpIndex(originalIndexName, tmpIndexName, listener,
                                                 new ElasticsearchException("Unable to resize temp rollup index [" + tmpIndexName + "]"));
@@ -187,7 +184,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                                     }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
                                 } else {
                                     deleteTmpIndex(originalIndexName, tmpIndexName, listener,
-                                        new ElasticsearchException("Unable to update settings of temp rollup index [" + tmpIndexName + "]"));
+                                        new ElasticsearchException("Unable to update settings of temp rollup index [" +tmpIndexName+ "]"));
                                 }
                             }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
                         } else {
@@ -279,7 +276,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         return builder.endObject();
     }
 
-    private void publishMetadata(RollupActionConfig config, String originalIndexName, String tmpIndexName, String rollupIndexName,
+    private void publishMetadata(String originalIndexName, String tmpIndexName, String rollupIndexName,
                                  ActionListener<AcknowledgedResponse> listener) {
         // Update rollup metadata to include this index
         clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {

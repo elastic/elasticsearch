@@ -368,7 +368,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private void rollup(RollupActionConfig config) {
-        rollup(index, rollupIndex,config);
+        rollup(index, rollupIndex, config);
     }
 
     private void rollup(String sourceIndex, String rollupIndex, RollupActionConfig config) {

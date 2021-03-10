@@ -48,7 +48,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
     public List<Route> routes() {
         return org.elasticsearch.common.collect.List.of(
             new Route(GET, "_cat/ml/trained_models"),
-            new Route(GET, "_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}")
+            new Route(GET, "_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
         );
     }
 

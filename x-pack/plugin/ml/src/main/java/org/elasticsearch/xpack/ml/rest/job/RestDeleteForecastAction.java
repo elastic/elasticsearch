@@ -27,17 +27,17 @@ public class RestDeleteForecastAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return org.elasticsearch.common.collect.List.of(
-            new Route(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_forecast/"));
+            new Route(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/"));
     }
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}",
-                DELETE, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}")
+            new ReplacedRoute(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID +
+                "}/_forecast/{" + Forecast.FORECAST_ID + "}",
+                DELETE, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID +
+                "}/_forecast/{" + Forecast.FORECAST_ID + "}")
         );
     }
 

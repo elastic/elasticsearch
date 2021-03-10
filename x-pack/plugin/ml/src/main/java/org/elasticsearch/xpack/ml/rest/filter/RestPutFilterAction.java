@@ -33,8 +33,8 @@ public class RestPutFilterAction extends BaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(PUT, BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}",
-                PUT, PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}")
+            new ReplacedRoute(PUT, BASE_PATH + "filters/{" + MlFilter.ID + "}",
+                PUT, PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID + "}")
         );
     }
 

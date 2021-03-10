@@ -36,12 +36,12 @@ public class RestGetCalendarsAction extends BaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(GET, BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}",
-                GET, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
+            new ReplacedRoute(GET, BASE_PATH + "calendars/{" + Calendar.ID + "}",
+                GET, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}"),
             new ReplacedRoute(GET, BASE_PATH + "calendars/",
                 GET, PRE_V7_BASE_PATH + "calendars/"),
-            new ReplacedRoute(POST, BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}",
-                POST, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
+            new ReplacedRoute(POST, BASE_PATH + "calendars/{" + Calendar.ID + "}",
+                POST, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}"),
             new ReplacedRoute(POST, BASE_PATH + "calendars/",
                 POST, PRE_V7_BASE_PATH + "calendars/")
         );

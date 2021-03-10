@@ -35,8 +35,8 @@ public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(
-                GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats",
-                GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats"),
+                GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}/_stats",
+                GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}/_stats"),
             new ReplacedRoute(
                 GET, BASE_PATH + "trained_models/_stats",
                 GET, BASE_PATH + "inference/_stats")

@@ -37,22 +37,14 @@ public class RestGetBucketsAction extends BaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}",
-                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}"),
-            new ReplacedRoute(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}",
-                POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}"),
-            new ReplacedRoute(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets",
-                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets"),
-            new ReplacedRoute(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets",
-                POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets")
+            new ReplacedRoute(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets/{" + Result.TIMESTAMP+ "}",
+                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets/{" + Result.TIMESTAMP+ "}"),
+            new ReplacedRoute(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets/{" + Result.TIMESTAMP+ "}",
+                POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets/{" + Result.TIMESTAMP+ "}"),
+            new ReplacedRoute(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets",
+                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets"),
+            new ReplacedRoute(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets",
+                POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets")
         );
     }
 

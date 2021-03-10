@@ -32,8 +32,8 @@ public class RestPutTrainedModelAction extends BaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(
-                PUT, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
-                PUT, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"));
+                PUT, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}",
+                PUT, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}"));
     }
 
     @Override

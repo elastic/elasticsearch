@@ -41,8 +41,8 @@ public class RestStopDatafeedAction extends BaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(POST, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_stop",
-                POST, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_stop")
+            new ReplacedRoute(POST, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stop",
+                POST, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stop")
         );
     }
 

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.rest.inference;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction.Request.MODEL_ALIAS;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 import java.io.IOException;
@@ -24,16 +25,7 @@ public class RestPutTrainedModelAliasAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return org.elasticsearch.common.collect.List.of(
-            new Route(
-                PUT,
-                BASE_PATH
-                    + "trained_models/{"
-                    + TrainedModelConfig.MODEL_ID.getPreferredName()
-                    + "}/model_aliases/{"
-                    + PutTrainedModelAliasAction.Request.MODEL_ALIAS
-                    + "}"
-
-            )
+            new Route(PUT, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}/model_aliases/{" + MODEL_ALIAS + "}")
         );
     }
 
@@ -44,7 +36,7 @@ public class RestPutTrainedModelAliasAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String modelAlias = restRequest.param(PutTrainedModelAliasAction.Request.MODEL_ALIAS);
+        String modelAlias = restRequest.param(MODEL_ALIAS);
         String modelId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
         boolean reassign = restRequest.paramAsBoolean(PutTrainedModelAliasAction.Request.REASSIGN, false);
         return channel -> client.execute(

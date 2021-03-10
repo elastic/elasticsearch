@@ -33,10 +33,8 @@ public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
         return org.elasticsearch.common.collect.List.of(
             new Route(GET, BASE_PATH + "data_frame/analytics/_explain"),
             new Route(POST, BASE_PATH + "data_frame/analytics/_explain"),
-            new Route(
-                GET, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain"),
-            new Route(POST,
-                BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain")
+            new Route(GET, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}/_explain"),
+            new Route(POST, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}/_explain")
         );
     }
 

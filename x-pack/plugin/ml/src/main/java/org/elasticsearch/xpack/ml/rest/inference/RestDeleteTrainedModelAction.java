@@ -31,8 +31,8 @@ public class RestDeleteTrainedModelAction extends BaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(
-                DELETE, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
-                DELETE, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"));
+                DELETE, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}",
+                DELETE, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}"));
     }
 
     @Override

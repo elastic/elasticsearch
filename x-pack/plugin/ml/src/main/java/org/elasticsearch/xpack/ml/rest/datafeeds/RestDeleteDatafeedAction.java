@@ -33,8 +33,8 @@ public class RestDeleteDatafeedAction extends BaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(DELETE, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}",
-                DELETE, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}")
+            new ReplacedRoute(DELETE, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}",
+                DELETE, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}")
         );
     }
 

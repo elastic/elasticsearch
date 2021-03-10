@@ -32,14 +32,8 @@ public class RestPreviewDataFrameAnalyticsAction extends BaseRestHandler {
         return org.elasticsearch.common.collect.List.of(
             new Route(GET, BASE_PATH + "data_frame/analytics/_preview"),
             new Route(POST, BASE_PATH + "data_frame/analytics/_preview"),
-            new Route(
-                GET,
-                BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_preview"
-            ),
-            new Route(
-                POST,
-                BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_preview"
-            )
+            new Route(GET, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}/_preview"),
+            new Route(POST, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}/_preview")
         );
     }
 

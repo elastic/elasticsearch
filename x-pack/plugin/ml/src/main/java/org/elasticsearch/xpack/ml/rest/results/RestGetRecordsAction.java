@@ -36,11 +36,11 @@ public class RestGetRecordsAction extends BaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(
-                GET, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/records",
-                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/records"),
+                GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/records",
+                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/records"),
             new ReplacedRoute(
-                POST, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/records",
-                POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/records")
+                POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/records",
+                POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/records")
         );
     }
 

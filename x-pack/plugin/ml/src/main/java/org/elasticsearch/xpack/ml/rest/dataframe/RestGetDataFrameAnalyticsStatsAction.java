@@ -29,8 +29,7 @@ public class RestGetDataFrameAnalyticsStatsAction extends BaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.common.collect.List.of(
             new Route(GET, BASE_PATH + "data_frame/analytics/_stats"),
-            new Route(
-                GET, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_stats")
+            new Route(GET, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}/_stats")
         );
     }
 

@@ -32,8 +32,8 @@ public class RestPreviewDatafeedAction extends BaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_preview",
-                GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_preview")
+            new ReplacedRoute(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_preview",
+                GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_preview")
         );
     }
 

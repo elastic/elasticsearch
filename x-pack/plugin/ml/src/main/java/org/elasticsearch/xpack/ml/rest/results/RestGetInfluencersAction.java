@@ -36,11 +36,11 @@ public class RestGetInfluencersAction extends BaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(
-                GET, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/influencers",
-                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/influencers"),
+                GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/influencers",
+                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/influencers"),
             new ReplacedRoute(
-                POST, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/influencers",
-                POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/influencers")
+                POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/influencers",
+                POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/influencers")
         );
     }
 

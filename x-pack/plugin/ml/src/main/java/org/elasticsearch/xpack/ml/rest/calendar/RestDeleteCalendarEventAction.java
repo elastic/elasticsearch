@@ -33,10 +33,8 @@ public class RestDeleteCalendarEventAction extends BaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(DELETE, BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events/{" +
-                ScheduledEvent.EVENT_ID.getPreferredName() + "}",
-                DELETE, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events/{" +
-                ScheduledEvent.EVENT_ID.getPreferredName() + "}")
+            new ReplacedRoute(DELETE, BASE_PATH + "calendars/{" + Calendar.ID + "}/events/{" + ScheduledEvent.EVENT_ID + "}",
+                DELETE, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}/events/{" + ScheduledEvent.EVENT_ID + "}")
         );
     }
 

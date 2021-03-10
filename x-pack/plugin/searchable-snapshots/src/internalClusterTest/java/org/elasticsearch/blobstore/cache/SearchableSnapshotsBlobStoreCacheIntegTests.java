@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.snapshots.SharedCacheConfiguration;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.InternalTestCluster;
@@ -70,7 +71,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
     @BeforeClass
     public static void setUpCacheSettings() {
-        blobCacheMaxLength = new ByteSizeValue(randomLongBetween(64L, 128L), ByteSizeUnit.KB);
+        blobCacheMaxLength = new ByteSizeValue(randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE + 1, 128L * 1024));
 
         final Settings.Builder builder = Settings.builder();
         // Cold (full copy) cache should be unlimited to not cause evictions

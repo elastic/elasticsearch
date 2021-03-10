@@ -19,31 +19,14 @@ setup:
         - '{ "foo": "bar"}'
 
 ---
-"test size=-1 is deprecated":
-  - skip:
-      version: " - 7.99.99"
-      reason: deprecation so far only in 8.0, lower when backported
-      features: allowed_warnings
-
-  - do:
-      allowed_warnings:
-        - "Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` parameter if you don't want to set it explicitely."
-      search:
-        rest_total_hits_as_int: true
-        index: index1
-        size: -1
-
-  - length: { hits.hits: 1 }
-
----
 "test negative size throws IAE":
 
   - do:
-      catch: /\[size\] parameter cannot be negative, found \[-5\]/
+      catch: /\[size\] parameter cannot be negative, found \[-1\]/
       search:
         index: index1
         rest_total_hits_as_int: true
-        size: -5
+        size: -1
 
 ---
 "test negative terminate_after throws IAE":

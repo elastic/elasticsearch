@@ -11,6 +11,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -34,23 +36,37 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
 
 
-public class TransportGetTransformAction extends AbstractTransportGetResourcesAction<TransformConfig,
-                                                                                     Request,
-                                                                                     Response> {
+public class TransportGetTransformAction extends AbstractTransportGetResourcesAction<TransformConfig, Request, Response> {
+
+    private final ClusterService clusterService;
 
     @Inject
-    public TransportGetTransformAction(TransportService transportService, ActionFilters actionFilters, Client client,
-                                       NamedXContentRegistry xContentRegistry) {
-        this(GetTransformAction.NAME, transportService, actionFilters, client, xContentRegistry);
+    public TransportGetTransformAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        Client client,
+        NamedXContentRegistry xContentRegistry
+    ) {
+        this(GetTransformAction.NAME, transportService, actionFilters, clusterService, client, xContentRegistry);
     }
 
-    protected TransportGetTransformAction(String name, TransportService transportService, ActionFilters actionFilters, Client client,
-                                          NamedXContentRegistry xContentRegistry) {
+    protected TransportGetTransformAction(
+        String name,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        Client client,
+        NamedXContentRegistry xContentRegistry
+    ) {
         super(name, transportService, actionFilters, Request::new, client, xContentRegistry);
+        this.clusterService = clusterService;
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        final ClusterState state = clusterService.state();
+        TransformNodes.warnIfNoTransformNodes(state);
         searchResources(request, ActionListener.wrap(
             r -> listener.onResponse(new Response(r.results(), r.count())),
             listener::onFailure

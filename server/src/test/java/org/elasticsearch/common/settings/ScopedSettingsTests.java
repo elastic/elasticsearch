@@ -261,12 +261,18 @@ public class ScopedSettingsTests extends ESTestCase {
         service.validate(Settings.builder().put("fallback.test.name", "test").put("foo.test.bar", 7).build(), true);
     }
 
-    public void testValidatorWithDependencies() {
+    public void testValidateValue() {
         final boolean nodeSetting = randomBoolean();
         final String prefix = nodeSetting ? "" : "index.";
         final Property scopeProperty = nodeSetting ? Property.NodeScope : Property.IndexScope;
-        final Setting<String> baseSetting = Setting.simpleString(prefix + "foo.base", Property.Dynamic, scopeProperty);
-        final Setting.Validator<String> validator = new Setting.Validator<String>() {
+        final Setting.Validator<String> baseValidator = s -> {
+            if (s.length() > 1) {
+                throw new IllegalArgumentException("too long");
+            }
+        };
+        final Setting<String> baseSetting = Setting.simpleString(prefix + "foo.base", baseValidator,
+            Property.Dynamic, scopeProperty);
+        final Setting.Validator<String> dependingValidator = new Setting.Validator<String>() {
             @Override
             public void validate(String value) {
             }
@@ -283,7 +289,7 @@ public class ScopedSettingsTests extends ESTestCase {
                 return List.<Setting<?>>of(baseSetting).iterator();
             }
         };
-        final Setting<String> dependingSetting = Setting.simpleString(prefix + "foo.depending", validator, scopeProperty);
+        final Setting<String> dependingSetting = Setting.simpleString(prefix + "foo.depending", dependingValidator, scopeProperty);
 
         final AbstractScopedSettings service = nodeSetting ? new ClusterSettings(Settings.EMPTY, Set.of(baseSetting, dependingSetting)) :
             new IndexScopedSettings(Settings.EMPTY, Set.of(baseSetting, dependingSetting));
@@ -299,6 +305,12 @@ public class ScopedSettingsTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> service.validate(Settings.builder().put(baseSetting.getKey(), "2").put(dependingSetting.getKey(), "1").build(), true));
         assertThat(e2.getMessage(), equalTo("must have same value"));
+
+        service.validate(Settings.builder().put(baseSetting.getKey(), "22").build(), false);
+        final IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.validate(Settings.builder().put(baseSetting.getKey(), "22").build(), true));
+        assertThat(e3.getMessage(), equalTo("too long"));
     }
 
     public void testTupleAffixUpdateConsumer() {
@@ -892,16 +904,16 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate(Settings.builder().put("index.store.type", "boom").put("index.number_of_replicas", true).build(), false));
+            settings.validate(Settings.builder().put("index.store.type", "boom").put("index.number_of_replicas", true).build(), true));
         assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate("index.number_of_replicas", Settings.builder().put("index.number_of_replicas", "true").build(), false));
+            settings.validate("index.number_of_replicas", Settings.builder().put("index.number_of_replicas", "true").build(), true));
         assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
             settings.validate("index.similarity.boolean.type", Settings.builder().put("index.similarity.boolean.type", "mine").build(),
-                false));
+                true));
         assertEquals("illegal value for [index.similarity.boolean] cannot redefine built-in similarity", e.getMessage());
     }
 
@@ -1009,7 +1021,7 @@ public class ScopedSettingsTests extends ESTestCase {
             IllegalArgumentException ex =
                 expectThrows(
                     IllegalArgumentException.class,
-                    () -> settings.validate(Settings.builder().put("logger._root", "boom").build(), false));
+                    () -> settings.validate(Settings.builder().put("logger._root", "boom").build(), true));
             assertEquals("Unknown level constant [BOOM].", ex.getMessage());
             assertEquals(level, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());

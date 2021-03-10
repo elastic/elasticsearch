@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
@@ -31,7 +30,7 @@ public class RestPutTrainedModelAction extends BaseRestHandler {
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {
-        return singletonList(
+        return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(
                 PUT, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
                 PUT, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"));

@@ -34,7 +34,7 @@ public class RestPutDatafeedAction extends BaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.singletonList(
+        return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(PUT, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}",
                 PUT, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}")
         );

@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
@@ -50,13 +49,14 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {
-        return unmodifiableList(asList(
+        return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(
                 GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
                 GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"),
             new ReplacedRoute(
                 GET, BASE_PATH + "trained_models",
-                GET, BASE_PATH + "inference")));
+                GET, BASE_PATH + "inference")
+        );
     }
 
     private static final Map<String, String> DEFAULT_TO_XCONTENT_VALUES =

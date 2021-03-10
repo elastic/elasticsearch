@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction.Request;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -36,7 +35,7 @@ public class RestGetCategoriesAction extends BaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
+        return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(
                 GET, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories/{"
                 + Request.CATEGORY_ID.getPreferredName() + "}",
@@ -52,7 +51,7 @@ public class RestGetCategoriesAction extends BaseRestHandler {
             new ReplacedRoute(
                 POST, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories",
                 POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories")
-        ));
+        );
     }
 
     @Override

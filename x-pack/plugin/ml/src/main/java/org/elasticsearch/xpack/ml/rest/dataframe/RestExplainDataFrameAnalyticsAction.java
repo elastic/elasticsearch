@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
@@ -32,13 +30,14 @@ public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return org.elasticsearch.common.collect.List.of(
             new Route(GET, BASE_PATH + "data_frame/analytics/_explain"),
             new Route(POST, BASE_PATH + "data_frame/analytics/_explain"),
             new Route(
                 GET, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain"),
             new Route(POST,
-                BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain")));
+                BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain")
+        );
     }
 
     @Override

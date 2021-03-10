@@ -32,7 +32,7 @@ public class RestPutJobAction extends BaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.singletonList(
+        return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(PUT, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}",
                 PUT, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}")
         );

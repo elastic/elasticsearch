@@ -20,8 +20,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
@@ -35,13 +33,14 @@ public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {
-        return unmodifiableList(asList(
+        return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(
                 GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats",
                 GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats"),
             new ReplacedRoute(
                 GET, BASE_PATH + "trained_models/_stats",
-                GET, BASE_PATH + "inference/_stats")));
+                GET, BASE_PATH + "inference/_stats")
+        );
     }
 
     @Override

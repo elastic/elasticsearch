@@ -26,17 +26,16 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestCatDatafeedsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return org.elasticsearch.common.collect.List.of(
             new Route(GET, "_cat/ml/datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}"),
-            new Route(GET, "_cat/ml/datafeeds")));
+            new Route(GET, "_cat/ml/datafeeds")
+        );
     }
 
     @Override

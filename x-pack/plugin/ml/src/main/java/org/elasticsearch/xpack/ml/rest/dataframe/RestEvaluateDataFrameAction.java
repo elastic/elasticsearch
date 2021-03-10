@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
@@ -23,7 +22,7 @@ public class RestEvaluateDataFrameAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, BASE_PATH + "data_frame/_evaluate"));
+        return org.elasticsearch.common.collect.List.of(new Route(POST, BASE_PATH + "data_frame/_evaluate"));
     }
 
     @Override

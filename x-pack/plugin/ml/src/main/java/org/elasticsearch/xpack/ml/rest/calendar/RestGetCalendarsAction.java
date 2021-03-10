@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -36,7 +35,7 @@ public class RestGetCalendarsAction extends BaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
+        return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(GET, BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}",
                 GET, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
             new ReplacedRoute(GET, BASE_PATH + "calendars/",
@@ -45,7 +44,7 @@ public class RestGetCalendarsAction extends BaseRestHandler {
                 POST, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
             new ReplacedRoute(POST, BASE_PATH + "calendars/",
                 POST, PRE_V7_BASE_PATH + "calendars/")
-        ));
+        );
     }
 
     @Override

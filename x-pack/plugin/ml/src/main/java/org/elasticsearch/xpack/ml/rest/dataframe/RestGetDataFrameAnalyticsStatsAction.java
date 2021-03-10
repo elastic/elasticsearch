@@ -20,8 +20,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
@@ -29,10 +27,11 @@ public class RestGetDataFrameAnalyticsStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return org.elasticsearch.common.collect.List.of(
             new Route(GET, BASE_PATH + "data_frame/analytics/_stats"),
             new Route(
-                GET, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_stats")));
+                GET, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_stats")
+        );
     }
 
     @Override

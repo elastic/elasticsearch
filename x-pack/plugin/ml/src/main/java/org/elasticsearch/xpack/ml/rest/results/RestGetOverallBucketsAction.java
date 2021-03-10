@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction.Request;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -36,14 +35,14 @@ public class RestGetOverallBucketsAction extends BaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
+        return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(
                 GET, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/overall_buckets",
                 GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/overall_buckets"),
             new ReplacedRoute(
                 POST, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/overall_buckets",
                 POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/overall_buckets")
-        ));
+        );
     }
 
     @Override

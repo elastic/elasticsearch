@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -34,12 +33,12 @@ public class RestGetFiltersAction extends BaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
+        return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(GET, BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}",
                 GET, PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}"),
             new ReplacedRoute(GET, BASE_PATH + "filters/",
                 GET, PRE_V7_BASE_PATH + "filters/")
-        ));
+        );
     }
 
     @Override

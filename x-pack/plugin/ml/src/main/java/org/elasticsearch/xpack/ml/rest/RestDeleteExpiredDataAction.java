@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
@@ -25,14 +24,14 @@ public class RestDeleteExpiredDataAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
+        return org.elasticsearch.common.collect.List.of(
             new Route(DELETE, BASE_PATH + "_delete_expired_data/{" + Job.ID.getPreferredName() + "}"));
     }
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.singletonList(
+        return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(DELETE, BASE_PATH + "_delete_expired_data",
                 DELETE, PRE_V7_BASE_PATH + "_delete_expired_data")
         );

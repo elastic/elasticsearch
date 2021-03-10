@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
@@ -25,7 +24,7 @@ public class RestPostDataFrameAnalyticsUpdateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(
+        return org.elasticsearch.common.collect.List.of(
             new Route(
                 POST, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_update"));
     }

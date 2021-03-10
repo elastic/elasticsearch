@@ -32,7 +32,7 @@ public class RestUpdateFilterAction extends BaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.singletonList(
+        return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(POST, BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}/_update",
                 POST, PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}/_update")
         );

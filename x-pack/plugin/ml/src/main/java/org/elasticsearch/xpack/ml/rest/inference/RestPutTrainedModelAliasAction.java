@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.rest.inference;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
@@ -24,7 +23,7 @@ public class RestPutTrainedModelAliasAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(
+        return org.elasticsearch.common.collect.List.of(
             new Route(
                 PUT,
                 BASE_PATH

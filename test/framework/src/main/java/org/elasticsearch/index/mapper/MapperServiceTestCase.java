@@ -370,6 +370,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public Collection<MappedFieldType> getFieldTypes() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
             public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
                 throw new UnsupportedOperationException();
             }

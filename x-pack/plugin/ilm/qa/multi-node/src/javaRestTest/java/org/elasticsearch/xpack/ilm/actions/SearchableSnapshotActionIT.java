@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.Step;
-import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -51,7 +50,6 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
@@ -76,7 +74,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         dataStream = "logs-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
         snapshotRepo = randomAlphaOfLengthBetween(10, 20);
-        logger.info("--> running [{}] with data stream [{}], snapshot repot [{}] and policy [{}]", getTestName(), dataStream,
+        logger.info("--> running [{}] with data stream [{}], snapshot repo [{}] and policy [{}]", getTestName(), dataStream,
             snapshotRepo, policy);
     }
 
@@ -87,7 +85,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
     public void testSearchableSnapshotAction() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
-        createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true, null));
+        createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
         createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
             new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null));
@@ -113,7 +111,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
     public void testSearchableSnapshotForceMergesIndexToOneSegment() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
-        createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true, null));
+        createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
         createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream, new Template(null, null, null));
 
@@ -363,19 +361,20 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testIdenticalSearchableSnapshotActionIsNoop() throws Exception {
-        String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
+        String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + "-000001";
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
-        MountSearchableSnapshotRequest.Storage storage = randomBoolean() ?
-            MountSearchableSnapshotRequest.Storage.FULL_COPY : MountSearchableSnapshotRequest.Storage.SHARED_CACHE;
+        Map<String, LifecycleAction> hotActions = new HashMap<>();
+        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, null, 1L));
+        hotActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()));
         createPolicy(client(), policy, null, null,
+            new Phase("hot", TimeValue.ZERO, hotActions),
             new Phase("cold", TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), storage))),
-            new Phase("frozen", TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), storage))),
+                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))),
             null
         );
 
-        createIndex(index, Settings.EMPTY);
+        createIndex(index, Settings.builder().put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias").build(),
+            null, "\"alias\": {\"is_write_index\": true}");
         ensureGreen(index);
         indexDocument(client(), index, true);
 
@@ -383,8 +382,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // `index_not_found_exception`
         updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
 
-        final String searchableSnapMountedIndexName = (storage == MountSearchableSnapshotRequest.Storage.FULL_COPY ?
-            SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX : SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX) + index;
+        final String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
 
         assertBusy(() -> {
             logger.info("--> waiting for [{}] to exist...", searchableSnapMountedIndexName);
@@ -393,7 +391,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("frozen"));
+            assertThat(stepKeyForIndex.getPhase(), is("cold"));
             assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
 
@@ -419,11 +417,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy, null, null,
             new Phase("cold", TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
-                    MountSearchableSnapshotRequest.Storage.FULL_COPY))),
+                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))),
             new Phase("frozen", TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
-                    MountSearchableSnapshotRequest.Storage.SHARED_CACHE))),
+                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))),
             null
         );
 
@@ -465,65 +461,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         assertThat("expected a single document but got: " + count, (int) count.get("count"), equalTo(1));
     }
 
-    @SuppressWarnings("unchecked")
-    public void testConvertingPartialSearchableSnapshotIntoFull() throws Exception {
-        String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT) +"-000001";
-        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
-        createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO,
-                Map.of(
-                    SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
-                    MountSearchableSnapshotRequest.Storage.SHARED_CACHE),
-                    RolloverAction.NAME, new RolloverAction(null, null, null, 1L))),
-            null, null,
-            new Phase("frozen", TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
-                    MountSearchableSnapshotRequest.Storage.FULL_COPY))),
-            null
-        );
-
-        String alias = "alias-" + randomAlphaOfLengthBetween(5, 10);
-        createIndexWithSettings(client(), index, alias, Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
-            true);
-
-        ensureGreen(index);
-        indexDocument(client(), alias, true);
-        rolloverMaxOneDocCondition(client(), alias);
-
-        final String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX +
-            SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX + index;
-
-        assertBusy(() -> {
-            logger.info("--> waiting for [{}] to exist...", searchableSnapMountedIndexName);
-            assertTrue(indexExists(searchableSnapMountedIndexName));
-        }, 30, TimeUnit.SECONDS);
-
-        assertBusy(() -> {
-            Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("frozen"));
-            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
-        }, 30, TimeUnit.SECONDS);
-
-        Request getSnaps = new Request("GET", "/_snapshot/" + snapshotRepo + "/_all");
-        Response response = client().performRequest(getSnaps);
-        Map<String, Object> responseMap;
-        try (InputStream is = response.getEntity().getContent()) {
-            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
-        }
-        assertThat("expected to have only one snapshot, but got: " + responseMap,
-            ((List<Map<String, Object>>)
-                ((Map<String, Object>)
-                    ((List<Object>) responseMap.get("responses")).get(0)).get("snapshots")).size(), equalTo(1));
-
-        Request hitCount = new Request("GET", "/" + searchableSnapMountedIndexName + "/_count");
-        Map<String, Object> count = entityAsMap(client().performRequest(hitCount));
-        assertThat("expected a single document but got: " + count, (int) count.get("count"), equalTo(1));
-    }
-
     public void testSecondSearchableSnapshotUsingDifferentRepoThrows() throws Exception {
         String secondRepo = randomAlphaOfLengthBetween(10, 20);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
@@ -531,11 +468,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             createPolicy(client(), policy, null, null,
                 new Phase("cold", TimeValue.ZERO,
-                    singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
-                        MountSearchableSnapshotRequest.Storage.FULL_COPY))),
+                    singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))),
                 new Phase("frozen", TimeValue.ZERO,
-                    singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(secondRepo, randomBoolean(),
-                        MountSearchableSnapshotRequest.Storage.SHARED_CACHE))),
+                    singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(secondRepo, randomBoolean()))),
                 null
             ));
 
@@ -548,15 +483,14 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createPolicy(client(), policy,
             new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1L),
                 SearchableSnapshotAction.NAME, new SearchableSnapshotAction(
-                    snapshotRepo, randomBoolean(), MountSearchableSnapshotRequest.Storage.FULL_COPY))
+                    snapshotRepo, randomBoolean()))
             ),
             new Phase("warm", TimeValue.ZERO, Map.of(MigrateAction.NAME, new MigrateAction(true))),
             // this time transition condition will make sure we catch ILM in the warm phase so we can assert the warm migrate action
             // didn't re-configure the tier allocation settings set by the searchable_snapshot action in the hot phase
             // we'll use the origination date to kick off ILM to complete the policy
             new Phase("cold", TimeValue.timeValueDays(5L), Map.of(MigrateAction.NAME, new MigrateAction(true))),
-            new Phase("frozen", TimeValue.ZERO, Map.of(MigrateAction.NAME, new MigrateAction(true))),
-            null
+            null, null
         );
 
         createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
@@ -592,12 +526,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             ZonedDateTime.now().toInstant().toEpochMilli() - TimeValue.timeValueDays(100).getMillis()));
 
         // let's wait for ILM to finish
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), restoredIndex), is(PhaseCompleteStep.finalStep("frozen").getKey())));
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), restoredIndex), is(PhaseCompleteStep.finalStep("cold").getKey())));
 
-        Map<String, Object> frozenIndexSettings = getIndexSettingsAsMap(restoredIndex);
+        Map<String, Object> coldIndexSettings = getIndexSettingsAsMap(restoredIndex);
         // the frozen phase should've reconfigured the allocation preference
-        assertThat(frozenIndexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER),
-            is("data_frozen,data_cold,data_warm,data_hot"));
+        assertThat(coldIndexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER),
+            is("data_cold,data_warm,data_hot"));
     }
 
 }

@@ -81,7 +81,7 @@ public class FeaturesClient {
             resetFeaturesRequest,
             FeaturesRequestConverters::resetFeatures,
             options,
-            e -> new ResetFeaturesResponse(), // TODO[wrb]: actual parse method
+            ResetFeaturesResponse::parse,
             emptySet()
         );
     }
@@ -94,7 +94,7 @@ public class FeaturesClient {
             resetFeaturesRequest,
             FeaturesRequestConverters::resetFeatures,
             options,
-            e -> new ResetFeaturesResponse(), // TODO[wrb]: actual parse method
+            ResetFeaturesResponse::parse,
             listener,
             emptySet()
         );

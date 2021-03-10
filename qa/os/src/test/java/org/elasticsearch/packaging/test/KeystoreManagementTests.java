@@ -443,10 +443,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 assertThat(keystore, file(File, "root", "elasticsearch", p660));
                 break;
             case DOCKER:
-            case DOCKER_FROM_CONTEXT:
             case DOCKER_UBI:
-            case DOCKER_UBI_FROM_CONTEXT:
-            case DOCKER_IRON_BANK_FROM_CONTEXT:
+            case DOCKER_IRON_BANK:
                 assertPermissionsAndOwnership(keystore, p660);
                 break;
             default:

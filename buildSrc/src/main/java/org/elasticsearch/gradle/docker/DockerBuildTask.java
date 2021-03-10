@@ -14,6 +14,7 @@ import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
@@ -36,18 +37,22 @@ public class DockerBuildTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(DockerBuildTask.class);
 
     private final WorkerExecutor workerExecutor;
-    private final RegularFileProperty markerFile = getProject().getObjects().fileProperty();
-    private final DirectoryProperty dockerContext = getProject().getObjects().directoryProperty();
+    private final RegularFileProperty markerFile;
+    private final DirectoryProperty dockerContext;
 
     private String[] tags;
     private boolean pull = true;
     private boolean noCache = true;
     private String[] baseImages;
-    private MapProperty<String, String> buildArgs = getProject().getObjects().mapProperty(String.class, String.class);
+    private MapProperty<String, String> buildArgs;
 
     @Inject
-    public DockerBuildTask(WorkerExecutor workerExecutor) {
+    public DockerBuildTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory) {
         this.workerExecutor = workerExecutor;
+        this.markerFile = objectFactory.fileProperty();
+        this.dockerContext = objectFactory.directoryProperty();
+        this.buildArgs = objectFactory.mapProperty(String.class, String.class);
+
         this.markerFile.set(getProject().getLayout().getBuildDirectory().file("markers/" + this.getName() + ".marker"));
     }
 

@@ -214,10 +214,8 @@ public abstract class PackagingTestCase extends Assert {
                 Packages.verifyPackageInstallation(installation, distribution, sh);
                 break;
             case DOCKER:
-            case DOCKER_FROM_CONTEXT:
             case DOCKER_UBI:
-            case DOCKER_UBI_FROM_CONTEXT:
-            case DOCKER_IRON_BANK_FROM_CONTEXT:
+            case DOCKER_IRON_BANK:
                 installation = Docker.runContainer(distribution);
                 Docker.verifyContainerInstallation(installation, distribution);
                 break;
@@ -298,10 +296,8 @@ public abstract class PackagingTestCase extends Assert {
             case RPM:
                 return Packages.runElasticsearchStartCommand(sh);
             case DOCKER:
-            case DOCKER_FROM_CONTEXT:
             case DOCKER_UBI:
-            case DOCKER_UBI_FROM_CONTEXT:
-            case DOCKER_IRON_BANK_FROM_CONTEXT:
+            case DOCKER_IRON_BANK:
                 // nothing, "installing" docker image is running it
                 return Shell.NO_OP;
             default:
@@ -320,10 +316,8 @@ public abstract class PackagingTestCase extends Assert {
                 Packages.stopElasticsearch(sh);
                 break;
             case DOCKER:
-            case DOCKER_FROM_CONTEXT:
             case DOCKER_UBI:
-            case DOCKER_UBI_FROM_CONTEXT:
-            case DOCKER_IRON_BANK_FROM_CONTEXT:
+            case DOCKER_IRON_BANK:
                 // nothing, "installing" docker image is running it
                 break;
             default:
@@ -343,10 +337,8 @@ public abstract class PackagingTestCase extends Assert {
                 Packages.assertElasticsearchStarted(sh, installation);
                 break;
             case DOCKER:
-            case DOCKER_FROM_CONTEXT:
             case DOCKER_UBI:
-            case DOCKER_UBI_FROM_CONTEXT:
-            case DOCKER_IRON_BANK_FROM_CONTEXT:
+            case DOCKER_IRON_BANK:
                 Docker.waitForElasticsearchToStart();
                 break;
             default:

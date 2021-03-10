@@ -781,7 +781,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the UBI images has the correct license information in the correct place.
      */
     public void test200UbiImagesHaveLicenseDirectory() {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_UBI_FROM_CONTEXT);
+        assumeTrue(distribution.packaging == Packaging.DOCKER_UBI);
 
         final String[] files = sh.run("find /licenses -type f").stdout.split("\n");
         assertThat(files, arrayContaining("/licenses/LICENSE"));
@@ -796,7 +796,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the UBI image has the expected labels
      */
     public void test210UbiLabels() throws Exception {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_UBI_FROM_CONTEXT);
+        assumeTrue(distribution.packaging == Packaging.DOCKER_UBI);
 
         final Map<String, String> labels = getImageLabels(distribution);
 
@@ -821,7 +821,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the UBI images has the correct license information in the correct place.
      */
     public void test300IronBankImagesHaveLicenseDirectory() {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_IRON_BANK_FROM_CONTEXT);
+        assumeTrue(distribution.packaging == Packaging.DOCKER_IRON_BANK);
 
         final String[] files = sh.run("find /licenses -type f").stdout.split("\n");
         assertThat(files, arrayContaining("/licenses/LICENSE", "/licenses/LICENSE.addendum"));
@@ -836,7 +836,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the Iron Bank image doesn't define extra labels
      */
     public void test310IronBankImageHasNoLabels() throws Exception {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_IRON_BANK_FROM_CONTEXT);
+        assumeTrue(distribution.packaging == Packaging.DOCKER_IRON_BANK);
 
         final Map<String, String> labels = getImageLabels(distribution);
 

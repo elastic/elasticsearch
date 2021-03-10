@@ -69,10 +69,8 @@ public class Distribution {
     public boolean isDocker() {
         switch (packaging) {
             case DOCKER:
-            case DOCKER_FROM_CONTEXT:
             case DOCKER_UBI:
-            case DOCKER_UBI_FROM_CONTEXT:
-            case DOCKER_IRON_BANK_FROM_CONTEXT:
+            case DOCKER_IRON_BANK:
                 return true;
         }
         return false;
@@ -85,10 +83,8 @@ public class Distribution {
         DEB(".deb", Platforms.isDPKG()),
         RPM(".rpm", Platforms.isRPM()),
         DOCKER(".docker.tar", Platforms.isDocker()),
-        DOCKER_FROM_CONTEXT(".docker.tar", Platforms.isDocker()),
         DOCKER_UBI(".ubi.tar", Platforms.isDocker()),
-        DOCKER_UBI_FROM_CONTEXT(".ubi.tar", Platforms.isDocker()),
-        DOCKER_IRON_BANK_FROM_CONTEXT(".ironbank.tar", Platforms.isDocker());
+        DOCKER_IRON_BANK(".ironbank.tar", Platforms.isDocker());
 
         /** The extension of this distribution's file */
         public final String extension;

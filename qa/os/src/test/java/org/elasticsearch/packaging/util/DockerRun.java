@@ -142,20 +142,12 @@ public class DockerRun {
                 suffix = "";
                 break;
 
-            case DOCKER_FROM_CONTEXT:
-                suffix = "-from-context";
-                break;
-
             case DOCKER_UBI:
                 suffix = "-ubi8";
                 break;
 
-            case DOCKER_UBI_FROM_CONTEXT:
-                suffix = "-ubi-from-context";
-                break;
-
-            case DOCKER_IRON_BANK_FROM_CONTEXT:
-                suffix = "-ironbank-from-context";
+            case DOCKER_IRON_BANK:
+                suffix = "-ironbank";
                 break;
 
             default:

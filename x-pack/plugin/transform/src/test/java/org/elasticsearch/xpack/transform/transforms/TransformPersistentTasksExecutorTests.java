@@ -45,10 +45,8 @@ import org.elasticsearch.xpack.transform.persistence.TransformInternalIndexTests
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -251,12 +249,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         boolean transformLocalOnlyNodes,
         boolean currentDataNode
     ) {
-
-        Map<String, String> transformNodeAttributes = new HashMap<>();
-        transformNodeAttributes.put(Transform.TRANSFORM_ENABLED_NODE_ATTR, "true");
-        Map<String, String> transformNodeAttributesDisabled = new HashMap<>();
-        transformNodeAttributesDisabled.put(Transform.TRANSFORM_ENABLED_NODE_ATTR, "false");
-
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
 
         if (dedicatedTransformNode) {

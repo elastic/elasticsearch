@@ -356,7 +356,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
         XContentBuilder docSource = service.newDocument(new SecureString(key.toCharArray()), "test", authentication,
             Collections.singleton(SUPERUSER_ROLE_DESCRIPTOR), Instant.now(), Instant.now().plus(expiry), keyRoles,
-            Version.CURRENT);
+            Version.CURRENT, null);
         if (invalidated) {
             Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(docSource), true, XContentType.JSON).v2();
             map.put("api_key_invalidated", true);
@@ -985,7 +985,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                                                                 Version version) throws Exception {
             XContentBuilder keyDocSource = apiKeyService.newDocument(
                 new SecureString(randomAlphaOfLength(16).toCharArray()), "test", authentication,
-                userRoles, Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), keyRoles, Version.CURRENT);
+                userRoles, Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), keyRoles, Version.CURRENT, null);
             final ApiKeyDoc apiKeyDoc = ApiKeyDoc.fromXContent(
                 XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
                     BytesReference.bytes(keyDocSource), XContentType.JSON));

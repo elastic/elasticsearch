@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -36,10 +37,12 @@ public final class CreateApiKeyRequest extends ActionRequest {
     private final String id;
     private String name;
     private TimeValue expiration;
+    private Map<String, Object> metadata;
     private List<RoleDescriptor> roleDescriptors = Collections.emptyList();
     private WriteRequest.RefreshPolicy refreshPolicy = DEFAULT_REFRESH_POLICY;
 
     public CreateApiKeyRequest() {
+        super();
         this.id = UUIDs.base64UUID(); // because auditing can currently only catch requests but not responses,
         // we generate the API key id soonest so it's part of the request body so it is audited
     }
@@ -51,10 +54,16 @@ public final class CreateApiKeyRequest extends ActionRequest {
      * @param expiration to specify expiration for the API key
      */
     public CreateApiKeyRequest(String name, @Nullable List<RoleDescriptor> roleDescriptors, @Nullable TimeValue expiration) {
+        this(name, roleDescriptors, expiration, null);
+    }
+
+    public CreateApiKeyRequest(String name, @Nullable List<RoleDescriptor> roleDescriptors, @Nullable TimeValue expiration,
+                               @Nullable Map<String, Object> metadata) {
         this();
         this.name = name;
         this.roleDescriptors = (roleDescriptors == null) ? List.of() : List.copyOf(roleDescriptors);
         this.expiration = expiration;
+        this.metadata = metadata;
     }
 
     public CreateApiKeyRequest(StreamInput in) throws IOException {
@@ -72,6 +81,11 @@ public final class CreateApiKeyRequest extends ActionRequest {
         this.expiration = in.readOptionalTimeValue();
         this.roleDescriptors = List.copyOf(in.readList(RoleDescriptor::new));
         this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.metadata = in.readMap();
+        } else {
+            this.metadata = null;
+        }
     }
 
     public String getId() {
@@ -114,6 +128,14 @@ public final class CreateApiKeyRequest extends ActionRequest {
         this.refreshPolicy = Objects.requireNonNull(refreshPolicy, "refresh policy may not be null");
     }
 
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
+    public void setMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -147,5 +169,8 @@ public final class CreateApiKeyRequest extends ActionRequest {
         out.writeOptionalTimeValue(expiration);
         out.writeList(roleDescriptors);
         refreshPolicy.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeMap(metadata);
+        }
     }
 }

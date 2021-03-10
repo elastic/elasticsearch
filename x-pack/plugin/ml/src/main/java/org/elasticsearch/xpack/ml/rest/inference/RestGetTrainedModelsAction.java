@@ -36,7 +36,6 @@ import java.util.Set;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
-import static org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig.MODEL_ID;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
@@ -47,8 +46,8 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, BASE_PATH + "trained_models/{" + MODEL_ID.getPreferredName() + "}")
-                .replaces(GET, BASE_PATH + "inference/{" + MODEL_ID.getPreferredName() + "}", RestApiVersion.V_8).build(),
+            Route.builder(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
+                .replaces(GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_8).build(),
             Route.builder(GET, BASE_PATH + "trained_models")
                 .replaces(GET, BASE_PATH + "inference", RestApiVersion.V_8).build()
         );
@@ -64,7 +63,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String modelId = restRequest.param(MODEL_ID.getPreferredName());
+        String modelId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
         if (Strings.isNullOrEmpty(modelId)) {
             modelId = Metadata.ALL;
         }

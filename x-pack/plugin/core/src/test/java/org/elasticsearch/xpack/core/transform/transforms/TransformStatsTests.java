@@ -143,7 +143,7 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
                 output.setVersion(Version.V_7_12_0);
                 stats.writeTo(output);
                 try (StreamInput in = output.bytes().streamInput()) {
-                    in.setVersion(Version.V_8_0_0); // TODO: V_7_13_0
+                    in.setVersion(Version.V_7_13_0);
                     TransformStats statsFromOld = new TransformStats(in);
                     assertThat(statsFromOld.getState(), equalTo(STARTED));
                 }

@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.SortedMap;
 
 /**
- * If field level security is enabled this interceptor disables the request cache for search requests.
+ * If field level security is enabled this interceptor disables the request cache for search and shardSearch requests.
  */
 public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
@@ -34,7 +34,8 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     }
 
     @Override
-    void disableFeatures(IndicesRequest indicesRequest, SortedMap<String, IndicesAccessControl.IndexAccessControl> indicesAccessControlByIndex,
+    void disableFeatures(IndicesRequest indicesRequest,
+                         SortedMap<String, IndicesAccessControl.IndexAccessControl> indexAccessControlByIndex,
                          ActionListener<Void> listener) {
         final SearchSourceBuilder source;
         if (indicesRequest instanceof SearchRequest) {
@@ -43,7 +44,7 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
         } else {
             final ShardSearchRequest request = (ShardSearchRequest) indicesRequest;
             try {
-                BytesReference bytes = serialise(indicesAccessControlByIndex);
+                BytesReference bytes = serialise(indexAccessControlByIndex);
                 request.cacheModifier(bytes);
             } catch (IOException e) {
                 listener.onFailure(e);
@@ -51,7 +52,7 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
             source = request.source();
         }
 
-        if (indicesAccessControlByIndex.values().stream().anyMatch(iac -> iac.getDocumentPermissions().hasDocumentLevelPermissions())) {
+        if (indexAccessControlByIndex.values().stream().anyMatch(iac -> iac.getDocumentPermissions().hasDocumentLevelPermissions())) {
             if (source != null && source.suggest() != null) {
                 listener.onFailure(new ElasticsearchSecurityException("Suggest isn't supported if document level security is enabled",
                     RestStatus.BAD_REQUEST));

@@ -147,13 +147,13 @@ final class CompositeIndexEventListener implements IndexEventListener {
     }
 
     @Override
-    public void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
+    public void beforeIndexShardCreated(ShardRouting shardRouting, Settings indexSettings) {
         for (IndexEventListener listener : listeners) {
             try {
-                listener.beforeIndexShardCreated(shardId, indexSettings);
+                listener.beforeIndexShardCreated(shardRouting, indexSettings);
             } catch (Exception e) {
                 logger.warn(() ->
-                    new ParameterizedMessage("[{}] failed to invoke before shard created callback", shardId), e);
+                    new ParameterizedMessage("[{}] failed to invoke before shard created callback", shardRouting), e);
                 throw e;
             }
         }

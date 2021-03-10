@@ -11,6 +11,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.Version;
@@ -332,5 +333,17 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             checksum = Store.digestToString(CodecUtil.checksumEntireFile(input));
         }
         return Tuple.tuple(checksum, out.toArrayCopy());
+    }
+
+    /**
+     * @return a random {@link IOContext} that corresponds to a default, read or read_once usage.
+     *
+     * It's important that the context returned by this method is not a "merge" once as {@link org.apache.lucene.store.BufferedIndexInput}
+     * uses a different buffer size for them.
+     */
+    public static IOContext randomIOContext() {
+        final IOContext ioContext = randomFrom(IOContext.DEFAULT, IOContext.READ, IOContext.READONCE);
+        assert ioContext.context != IOContext.Context.MERGE;
+        return ioContext;
     }
 }

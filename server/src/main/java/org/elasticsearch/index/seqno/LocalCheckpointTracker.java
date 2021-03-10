@@ -9,7 +9,6 @@
 package org.elasticsearch.index.seqno;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
-import org.elasticsearch.common.SuppressForbidden;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -163,20 +162,6 @@ public class LocalCheckpointTracker {
     }
 
     /**
-     * Waits for all operations up to the provided sequence number to complete.
-     *
-     * @param seqNo the sequence number that the checkpoint must advance to before this method returns
-     * @throws InterruptedException if the thread was interrupted while blocking on the condition
-     */
-    @SuppressForbidden(reason = "Object#wait")
-    public synchronized void waitForProcessedOpsToComplete(final long seqNo) throws InterruptedException {
-        while (processedCheckpoint.get() < seqNo) {
-            // notified by updateCheckpoint
-            this.wait();
-        }
-    }
-
-    /**
      * Checks if the given sequence number was marked as processed in this tracker.
      */
     public boolean hasProcessed(final long seqNo) {
@@ -203,37 +188,31 @@ public class LocalCheckpointTracker {
      * Moves the checkpoint to the last consecutively processed sequence number. This method assumes that the sequence number
      * following the current checkpoint is processed.
      */
-    @SuppressForbidden(reason = "Object#notifyAll")
     private void updateCheckpoint(AtomicLong checkPoint, LongObjectHashMap<CountedBitSet> bitSetMap) {
         assert Thread.holdsLock(this);
         assert getBitSetForSeqNo(bitSetMap, checkPoint.get() + 1).get(seqNoToBitSetOffset(checkPoint.get() + 1)) :
-            "updateCheckpoint is called but the bit following the checkpoint is not set";
-        try {
-            // keep it simple for now, get the checkpoint one by one; in the future we can optimize and read words
-            long bitSetKey = getBitSetKey(checkPoint.get());
-            CountedBitSet current = bitSetMap.get(bitSetKey);
-            if (current == null) {
-                // the bit set corresponding to the checkpoint has already been removed, set ourselves up for the next bit set
-                assert checkPoint.get() % BIT_SET_SIZE == BIT_SET_SIZE - 1;
+                "updateCheckpoint is called but the bit following the checkpoint is not set";
+        // keep it simple for now, get the checkpoint one by one; in the future we can optimize and read words
+        long bitSetKey = getBitSetKey(checkPoint.get());
+        CountedBitSet current = bitSetMap.get(bitSetKey);
+        if (current == null) {
+            // the bit set corresponding to the checkpoint has already been removed, set ourselves up for the next bit set
+            assert checkPoint.get() % BIT_SET_SIZE == BIT_SET_SIZE - 1;
+            current = bitSetMap.get(++bitSetKey);
+        }
+        do {
+            checkPoint.incrementAndGet();
+            /*
+             * The checkpoint always falls in the current bit set or we have already cleaned it; if it falls on the last bit of the
+             * current bit set, we can clean it.
+             */
+            if (checkPoint.get() == lastSeqNoInBitSet(bitSetKey)) {
+                assert current != null;
+                final CountedBitSet removed = bitSetMap.remove(bitSetKey);
+                assert removed == current;
                 current = bitSetMap.get(++bitSetKey);
             }
-            do {
-                checkPoint.incrementAndGet();
-                /*
-                 * The checkpoint always falls in the current bit set or we have already cleaned it; if it falls on the last bit of the
-                 * current bit set, we can clean it.
-                 */
-                if (checkPoint.get() == lastSeqNoInBitSet(bitSetKey)) {
-                    assert current != null;
-                    final CountedBitSet removed = bitSetMap.remove(bitSetKey);
-                    assert removed == current;
-                    current = bitSetMap.get(++bitSetKey);
-                }
-            } while (current != null && current.get(seqNoToBitSetOffset(checkPoint.get() + 1)));
-        } finally {
-            // notifies waiters in waitForProcessedOpsToComplete
-            this.notifyAll();
-        }
+        } while (current != null && current.get(seqNoToBitSetOffset(checkPoint.get() + 1)));
     }
 
     private static long lastSeqNoInBitSet(final long bitSetKey) {

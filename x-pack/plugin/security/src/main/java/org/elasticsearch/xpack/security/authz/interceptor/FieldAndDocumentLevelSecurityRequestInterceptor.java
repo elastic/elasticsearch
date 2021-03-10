@@ -14,6 +14,7 @@ import org.elasticsearch.common.MemoizedSupplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
@@ -42,9 +43,9 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
     @Override
     public void intercept(RequestInfo requestInfo, AuthorizationEngine authorizationEngine, AuthorizationInfo authorizationInfo,
                           ActionListener<Void> listener) {
-        if (requestInfo.getRequest() instanceof IndicesRequest) {
+        if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
             IndicesRequest indicesRequest = (IndicesRequest) requestInfo.getRequest();
-            // TODO: should we check is DLS/FLS feature allowed here for shouldIntercept
+            // TODO: should we check is DLS/FLS feature allowed here as part of shouldIntercept
             boolean shouldIntercept = licenseState.isSecurityEnabled();
             if (supports(indicesRequest) && shouldIntercept) {
                 var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
@@ -62,10 +63,11 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                                 index, flsEnabled, dlsEnabled);
                             accessControlByIndex.put(index, indexAccessControl);
                         }
+                    } else {
+                        logger.trace("intercepted request for index [{}] without field or document level access controls", index);
                     }
-                    logger.trace("intercepted request for index [{}] without field or document level access controls", index);
                 }
-                if (accessControlByIndex.isEmpty() == false) {
+                if (false == accessControlByIndex.isEmpty()) {
                     disableFeatures(indicesRequest, accessControlByIndex, listener);
                     return;
                 }

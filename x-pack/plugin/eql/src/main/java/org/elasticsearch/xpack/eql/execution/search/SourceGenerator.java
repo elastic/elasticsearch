@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
@@ -20,6 +21,8 @@ import org.elasticsearch.xpack.ql.querydsl.container.AttributeSort;
 import org.elasticsearch.xpack.ql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort;
 
+import java.util.List;
+
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.search.sort.SortBuilders.scriptSort;
@@ -28,7 +31,7 @@ public abstract class SourceGenerator {
 
     private SourceGenerator() {}
 
-    public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter) {
+    public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter, List<FieldAndFormat> fetchFields) {
         QueryBuilder finalQuery = null;
         // add the source
         if (container.query() != null) {
@@ -60,6 +63,11 @@ public abstract class SourceGenerator {
 
         // disable the source, as we rely on "fields" API
         source.fetchSource(false);
+
+        // add the "fields" to be fetched
+        if (fetchFields != null) {
+            fetchFields.forEach(source::fetchField);
+        }
 
         if (container.limit() != null) {
             // add size and from

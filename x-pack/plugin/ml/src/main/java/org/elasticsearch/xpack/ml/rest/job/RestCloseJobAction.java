@@ -52,7 +52,7 @@ public class RestCloseJobAction extends BaseRestHandler {
                 request.setForce(restRequest.paramAsBoolean(Request.FORCE.getPreferredName(), request.isForce()));
             }
             if (restRequest.hasParam(Request.ALLOW_NO_JOBS)) {
-                LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(
+                LoggingDeprecationHandler.INSTANCE.logRenamedField(
                     null, () -> null, Request.ALLOW_NO_JOBS, Request.ALLOW_NO_MATCH.getPreferredName());
             }
             request.setAllowNoMatch(

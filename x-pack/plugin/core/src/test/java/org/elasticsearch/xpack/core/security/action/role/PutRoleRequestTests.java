@@ -130,6 +130,7 @@ public class PutRoleRequestTests extends ESTestCase {
         return request;
     }
 
+    @SuppressWarnings("unchecked")
     private PutRoleRequest buildRandomRequest() {
 
         final PutRoleRequest request = new PutRoleRequest();

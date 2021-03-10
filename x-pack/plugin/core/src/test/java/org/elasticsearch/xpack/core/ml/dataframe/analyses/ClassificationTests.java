@@ -85,6 +85,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         return new NamedWriteableRegistry(entries);
     }
 
+    @SuppressWarnings({"unchecked"})
     public static Classification createRandom() {
         String dependentVariableName = randomAlphaOfLength(10);
         BoostedTreeParams boostedTreeParams = BoostedTreeParamsTests.createRandom();

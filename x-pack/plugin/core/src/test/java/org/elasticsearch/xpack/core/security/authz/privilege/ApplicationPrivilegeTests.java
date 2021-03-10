@@ -150,6 +150,7 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         return new ApplicationPrivilegeDescriptor(application, name, Sets.newHashSet(actions), Collections.emptyMap());
     }
 
+    @SuppressWarnings("unchecked")
     public void testEqualsAndHashCode() {
         final ApplicationPrivilege privilege = randomPrivilege();
         final EqualsHashCodeTestUtils.MutateFunction<ApplicationPrivilege> mutate = randomFrom(
@@ -194,6 +195,7 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private ApplicationPrivilege randomPrivilege() {
         final String applicationName;
         if (randomBoolean()) {

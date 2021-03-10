@@ -80,6 +80,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
     private ArgumentCaptor<CreateIndexRequest> createRequestCaptor;
     private ArgumentCaptor<IndicesAliasesRequest> aliasesRequestCaptor;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setUpMocks() {
         threadPool = mock(ThreadPool.class);
@@ -95,7 +96,6 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
         clusterAdminClient = mock(ClusterAdminClient.class);
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
             ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) invocationOnMock.getArguments()[1];
             listener.onResponse(new ClusterHealthResponse());
             return null;

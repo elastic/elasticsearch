@@ -52,6 +52,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
 
     private boolean lenient;
 
+    @SuppressWarnings({"unchecked"})
     public static TrainedModelConfig.Builder createTestInstance(String modelId) {
         List<String> tags = Arrays.asList(generateRandomStringArray(randomIntBetween(0, 5), 15, false));
         return TrainedModelConfig.builder()
@@ -128,6 +129,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         return false;
     }
 
+    @SuppressWarnings({"unchecked"})
     public void testToXContentWithParams() throws IOException {
         TrainedModelConfig.LazyModelDefinition lazyModelDefinition = TrainedModelConfig.LazyModelDefinition
             .fromParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder().build());
@@ -168,6 +170,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         assertThat(reference.utf8ToString(), not(containsString("compressed_definition")));
     }
 
+    @SuppressWarnings({"unchecked"})
     public void testParseWithBothDefinitionAndCompressedSupplied() throws IOException {
         TrainedModelConfig.LazyModelDefinition lazyModelDefinition = TrainedModelConfig.LazyModelDefinition
             .fromParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder().build());

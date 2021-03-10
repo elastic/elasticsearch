@@ -146,6 +146,7 @@ public class NamedXContentObjectsTests extends AbstractXContentTestCase<NamedXCo
         lenient = randomBoolean();
     }
 
+    @SuppressWarnings({"unchecked"})
     @Override
     public NamedObjectContainer createTestInstance() {
         int max = randomIntBetween(1, 10);

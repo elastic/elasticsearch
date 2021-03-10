@@ -81,6 +81,7 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
         return createRandom(BoostedTreeParamsTests.createRandom());
     }
 
+    @SuppressWarnings({"unchecked"})
     private static Regression createRandom(BoostedTreeParams boostedTreeParams) {
         String dependentVariableName = randomAlphaOfLength(10);
         String predictionFieldName = randomBoolean() ? null : randomAlphaOfLength(10);

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
+import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;
 import org.elasticsearch.xpack.core.watcher.transform.TransformRegistry;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -60,8 +61,8 @@ public class TransformInputTests extends ESTestCase {
     }
 
     public void testParserValid() throws Exception {
-        Map<String, TransformFactory> transformFactories = Collections.singletonMap("script",
-                new ScriptTransformFactory(scriptService));
+        Map<String, TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories =
+            Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
         TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(registry);
 
@@ -84,7 +85,7 @@ public class TransformInputTests extends ESTestCase {
     public void testParserInvalid() throws Exception {
         XContentBuilder jsonBuilder = jsonBuilder().value("just a string");
 
-        Map<String, TransformFactory> transformFactories = Collections.singletonMap("script",
+        Map<String, TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories = Collections.singletonMap("script",
                 new ScriptTransformFactory(scriptService));
         TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(registry);
@@ -103,7 +104,7 @@ public class TransformInputTests extends ESTestCase {
     }
 
     public void testTransformInputToXContentIsSameAsParsing() throws Exception {
-        Map<String, TransformFactory> transformFactories = Collections.singletonMap("script",
+        Map<String, TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories = Collections.singletonMap("script",
                 new ScriptTransformFactory(scriptService));
         TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(registry);

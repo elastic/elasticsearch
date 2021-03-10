@@ -58,6 +58,7 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
         return false;
     }
 
+    @SuppressWarnings({"unchecked"})
     public static TrainedModelDefinition.Builder createRandomBuilder(TargetType targetType) {
         int numberOfProcessors = randomIntBetween(1, 10);
         return new TrainedModelDefinition.Builder()

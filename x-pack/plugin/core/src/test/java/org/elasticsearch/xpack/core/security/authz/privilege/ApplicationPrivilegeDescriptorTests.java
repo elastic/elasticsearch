@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.iterableWithSize;
 
 public class ApplicationPrivilegeDescriptorTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testEqualsAndHashCode() {
         final ApplicationPrivilegeDescriptor privilege = randomPrivilege();
         final EqualsHashCodeTestUtils.MutateFunction<ApplicationPrivilegeDescriptor> mutate = randomFrom(
@@ -119,6 +120,7 @@ public class ApplicationPrivilegeDescriptorTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private ApplicationPrivilegeDescriptor randomPrivilege() {
         final String applicationName;
         if (randomBoolean()) {

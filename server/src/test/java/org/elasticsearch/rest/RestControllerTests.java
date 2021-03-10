@@ -183,18 +183,18 @@ public class RestControllerTests extends ESTestCase {
         String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         RestHandler handler = (request, channel, client) -> {};
         String deprecationMessage = randomAlphaOfLengthBetween(1, 10);
-        RestApiVersion current = RestApiVersion.current();
+        RestApiVersion deprecatedInVersion = RestApiVersion.current();
 
         Route route = Route.builder(method, path)
-            .deprecated(deprecationMessage, current).build();
+            .deprecated(deprecationMessage, deprecatedInVersion).build();
 
         // don't want to test everything -- just that it actually wraps the handler
         doCallRealMethod().when(controller).registerHandler(route, handler);
-        doCallRealMethod().when(controller).registerAsDeprecatedHandler(method, path, current, handler, deprecationMessage);
+        doCallRealMethod().when(controller).registerAsDeprecatedHandler(method, path, deprecatedInVersion, handler, deprecationMessage);
 
         controller.registerHandler(route, handler);
 
-        verify(controller).registerHandler(eq(method), eq(path), eq(current), any(DeprecationRestHandler.class));
+        verify(controller).registerHandler(eq(method), eq(path), eq(deprecatedInVersion), any(DeprecationRestHandler.class));
     }
 
     public void testRegisterAsReplacedHandler() {

@@ -1,8 +1,6 @@
 [[release-notes-7.11.2]]
 == {es} version 7.11.2
 
-coming[7.11.2]
-
 Also see <<breaking-changes-7.11,Breaking changes in 7.11>>.
 
 [[enhancement-7.11.2]]

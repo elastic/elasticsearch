@@ -13,6 +13,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.Index;
@@ -24,7 +25,9 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
@@ -43,12 +46,14 @@ public class SystemIndices {
 
     private final CharacterRunAutomaton runAutomaton;
     private final Map<String, Feature> featureDescriptors;
+    private final Map<String, CharacterRunAutomaton> productToSystemIndicesMatcher;
 
     public SystemIndices(Map<String, Feature> pluginAndModulesDescriptors) {
         featureDescriptors = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
         checkForOverlappingPatterns(featureDescriptors);
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
         this.runAutomaton = buildCharacterRunAutomaton(featureDescriptors);
+        this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(this.getSystemIndexDescriptors());
     }
 
     private void checkForDuplicateAliases(Collection<SystemIndexDescriptor> descriptors) {
@@ -71,6 +76,20 @@ public class SystemIndices {
         if (duplicateAliases.isEmpty() == false) {
             throw new IllegalStateException("Found aliases associated with multiple system index descriptors: " + duplicateAliases + "");
         }
+    }
+
+    private static Map<String, CharacterRunAutomaton> getProductToSystemIndicesMap(Collection<SystemIndexDescriptor> descriptors) {
+        Map<String, Automaton> map = descriptors.stream()
+            .filter(SystemIndexDescriptor::isExternal)
+            .flatMap(descriptor -> descriptor.getAllowedElasticProductOrigins().stream().map(product -> new Tuple<>(product, descriptor)))
+            .collect(Collectors.toUnmodifiableMap(Tuple::v1, tuple -> {
+                SystemIndexDescriptor descriptor = tuple.v2();
+                return SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName());
+            }, Operations::union));
+
+        return map.entrySet().stream()
+            .collect(Collectors.toUnmodifiableMap(Entry::getKey, entry ->
+                new CharacterRunAutomaton(MinimizationOperations.minimize(entry.getValue(), Integer.MAX_VALUE))));
     }
 
     /**
@@ -120,6 +139,32 @@ public class SystemIndices {
             assert false : errorMessage.toString();
             throw new IllegalStateException(errorMessage.toString());
         }
+    }
+
+    /**
+     * Builds a predicate that tests if a system index should be accessible based on the provided product name
+     * @param product the name of the product that is attempting to access an external system index
+     * @return Predicate to check external system index metadata with
+     */
+    public Predicate<IndexMetadata> getProductSystemIndexMetadataPredicate(String product) {
+        final CharacterRunAutomaton automaton = productToSystemIndicesMatcher.get(product);
+        if (automaton == null) {
+            return indexMetadata -> false;
+        }
+        return indexMetadata -> automaton.run(indexMetadata.getIndex().getName());
+    }
+
+    /**
+     * Builds a predicate that tests if a system index name should be accessible based on the provided product name
+     * @param product the name of the product that is attempting to access an external system index
+     * @return Predicate to check external system index names with
+     */
+    public Predicate<String> getProductSystemIndexNamePredicate(String product) {
+        final CharacterRunAutomaton automaton = productToSystemIndicesMatcher.get(product);
+        if (automaton == null) {
+            return name -> false;
+        }
+        return automaton::run;
     }
 
     public Map<String, Feature> getFeatures() {

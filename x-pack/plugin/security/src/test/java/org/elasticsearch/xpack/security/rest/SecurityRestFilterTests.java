@@ -253,11 +253,6 @@ public class SecurityRestFilterTests extends ESTestCase {
         assertEquals("bar", map.get("foo"));
     }
 
-    public void testDelegationForCompatibleWithMethod() throws Exception {
-        filter.compatibleWithVersion();
-        verify(restHandler).compatibleWithVersion();
-    }
-
     private interface FilteredRestHandler extends RestHandler, RestRequestFilter {
     }
 }

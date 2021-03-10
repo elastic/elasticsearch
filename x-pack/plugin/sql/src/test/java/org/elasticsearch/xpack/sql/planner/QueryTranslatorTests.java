@@ -1334,6 +1334,10 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(20.0, gq.lat(), 0.00001);
         assertEquals(10.0, gq.lon(), 0.00001);
         assertEquals(25.0, gq.distance(), 0.00001);
+        EsQueryExec eqe = (EsQueryExec) optimizeAndPlan(p);
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""),
+            containsString("{\"geo_distance\":{\"point\":[10.0,20.0],\"distance\":25.0," +
+                "\"distance_type\":\"arc\",\"validation_method\":\"STRICT\","));
     }
 
     public void testTranslateStXY() {

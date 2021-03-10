@@ -107,13 +107,13 @@ public class URLBlobContainer extends AbstractBlobContainer {
         try {
             return new BufferedInputStream(getInputStream(new URL(path, name)), blobStore.bufferSizeInBytes());
         } catch (FileNotFoundException fnfe) {
-            throw new NoSuchFileException("[" + name + "] blob not found");
+            throw new NoSuchFileException("blob object [" + name + "] not found");
         }
     }
 
     @Override
     public InputStream readBlob(String blobName, long position, long length) throws IOException {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
     @Override

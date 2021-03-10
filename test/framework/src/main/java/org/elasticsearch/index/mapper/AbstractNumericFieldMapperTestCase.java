@@ -111,12 +111,16 @@ public abstract class AbstractNumericFieldMapperTestCase extends MapperTestCase 
                 /*
                  * The source parser and doc values round trip will both reduce
                  * the precision to 32 bits if the value is more precise.
+                 * randomDoubleBetween will smear the values out across a wide
+                 * range of valid values.
                  */
                 return randomBoolean() ? () -> randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true) : ESTestCase::randomFloat;
             case DOUBLE:
                 /*
                  * The source parser and doc values round trip will both increase
                  * the precision to 64 bits if the value is less precise.
+                 * randomDoubleBetween will smear the values out across a wide
+                 * range of valid values.
                  */
                 return randomBoolean() ? () -> randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : ESTestCase::randomFloat;
             default:

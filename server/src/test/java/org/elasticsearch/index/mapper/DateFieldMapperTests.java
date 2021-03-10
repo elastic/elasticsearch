@@ -498,6 +498,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected String randomFetchTestFormat() {
+        // TODO more choices! The test should work fine even for choices that throw out a ton of precision.
         switch (randomInt(2)) {
             case 0:
                 return null;

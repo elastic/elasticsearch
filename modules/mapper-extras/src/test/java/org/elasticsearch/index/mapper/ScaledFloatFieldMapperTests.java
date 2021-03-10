@@ -280,6 +280,14 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
-        return () -> randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+        /*
+         * randomDoubleBetween will smear the random values out across a huge
+         * range of valid values.
+         */
+        Supplier<Double> values = () -> randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+        if (randomBoolean()) {
+            return () -> values.get().floatValue();
+        }
+        return values;
     }
 }

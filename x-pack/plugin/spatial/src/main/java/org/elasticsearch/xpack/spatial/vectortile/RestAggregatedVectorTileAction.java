@@ -122,7 +122,7 @@ public class RestAggregatedVectorTileAction extends BaseRestHandler {
         final GeoShapeQueryBuilder qBuilder = QueryBuilders.geoShapeQuery(field, rectangle);
         GeoGridAggregationBuilder aBuilder = new GeoTileGridAggregationBuilder(field)
             .field(field).precision(Math.min(GeoTileUtils.MAX_ZOOM, z + 8))
-            .setGeoBoundingBox(boundingBox);
+            .setGeoBoundingBox(boundingBox).size(256 * 256);
         return client.prepareSearch(index).setQuery(qBuilder).addAggregation(aBuilder).setSize(0);
     }
 

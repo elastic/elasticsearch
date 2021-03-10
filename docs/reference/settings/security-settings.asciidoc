@@ -256,9 +256,8 @@ realm without removing its configuration information. Defaults to `true`.
 [[ref-native-settings]]
 [discrete]
 ===== Native realm settings
-For a native realm, the `type` must be set to `native`. In addition to the
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify
-the following optional settings:
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>,
+you can specify the following optional settings:
 
 `cache.ttl`::
 (<<static-cluster-setting,Static>>)
@@ -290,8 +289,7 @@ Defaults to `true`.
 [discrete]
 ===== File realm settings
 
-The `type` setting must be set to `file`. In addition to the
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you can specify
 the following settings:
 
 `cache.ttl`::
@@ -323,8 +321,7 @@ Defaults to `true`.
 [discrete]
 ===== LDAP realm settings
 
-The `type` setting must be set to `ldap`. In addition to the
-<<ref-realm-settings>>, you can specify the following settings:
+In addition to the <<ref-realm-settings>>, you can specify the following settings:
 
 `url`::
 (<<static-cluster-setting,Static>>)
@@ -648,9 +645,8 @@ Defaults to `true`.
 [discrete]
 ===== Active Directory realm settings
 
-The `type` setting must be set to `active_directory`. In addition to the
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify
-the following settings:
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>,
+you can specify the following settings:
 
 `url`::
 (<<static-cluster-setting,Static>>)
@@ -959,8 +955,7 @@ LDAP operation (such as `search`). Defaults to `true`.
 [discrete]
 ===== PKI realm settings
 
-The `type` setting must be set to `pki`. In addition to the
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you can specify
 the following settings:
 
 `username_pattern`::
@@ -1034,8 +1029,7 @@ Configuring authentication delegation for PKI realms>>.
 [discrete]
 ===== SAML realm settings
 // tag::saml-description-tag[]
-The `type` setting must be set to `saml`. In addition to the
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you can specify
 the following settings.
 // end::saml-description-tag[]
 
@@ -1499,7 +1493,7 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-value
 [[ref-kerberos-settings]]
 ===== Kerberos realm settings
 // tag::kerberos-description-tag[]
-For a Kerberos realm, the `type` must be set to `kerberos`. In addition to the
+In addition to the
 <<ref-realm-settings,settings that are valid for all realms>>, you can specify
 the following settings:
 // end::kerberos-description-tag[]

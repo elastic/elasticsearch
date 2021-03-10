@@ -26,7 +26,8 @@ information, see
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API.
 
-* If the {operator-feature} is enabled, only operator users can use this API.
+* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
+users can use this API.
 
 [discrete]
 ==== Examples

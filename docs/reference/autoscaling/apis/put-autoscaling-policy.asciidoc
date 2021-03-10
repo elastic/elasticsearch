@@ -43,7 +43,8 @@ DELETE /_autoscaling/policy/name
 `manage_autoscaling` <<privileges-list-cluster,cluster privilege>> to use this
 API.
 
-* If the {operator-feature} is enabled, only operator users can use this API.
+* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
+users can use this API.
 
 [[autoscaling-put-autoscaling-policy-desc]]
 ==== {api-description-title}

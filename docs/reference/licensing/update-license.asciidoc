@@ -25,7 +25,8 @@ Updates the license for your {es} cluster.
 license, you must enable TLS on the transport networking layer before you
 install the license. See <<configuring-tls>>.
 
-* If the {operator-feature} is enabled, only operator users can use this API.
+* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
+users can use this API.
 
 [[update-license-api-desc]]
 ==== {api-description-title}

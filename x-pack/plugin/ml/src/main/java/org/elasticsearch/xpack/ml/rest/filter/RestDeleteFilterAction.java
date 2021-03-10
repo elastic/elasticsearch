@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestDeleteFilterAction extends BaseRestHandler {
 
@@ -31,7 +32,7 @@ public class RestDeleteFilterAction extends BaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
-            new ReplacedRoute(DELETE, MachineLearning.BASE_PATH + "filters/{" + Request.FILTER_ID.getPreferredName() + "}",
+            new ReplacedRoute(DELETE, BASE_PATH + "filters/{" + Request.FILTER_ID.getPreferredName() + "}",
                 DELETE, MachineLearning.PRE_V7_BASE_PATH + "filters/{" + Request.FILTER_ID.getPreferredName() + "}")
         );
     }

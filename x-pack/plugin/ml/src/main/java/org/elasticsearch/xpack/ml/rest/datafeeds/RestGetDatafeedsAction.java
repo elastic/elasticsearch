@@ -24,6 +24,7 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetDatafeedsAction extends BaseRestHandler {
 
@@ -36,9 +37,9 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.unmodifiableList(Arrays.asList(
-            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}",
+            new ReplacedRoute(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}",
                 GET, MachineLearning.PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}"),
-            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "datafeeds",
+            new ReplacedRoute(GET, BASE_PATH + "datafeeds",
                 GET, MachineLearning.PRE_V7_BASE_PATH + "datafeeds")
         ));
     }

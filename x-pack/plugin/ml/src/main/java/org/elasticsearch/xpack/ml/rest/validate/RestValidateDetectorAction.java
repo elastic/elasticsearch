@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestValidateDetectorAction extends BaseRestHandler {
 
@@ -31,7 +32,7 @@ public class RestValidateDetectorAction extends BaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
-            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/_validate/detector",
+            new ReplacedRoute(POST, BASE_PATH + "anomaly_detectors/_validate/detector",
                 POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/_validate/detector")
         );
     }

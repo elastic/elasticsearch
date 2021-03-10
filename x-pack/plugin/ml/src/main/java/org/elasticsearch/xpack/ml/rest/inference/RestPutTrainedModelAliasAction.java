@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.rest.inference;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 import java.io.IOException;
 import java.util.List;
@@ -18,7 +19,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 public class RestPutTrainedModelAliasAction extends BaseRestHandler {
 
@@ -27,7 +27,7 @@ public class RestPutTrainedModelAliasAction extends BaseRestHandler {
         return singletonList(
             new Route(
                 PUT,
-                MachineLearning.BASE_PATH
+                BASE_PATH
                     + "trained_models/{"
                     + TrainedModelConfig.MODEL_ID.getPreferredName()
                     + "}/model_aliases/{"

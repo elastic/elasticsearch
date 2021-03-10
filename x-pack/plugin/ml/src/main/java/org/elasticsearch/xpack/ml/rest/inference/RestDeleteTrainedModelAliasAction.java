@@ -12,13 +12,13 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestDeleteTrainedModelAliasAction extends BaseRestHandler {
 
@@ -27,7 +27,7 @@ public class RestDeleteTrainedModelAliasAction extends BaseRestHandler {
         return singletonList(
             new Route(
                 DELETE,
-                MachineLearning.BASE_PATH
+                BASE_PATH
                     + "trained_models/{"
                     + TrainedModelConfig.MODEL_ID.getPreferredName()
                     + "}/model_aliases/{"

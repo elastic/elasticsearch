@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestPreviewDatafeedAction extends BaseRestHandler {
 
@@ -31,7 +32,7 @@ public class RestPreviewDatafeedAction extends BaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
-            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_preview",
+            new ReplacedRoute(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_preview",
                 GET, MachineLearning.PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_preview")
         );
     }

@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestPutCalendarJobAction extends BaseRestHandler {
 
@@ -33,7 +34,7 @@ public class RestPutCalendarJobAction extends BaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
             new ReplacedRoute(PUT,
-                MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/jobs/{" + Job.ID.getPreferredName() + "}",
+                BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/jobs/{" + Job.ID.getPreferredName() + "}",
                 PUT,
                 MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/jobs/{" +
                     Job.ID.getPreferredName() + "}")

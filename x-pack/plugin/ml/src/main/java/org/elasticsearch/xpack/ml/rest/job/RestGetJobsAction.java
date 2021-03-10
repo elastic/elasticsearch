@@ -26,6 +26,7 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetJobsAction extends BaseRestHandler {
 
@@ -38,9 +39,9 @@ public class RestGetJobsAction extends BaseRestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.unmodifiableList(Arrays.asList(
-            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}",
+            new ReplacedRoute(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}",
                 GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}"),
-            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "anomaly_detectors",
+            new ReplacedRoute(GET, BASE_PATH + "anomaly_detectors",
                 GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors")
         ));
     }

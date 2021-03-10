@@ -107,8 +107,8 @@ and <<update-enrich-policies, update your enrich policies>>.
 
 [IMPORTANT]
 ====
-The enrich processor performs several operations
-and may impact the speed of your <<pipeline,ingest pipeline>>.
+The enrich processor performs several operations and may impact the speed of
+your ingest pipeline.
 
 We strongly recommend testing and benchmarking your enrich processors
 before deploying them in production.

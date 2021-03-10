@@ -1636,7 +1636,7 @@ at the OpenID Connect Provider.
 // tag::rp-client-auth-method-tag[]
 `rp.client_auth_method` {ess-icon}::
 (<<static-cluster-setting, Static>>)
-The Client authentication method used by elasticsearch as a client to authenticate
+The client authentication method used by {es} to authenticate
 to the OpenID Connect Provider. Can be `client_secret_basic`, `client_secret_post`,
 or `client_secret_jwt`. Defaults to `client_secret_basic`.
 // end::rp-client-auth-method-tag[]
@@ -1645,7 +1645,7 @@ or `client_secret_jwt`. Defaults to `client_secret_basic`.
 `rp.client_auth_signature_algorithm` {ess-icon}::
 (<<static-cluster-setting, Static>>)
 The signature algorithm that {es} uses to sign the JWT with which it authenticates
-as a Client to the OpenID Connect Provider when `client_secret_jwt` is selected for
+as a client to the OpenID Connect Provider when `client_secret_jwt` is selected for
 `rp.client_auth_method`. Can be either `HS256`, `HS384`, or `HS512`. Defaults to 
 `HS384`. 
 // end::rp-client-auth-jwt-signature-algorithm[]

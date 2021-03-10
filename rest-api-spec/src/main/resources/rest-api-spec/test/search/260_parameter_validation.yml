@@ -22,11 +22,11 @@ setup:
 "test negative size throws IAE":
 
   - do:
-      catch: /\[size\] parameter cannot be negative, found \[-1\]/
+      catch: /\[size\] parameter cannot be negative, found \[-5\]/
       search:
         index: index1
         rest_total_hits_as_int: true
-        size: -1
+        size: -5
 
 ---
 "test negative terminate_after throws IAE":

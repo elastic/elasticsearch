@@ -20,7 +20,7 @@ These are indicators of high CPU utilization:
 - high load averages
 - frequent or long Java garbage collection (GC) cycles
 - every GC cycle takes CPU time
-- having 20 or more shards per GB of heap
+- having 20 or more <<shard-count-recommendation,shards per GB of heap>>. 
 
 [discrete]
 === Look for high CPU consuming threads

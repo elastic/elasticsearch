@@ -21,14 +21,11 @@ image::images/elastic-security-overview.png[Elastic Security layers]
 [[security-minimal-overview]]
 === Minimal security ({es} Development)
 
-If you want to set up {es} on your laptop and start developing, this
-scenario is for you. This configuration implements usernames and passwords for
-built-in users to cover the minimal security requirements for running a local
-{es} cluster.
+If you want to set up {es} on your laptop and start developing, this scenario
+is for you. This configuration prevents unauthorized access to your local
+cluster by setting up passwords for the built-in users.
 
-WARNING: Do not deploy this security configuration in production environments.
-All communications are sent as plain text, which is unsafe for production
-environments.
+IMPORTANT: Only use this security configuration for local development.
 
 <<security-minimal-setup,Set up minimal security>>
 

@@ -147,89 +147,6 @@ These communication channels are configured separately to use TLS. You encrypt
 traffic between your browser and {kib}, and then encrypt traffic between
 {kib} and {es}.
 
-[[encrypt-kibana-browser]]
-===== Encrypt traffic between your browser and {kib}
-
-You create a server certificate and private key for {kib}. {kib} uses this
-server certificate and corresponding private key when receiving connections
-from web browsers.
-
-When you obtain a server certificate, you must set its subject alternative
-name (SAN) correctly to ensure that browsers with hostname verification will
-trust it. You can set one or more SANs to the {kib} server’s fully-qualified
-domain name (FQDN), hostname, or IP address. When choosing the SAN, pick
-whichever attribute you'll use to connect to {kib} in your browser, which is
-likely the FQDN.
-
-The following instructions create an untrusted browser certificate for {kib}.
-This certificate is acceptable for development environments and building a
-proof of concept, but should not be used in a production environment.
-
-WARNING: Before going to production, use a trusted CA such as https://letsencrypt.org/[Let's
-Encrypt] or your organization's internal CA to sign the certificate. Using a
-signed certificate establishes browser trust for connections to {kib} for
-internal access or on the public internet.
-
-. Generate a server certificate and private key for {kib}.
-+
-[source,shell]
-----
-./bin/elasticsearch-certutil csr -name kibana-server -dns example.com,www.example.com
-----
-+
-The CSR has a common name (CN) of `kibana-server`, a SAN of `example.com`,
-and another SAN of `www.example.com`.
-+
-This command generates a `csr-bundle.zip` file by default with the following
-contents:
-+
-[source,txt]
-----
-/kibana-server
-|_ kibana-server.csr
-|_ kibana-server.key
-----
-
-. Unzip the `csr-bundle.zip` file to obtain the `kibana-server.csr` unsigned
-security certificate and the `kibana-server.key` unencrypted private key.
-
-. Send the `kibana-server.csr` unsigned security certificate to your internal
-CA or trusted CA for signing. The signed file should be a `.crt` file, such as
-`kibana-server.crt`.
-+
-WARNING: {kib} will not trust the CSR. You must send the `kibana-server.csr`
-unsigned security certificate to your internal CA or trusted CA for
-signing.
-
-. Open `kibana.yml` and add the following lines to configure {kib} to access
-the server certificate and unencrypted private key.
-+
-[source,yaml]
-----
-server.ssl.certificate: KBN_PATH_CONF/kibana-server.crt
-server.ssl.key: KBN_PATH_CONF/kibana-server.key
-----
-+
-NOTE: `KBN_PATH_CONF` contains the path for the {kib} configuration files. If
-you installed {kib} using archive distributions (`zip` or `tar.gz`), the
-path defaults to `KBN_HOME/config`. If you used package distributions
-(Debian or RPM), the path defaults to `/etc/kibana`.
-
-. Add the following line to `kibana.yml` to enable TLS for inbound
-connections.
-+
-[source,yaml]
-----
-server.ssl.enabled: true
-----
-
-. Restart {kib}.
-
-NOTE: After making these changes, you must always access {kib} via HTTPS. For
-example, `https://<your_kibana_host>.com`.
-
-**Next**: <<encrypt-kibana-elasticsearch,Encrypt traffic between {kib} and {es}>>
-
 [[encrypt-kibana-elasticsearch]]
 ===== Encrypt traffic between {kib} and {es}
 
@@ -267,6 +184,89 @@ the monitoring cluster via HTTPS. The steps are the same, but each setting is
 prefixed by `monitoring`. For example, `monitoring.ui.elasticsearch.hosts`,
 `monitoring.ui.elasticsearch.ssl.truststore.path`, etc.
 ****
+
+**Next**: <<encrypt-kibana-browser,Encrypt traffic between your browser and {kib}>>
+
+[[encrypt-kibana-browser]]
+===== Encrypt traffic between your browser and {kib}
+
+You create a server certificate and private key for {kib}. {kib} uses this
+server certificate and corresponding private key when receiving connections
+from web browsers.
+
+When you obtain a server certificate, you must set its subject alternative
+name (SAN) correctly to ensure that browsers with hostname verification will
+trust it. You can set one or more SANs to the {kib} server’s fully-qualified
+domain name (FQDN), hostname, or IP address. When choosing the SAN, pick
+whichever attribute you'll use to connect to {kib} in your browser, which is
+likely the FQDN.
+
+The following instructions create a Certificate Signing Request (CSR) for {kib}.
+A CSR contains information that a CA uses to generate and sign a security
+certificate. A CSR is acceptable for development environments and building a
+proof of concept, but should not be used in a production environment.
+
+WARNING: Before going to production, use a trusted CA such as https://letsencrypt.org/[Let's
+Encrypt] or your organization's internal CA to sign the certificate. Using a
+signed certificate establishes browser trust for connections to {kib} for
+internal access or on the public internet.
+
+. Generate a server certificate and private key for {kib}.
++
+[source,shell]
+----
+./bin/elasticsearch-certutil csr -name kibana-server -dns example.com,www.example.com
+----
++
+The CSR has a common name (CN) of `kibana-server`, a SAN of `example.com`,
+and another SAN of `www.example.com`.
++
+This command generates a `csr-bundle.zip` file by default with the following
+contents:
++
+[source,txt]
+----
+/kibana-server
+|_ kibana-server.csr
+|_ kibana-server.key
+----
+
+. Unzip the `csr-bundle.zip` file to obtain the `kibana-server.csr` unsigned
+security certificate and the `kibana-server.key` unencrypted private key.
+
+. Send the `kibana-server.csr` unsigned security certificate to your internal
+CA or trusted CA for signing. The signed file should be a `.crt` file, such as
+`kibana-server.crt`.
++
+IMPORTANT: You must send the `kibana-server.csr` file to your internal CA or
+trusted CA for signing to obtained a signed certificate.
+
+. Open `kibana.yml` and add the following lines to configure {kib} to access
+the server certificate and unencrypted private key.
++
+[source,yaml]
+----
+server.ssl.certificate: KBN_PATH_CONF/kibana-server.crt
+server.ssl.key: KBN_PATH_CONF/kibana-server.key
+----
++
+NOTE: `KBN_PATH_CONF` contains the path for the {kib} configuration files. If
+you installed {kib} using archive distributions (`zip` or `tar.gz`), the
+path defaults to `KBN_HOME/config`. If you used package distributions
+(Debian or RPM), the path defaults to `/etc/kibana`.
+
+. Add the following line to `kibana.yml` to enable TLS for inbound
+connections.
++
+[source,yaml]
+----
+server.ssl.enabled: true
+----
+
+. Restart {kib}.
+
+NOTE: After making these changes, you must always access {kib} via HTTPS. For
+example, `https://<your_kibana_host>.com`.
 
 **Next**: <<configure-beats-security,Configure {beats} security>>
 

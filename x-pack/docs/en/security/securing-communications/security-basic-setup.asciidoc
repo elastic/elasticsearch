@@ -4,11 +4,9 @@
 <titleabbrev>Set up basic security</titleabbrev>
 ++++
 
-Let's say you want to set up the Elastic Stack with some security, but don't
-need to encrypt all traffic flowing in and out of your cluster. After adding
-password protection in the <<security-minimal-setup,minimal security configuration>>, you'll need to configure Transport Layer Security (TLS). The
-transport layer handles all internal communication between nodes in your
-cluster.
+After adding password protection in the <<security-minimal-setup,minimal security configuration>>, you'll need to configure Transport Layer Security
+(TLS). The transport layer handles all internal communication between nodes in
+your cluster.
 
 The transport layer relies on mutual TLS for both encryption and
 authentication. Applying TLS ensures that a malicious node cannot join the
@@ -22,9 +20,11 @@ accessing to your cluster.
 [[basic-setup-prerequisites]]
 ==== Prerequisites
 
-Complete all steps in <<security-minimal-setup,Minimal security for the Elastic Stack>> on every node in your cluster. After enabling {es} security and setting
-passwords for the built-in users, you can encrypt communications between your
-nodes with TLS.
+Complete the steps in <<security-minimal-setup,Minimal security for the Elastic Stack>> to enable {es} security features on every node in your cluster. You can
+then encrypt communications between your nodes with TLS.
+
+NOTE: You only need to create passwords for the built-in users one time for the
+entire cluster.
 
 [[generate-certificates]]
 ==== Generate the certificate authority
@@ -56,8 +56,8 @@ that method of generating a CA and certificates.
 
    a. When prompted, accept the default file name, which is `elastic-stack-ca.p12`. This file contains the public certificate for your CA and the private key used to sign certificates for each node.
 
-   b. Enter a password for your CA. You can leave the password
-   blank if you're configuring security for a minimal development environment.
+   b. Enter a password for your CA. You can choose to leave the password blank
+   if you're not deploying to a production environment.
 
 . Generate a certificate and private key for your node. You include the
    `elastic-stack-ca.p12` output file that you generated in the previous step.
@@ -67,9 +67,9 @@ that method of generating a CA and certificates.
 ./bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
 ----
 
-   a. Enter the password for your CA or just press enter if you did not configure one in the previous step.
+   a. Enter the password for your CA, or press *Enter* if you did not configure one in the previous step.
 
-   b. Create a password for the certificate.
+   b. Create a password for the certificate and accept the default file name.
 +
 The output file is a keystore named `elastic-certificates.p12`. This file
 contains a node certificate, node key, and CA certificate.
@@ -84,8 +84,9 @@ contains a node certificate, node key, and CA certificate.
 
 If you're running a multi-node cluster, this method of generating certificates
 is simpler than generating one certificate at a time.
-You run the `elasticsearch-certutil` tool in `--silent` mode to create a single
-CA, plus a security certificate for each node in your cluster.
+You run the `elasticsearch-certutil` tool in
+<<certutil-silent,`--silent` mode>> to create a single CA, plus a security
+certificate for each node in your cluster.
 
 . Use the `elasticsearch-certutil` tool to generate a CA for your cluster.
 +
@@ -124,7 +125,7 @@ This command generates a compressed `node-certs.zip` file.
    `--ca <ca_file>`:: Name of the CA file used to sign your certificates. The
    default file name from the `elasticsearch-certutil` tool is `elastic-stack-ca.p12`.
 
-   `--in <input_file>`:: Name of the file that is used to run in https://www.elastic.co/guide/en/elasticsearch/reference/current/certutil.html#certutil-silent[silent mode]. The input file must be a YAML file. This parameter cannot be used with the `ca` parameter.
+   `--in <input_file>`:: Name of the file that is used to run in `--silent` mode. The input file must be a YAML file. This parameter cannot be used with the `ca` parameter.
 
    `--out <file_path>`:: Path and file name for the output files.
 

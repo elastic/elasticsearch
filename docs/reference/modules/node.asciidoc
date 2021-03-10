@@ -63,7 +63,7 @@ related operations such as CRUD, search, and aggregations. A node with the `data
 <<node-ingest-node,Ingest node>>::
 
 A node that has the `ingest` role. Ingest nodes are able to apply an
-<<pipeline,ingest pipeline>> to a document in order to transform and enrich the
+<<ingest,ingest pipeline>> to a document in order to transform and enrich the
 document before indexing. With a heavy ingest load, it makes sense to use
 dedicated ingest nodes and to not include the `ingest` role from nodes that have
 the `master` or `data` roles.

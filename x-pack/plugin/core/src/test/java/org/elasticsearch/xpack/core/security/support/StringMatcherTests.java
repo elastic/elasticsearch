@@ -24,7 +24,7 @@ public class StringMatcherTests extends ESTestCase {
     }
 
     public void testSingleWildcard() throws Exception {
-        final String prefix = randomValueOtherThanMany(s -> s.startsWith("/"), () -> randomAlphaOfLengthBetween(3, 5));
+        final String prefix = randomAlphaOfLengthBetween(3, 5);
         final StringMatcher matcher = StringMatcher.of(prefix + "*");
         for (int i = 0; i < 10; i++) {
             assertMatch(matcher, prefix + randomAlphaOfLengthBetween(i, 20));

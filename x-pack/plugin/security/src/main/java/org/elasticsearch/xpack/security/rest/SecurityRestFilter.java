@@ -11,10 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.MediaType;
@@ -90,11 +88,6 @@ public class SecurityRestFilter implements RestHandler {
                         e -> handleException("Secondary authentication", request, channel, e)));
                 }, e -> handleException("Authentication", request, channel, e)));
         } else {
-            if (request.getHeaders() != null && request.getHeaders().containsKey("Authorization")) {
-                HeaderWarning.addWarning("Elasticsearch security features are not enabled, anyone can access your cluster without " +
-                    "authentication. Read https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
-                    Version.CURRENT.minor + "/get-started-enable-security.html for more information.");
-            }
             restHandler.handleRequest(request, channel, client);
         }
     }

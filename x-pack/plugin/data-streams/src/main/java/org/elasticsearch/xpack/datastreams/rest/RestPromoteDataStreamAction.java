@@ -16,6 +16,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestPromoteDataStreamAction extends BaseRestHandler {
     @Override
     public String getName() {
@@ -24,7 +26,7 @@ public class RestPromoteDataStreamAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(new Route(RestRequest.Method.POST, "/_data_stream/_promote/{name}"));
+        return Collections.singletonList(new Route(POST, "/_data_stream/_promote/{name}"));
     }
 
     @Override

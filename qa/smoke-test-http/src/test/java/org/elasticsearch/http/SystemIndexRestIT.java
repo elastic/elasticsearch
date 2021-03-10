@@ -44,6 +44,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -201,7 +202,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
 
             @Override
             public List<Route> routes() {
-                return org.elasticsearch.common.collect.List.of(new Route(RestRequest.Method.POST, "/_sys_index_test/add_doc/{id}"));
+                return org.elasticsearch.common.collect.List.of(new Route(POST, "/_sys_index_test/add_doc/{id}"));
             }
 
             @Override

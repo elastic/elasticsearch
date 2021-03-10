@@ -72,21 +72,11 @@ for `logs-*-*`.
 [[create-index-templates]]
 == Create index template
 
-To create an index template from Stack Management in {kib}, select
-*Index Management* in the side navigation, choose *Index Templates*, and click *Create Template*. You
-can then select the component templates you want to use, or define the index settings, mappings, and alias configurations directly.
+Use the <<indices-put-template,index template>> and <<indices-component-template,put component template>> APIs to create and update index templates.
+You can also <<index-mgmt,manage index templates>> from Stack
+Management in {kib}.
 
-When defining mappings, you can add mapped fields and create
-<<runtime-mapping-fields,runtime fields>>. These fields work like any other
-field, but are evaluated only at query time. When an index is created that
-matches the index template, {es} uses the index template to configure the index
-and add the runtime field to the mappings. When you create the runtime field,
-you optionally specify a Painless script. If you don't include a script,
-runtime fields retrieve values from `_source`.
-
-You can also use the <<indices-put-template, index template>> and <<indices-component-template,put component template>> APIs to create and update index templates.
-The following requests create two
-component templates.
+The following requests create two component templates.
 
 [source,console]
 ----
@@ -124,11 +114,11 @@ PUT _component_template/runtime_component_template
   }
 }
 ----
-<1> This component template adds a runtime field named `day_of_week` to the
-mappings when a new index matches the template.
+<1> This component template adds a <<runtime-mapping-fields,runtime field>>
+named `day_of_week` to the mappings when a new index matches the template.
 
-The following request creates an index template that is _composed of_  these
-component templates. 
+The following request creates an index template that is _composed of_ these
+component templates.
 
 [source,console]
 ----

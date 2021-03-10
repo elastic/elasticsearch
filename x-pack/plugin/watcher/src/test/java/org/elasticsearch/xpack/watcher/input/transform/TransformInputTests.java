@@ -61,7 +61,8 @@ public class TransformInputTests extends ESTestCase {
     }
 
     public void testParserValid() throws Exception {
-        Map<String, TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories =
+        Map<String,
+            TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories =
             Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
         TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(registry);
@@ -85,8 +86,9 @@ public class TransformInputTests extends ESTestCase {
     public void testParserInvalid() throws Exception {
         XContentBuilder jsonBuilder = jsonBuilder().value("just a string");
 
-        Map<String, TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories = Collections.singletonMap("script",
-                new ScriptTransformFactory(scriptService));
+        Map<String,
+            TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories =
+            Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
         TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(registry);
         XContentParser parser = createParser(jsonBuilder);
@@ -104,8 +106,9 @@ public class TransformInputTests extends ESTestCase {
     }
 
     public void testTransformInputToXContentIsSameAsParsing() throws Exception {
-        Map<String, TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories = Collections.singletonMap("script",
-                new ScriptTransformFactory(scriptService));
+        Map<String,
+            TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories =
+            Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
         TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(registry);
 

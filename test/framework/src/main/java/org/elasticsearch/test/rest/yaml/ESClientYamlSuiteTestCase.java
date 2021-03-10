@@ -23,6 +23,7 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -108,6 +109,18 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     private static boolean useDefaultNumberOfShards;
+
+    @Override
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
+        configureClient(builder, settings);
+        if (settings.hasValue("xpack.security.enabled")) {
+            builder.setStrictDeprecationMode(true);
+        } else {
+            builder.setStrictDeprecationMode(false);
+        }
+        return builder.build();
+    }
 
     @BeforeClass
     public static void initializeUseDefaultNumberOfShards() {

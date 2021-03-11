@@ -29,6 +29,7 @@ import org.elasticsearch.search.persistent.ShardQueryResultInfo;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayDeque;
@@ -360,7 +361,7 @@ public class AsyncPersistentSearch {
                     final SearchRequest updatedRequest = SearchRequest.subSearchRequest(parentTaskId,
                         searchRequest,
                         searchRequest.indices(),
-                        null,
+                        RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                         searchTimeProvider.getAbsoluteStartMillis(),
                         performFinalReduce
                     );

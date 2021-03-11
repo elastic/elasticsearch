@@ -106,12 +106,10 @@ public class NoticeTask extends DefaultTask {
         }
 
         // Add all LICENSE and NOTICE files in licenses directory
-        for (Map.Entry<String, File> entry : seen.entrySet()) {
-            final String name = entry.getKey();
-            File file = entry.getValue();
+        seen.forEach((name, file) -> {
             appendFile(file, name, "NOTICE", output);
             appendFile(new File(file.getParentFile(), name + "-LICENSE.txt"), name, "LICENSE", output);
-        }
+        });
 
         // Find any source files with "@notice" annotated license header
         for (File sourceFile : sources.getFiles()) {

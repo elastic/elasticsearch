@@ -126,7 +126,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
 
         private final String fileExt;
         private final long numFiles;
-        private final long totalSize;
+        private final ByteSizeValue totalSize;
         private final ByteSizeValue minSize;
         private final ByteSizeValue maxSize;
 
@@ -147,7 +147,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         private final Counter blobStoreBytesRequested;
         private final long currentIndexCacheFills;
 
-        public CacheIndexInputStats(String fileExt, long numFiles, long totalSize, ByteSizeValue minSize, ByteSizeValue maxSize,
+        public CacheIndexInputStats(String fileExt, long numFiles, ByteSizeValue totalSize, ByteSizeValue minSize, ByteSizeValue maxSize,
                                     long openCount, long closeCount,
                                     Counter forwardSmallSeeks, Counter backwardSmallSeeks,
                                     Counter forwardLargeSeeks, Counter backwardLargeSeeks,
@@ -186,13 +186,14 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             }
             this.fileExt = in.readString();
             this.numFiles = in.readVLong();
-            this.totalSize = in.readVLong();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO adapt BWC version after backport
-                this.minSize = new ByteSizeValue(in);
-                this.maxSize = new ByteSizeValue(in);
-            } else {
+            if (in.getVersion().before(Version.V_8_0_0)) { // TODO adapt BWC version after backport
+                this.totalSize = new ByteSizeValue(in.readVLong());
                 this.minSize = ByteSizeValue.ZERO;
                 this.maxSize = ByteSizeValue.ZERO;
+            } else {
+                this.totalSize = new ByteSizeValue(in);
+                this.minSize = new ByteSizeValue(in);
+                this.maxSize = new ByteSizeValue(in);
             }
             this.openCount = in.readVLong();
             this.closeCount = in.readVLong();
@@ -220,7 +221,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             return new CacheIndexInputStats(
                 cis1.fileExt,
                 cis1.numFiles + cis2.numFiles,
-                cis1.totalSize + cis2.totalSize,
+                new ByteSizeValue(Math.addExact(cis1.totalSize.getBytes(), cis2.totalSize.getBytes())),
                 new ByteSizeValue(Math.min(cis1.minSize.getBytes(), cis2.minSize.getBytes())),
                 new ByteSizeValue(Math.max(cis1.maxSize.getBytes(), cis2.maxSize.getBytes())),
                 cis1.openCount + cis2.openCount,
@@ -251,8 +252,10 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             }
             out.writeString(fileExt);
             out.writeVLong(numFiles);
-            out.writeVLong(totalSize);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO adapt BWC version after backport
+            if (out.getVersion().before(Version.V_8_0_0)) { // TODO adapt BWC version after backport
+                out.writeVLong(totalSize.getBytes());
+            } else {
+                totalSize.writeTo(out);
                 minSize.writeTo(out);
                 maxSize.writeTo(out);
             }
@@ -282,7 +285,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             return numFiles;
         }
 
-        public long getTotalSize() {
+        public ByteSizeValue getTotalSize() {
             return totalSize;
         }
 
@@ -295,7 +298,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         }
 
         public ByteSizeValue getAverageSize() {
-            final double average = (double) totalSize / (double) numFiles;
+            final double average = (double) totalSize.getBytes()/ (double) numFiles;
             return new ByteSizeValue(Math.round(average));
         }
 
@@ -365,12 +368,16 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             {
                 builder.field("file_ext", getFileExt());
                 builder.field("num_files", getNumFiles());
-                builder.field("total_size", getTotalSize());
-                builder.humanReadableField("min_size_in_bytes", "min_size", getMinSize());
-                builder.humanReadableField("max_size_in_bytes", "max_size", getMaxSize());
-                builder.humanReadableField("avg_size_in_bytes", "avg_size", getAverageSize());
                 builder.field("open_count", getOpenCount());
                 builder.field("close_count", getCloseCount());
+                {
+                    builder.startObject("size");
+                    builder.humanReadableField("total_in_bytes", "total", getTotalSize());
+                    builder.humanReadableField("min_in_bytes", "min", getMinSize());
+                    builder.humanReadableField("max_in_bytes", "max", getMaxSize());
+                    builder.humanReadableField("average_in_bytes", "average", getAverageSize());
+                    builder.endObject();
+                }
                 builder.field("contiguous_bytes_read", getContiguousReads(), params);
                 builder.field("non_contiguous_bytes_read", getNonContiguousReads(), params);
                 builder.field("cached_bytes_read", getCachedBytesRead(), params);
@@ -406,10 +413,10 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             }
             CacheIndexInputStats stats = (CacheIndexInputStats) other;
             return numFiles == stats.numFiles
-                && totalSize == stats.totalSize
                 && openCount == stats.openCount
                 && closeCount == stats.closeCount
                 && Objects.equals(fileExt, stats.fileExt)
+                && Objects.equals(totalSize, stats.totalSize)
                 && Objects.equals(minSize, stats.minSize)
                 && Objects.equals(maxSize, stats.maxSize)
                 && Objects.equals(forwardSmallSeeks, stats.forwardSmallSeeks)

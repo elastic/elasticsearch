@@ -1434,7 +1434,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final long totalSize = statsResponse.getStats()
             .stream()
             .flatMap(s -> s.getStats().stream())
-            .mapToLong(SearchableSnapshotShardStats.CacheIndexInputStats::getTotalSize)
+            .mapToLong(stat -> stat.getTotalSize().getBytes())
             .sum();
         final Set<String> nodeIdsWithLargeEnoughCache = new HashSet<>();
         for (ObjectCursor<DiscoveryNode> nodeCursor : client().admin()
@@ -1472,21 +1472,21 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                     );
                     assertThat(
                         "Unexpected file length for " + fileExt + " of shard " + shardRouting,
-                        indexInputStats.getTotalSize(),
+                        indexInputStats.getTotalSize().getBytes(),
                         greaterThan(0L)
                     );
                     assertThat(
-                        "Unexpected min. file size for " + fileExt + " of shard " + shardRouting,
+                        "Unexpected min. file length for " + fileExt + " of shard " + shardRouting,
                         indexInputStats.getMinSize().getBytes(),
                         greaterThan(0L)
                     );
                     assertThat(
-                        "Unexpected max. file size for " + fileExt + " of shard " + shardRouting,
+                        "Unexpected max. file length for " + fileExt + " of shard " + shardRouting,
                         indexInputStats.getMaxSize().getBytes(),
                         greaterThan(0L)
                     );
                     assertThat(
-                        "Unexpected average file size for " + fileExt + " of shard " + shardRouting,
+                        "Unexpected average file length for " + fileExt + " of shard " + shardRouting,
                         indexInputStats.getAverageSize().getBytes(),
                         greaterThan(0L)
                     );

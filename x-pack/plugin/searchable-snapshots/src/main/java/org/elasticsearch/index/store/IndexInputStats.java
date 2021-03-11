@@ -27,8 +27,8 @@ public class IndexInputStats {
 
     private final long numFiles;
     private final long totalSize;
-    private final ByteSizeValue minSize;
-    private final ByteSizeValue maxSize;
+    private final long minSize;
+    private final long maxSize;
 
     private final long seekingThreshold;
     private final LongSupplier currentTimeNanos;
@@ -69,8 +69,8 @@ public class IndexInputStats {
     ) {
         this.numFiles = numFiles;
         this.totalSize = totalSize;
-        this.minSize = new ByteSizeValue(minSize);
-        this.maxSize = new ByteSizeValue(maxSize);
+        this.minSize = minSize;
+        this.maxSize = maxSize;
         this.seekingThreshold = seekingThreshold;
         this.currentTimeNanos = currentTimeNanos;
     }
@@ -157,11 +157,11 @@ public class IndexInputStats {
         return totalSize;
     }
 
-    public ByteSizeValue getMinSize() {
+    public long getMinSize() {
         return minSize;
     }
 
-    public ByteSizeValue getMaxSize() {
+    public long getMaxSize() {
         return maxSize;
     }
 

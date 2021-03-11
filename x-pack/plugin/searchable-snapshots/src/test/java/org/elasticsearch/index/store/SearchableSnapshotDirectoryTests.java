@@ -211,8 +211,8 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 assertThat("No index input stats for extension [" + extension + ']', inputStats, notNullValue());
                 assertThat(inputStats.getNumFiles(), equalTo(numFiles.get(extension)));
                 assertThat(inputStats.getTotalSize(), equalTo(totalFiles.get(extension)));
-                assertThat(inputStats.getMinSize().getBytes(), equalTo(minSizes.get(extension)));
-                assertThat(inputStats.getMaxSize().getBytes(), equalTo(maxSizes.get(extension)));
+                assertThat(inputStats.getMinSize(), equalTo(minSizes.get(extension)));
+                assertThat(inputStats.getMaxSize(), equalTo(maxSizes.get(extension)));
             }
         });
     }

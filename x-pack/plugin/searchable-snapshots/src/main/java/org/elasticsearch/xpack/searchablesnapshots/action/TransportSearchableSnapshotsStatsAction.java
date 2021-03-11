@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.indices.IndicesService;
@@ -100,9 +101,9 @@ public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSe
         return new CacheIndexInputStats(
             fileExt,
             inputStats.getNumFiles(),
-            inputStats.getTotalSize(),
-            inputStats.getMinSize(),
-            inputStats.getMaxSize(),
+            new ByteSizeValue(inputStats.getTotalSize()),
+            new ByteSizeValue(inputStats.getMinSize()),
+            new ByteSizeValue(inputStats.getMaxSize()),
             inputStats.getOpened().sum(),
             inputStats.getClosed().sum(),
             toCounter(inputStats.getForwardSmallSeeks()),

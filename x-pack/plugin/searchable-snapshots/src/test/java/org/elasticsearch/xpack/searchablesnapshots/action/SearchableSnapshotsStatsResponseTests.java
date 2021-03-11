@@ -100,7 +100,7 @@ public class SearchableSnapshotsStatsResponseTests extends ESTestCase {
         return new SearchableSnapshotShardStats.CacheIndexInputStats(
             randomAlphaOfLength(10),
             randomNonNegativeLong(),
-            randomNonNegativeLong(),
+            new ByteSizeValue(randomNonNegativeLong()),
             new ByteSizeValue(randomNonNegativeLong()),
             new ByteSizeValue(randomNonNegativeLong()),
             randomNonNegativeLong(),

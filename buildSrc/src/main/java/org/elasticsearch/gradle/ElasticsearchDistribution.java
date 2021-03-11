@@ -41,12 +41,8 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         RPM,
         DEB,
         DOCKER,
-        // Same as above, but built from the generated context that we supply to Docker Hub
-        DOCKER_CONTEXT,
         // This is a different flavour of Docker image
         DOCKER_UBI,
-        // Same as above, but built from the generated UBI context
-        DOCKER_UBI_CONTEXT,
         // Like UBI, but a little different.
         DOCKER_IRON_BANK;
 
@@ -59,9 +55,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             switch (this) {
                 case DEB:
                 case DOCKER:
-                case DOCKER_CONTEXT:
                 case DOCKER_UBI:
-                case DOCKER_UBI_CONTEXT:
                 case DOCKER_IRON_BANK:
                 case RPM:
                     return false;
@@ -74,9 +68,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         public boolean isDocker() {
             switch (this) {
                 case DOCKER:
-                case DOCKER_CONTEXT:
                 case DOCKER_UBI:
-                case DOCKER_UBI_CONTEXT:
                 case DOCKER_IRON_BANK:
                     return true;
 
@@ -215,9 +207,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         switch (getType()) {
             case DEB:
             case DOCKER:
-            case DOCKER_CONTEXT:
             case DOCKER_UBI:
-            case DOCKER_UBI_CONTEXT:
             case DOCKER_IRON_BANK:
             case RPM:
                 throw new UnsupportedOperationException(

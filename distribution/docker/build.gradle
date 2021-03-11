@@ -100,9 +100,7 @@ ext.dockerBuildContext = { Architecture architecture, DockerBase base ->
     if (base == DockerBase.IRON_BANK) {
       into('scripts') {
         from projectDir.resolve("src/docker/bin")
-        from(projectDir.resolve("src/docker/config")) {
-          exclude '**/oss'
-        }
+        from projectDir.resolve("src/docker/config")
       }
       from(projectDir.resolve("src/docker/iron_bank")) {
         expand(varExpansions)
@@ -113,10 +111,6 @@ ext.dockerBuildContext = { Architecture architecture, DockerBase base ->
       }
 
       into('config') {
-        // The OSS and default distribution can have different configuration, therefore we want to
-        // allow overriding the default configuration by creating config files in oss or default
-        // build-context sub-modules.
-        duplicatesStrategy = DuplicatesStrategy.INCLUDE
         from projectDir.resolve("src/docker/config")
       }
     }
@@ -168,15 +162,11 @@ tasks.named("preProcessFixture").configure {
     // tests expect to have an empty repo
     project.delete(
       "${buildDir}/repo",
-      "${buildDir}/oss-repo"
     )
     createAndSetWritable(
       "${buildDir}/repo",
-      "${buildDir}/oss-repo",
       "${buildDir}/logs/default-1",
-      "${buildDir}/logs/default-2",
-      "${buildDir}/logs/oss-1",
-      "${buildDir}/logs/oss-2"
+      "${buildDir}/logs/default-2"
     )
   }
 }
@@ -263,9 +253,9 @@ void addUnpackDockerContextTask(Architecture architecture, DockerBase base) {
 private List<String> generateTags(DockerBase base) {
   String version = VersionProperties.elasticsearch
   return [
+    "elasticsearch${base.suffix}:test",
     "elasticsearch${base.suffix}:${version}",
-    "docker.elastic.co/elasticsearch/elasticsearch${base.suffix}:${version}",
-    "elasticsearch${base.suffix}:test"
+    "docker.elastic.co/elasticsearch/elasticsearch${base.suffix}:${version}"
   ]
 }
 
@@ -333,9 +323,8 @@ subprojects { Project subProject ->
     }
 
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
-    final String suffix = base == DockerBase.UBI ? '-ubi8' : (base == DockerBase.IRON_BANK ? '-ironbank' : '')
     final String extension = base == DockerBase.UBI ? 'ubi.tar' : (base == DockerBase.IRON_BANK ? 'ironbank.tar' : 'docker.tar')
-    final String artifactName = "elasticsearch${arch}${suffix}_test"
+    final String artifactName = "elasticsearch${arch}${base.suffix}_test"
 
     final String exportTaskName = taskName("export", architecture, base, 'DockerImage')
     final String buildTaskName = taskName('build', architecture, base, 'DockerImage')
@@ -348,7 +337,7 @@ subprojects { Project subProject ->
       args "save",
         "-o",
         tarFile,
-        "elasticsearch${suffix}:test"
+        "elasticsearch${base.suffix}:test"
 
       dependsOn(parent.path + ":" + buildTaskName)
       onlyIf { Architecture.current() == architecture }

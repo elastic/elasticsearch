@@ -26,11 +26,11 @@ public class Distribution {
         if (filename.endsWith(".gz")) {
             this.packaging = Packaging.TAR;
         } else if (filename.endsWith(".docker.tar")) {
-            this.packaging = filename.contains("-from-context") ? Packaging.DOCKER_FROM_CONTEXT : Packaging.DOCKER;
+            this.packaging = Packaging.DOCKER;
         } else if (filename.endsWith(".ubi.tar")) {
-            this.packaging = filename.contains("-from-context") ? Packaging.DOCKER_UBI_FROM_CONTEXT : Packaging.DOCKER_UBI;
+            this.packaging = Packaging.DOCKER_UBI;
         } else if (filename.endsWith(".ironbank.tar")) {
-            this.packaging = Packaging.DOCKER_IRON_BANK_FROM_CONTEXT;
+            this.packaging = Packaging.DOCKER_IRON_BANK;
         } else {
             int lastDot = filename.lastIndexOf('.');
             this.packaging = Packaging.valueOf(filename.substring(lastDot + 1).toUpperCase(Locale.ROOT));

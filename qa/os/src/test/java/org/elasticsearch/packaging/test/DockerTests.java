@@ -797,7 +797,7 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the UBI images has the correct license information in the correct place.
+     * Check that the Iron Bank image has the correct license information in the correct place.
      */
     public void test300IronBankImagesHaveLicenseDirectory() {
         assumeTrue(distribution.packaging == Packaging.DOCKER_IRON_BANK);

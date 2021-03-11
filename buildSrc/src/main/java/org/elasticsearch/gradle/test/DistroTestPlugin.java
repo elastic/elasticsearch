@@ -226,10 +226,8 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static Map<ElasticsearchDistribution.Type, TaskProvider<?>> lifecycleTasks(Project project, String taskPrefix) {
         Map<ElasticsearchDistribution.Type, TaskProvider<?>> lifecyleTasks = new HashMap<>();
         lifecyleTasks.put(Type.DOCKER, project.getTasks().register(taskPrefix + ".docker"));
-        lifecyleTasks.put(Type.DOCKER_CONTEXT, project.getTasks().register(taskPrefix + ".docker-context"));
         lifecyleTasks.put(Type.DOCKER_UBI, project.getTasks().register(taskPrefix + ".docker-ubi"));
-        lifecyleTasks.put(Type.DOCKER_UBI_CONTEXT, project.getTasks().register(taskPrefix + ".docker-ubi-context"));
-        lifecyleTasks.put(Type.DOCKER_IRON_BANK, project.getTasks().register(taskPrefix + ".docker-ironbank-context"));
+        lifecyleTasks.put(Type.DOCKER_IRON_BANK, project.getTasks().register(taskPrefix + ".docker-ironbank"));
         lifecyleTasks.put(Type.ARCHIVE, project.getTasks().register(taskPrefix + ".archives"));
         lifecyleTasks.put(Type.DEB, project.getTasks().register(taskPrefix + ".packages"));
         lifecyleTasks.put(Type.RPM, lifecyleTasks.get(Type.DEB));

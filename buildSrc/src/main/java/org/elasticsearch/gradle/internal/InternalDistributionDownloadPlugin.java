@@ -113,9 +113,7 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
                 break;
 
             case DOCKER:
-            case DOCKER_CONTEXT:
             case DOCKER_UBI:
-            case DOCKER_UBI_CONTEXT:
             case DOCKER_IRON_BANK:
                 projectPath += ":docker:";
                 projectPath += distributionProjectName(distribution);
@@ -163,17 +161,11 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
             case DOCKER:
                 return projectName + "docker" + archString + "-export";
 
-            case DOCKER_CONTEXT:
-                return projectName + "docker" + archString + "-from-context-export";
-
             case DOCKER_UBI:
                 return projectName + "ubi-docker" + archString + "-export";
 
-            case DOCKER_UBI_CONTEXT:
-                return projectName + "ubi-docker" + archString + "-from-context-export";
-
             case DOCKER_IRON_BANK:
-                return projectName + "ironbank-docker" + archString + "-from-context-export";
+                return projectName + "ironbank-docker" + archString + "-export";
 
             default:
                 return projectName + distribution.getType();

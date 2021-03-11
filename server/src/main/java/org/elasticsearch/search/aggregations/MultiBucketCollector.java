@@ -98,7 +98,7 @@ public class MultiBucketCollector extends BucketCollector {
                     } catch (CollectionTerminatedException e) {
                         throw new IllegalStateException(
                             "getLeafCollector should return a noop collector instead of throw "
-                                + CollectionTerminatedException.class.getSimpleName()
+                                + CollectionTerminatedException.class.getSimpleName(), e
                         );
                     }
                     if (terminateIfNoop) {
@@ -179,7 +179,7 @@ public class MultiBucketCollector extends BucketCollector {
             } catch (CollectionTerminatedException e) {
                 throw new IllegalStateException(
                     "getLeafCollector should return a noop collector instead of throw "
-                        + CollectionTerminatedException.class.getSimpleName()
+                        + CollectionTerminatedException.class.getSimpleName(), e
                 );
             }
         }

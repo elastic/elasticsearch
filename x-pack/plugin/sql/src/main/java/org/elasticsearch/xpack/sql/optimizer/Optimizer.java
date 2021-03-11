@@ -1146,7 +1146,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Holder<LocalRelation> optimizedPlan = new Holder<>();
             plan.forEachDown(Project.class, p -> {
                 List<Object> values = extractConstants(p.projections());
-                if (values.size() == p.projections().size() && !(p.child() instanceof EsRelation) &&
+                if (values.size() == p.projections().size() && (p.child() instanceof EsRelation) == false &&
                     isNotQueryWithFromClauseAndFilterFoldedToFalse(p)) {
                     optimizedPlan.set(new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray())));
                 }

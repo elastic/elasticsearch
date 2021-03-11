@@ -12,20 +12,19 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestPreviewDatafeedAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
-            new Route(GET, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_preview")
+        return List.of(
+            new Route(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_preview")
         );
     }
 

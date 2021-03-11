@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -34,7 +35,8 @@ public class RestDeleteComposableIndexTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
 
-        DeleteComposableIndexTemplateAction.Request deleteReq = new DeleteComposableIndexTemplateAction.Request(request.param("name"));
+        String[] names = Strings.splitStringByCommaToArray(request.param("name"));
+        DeleteComposableIndexTemplateAction.Request deleteReq = new DeleteComposableIndexTemplateAction.Request(names);
         deleteReq.masterNodeTimeout(request.paramAsTime("master_timeout", deleteReq.masterNodeTimeout()));
 
         return channel -> client.execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteReq, new RestToXContentListener<>(channel));

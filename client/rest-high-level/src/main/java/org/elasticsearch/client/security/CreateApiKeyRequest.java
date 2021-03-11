@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -28,19 +29,28 @@ public final class CreateApiKeyRequest implements Validatable, ToXContentObject 
     private final TimeValue expiration;
     private final List<Role> roles;
     private final RefreshPolicy refreshPolicy;
+    private final Map<String, Object> metadata;
 
     /**
      * Create API Key request constructor
      * @param name name for the API key
      * @param roles list of {@link Role}s
      * @param expiration to specify expiration for the API key
+     * @param metadata Arbitrary metadata for the API key
      */
     public CreateApiKeyRequest(String name, List<Role> roles, @Nullable TimeValue expiration,
-                               @Nullable final RefreshPolicy refreshPolicy) {
+                               @Nullable final RefreshPolicy refreshPolicy,
+                               @Nullable Map<String, Object> metadata) {
         this.name = name;
         this.roles = Objects.requireNonNull(roles, "roles may not be null");
         this.expiration = expiration;
         this.refreshPolicy = (refreshPolicy == null) ? RefreshPolicy.getDefault() : refreshPolicy;
+        this.metadata = metadata;
+    }
+
+    public CreateApiKeyRequest(String name, List<Role> roles, @Nullable TimeValue expiration,
+                               @Nullable final RefreshPolicy refreshPolicy) {
+        this(name, roles, expiration, refreshPolicy, null);
     }
 
     public String getName() {
@@ -74,7 +84,7 @@ public final class CreateApiKeyRequest implements Validatable, ToXContentObject 
         }
         final CreateApiKeyRequest that = (CreateApiKeyRequest) o;
         return Objects.equals(name, that.name) && Objects.equals(refreshPolicy, that.refreshPolicy) && Objects.equals(roles, that.roles)
-                && Objects.equals(expiration, that.expiration);
+                && Objects.equals(expiration, that.expiration) && Objects.equals(metadata, that.metadata);
     }
 
     @Override
@@ -105,6 +115,9 @@ public final class CreateApiKeyRequest implements Validatable, ToXContentObject 
                 builder.field(Role.RUN_AS.getPreferredName(), role.getRunAsPrivilege());
             }
             builder.endObject();
+        }
+        if (metadata != null) {
+            builder.field("metadata", metadata);
         }
         builder.endObject();
         return builder.endObject();

@@ -2124,7 +2124,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         assertNotNull(createApiKeyResponse1.getKey());
 
         final ApiKey expectedApiKeyInfo = new ApiKey(createApiKeyResponse1.getName(), createApiKeyResponse1.getId(), Instant.now(),
-            Instant.now().plusMillis(expiration.getMillis()), false, "test_user", "default_file");
+            Instant.now().plusMillis(expiration.getMillis()), false, "test_user", "default_file", null);
         {
             // tag::get-api-key-id-request
             GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId(), false);

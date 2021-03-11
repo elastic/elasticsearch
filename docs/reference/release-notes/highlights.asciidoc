@@ -4,7 +4,7 @@
 Here are the highlights of what's new and improved in {es} {minor-version}!
 
 For detailed information about this release, see the <<es-release-notes>> and
-<<breaking-changes>.
+<<breaking-changes>>.
 
 // Add previous release to the list
 Other versions:

@@ -12,13 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexNotFoundException;
 
-<<<<<<< HEAD
 import java.util.ArrayList;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-=======
->>>>>>> 36683a4581a... Move shared cache pre-allocation and support macOS (#70285)
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;

@@ -196,7 +196,8 @@ A successful call returns a JSON structure that contains the information of one 
       "creation": 1548550550158,
       "invalidated": false,
       "username": "user-y",
-      "realm": "realm-2"
+      "realm": "realm-2",
+      "metadata": {}
     }
   ]
 }

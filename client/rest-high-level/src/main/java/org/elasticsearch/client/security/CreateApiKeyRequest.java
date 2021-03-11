@@ -69,6 +69,10 @@ public final class CreateApiKeyRequest implements Validatable, ToXContentObject 
         return refreshPolicy;
     }
 
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(name, refreshPolicy, roles, expiration);
@@ -116,10 +120,10 @@ public final class CreateApiKeyRequest implements Validatable, ToXContentObject 
             }
             builder.endObject();
         }
+        builder.endObject();
         if (metadata != null) {
             builder.field("metadata", metadata);
         }
-        builder.endObject();
         return builder.endObject();
     }
 

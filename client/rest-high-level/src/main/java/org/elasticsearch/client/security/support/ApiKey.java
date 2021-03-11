@@ -94,6 +94,10 @@ public final class ApiKey {
         return realm;
     }
 
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(name, id, creation, expiration, invalidated, username, realm);

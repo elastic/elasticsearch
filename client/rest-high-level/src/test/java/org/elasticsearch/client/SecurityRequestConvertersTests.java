@@ -14,6 +14,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
+import org.elasticsearch.client.security.CreateApiKeyRequestTests;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
@@ -449,7 +450,8 @@ public class SecurityRequestConvertersTests extends ESTestCase {
                 .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
         final TimeValue expiration = randomBoolean() ? null : TimeValue.timeValueHours(24);
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
-        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy);
+        final Map<String, Object> metadata = CreateApiKeyRequestTests.randomMetadata();
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy, metadata);
         return createApiKeyRequest;
     }
 

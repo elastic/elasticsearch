@@ -251,8 +251,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
         // add the plugin properties and metadata to test resources, so unit tests can
         // know about the plugin (used by test security code to statically initialize the plugin in unit tests)
         var testSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName("test");
-        Map<String, Object> map = new LinkedHashMap<String, Object>(1);
-        map.put("builtBy", buildProperties);
+        Map<String, Object> map = Map.of("builtBy", buildProperties);
         testSourceSet.getOutput().dir(map, new File(project.getBuildDir(), "generated-resources"));
         testSourceSet.getResources().srcDir(pluginMetadata);
 

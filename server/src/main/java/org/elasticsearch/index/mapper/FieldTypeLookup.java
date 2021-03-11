@@ -92,6 +92,13 @@ final class FieldTypeLookup {
     }
 
     /**
+     * Returns all the mapped field types.
+     */
+    Collection<MappedFieldType> get() {
+        return fullNameToFieldType.values();
+    }
+
+    /**
      * Returns a list of the full names of a simple match regex like pattern against full name and index name.
      */
     Set<String> simpleMatchToFullName(String pattern) {

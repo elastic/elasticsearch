@@ -41,6 +41,16 @@ public class SourceLookup implements Map {
     private Map<String, Object> source;
     private XContentType sourceContentType;
 
+    /**
+     * Return the source as a map that will be unchanged when the lookup
+     * moves to a different document.
+     * <p>
+     * Important: This can lose precision on numbers with a decimal point. It
+     * converts numbers like {@code "n": 1234.567} to a {@code double} which
+     * only has 52 bits of precision in the mantissa. This will come up most
+     * frequently when folks write nanosecond precision dates as a decimal
+     * number.
+     */
     public Map<String, Object> source() {
         return source;
     }
@@ -57,6 +67,16 @@ public class SourceLookup implements Map {
     // is not possible because certain checks use source == null as
     // as a determination if source is enabled/disabled, but it should
     // never be a null Map for scripting even when disabled.
+    /**
+     * Return the source as a map that will be unchanged when the lookup
+     * moves to a different document.
+     * <p>
+     * Important: This can lose precision on numbers with a decimal point. It
+     * converts numbers like {@code "n": 1234.567} to a {@code double} which
+     * only has 52 bits of precision in the mantissa. This will come up most
+     * frequently when folks write nanosecond precision dates as a decimal
+     * number.
+     */
     public Map<String, Object> loadSourceIfNeeded() {
         if (source != null) {
             return source;
@@ -89,6 +109,15 @@ public class SourceLookup implements Map {
         return XContentHelper.convertToMap(source, false);
     }
 
+    /**
+     * Get the source as a {@link Map} of java objects.
+     * <p>
+     * Important: This can lose precision on numbers with a decimal point. It
+     * converts numbers like {@code "n": 1234.567} to a {@code double} which
+     * only has 52 bits of precision in the mantissa. This will come up most
+     * frequently when folks write nanosecond precision dates as a decimal
+     * number.
+     */
     public static Map<String, Object> sourceAsMap(BytesReference source) throws ElasticsearchParseException {
         return sourceAsMapAndType(source).v2();
     }

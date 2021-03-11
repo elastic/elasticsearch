@@ -21,8 +21,7 @@ source, and add parameters that are passed into the script:
 
 `source`, `id`::
 
-    Specifies the source of the script. An `inline` script is specified as `source` in the previous example. A `stored` script is specified by `id` and is retrieved from the cluster state using the `_scripts` endpoint. For
-    example, `_scripts/id`.
+    The script itself, which you specify as `source` for an inline script or `id` for a stored script. Use the `_scripts` endpoint to retrieve a stored script. For example, you can create or delete a stored script by calling  `POST _scripts/{id}` and `DELETE _scripts/{id}`.
 
 `params`::
 
@@ -42,99 +41,162 @@ have at least one statement.
 
 The {painless}/painless-execute-api.html[Painless execute API] provides the ability to
 test a script with simple user-defined parameters and receive a result. Let's
-start with a simple script and review its constituent parts.
+start with a complete script and review its constituent parts.
+
+First, index a document with a single field so that we have some data to work
+with:
 
 [source,console]
 ----
-POST /_scripts/painless/_execute
+PUT my-index-000001/_doc/1
 {
-  "script": { <1>
-    "source": "return 'Hello, world!';" <2>
-  }
+  "my_field": 5
 }
 ----
-<1> `script` object
-<2> `script` source
 
-We're using the Painless execute API without any URL parameters, which uses
-the `painless_test` context by default. This context optionally makes
-available a `Map` of user-defined parameters, and then returns a value as an
-`Object`.
-
-The `script` is a standard JSON object that defines scripts under most APIs
-in {es}. This object requires `source` to define the script itself. The
-example script doesn't specify a language, so it uses Painless by default.
-
-The `source` defines the script itself. The example `source` returns a
-`String` value of `Hello, world!`, converts the string to an `Object`, and
-displays the output.
-
-[discrete]
-[[script-add-parameters]]
-=== Add parameters to your script
-Now that you have a simple script, we'll introduce parameters to pass in
-variables. Using named `params` instead of hard-coding values makes scripts
-flexible, and also reduces compilation time when the script runs.
+We can then construct a script that operates on that field and run evaluate the
+script as part of a query. The following query uses the
+<<script-fields,`script_fields`>> parameter of the search API to retrieve a
+script valuation. There's a lot happening here, but we'll break it down the
+components to understand them individually. For now, you only need to
+understand that this script takes `my_field` and operates on it.
 
 [source,console]
 ----
-POST /_scripts/painless/_execute
+GET my-index-000001/_search
 {
-  "script": {
-    "source": "return params.get('hello_world');", <1>
-    "lang": "painless", <2>
-    "params": { <3>
-        "hello_world": "Hello, world!"
+  "script_fields": {
+    "my_doubled_field": {
+      "script": { <1>
+        "source": "doc['my_field'].value * params['multiplier']", <2>
+        "params": {
+          "multiplier": 2
+        }
+      }
     }
   }
 }
 ----
-<1> Script `source`
-<2> Language declaration
-<3> `Map` of user-defined parameters
+// TEST[continued]
+<1> `script` object
+<2> `script` source
 
-Our script now contains a `Map` of user-defined parameters. The `get` method
-accesses a value using the `String` key of the `hello_world` parameter.
+The `script` is a standard JSON object that defines scripts under most APIs
+in {es}. This object requires `source` to define the script itself. The
+script doesn't specify a language, so it defaults to Painless.
 
-We'll explicitly specify the `painless` language, even though that's the
-default language.
+[discrete]
+[[prefer-params]]
+=== Use parameters in your script
 
-The `params` section is where things get interesting. This part of the script
-is where you pass in user-defined parameters, which are written as a JSON
-object that is parsed into a `Map`. Our script defines a key of `hello_world`
-with a `String` value of `Hello, world!`. We then access this value within
-the example script.
+The first time {es} sees a new script, it compiles it and stores the
+compiled version in a cache. Compilation can be a heavy process. If you're
+passing variables into a script, pass them in as named `params` instead of
+hard-coding values into the script itself.
+
+For example, in the previous script, we could have just hard coded values and
+written a script that is seemingly less complex. We could just retrieve the
+first value for `my_field` and then multiply it by `2`:
+
+[source,painless]
+----
+"source": "return doc['my_field'].value * 2"
+----
+
+Though it works, this solution is pretty inflexible. We have to modify the
+script source to change the multiplier, and {es} has to recompile the script
+every time that the multiplier changes.
+
+Instead of hard-coding values, use named `params` to make scripts flexible, and
+also reduce compilation time when the script runs. Our script declares a
+parameter named `multiplier` and assigns it a value that we can access it
+anywhere in our script. Also, the script is compiled only once.
+
+[source,painless]
+----
+"source": "doc['my_field'].value * params['multiplier']",
+"params": {
+  "multiplier": 2
+}
+----
+
+For most contexts, you can compile up to 75 scripts per 5 minutes by default.
+For ingest contexts, the default script compilation rate is unlimited. You
+can change these settings dynamically by setting
+`script.context.$CONTEXT.max_compilations_rate`. For example, the following
+setting limits script compilation to 100 scripts every 10 minutes:
+
+[source,js]
+----
+`script.context.field.max_compilations_rate=100/10m`
+----
+// NOTCONSOLE
+
+IMPORTANT: If you compile too many unique scripts within a short time, {es}
+rejects the new dynamic scripts with a `circuit_breaking_exception` error.
 
 [discrete]
 [[script-shorten-syntax]]
 === Shorten your script
 Using syntactic abilities that are native to Painless, you can reduce verbosity
-in your scripts and make them shorter.
+in your scripts and make them shorter. For example, we can write the previous
+script like this and achieve the same goal:
 
 [source,console]
 ----
-POST /_scripts/painless/_execute
+GET my-index-000001/_search
 {
-  "script": {
-    "source": "params['hello_world']",
-    "params": {
-        "hello_world": "Hello, world!"
+  "script_fields": {
+    "my_doubled_field": {
+      "script": {
+        "lang":   "painless",
+        "source": "return doc['my_field'].value * params.get('multiplier');",
+        "params": {
+          "multiplier": 2
+        }
+      }
     }
   }
 }
 ----
 
-This version of the script removes several components:
+However, we can leverage capabilities inherent to Painless and shorten this
+script. Let's look at the original version and see how what improvements it
+includes over this current iteration:
 
+[source,console]
+----
+GET my-index-000001/_search
+{
+  "script_fields": {
+    "my_doubled_field": {
+      "script": {
+        "source": "doc['my_field'].value * params['multiplier']",
+        "params": {
+          "multiplier": 2
+        }
+      }
+    }
+  }
+}
+----
+
+This version of the script removes several components and simplifies the syntax
+significantly:
+
+* The `lang` declaration. Because Painless is the default language, you don't
+need to specify the language if you're writing a Painless script.
 * The `return` keyword. Painless automatically uses the final statement in a
 script (when possible) to produce a return value in a script context that
 requires one.
-* The semicolon at the end of the `source` statement. Painless does not
-require semicolons for the final statement of a block. However, it does require
-them in other cases to remove ambiguity.
 * The `get` method, which is replaced with brackets `[]`. Painless
 uses a shortcut specifically for the `Map` type that allows us to use brackets
 instead of the lengthier `get` method.
+* The semicolon at the end of the `source` statement. Painless does not
+require semicolons for the final statement of a block. However, it does require
+them in other cases to remove ambiguity.
+
+Use this abbreviated syntax anywhere that {es} supports scripts.
 
 [discrete]
 [[script-whats-next]]
@@ -142,46 +204,6 @@ instead of the lengthier `get` method.
 Now that you've learned the basic syntax of a Painless script, we'll dig more
 into the language itself. Understanding the building blocks of the language
 will help you to construct more complex and powerful scripts.
-
-<<script-spec-variables,Learn about variables>>
-
-[[script-spec-variables]]
-=== Variables
-A variable loads and stores a value for evaluation during operations. A
-variable not immediately assigned a value will have a default value assigned
-implicitly based on the type. We'll cover types in the next section.
-
-When using variables, you declare a variable, specify a type, and assign
-values to the variable. The following example declares a variable `my_int` of
-type `int`, and assigns it a value of `1`:
-
-[source,console]
-----
-POST /_scripts/painless/_execute
-{
-  "script": {
-    "source": """
-        int my_int;
-        my_int = 1;
-    """
-  }
-}
-----
-
-When declaring a variable, specify the type followed by an identifier. After
-declaring variables, you can use them in scripts by referring to their
-identifier.
-
-Use the assignment operator `=` to store a value in a variable for use in
-subsequent operations. Any operation that produces a value can be assigned to
-any variable as long as the types are the same, or the resultant type can be
-implicitly cast to the variable type.
-
-[discrete]
-[[variables-whats-next]]
-=== What's next
-Now that you understand variables, you can learn about the data types that
-Painless supports. When you declare a variable, you assign it a supported type.
 
 <<script-spec-types,Learn about types>>
 
@@ -219,9 +241,9 @@ POST /_scripts/painless/_execute
 <2> Primitive `int` type assignment with an `int` constant
 <3> Primitive `double` type declaration with assignment of a `double` constant
 
-You can declare a primitive type <<script-spec-variables,variable>> or access a
-primitive type member field from a reference type instance, and assign it a
-primitive type value for evaluation during later operations. But what's a
+You can declare a primitive type variable or access a primitive type member
+field from a reference type instance, and assign it a primitive type value for
+evaluation during later operations. But what's a
 <<script-type-reference,reference type>>?
 
 [[script-type-reference]]

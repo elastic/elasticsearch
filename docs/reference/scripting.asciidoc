@@ -71,15 +71,6 @@ flexible, but typically have higher performance for certain tasks.
     |Expert API
 |========
 
-[WARNING]
-.Scripts and security
-=================================================
-
-Languages that are sandboxed are designed with security in mind. However, non-
-sandboxed languages can be a security issue, please read
-<<modules-scripting-security, Scripting and security>> for more details.
-
-=================================================
 --
 
 include::scripting/painless.asciidoc[]

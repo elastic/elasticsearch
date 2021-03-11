@@ -9,52 +9,6 @@ any security layer. Find below rules of thumb for how to keep Elasticsearch
 from being a vulnerability.
 
 [discrete]
-[[prefer-params]]
-=== Use parameters instead of hard-coded values
-The first time {es} sees a new script, it compiles it and stores the
-compiled version in a cache. Compilation can be a heavy process.
-
-If you need to pass variables into a script, you should pass them in as
-named `params` instead of hard-coding values into the script itself.  For
-example, if you want to be able to multiply a field value by different
-multipliers, don't hard-code the multiplier into the script:
-
-[source,js]
-----------------------
-  "source": "doc['my_field'] * 2"
-----------------------
-// NOTCONSOLE
-
-Instead, pass it in as a named parameter:
-
-[source,js]
-----------------------
-  "source": "doc['my_field'] * params['multiplier']",
-  "params": {
-    "multiplier": 2
-  }
-----------------------
-// NOTCONSOLE
-
-The first version has to be recompiled every time the multiplier changes.  The
-second version is only compiled once.
-
-IMPORTANT: If you compile too many unique scripts within a short time, {es}
-rejects the new dynamic scripts with a `circuit_breaking_exception` error.
-
-For most contexts, you can compile up to 75 scripts per 5 minutes by default.
-For ingest contexts, the default script compilation rate is unlimited. You
-can change these settings dynamically by setting
-`script.context.$CONTEXT.max_compilations_rate`. For example, the following
-setting limits script compilation to 100 scripts every 10 minutes:
-
-[source,js]
-----
-`script.context.field.max_compilations_rate=100/10m`
-----
-// NOTCONSOLE
-
-[discrete]
 === Do not run as root
 First and foremost, never run Elasticsearch as the `root` user as this would
 allow any successful effort to circumvent the other security layers to do

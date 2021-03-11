@@ -46,7 +46,6 @@ public class MultiTests extends PreProcessingTests<Multi> {
         return createRandom(randomBoolean() ? null : randomBoolean());
     }
 
-    @SuppressWarnings("unchecked")
     public static Multi createRandom(Boolean isCustom) {
         final PreProcessor[] processors;
         if (isCustom == null || isCustom == false) {

@@ -22,7 +22,6 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@SuppressWarnings({"unchecked"})
 public class InferenceToXContentCompressorTests extends ESTestCase {
 
     public void testInflateAndDeflate() throws IOException {

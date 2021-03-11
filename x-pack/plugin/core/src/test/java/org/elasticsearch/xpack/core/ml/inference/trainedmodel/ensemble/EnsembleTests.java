@@ -65,7 +65,6 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         return createRandom(targetType, featureNames);
     }
 
-    @SuppressWarnings({"unchecked"})
     public static Ensemble createRandom(TargetType targetType, List<String> featureNames) {
         int numberOfModels = randomIntBetween(1, 10);
         List<String> treeFeatureNames = featureNames.isEmpty() ?

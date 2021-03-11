@@ -35,7 +35,38 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
             return this;
         }
 
-        return super.setStage(stage);
+        return this;
+    }
+
+    @Override
+    public synchronized RecoveryState setLocalTranslogStage() {
+        return super.setLocalTranslogStage();
+    }
+
+    @Override
+    public synchronized RecoveryState setRemoteTranslogStage() {
+        super.setStage(Stage.TRANSLOG);
+        // Move directly to PRE_WARMING stage
+        validateAndSetStage(Stage.TRANSLOG, Stage.FINALIZE);
+        getTranslog().stop();
+        return this;
+    }
+
+    @Override
+    public synchronized void validateCurrentStage(Stage expected) {
+        if (expected != Stage.TRANSLOG) {
+            super.validateCurrentStage(expected);
+        } else {
+            final Stage stage = getStage();
+            // For small indices it's possible that pre-warming finished shortly
+            // after transitioning to FINALIZE stage
+            if (stage != Stage.FINALIZE && stage != Stage.DONE) {
+                assert false : "expected stage [" + Stage.FINALIZE + " || " + Stage.DONE + "]; but current stage is [" + stage + "]";
+                throw new IllegalStateException(
+                    "expected stage [" + Stage.FINALIZE + " || " + Stage.DONE + "]; " + "but current stage is [" + stage + "]"
+                );
+            }
+        }
     }
 
     public synchronized void setPreWarmComplete() {

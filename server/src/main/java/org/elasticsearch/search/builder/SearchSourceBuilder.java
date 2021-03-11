@@ -18,8 +18,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -104,8 +102,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField SLICE = new ParseField("slice");
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);
 
     public static SearchSourceBuilder fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, true);
@@ -1121,19 +1117,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     from(parser.intValue());
                 } else if (SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    int parsedSize = parser.intValue();
-                    // we treat -1 as not-set, but deprecate it to be able to later remove this funny extra treatment
-                    if (parsedSize != -1) {
-                        size(parsedSize);
-                    } else {
-                        deprecationLogger.deprecate(
-                            DeprecationCategory.API,
-                            "search-api-size-1",
-                            "Using search size of -1 is deprecated and will be removed in future versions. "
-                            + "Instead, don't use the `size` parameter if you don't want to set it explicitely."
-                        );
-                    }
-
+                    size(parser.intValue());
                 } else if (TIMEOUT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     timeout = TimeValue.parseTimeValue(parser.text(), null, TIMEOUT_FIELD.getPreferredName());
                 } else if (TERMINATE_AFTER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

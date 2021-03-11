@@ -45,6 +45,6 @@ public class TransportDeleteComposableIndexTemplateAction
     @Override
     protected void masterOperation(final DeleteComposableIndexTemplateAction.Request request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
-        indexTemplateService.removeIndexTemplateV2(request.name(), request.masterNodeTimeout(), listener);
+        indexTemplateService.removeIndexTemplateV2(request.names(), request.masterNodeTimeout(), listener);
     }
 }

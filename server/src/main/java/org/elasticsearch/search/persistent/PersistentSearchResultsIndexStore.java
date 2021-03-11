@@ -145,8 +145,8 @@ public class PersistentSearchResultsIndexStore {
                         indexRequest.source(persistentSearchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS));
                     }
 
-                    client.index(indexRequest, ActionListener.delegateFailure(listener,
-                        (delegate, indexResponse) -> delegate.onResponse(persistentSearchResponse.getId())));
+                    client.index(indexRequest, listener.delegateFailure((delegate, indexResponse) ->
+                        delegate.onResponse(persistentSearchResponse.getId())));
 
                 } catch (Exception e) {
                     listener.onFailure(e);
@@ -160,7 +160,7 @@ public class PersistentSearchResultsIndexStore {
         new StorageRetryListener<>(logger, threadPool, initialRetryDelay, timeout, getListener) {
             @Override
             public void tryAction(ActionListener<PersistentSearchResponse> listener) {
-                client.get(getRequest, ActionListener.delegateFailure(listener, (delegate, getResponse) -> {
+                client.get(getRequest, listener.delegateFailure((delegate, getResponse) -> {
                     if (getResponse.isSourceEmpty()) {
                         delegate.onResponse(null);
                         return;

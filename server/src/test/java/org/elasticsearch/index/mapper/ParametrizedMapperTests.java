@@ -205,7 +205,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }, name -> null, version, () -> null, null, null,
             mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
             throw new UnsupportedOperationException();
-        }, false);
+        });
         if (fromDynamicTemplate) {
             pc = pc.createDynamicTemplateFieldContext(pc);
         }

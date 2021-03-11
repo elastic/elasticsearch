@@ -121,6 +121,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
+import static org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants.AUDIT_INDEX_PATTERN;
+
 public class Transform extends Plugin implements SystemIndexPlugin, PersistentTaskPlugin {
 
     public static final String NAME = "transform";
@@ -146,10 +148,15 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     );
 
     /**
+     * @deprecated
+     *
+     * Only kept for BWC to nodes before 7.13
+     *
      * Node attributes for transform, automatically created and retrievable via cluster state.
      * These attributes should never be set directly, use the node setting counter parts instead.
      */
-    public static final String TRANSFORM_ENABLED_NODE_ATTR = "transform.node";
+    @Deprecated
+    private static final String TRANSFORM_ENABLED_NODE_ATTR = "transform.node";
 
     /**
      * Setting whether transform (the coordinator task) can run on this node.
@@ -330,6 +337,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public Settings additionalSettings() {
+        // TODO: TRANSFORM_ENABLED_NODE_ATTR has been deprecated in 7.x, remove for 8.0
         String transformEnabledNodeAttribute = "node.attr." + TRANSFORM_ENABLED_NODE_ATTR;
 
         if (settings.get(transformEnabledNodeAttribute) != null) {
@@ -369,6 +377,10 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    @Override public Collection<String> getAssociatedIndexPatterns() {
+        return List.of(AUDIT_INDEX_PATTERN);
     }
 
     @Override

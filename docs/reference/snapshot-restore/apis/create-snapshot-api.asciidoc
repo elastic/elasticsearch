@@ -119,7 +119,7 @@ IMPORTANT: By default, the entire snapshot will fail if one or more indices incl
 (Optional, array of strings)
 A list of feature states to be included in this snapshot. A list of features
 available for inclusion in the snapshot and their descriptions be can be
-retrieved using the <<get-snapshottable-features-api,get snapshottable features API>>.
+retrieved using the <<get-features-api,get features API>>.
 Each feature state includes one or more system indices containing data necessary
 for the function of that feature. Providing an empty array will include no feature
 states in the snapshot, regardless of the value of `include_global_state`.

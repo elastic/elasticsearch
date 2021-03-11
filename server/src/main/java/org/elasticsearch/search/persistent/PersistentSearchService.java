@@ -67,7 +67,7 @@ public class PersistentSearchService {
     public void getPersistentSearchResponse(GetPersistentSearchRequest getPersistentSearchRequest,
                                             ActionListener<PersistentSearchResponse> listener) {
         searchStorageService.getPersistentSearchResponseAsync(getPersistentSearchRequest.getId(),
-            ActionListener.delegateResponse(listener, (delegate, e) -> {
+            listener.delegateResponse((delegate, e) -> {
                 if (e instanceof IndexNotFoundException) {
                     delegate.onResponse(null);
                     return;
@@ -161,7 +161,7 @@ public class PersistentSearchService {
             getSearchResultListener.onResponse(null);
         } else {
             searchStorageService.getPersistentSearchResponseAsync(searchId,
-                ActionListener.delegateResponse(getSearchResultListener, (delegate, e) -> {
+                getSearchResultListener.delegateResponse((delegate, e) -> {
                     if (e instanceof IndexNotFoundException) {
                         delegate.onResponse(null);
                         return;

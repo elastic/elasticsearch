@@ -11,7 +11,7 @@ data, such as logs, metrics, and traces.
 
 [discrete]
 [[eql-advantages]]
-== Advantages of EQL
+=== Advantages of EQL
 
 * *EQL lets you express relationships between events.* +
 Many query languages allow you to match single events. EQL lets you match a
@@ -29,7 +29,7 @@ describe activity that goes beyond IOCs.
 
 [discrete]
 [[eql-required-fields]]
-== Required fields
+=== Required fields
 
 To run an EQL search, the searched data stream or index must contain a
 _timestamp_ and _event category_ field. By default, EQL uses the `@timestamp`
@@ -43,7 +43,7 @@ default.
 
 [discrete]
 [[run-an-eql-search]]
-== Run an EQL search
+=== Run an EQL search
 
 Use the <<eql-search-api,EQL search API>> to run a <<eql-basic-syntax,basic EQL
 query>>. If the {es} {security-features} are enabled, you must have the `read`
@@ -138,7 +138,7 @@ GET /my-index-000001/_eql/search
 
 [discrete]
 [[retrieve-selected-fields]]
-== Retrieve selected fields
+=== Retrieve selected fields
 
 By default, each hit in the search response includes the document `_source`,
 which is the entire JSON object that was provided when indexing the document.

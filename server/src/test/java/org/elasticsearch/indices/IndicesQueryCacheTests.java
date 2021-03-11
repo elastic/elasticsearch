@@ -275,12 +275,14 @@ public class IndicesQueryCacheTests extends ESTestCase {
         assertEquals(0L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(0L, stats1.getMissCount());
+        assertEquals(0L, stats1.getMemorySizeInBytes());
 
         stats2 = cache.getStats(shard2);
         assertEquals(0L, stats2.getCacheSize());
         assertEquals(0L, stats2.getCacheCount());
         assertEquals(0L, stats2.getHitCount());
         assertEquals(0L, stats2.getMissCount());
+        assertEquals(0L, stats2.getMemorySizeInBytes());
 
         cache.close(); // this triggers some assertions
     }

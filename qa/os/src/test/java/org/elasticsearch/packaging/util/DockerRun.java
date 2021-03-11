@@ -154,6 +154,6 @@ public class DockerRun {
                 throw new IllegalStateException("Unexpected distribution packaging type: " + distribution.packaging);
         }
 
-        return distribution.flavor.name + suffix + ":test";
+        return "elasticsearch" + suffix + ":test";
     }
 }

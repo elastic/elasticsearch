@@ -10,10 +10,10 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -183,18 +183,18 @@ public class RestControllerTests extends ESTestCase {
         String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         RestHandler handler = (request, channel, client) -> {};
         String deprecationMessage = randomAlphaOfLengthBetween(1, 10);
-        RestApiVersion previous = RestApiVersion.current().previous();
+        RestApiVersion deprecatedInVersion = RestApiVersion.current();
 
         Route route = Route.builder(method, path)
-            .deprecated(deprecationMessage, previous).build();
+            .deprecated(deprecationMessage, deprecatedInVersion).build();
 
         // don't want to test everything -- just that it actually wraps the handler
         doCallRealMethod().when(controller).registerHandler(route, handler);
-        doCallRealMethod().when(controller).registerAsDeprecatedHandler(method, path, previous, handler, deprecationMessage);
+        doCallRealMethod().when(controller).registerAsDeprecatedHandler(method, path, deprecatedInVersion, handler, deprecationMessage);
 
         controller.registerHandler(route, handler);
 
-        verify(controller).registerHandler(eq(method), eq(path), eq(previous), any(DeprecationRestHandler.class));
+        verify(controller).registerHandler(eq(method), eq(path), eq(deprecatedInVersion), any(DeprecationRestHandler.class));
     }
 
     public void testRegisterAsReplacedHandler() {

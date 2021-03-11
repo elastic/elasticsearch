@@ -447,9 +447,7 @@ public class Docker {
      */
     public static void verifyContainerInstallation(Installation installation, Distribution distribution) {
         verifyOssInstallation(installation);
-        if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation);
-        }
+        verifyDefaultInstallation(installation);
     }
 
     private static void verifyOssInstallation(Installation es) {
@@ -592,5 +590,4 @@ public class Docker {
     public static Shell.Result getContainerLogs() {
         return sh.run("docker logs " + containerId);
     }
-
 }

@@ -50,7 +50,7 @@ comma-separated list, such as `http,ingest`.
 HTTP connection information.
 
 `ingest`::
-Statistics about ingest preprocessing.
+Information about ingest pipelines and processors.
 
 `jvm`::
 JVM stats, memory pool information, garbage collection, buffer pools, number of

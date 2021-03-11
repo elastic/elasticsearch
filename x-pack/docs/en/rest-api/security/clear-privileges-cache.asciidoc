@@ -31,7 +31,7 @@ For more information about the native realm, see
 `<applications>`::
 (Required, string)
 Comma-separated list of applications to clear. To clear all applications, use
-`*`. Other wildcard patterns are not supported.
+`*`. Does not support other wildcard patterns.
 
 [[security-api-clear-privilege-cache-example]]
 ==== {api-examples-title}

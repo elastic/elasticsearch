@@ -207,7 +207,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .build();
         FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
         assertWarnings("setting [" + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
-            + "] to be positive [500b] on node without the data_frozen role is deprecated, roles are [[data_hot]]");
+            + "] to be positive [500b] on node without the data_frozen role is deprecated, roles are [data_hot]");
     }
 
     private static CacheKey generateCacheKey() {

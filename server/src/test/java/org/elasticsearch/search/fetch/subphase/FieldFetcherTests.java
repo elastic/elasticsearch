@@ -848,7 +848,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     }
 
     /**
-     * Field pattern retrieved with "inlcude_unmapped" use an automaton with a maximal allowed size internally.
+     * Field patterns retrieved with "include_unmapped" use an automaton with a maximal allowed size internally.
      * This test checks we have a bound in place to avoid misuse of this with exceptionally large field patterns
      */
     public void testTooManyUnmappedFieldWildcardPattern() throws IOException {

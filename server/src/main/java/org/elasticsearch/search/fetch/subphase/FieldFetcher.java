@@ -121,6 +121,8 @@ public class FieldFetcher {
         }
 
         CharacterRunAutomaton unmappedFieldsFetchAutomaton = null;
+        // We separate the "include_unmapped" field patters with wildcards from the rest in order to use less
+        // space in the lookup automaton
         Map<Boolean, List<String>> partitions = unmappedFetchPattern.stream()
             .collect(Collectors.partitioningBy((s -> Regex.isSimpleMatchPattern(s))));
         List<String> unmappedWildcardPattern = partitions.get(true);

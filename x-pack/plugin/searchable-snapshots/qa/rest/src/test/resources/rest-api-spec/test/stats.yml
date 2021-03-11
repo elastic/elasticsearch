@@ -66,8 +66,8 @@ teardown:
 ---
 "Tests searchable snapshots stats":
   - skip:
-      version: " - 7.99.99"
-      reason:  searchable snapshots response format changed in 8.0.0
+      version: " - 7.12.99"
+      reason:  searchable snapshots response format changed in 7.13.0
 
   - do:
       catch: missing

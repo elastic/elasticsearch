@@ -45,10 +45,8 @@ import org.elasticsearch.xpack.transform.persistence.TransformInternalIndexTests
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -295,8 +293,10 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         csBuilder.metadata(metadata);
 
         ClusterState cs = csBuilder.build();
-        assertEquals(0,
-            TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs, TestIndexNameExpressionResolver.newInstance()).size());
+        assertEquals(
+            0,
+            TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs, TestIndexNameExpressionResolver.newInstance()).size()
+        );
 
         metadata = new Metadata.Builder(cs.metadata());
         routingTable = new RoutingTable.Builder(cs.routingTable());
@@ -365,11 +365,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         boolean transformLocalOnlyNodes,
         boolean currentDataNode
     ) {
-        Map<String, String> transformNodeAttributes = new HashMap<>();
-        transformNodeAttributes.put(Transform.TRANSFORM_ENABLED_NODE_ATTR, "true");
-        Map<String, String> transformNodeAttributesDisabled = new HashMap<>();
-        transformNodeAttributesDisabled.put(Transform.TRANSFORM_ENABLED_NODE_ATTR, "false");
-
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
 
         if (dedicatedTransformNode) {
@@ -377,8 +372,10 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 new DiscoveryNode(
                     "dedicated-transform-node",
                     buildNewFakeTransportAddress(),
-                    transformNodeAttributes,
-                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)),
+                    Collections.emptyMap(),
+                    new HashSet<>(
+                        Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE, Transform.TRANSFORM_ROLE)
+                    ),
                     Version.CURRENT
                 )
             );
@@ -390,8 +387,15 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     "past-data-node-1",
                     buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
-                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
-                    Version.V_7_5_0
+                    new HashSet<>(
+                        Arrays.asList(
+                            DiscoveryNodeRole.DATA_ROLE,
+                            DiscoveryNodeRole.MASTER_ROLE,
+                            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+                            Transform.TRANSFORM_ROLE
+                        )
+                    ),
+                    Version.V_7_7_0
                 )
             );
         }
@@ -401,8 +405,10 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 new DiscoveryNode(
                     "current-data-node-with-2-tasks",
                     buildNewFakeTransportAddress(),
-                    transformNodeAttributes,
-                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)),
+                    Collections.emptyMap(),
+                    new HashSet<>(
+                        Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE, Transform.TRANSFORM_ROLE)
+                    ),
                     Version.CURRENT
                 )
             )
@@ -410,8 +416,14 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     new DiscoveryNode(
                         "current-data-node-with-1-tasks",
                         buildNewFakeTransportAddress(),
-                        transformNodeAttributes,
-                        new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)),
+                        Collections.emptyMap(),
+                        new HashSet<>(
+                            Arrays.asList(
+                                DiscoveryNodeRole.MASTER_ROLE,
+                                DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+                                Transform.TRANSFORM_ROLE
+                            )
+                        ),
                         Version.CURRENT
                     )
                 );
@@ -422,8 +434,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 new DiscoveryNode(
                     "current-data-node-with-0-tasks-transform-remote-disabled",
                     buildNewFakeTransportAddress(),
-                    transformNodeAttributes,
-                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
+                    Collections.emptyMap(),
+                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, Transform.TRANSFORM_ROLE)),
                     Version.CURRENT
                 )
             );
@@ -434,7 +446,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 new DiscoveryNode(
                     "current-data-node-with-transform-disabled",
                     buildNewFakeTransportAddress(),
-                    transformNodeAttributesDisabled,
+                    Collections.emptyMap(),
                     new HashSet<>(Arrays.asList(
                         DiscoveryNodeRole.DATA_ROLE,
                         DiscoveryNodeRole.MASTER_ROLE,

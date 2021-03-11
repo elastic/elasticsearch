@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -267,7 +268,6 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         testUnsuccessfulSnapshotRetention(true);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70185")
     public void testRetentionWithMultipleRepositories() throws Exception {
         disableRepoConsistencyCheck("test leaves behind an empty repository");
         final String secondRepo = "other-repo";
@@ -278,6 +278,11 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 true, new SnapshotRetentionConfiguration(null, 1, 2));
         logger.info("-->  start snapshot");
         client().execute(ExecuteSnapshotLifecycleAction.INSTANCE, new ExecuteSnapshotLifecycleAction.Request(policyId)).get();
+        // make sure the SLM history data stream is green and won't not be green for long because of delayed allocation when data nodes
+        // are stopped
+        ensureGreen(SLM_HISTORY_DATA_STREAM);
+        client().admin().indices().prepareUpdateSettings(SLM_HISTORY_DATA_STREAM).setSettings(
+                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)).get();
         testUnsuccessfulSnapshotRetention(randomBoolean());
     }
 

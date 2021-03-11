@@ -81,11 +81,18 @@
 
   - do:
       cluster.get_component_template:
-        name: '*'
-
+        name: 'bar'
   - match: {component_templates.0.name: bar}
-  - match: {component_templates.1.name: baz}
-  - match: {component_templates.2.name: foo}
+
+  - do:
+      cluster.get_component_template:
+        name: 'baz'
+  - match: {component_templates.0.name: baz}
+
+  - do:
+      cluster.get_component_template:
+        name: 'foo'
+  - match: {component_templates.0.name: foo}
 
   - do:
       cluster.delete_component_template:

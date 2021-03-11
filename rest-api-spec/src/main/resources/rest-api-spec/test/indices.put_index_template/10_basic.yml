@@ -165,10 +165,18 @@
 
   - do:
       indices.get_index_template:
-        name: '*'
+        name: 'bar'
   - match: {index_templates.0.name: "bar"}
-  - match: {index_templates.1.name: "baz"}
-  - match: {index_templates.2.name: "foo"}
+
+  - do:
+      indices.get_index_template:
+        name: 'baz'
+  - match: {index_templates.0.name: "baz"}
+
+  - do:
+      indices.get_index_template:
+        name: 'foo'
+  - match: {index_templates.0.name: "foo"}
 
   - do:
       indices.delete_index_template:

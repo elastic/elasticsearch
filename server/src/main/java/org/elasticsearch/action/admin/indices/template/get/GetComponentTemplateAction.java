@@ -125,18 +125,12 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.startArray(COMPONENT_TEMPLATES.getPreferredName());
-            componentTemplates.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .forEach(entry -> {
-                    try {
-                        builder.startObject();
-                        builder.field(NAME.getPreferredName(), entry.getKey());
-                        builder.field(COMPONENT_TEMPLATE.getPreferredName(), entry.getValue());
-                        builder.endObject();
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
+            for (Map.Entry<String, ComponentTemplate> componentTemplate : this.componentTemplates.entrySet()) {
+                builder.startObject();
+                builder.field(NAME.getPreferredName(), componentTemplate.getKey());
+                builder.field(COMPONENT_TEMPLATE.getPreferredName(), componentTemplate.getValue());
+                builder.endObject();
+            }
             builder.endArray();
             builder.endObject();
             return builder;

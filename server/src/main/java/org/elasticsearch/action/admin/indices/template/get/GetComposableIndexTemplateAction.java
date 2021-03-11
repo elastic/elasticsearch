@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.Objects;
 
@@ -138,12 +139,18 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.startArray(INDEX_TEMPLATES.getPreferredName());
-            for (Map.Entry<String, ComposableIndexTemplate> indexTemplate : this.indexTemplates.entrySet()) {
-                builder.startObject();
-                builder.field(NAME.getPreferredName(), indexTemplate.getKey());
-                builder.field(INDEX_TEMPLATE.getPreferredName(), indexTemplate.getValue());
-                builder.endObject();
-            }
+            indexTemplates.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> {
+                    try {
+                        builder.startObject();
+                        builder.field(NAME.getPreferredName(), entry.getKey());
+                        builder.field(INDEX_TEMPLATE.getPreferredName(), entry.getValue());
+                        builder.endObject();
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
             builder.endArray();
             builder.endObject();
             return builder;

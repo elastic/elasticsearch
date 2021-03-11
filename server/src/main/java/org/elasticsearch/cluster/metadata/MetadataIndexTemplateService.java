@@ -314,7 +314,7 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return innerRemoveIndexTemplateV2(currentState, names);
+                    return innerRemoveComponentTemplate(currentState, names);
                 }
 
                 @Override

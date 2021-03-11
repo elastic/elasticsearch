@@ -123,8 +123,8 @@
 ---
 "Delete multiple templates":
   - skip:
-      version: " - 7.12.99"
-      reason: "added support for deleting multiple templates in 7.13.0"
+      version: " - 7.99.99"
+      reason: "not yet backported"
       features: allowed_warnings
 
   - do:
@@ -166,26 +166,26 @@
   - do:
       indices.get_index_template:
         name: '*'
-  - match: {index_templates.0.name: "foo"}
-  - match: {index_templates.1.name: "bar"}
-  - match: {index_templates.2.name: "baz"}
+  - match: {index_templates.0.name: "bar"}
+  - match: {index_templates.1.name: "baz"}
+  - match: {index_templates.2.name: "foo"}
 
   - do:
-      cluster.delete_index_template:
+      indices.delete_index_template:
         name: foo,bar
 
   - do:
       catch: missing
-      cluster.get_index_template:
+      indices.get_index_template:
         name: foo
 
   - do:
       catch: missing
-      cluster.get_index_template:
+      indices.get_index_template:
         name: bar
 
   - do:
-      cluster.get_index_template:
+      indices.get_index_template:
         name: baz
 
   - match: {index_templates.0.name: baz}

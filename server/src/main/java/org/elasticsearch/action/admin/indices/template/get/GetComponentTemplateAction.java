@@ -21,6 +21,8 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 
@@ -124,12 +126,18 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.startArray(COMPONENT_TEMPLATES.getPreferredName());
-            for (Map.Entry<String, ComponentTemplate> componentTemplate : this.componentTemplates.entrySet()) {
-                builder.startObject();
-                builder.field(NAME.getPreferredName(), componentTemplate.getKey());
-                builder.field(COMPONENT_TEMPLATE.getPreferredName(), componentTemplate.getValue());
-                builder.endObject();
-            }
+            componentTemplates.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> {
+                    try {
+                        builder.startObject();
+                        builder.field(NAME.getPreferredName(), entry.getKey());
+                        builder.field(COMPONENT_TEMPLATE.getPreferredName(), entry.getValue());
+                        builder.endObject();
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
             builder.endArray();
             builder.endObject();
             return builder;

@@ -47,7 +47,7 @@
   - is_false: test
 
 ---
-"Delete multiple component templates":
+"Delete multiple templates":
   - skip:
       version: " - 7.99.99"
       reason: "not yet backported"
@@ -83,9 +83,9 @@
       cluster.get_component_template:
         name: '*'
 
-  - match: {component_templates.0.name: foo}
-  - match: {component_templates.1.name: bar}
-  - match: {component_templates.2.name: baz}
+  - match: {component_templates.0.name: bar}
+  - match: {component_templates.1.name: baz}
+  - match: {component_templates.2.name: foo}
 
   - do:
       cluster.delete_component_template:

@@ -109,10 +109,7 @@ public class TransformNodesTests extends ESTestCase {
         assertEquals(1, transformNodeAssignments.getStopped().size());
         assertTrue(transformNodeAssignments.getStopped().contains(transformIdStopped));
 
-        transformNodeAssignments = TransformNodes.transformTaskNodes(
-            Arrays.asList(transformIdFoo, transformIdFailed),
-            cs
-        );
+        transformNodeAssignments = TransformNodes.transformTaskNodes(Arrays.asList(transformIdFoo, transformIdFailed), cs);
 
         assertEquals(1, transformNodeAssignments.getExecutorNodes().size());
         assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
@@ -121,6 +118,68 @@ public class TransformNodesTests extends ESTestCase {
         assertEquals(1, transformNodeAssignments.getAssigned().size());
         assertTrue(transformNodeAssignments.getAssigned().contains(transformIdFoo));
         assertFalse(transformNodeAssignments.getAssigned().contains(transformIdFailed));
+        assertEquals(0, transformNodeAssignments.getStopped().size());
+
+        // test simple matching
+        transformNodeAssignments = TransformNodes.findPersistentTasks("df-id-f*", cs);
+        assertEquals(1, transformNodeAssignments.getExecutorNodes().size());
+        assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
+        assertEquals(1, transformNodeAssignments.getWaitingForAssignment().size());
+        assertTrue(transformNodeAssignments.getWaitingForAssignment().contains(transformIdFailed));
+        assertEquals(1, transformNodeAssignments.getAssigned().size());
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdFoo));
+        assertFalse(transformNodeAssignments.getAssigned().contains(transformIdFailed));
+        assertEquals(0, transformNodeAssignments.getStopped().size());
+
+        // test matching none
+        transformNodeAssignments = TransformNodes.findPersistentTasks("df-id-z*", cs);
+        assertEquals(0, transformNodeAssignments.getExecutorNodes().size());
+        assertEquals(0, transformNodeAssignments.getWaitingForAssignment().size());
+        assertEquals(0, transformNodeAssignments.getAssigned().size());
+        assertEquals(0, transformNodeAssignments.getStopped().size());
+
+        // test matching all
+        transformNodeAssignments = TransformNodes.findPersistentTasks("df-id-*", cs);
+        assertEquals(3, transformNodeAssignments.getExecutorNodes().size());
+        assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
+        assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-2"));
+        assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-3"));
+        assertEquals(1, transformNodeAssignments.getWaitingForAssignment().size());
+        assertTrue(transformNodeAssignments.getWaitingForAssignment().contains(transformIdFailed));
+        assertEquals(4, transformNodeAssignments.getAssigned().size());
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdFoo));
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdBar));
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdBaz));
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdOther));
+        assertFalse(transformNodeAssignments.getAssigned().contains(transformIdFailed));
+        // stopped tasks are not reported when matching against _running_ tasks
+        assertEquals(0, transformNodeAssignments.getStopped().size());
+
+        // test matching all with _all
+        transformNodeAssignments = TransformNodes.findPersistentTasks("_all", cs);
+        assertEquals(3, transformNodeAssignments.getExecutorNodes().size());
+        assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
+        assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-2"));
+        assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-3"));
+        assertEquals(1, transformNodeAssignments.getWaitingForAssignment().size());
+        assertTrue(transformNodeAssignments.getWaitingForAssignment().contains(transformIdFailed));
+        assertEquals(4, transformNodeAssignments.getAssigned().size());
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdFoo));
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdBar));
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdBaz));
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdOther));
+        assertFalse(transformNodeAssignments.getAssigned().contains(transformIdFailed));
+        // stopped tasks are not reported when matching against _running_ tasks
+        assertEquals(0, transformNodeAssignments.getStopped().size());
+
+        // test matching exact
+        transformNodeAssignments = TransformNodes.findPersistentTasks(transformIdFoo, cs);
+        assertEquals(1, transformNodeAssignments.getExecutorNodes().size());
+        assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
+        assertEquals(0, transformNodeAssignments.getWaitingForAssignment().size());
+        assertEquals(1, transformNodeAssignments.getAssigned().size());
+        assertTrue(transformNodeAssignments.getAssigned().contains(transformIdFoo));
+        // stopped tasks are not reported when matching against _running_ tasks
         assertEquals(0, transformNodeAssignments.getStopped().size());
     }
 
@@ -134,5 +193,12 @@ public class TransformNodesTests extends ESTestCase {
         assertEquals(0, transformNodeAssignments.getExecutorNodes().size());
         assertEquals(1, transformNodeAssignments.getStopped().size());
         assertTrue(transformNodeAssignments.getStopped().contains("df-id"));
+
+        transformNodeAssignments = TransformNodes.findPersistentTasks("df-*", emptyState);
+
+        assertEquals(0, transformNodeAssignments.getExecutorNodes().size());
+        assertEquals(0, transformNodeAssignments.getWaitingForAssignment().size());
+        assertEquals(0, transformNodeAssignments.getAssigned().size());
+        assertEquals(0, transformNodeAssignments.getStopped().size());
     }
 }

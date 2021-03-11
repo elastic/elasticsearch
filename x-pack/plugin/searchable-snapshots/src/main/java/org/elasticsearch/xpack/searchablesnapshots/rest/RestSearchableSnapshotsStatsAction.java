@@ -18,14 +18,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 public class RestSearchableSnapshotsStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(RestRequest.Method.GET, "/_searchable_snapshots/stats"),
-            new Route(RestRequest.Method.GET, "/{index}/_searchable_snapshots/stats")
-        );
+        return List.of(new Route(GET, "/_searchable_snapshots/stats"), new Route(GET, "/{index}/_searchable_snapshots/stats"));
     }
 
     @Override

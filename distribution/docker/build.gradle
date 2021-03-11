@@ -47,47 +47,14 @@ dependencies {
   tini 'krallin:tini:0.19.0@tini-amd64'
 }
 
-ext.expansions = { Architecture architecture, DockerBase base, boolean local ->
-  String classifier
-  if (local) {
-    if (architecture == Architecture.AARCH64) {
-      classifier = "linux-aarch64"
-    } else if (architecture == Architecture.X64) {
-      classifier = "linux-x86_64"
-    } else {
-      throw new IllegalArgumentException("Unsupported architecture [" + architecture + "]")
-    }
-  } else {
-    /* When sourcing the Elasticsearch build remotely, the same Dockerfile needs
-     * to be able to fetch the artifact for any supported platform. We can't make
-     * the decision here. Bash will interpolate the `arch` command for us. */
-    classifier = "linux-\$(arch)"
-  }
-
-  final String elasticsearch = "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
-
-  String buildArgs = '#'
+ext.expansions = { Architecture architecture, DockerBase base ->
+  String buildArgs = ''
   if (base == DockerBase.IRON_BANK) {
     buildArgs = """
 ARG BASE_REGISTRY=nexus-docker-secure.levelup-nexus.svc.cluster.local:18082
 ARG BASE_IMAGE=redhat/ubi/ubi8
 ARG BASE_TAG=8.3
 """
-  }
-
-  /* Both the following Dockerfile commands put the resulting artifact at
-   * the same location, regardless of classifier, so that the commands that
-   * follow in the Dockerfile don't have to know about the runtime
-   * architecture. */
-  String sourceElasticsearch
-  if (local) {
-    sourceElasticsearch = "COPY $elasticsearch /opt/elasticsearch.tar.gz"
-  } else {
-    sourceElasticsearch = """
-RUN curl --retry 10 -S -L \\
-      --output /opt/elasticsearch.tar.gz \\
-      https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/$elasticsearch
-""".trim()
   }
 
   def (major,minor) = VersionProperties.elasticsearch.split("\\.")
@@ -101,7 +68,6 @@ RUN curl --retry 10 -S -L \\
     'git_revision'        : BuildParams.gitRevision,
     'license'             : 'Elastic-License-2.0',
     'package_manager'     : base == DockerBase.UBI ? 'microdnf' : 'yum',
-    'source_elasticsearch': sourceElasticsearch,
     'docker_base'         : base.name().toLowerCase(),
     'version'             : VersionProperties.elasticsearch,
     'major_minor_version' : "${major}.${minor}",
@@ -119,18 +85,6 @@ class SquashNewlinesFilter extends FilterReader {
   }
 }
 
-class ReplaceRemoteUrlWithLocalFilter extends FilterReader {
-  ReplaceRemoteUrlWithLocalFilter(Reader input) {
-    super(new StringReader(input.text.replaceAll(
-      "RUN curl --retry 10 -S -L \\\\\n"
-      + "\\s*--output /opt/elasticsearch\\.tar\\.gz \\\\\n"
-      + "\\s*https://artifacts-no-kpi\\.elastic\\.co/downloads/elasticsearch/(.*?\\.tar\\.gz)",
-
-      'COPY $1 /opt/elasticsearch.tar.gz'
-    )))
-  }
-}
-
 private static String taskName(String prefix, Architecture architecture, DockerBase base, String suffix) {
   return prefix +
     (architecture == Architecture.AARCH64 ? 'Aarch64' : '') +
@@ -138,9 +92,9 @@ private static String taskName(String prefix, Architecture architecture, DockerB
     suffix
 }
 
-ext.dockerBuildContext = { Architecture architecture, DockerBase base, boolean local ->
+ext.dockerBuildContext = { Architecture architecture, DockerBase base ->
   copySpec {
-    final Map<String,String> varExpansions = expansions(architecture, base, local)
+    final Map<String,String> varExpansions = expansions(architecture, base)
     final Path projectDir = project.projectDir.toPath()
 
     if (base == DockerBase.IRON_BANK) {
@@ -261,7 +215,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
       compression = Compression.GZIP
       archiveClassifier = "docker-build-context"
       archiveBaseName = "elasticsearch${base.suffix}"
-      with dockerBuildContext(architecture, base, true)
+      with dockerBuildContext(architecture, base)
 
       into (binDirectory) {
         from configurations.transformLog4jJar
@@ -275,11 +229,12 @@ void addUnpackDockerContextTask(Architecture architecture, DockerBase base) {
     dependsOn(buildContextTask)
 
     String archiveName = "elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-build-context"
+    String distributionName = "elasticsearch-${VersionProperties.elasticsearch}-linux-${architecture.classifier}.tar.gz"
 
     from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
       eachFile { FileCopyDetails details ->
         if (details.name.equals("Dockerfile")) {
-          filter ReplaceRemoteUrlWithLocalFilter
+          filter { it.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /opt/elasticsearch.tar.gz")}
         }
       }
     }
@@ -298,7 +253,7 @@ void addUnpackDockerContextTask(Architecture architecture, DockerBase base) {
       }
     }
 
-    expansions(architecture, base, true).findAll { it.key != 'build_date' }.each { k, v ->
+    expansions(architecture, base).findAll { it.key != 'build_date' }.each { k, v ->
       inputs.property(k, { v.toString() })
     }
   }

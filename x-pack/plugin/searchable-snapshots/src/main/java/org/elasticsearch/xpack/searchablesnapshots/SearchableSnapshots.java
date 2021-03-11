@@ -183,13 +183,6 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         Setting.Property.NodeScope,
         Setting.Property.NotCopyableOnResize
     );
-    public static final Setting<Boolean> SNAPSHOT_PARTIAL_SETTING = Setting.boolSetting(
-        "index.store.snapshot.partial",
-        false,
-        Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex,
-        Setting.Property.NotCopyableOnResize
-    );
     public static final String SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH = "index.store.snapshot.blob_cache.metadata_files.max_length";
     public static final Setting<ByteSizeValue> SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING = new Setting<>(
         new Setting.SimpleKey(SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH),
@@ -217,13 +210,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     );
 
     /**
-     * Prefer to allocate to the cold tier, then the frozen tier, then the warm tier, then the hot tier
+     * Prefer to allocate to the cold tier, then the warm tier, then the hot tier
      * This affects the system searchable snapshot cache index (not the searchable snapshot index itself)
      */
     public static final String DATA_TIERS_CACHE_INDEX_PREFERENCE = String.join(
         ",",
         DataTier.DATA_COLD,
-        DataTier.DATA_FROZEN,
         DataTier.DATA_WARM,
         DataTier.DATA_HOT
     );
@@ -292,7 +284,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING,
             SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING,
             SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
-            SNAPSHOT_PARTIAL_SETTING,
+            SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING,
             SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING,
             CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING,
@@ -428,7 +420,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())) {
             final Boolean frozen = indexSettings.getSettings().getAsBoolean("index.frozen", null);
-            final boolean useFrozenEngine = SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.get(indexSettings.getSettings())
+            final boolean useFrozenEngine = SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.get(indexSettings.getSettings())
                 && (frozen == null || frozen.equals(Boolean.TRUE));
 
             if (useFrozenEngine) {

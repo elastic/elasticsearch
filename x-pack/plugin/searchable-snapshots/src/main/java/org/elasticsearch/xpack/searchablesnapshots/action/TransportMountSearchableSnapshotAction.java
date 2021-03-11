@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices;
@@ -43,7 +44,9 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -64,6 +67,13 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCon
 public class TransportMountSearchableSnapshotAction extends TransportMasterNodeAction<
     MountSearchableSnapshotRequest,
     RestoreSnapshotResponse> {
+
+    private static final Collection<Setting<String>> DATA_TIER_ALLOCATION_SETTINGS = List.of(
+        DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING,
+        DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING,
+        DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING,
+        DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING
+    );
 
     private final Client client;
     private final RepositoriesService repositoriesService;
@@ -134,7 +144,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             .put(INDEX_RECOVERY_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY);
 
         if (storage == MountSearchableSnapshotRequest.Storage.SHARED_CACHE) {
-            settings.put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
+            settings.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);
         }
 
@@ -211,6 +221,20 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                 }
             }
 
+            Settings indexSettings = Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // can be overridden
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
+                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, getDataTiersPreference(request.storage()))
+                .put(request.indexSettings())
+                .put(buildIndexSettings(repoData.getUuid(), request.repositoryName(), snapshotId, indexId, request.storage()))
+                .build();
+
+            // todo: restore archives bad settings, for now we verify just the data tiers, since we know their dependencies are available
+            // in settings
+            for (Setting<String> dataTierAllocationSetting : DATA_TIER_ALLOCATION_SETTINGS) {
+                dataTierAllocationSetting.get(indexSettings);
+            }
+
             client.admin()
                 .cluster()
                 .restoreSnapshot(
@@ -221,17 +245,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                         .renamePattern(".+")
                         .renameReplacement(mountedIndexName)
                         // Pass through index settings, adding the index-level settings required to use searchable snapshots
-                        .indexSettings(
-                            Settings.builder()
-                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // can be overridden
-                                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
-                                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, getDataTiersPreference(request.storage()))
-                                .put(request.indexSettings())
-                                .put(
-                                    buildIndexSettings(repoData.getUuid(), request.repositoryName(), snapshotId, indexId, request.storage())
-                                )
-                                .build()
-                        )
+                        .indexSettings(indexSettings)
                         // Pass through ignored index settings
                         .ignoreIndexSettings(ignoreIndexSettings.toArray(new String[0]))
                         // Don't include global state

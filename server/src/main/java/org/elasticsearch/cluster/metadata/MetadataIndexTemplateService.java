@@ -57,6 +57,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -615,9 +616,9 @@ public class MetadataIndexTemplateService {
      * Remove the given index template from the cluster state. The index template name
      * supports simple regex wildcards for removing multiple index templates at a time.
      */
-    public void removeIndexTemplateV2(final String name, final TimeValue masterTimeout,
+    public void removeIndexTemplateV2(final String[] names, final TimeValue masterTimeout,
                                       final ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("remove-index-template-v2 [" + name + "]",
+        clusterService.submitStateUpdateTask("remove-index-template-v2 [" + String.join(",", names) + "]",
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
@@ -627,7 +628,7 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return innerRemoveIndexTemplateV2(currentState, name);
+                    return innerRemoveIndexTemplateV2(currentState, names);
                 }
 
                 @Override
@@ -638,20 +639,47 @@ public class MetadataIndexTemplateService {
     }
 
     // Package visible for testing
-    static ClusterState innerRemoveIndexTemplateV2(ClusterState currentState, String name) {
+    static ClusterState innerRemoveIndexTemplateV2(ClusterState currentState, String... names) {
         Set<String> templateNames = new HashSet<>();
-        for (String templateName : currentState.metadata().templatesV2().keySet()) {
-            if (Regex.simpleMatch(name, templateName)) {
-                templateNames.add(templateName);
+
+        if (names.length > 1) {
+            Set<String> missingNames = null;
+            for (String name : names) {
+                if (currentState.metadata().templatesV2().containsKey(name)) {
+                    templateNames.add(name);
+                } else {
+                    // wildcards are not supported, so if a name with a wildcard is specified then
+                    // the else clause gets executed, because template names can't contain a wildcard.
+                    if (missingNames == null) {
+                        missingNames = new LinkedHashSet<>();
+                    }
+                    missingNames.add(name);
+                }
             }
-        }
-        if (templateNames.isEmpty()) {
-            // if its a match all pattern, and no templates are found (we have none), don't
-            // fail with index missing...
-            if (Regex.isMatchAllPattern(name)) {
-                return currentState;
+
+            if (missingNames != null) {
+                throw new IndexTemplateMissingException(String.join(",", missingNames));
             }
-            throw new IndexTemplateMissingException(name);
+        } else {
+            final String name = names[0];
+            for (String templateName : currentState.metadata().templatesV2().keySet()) {
+                if (Regex.simpleMatch(name, templateName)) {
+                    templateNames.add(templateName);
+                }
+            }
+            if (templateNames.isEmpty()) {
+                // if its a match all pattern, and no templates are found (we have none), don't
+                // fail with index missing...
+                boolean isMatchAll = false;
+                if (Regex.isMatchAllPattern(name)) {
+                    isMatchAll = true;
+                }
+                if (isMatchAll) {
+                    return currentState;
+                } else {
+                    throw new IndexTemplateMissingException(name);
+                }
+            }
         }
 
         Optional<Set<String>> dataStreamsUsingTemplates = templateNames.stream()

@@ -34,7 +34,7 @@ final class MacOsPreallocator implements Preallocator {
         fst.fst_length = new NativeLong(fileSize);
         // first, try allocating contiguously
         if (Natives.fcntl(fd, Natives.Fcntl.F_PREALLOCATE, fst) != 0) {
-            // that failed, so let us try allocating non-contigulsouly
+            // that failed, so let us try allocating non-contiguously
             fst.fst_flags = Natives.Fcntl.F_ALLOCATEALL;
             if (Natives.fcntl(fd, Natives.Fcntl.F_PREALLOCATE, fst) != 0) {
                 // i'm afraid captain dale had to bail

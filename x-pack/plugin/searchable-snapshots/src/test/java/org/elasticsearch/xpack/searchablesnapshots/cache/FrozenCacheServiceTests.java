@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -198,16 +197,20 @@ public class FrozenCacheServiceTests extends ESTestCase {
     }
 
     public void testCacheSizeDeprecatedOnNonFrozenNodes() {
-        DiscoveryNode.setAdditionalRoles(Set.of(
-            DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE, DataTier.DATA_FROZEN_NODE_ROLE));
+        DiscoveryNode.setAdditionalRoles(
+            Set.of(DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE, DataTier.DATA_FROZEN_NODE_ROLE)
+        );
         final Settings settings = Settings.builder()
             .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DataTier.DATA_HOT_NODE_ROLE.roleName())
             .build();
         FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
-        assertWarnings("setting [" + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
-            + "] to be positive [500b] on node without the data_frozen role is deprecated, roles are [data_hot]");
+        assertWarnings(
+            "setting ["
+                + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
+                + "] to be positive [500b] on node without the data_frozen role is deprecated, roles are [data_hot]"
+        );
     }
 
     private static CacheKey generateCacheKey() {

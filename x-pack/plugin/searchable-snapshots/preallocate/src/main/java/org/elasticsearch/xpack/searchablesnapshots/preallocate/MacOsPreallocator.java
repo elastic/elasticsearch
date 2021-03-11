@@ -28,12 +28,18 @@ final class MacOsPreallocator implements Preallocator {
     public int preallocate(final int fd, final long currentSize /* unused */ , final long fileSize) {
         // the Structure.ByReference constructor requires access to declared members
         final Natives.Fcntl.FStore fst = AccessController.doPrivileged((PrivilegedAction<Natives.Fcntl.FStore>) Natives.Fcntl.FStore::new);
-        fst.fst_flags = Natives.Fcntl.F_ALLOCATEALL;
+        fst.fst_flags = Natives.Fcntl.F_ALLOCATECONTIG;
         fst.fst_posmode = Natives.Fcntl.F_PEOFPOSMODE;
         fst.fst_offset = new NativeLong(0);
         fst.fst_length = new NativeLong(fileSize);
+        // first, try allocating contiguously
         if (Natives.fcntl(fd, Natives.Fcntl.F_PREALLOCATE, fst) != 0) {
-            return Native.getLastError();
+            // that failed, so let us try allocating non-contigulsouly
+            fst.fst_flags = Natives.Fcntl.F_ALLOCATEALL;
+            if (Natives.fcntl(fd, Natives.Fcntl.F_PREALLOCATE, fst) != 0) {
+                // i'm afraid captain dale had to bail
+                return Native.getLastError();
+            }
         }
         if (Natives.ftruncate(fd, new NativeLong(fileSize)) != 0) {
             return Native.getLastError();

@@ -95,13 +95,7 @@ public class FrozenCacheService implements Releasable {
                 if (value.getBytes() > 0) {
                     @SuppressWarnings("unchecked") final List<DiscoveryNodeRole> roles =
                         (List<DiscoveryNodeRole>) settings.get(NodeRoleSettings.NODE_ROLES_SETTING);
-                    final DiscoveryNode fake = new DiscoveryNode(
-                        "fake",
-                        new TransportAddress(TransportAddress.META_ADDRESS, 0),
-                        Map.of(),
-                        Set.of(roles.toArray(DiscoveryNodeRole[]::new)), Version.CURRENT
-                    );
-                    if (DataTier.isFrozenNode(fake) == false) {
+                    if (DataTier.isFrozenNode(Set.of(roles.toArray(DiscoveryNodeRole[]::new))) == false) {
                         deprecationLogger.deprecate(
                             DeprecationCategory.SETTINGS,
                             "shared_cache",

@@ -90,11 +90,11 @@ final class MacOsPreallocator implements Preallocator {
             }
         }
 
-        public static native int fcntl(final int fd, final int cmd, final Fcntl.FStore fst);
+        static native int fcntl(final int fd, final int cmd, final Fcntl.FStore fst);
 
-        public static native int ftruncate(final int fd, final NativeLong length);
+        static native int ftruncate(final int fd, final NativeLong length);
 
-        public static native String strerror(final int errno);
+        static native String strerror(final int errno);
 
     }
 

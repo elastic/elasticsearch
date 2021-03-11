@@ -133,10 +133,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
 
-    public static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
-
-    public static final String CACHE_FILE_NAME = "shared_snapshot_cache";
-
     public static final String NO_FEATURE_STATES_VALUE = "none";
 
     private final ClusterService clusterService;

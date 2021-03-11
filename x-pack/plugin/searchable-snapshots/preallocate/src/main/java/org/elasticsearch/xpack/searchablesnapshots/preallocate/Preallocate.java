@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.SuppressForbidden;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -34,6 +35,7 @@ public class Preallocate {
         }
     }
 
+    @SuppressForbidden(reason = "need access to fd on FileOutputStream")
     private static void preallocate(final Path cacheFile, final long fileSize, final Preallocator prealloactor) throws IOException {
         if (prealloactor.available() == false) {
             logger.warn("failed to pre-allocate cache file [{}] as native methods are not available", cacheFile);
@@ -42,16 +44,7 @@ public class Preallocate {
         try (FileOutputStream fileChannel = new FileOutputStream(cacheFile.toFile())) {
             long currentSize = fileChannel.getChannel().size();
             if (currentSize < fileSize) {
-                final Field field = AccessController.doPrivileged(new PrivilegedExceptionAction<Field>() {
-                    @Override
-                    public Field run() throws IOException, NoSuchFieldException {
-                        // accessDeclaredMembers
-                        final Field f = fileChannel.getFD().getClass().getDeclaredField("fd");
-                        // suppressAccessChecks
-                        f.setAccessible(true);
-                        return f;
-                    }
-                });
+                final Field field = AccessController.doPrivileged(new FileDescriptorFieldAction(fileChannel));
                 final int errno = prealloactor.preallocate((int) field.get(fileChannel.getFD()), currentSize, fileSize - currentSize);
                 if (errno == 0) {
                     success = true;
@@ -72,6 +65,25 @@ public class Preallocate {
                 // if anything goes wrong, delete the potentially created file to not waste disk space
                 Files.deleteIfExists(cacheFile);
             }
+        }
+    }
+
+    @SuppressForbidden(reason = "need access to fd on FileOutputStream")
+    private static class FileDescriptorFieldAction implements PrivilegedExceptionAction<Field> {
+
+        private final FileOutputStream fileOutputStream;
+
+        private FileDescriptorFieldAction(FileOutputStream fileOutputStream) {
+            this.fileOutputStream = fileOutputStream;
+        }
+
+        @Override
+        public Field run() throws IOException, NoSuchFieldException {
+            // accessDeclaredMembers
+            final Field f = fileOutputStream.getFD().getClass().getDeclaredField("fd");
+            // suppressAccessChecks
+            f.setAccessible(true);
+            return f;
         }
     }
 

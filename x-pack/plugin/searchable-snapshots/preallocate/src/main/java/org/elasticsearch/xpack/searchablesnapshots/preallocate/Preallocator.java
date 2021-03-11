@@ -27,7 +27,7 @@ interface Preallocator {
      * @param fileSize the size to pre-allocate
      * @return 0 upon success
      */
-    int preallocate(final int fd, final long currentSize, final long fileSize);
+    int preallocate(int fd, long currentSize, long fileSize);
 
     /**
      * Provide a string representation of the given error number.
@@ -35,6 +35,6 @@ interface Preallocator {
      * @param errno the error number
      * @return the error message
      */
-    String error(final int errno);
+    String error(int errno);
 
 }

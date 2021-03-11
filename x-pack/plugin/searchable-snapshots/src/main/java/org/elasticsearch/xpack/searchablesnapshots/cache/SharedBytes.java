@@ -16,7 +16,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate;
 
 import java.io.IOException;
@@ -30,6 +29,8 @@ import java.util.Map;
 public class SharedBytes extends AbstractRefCounted {
 
     private static final Logger logger = LogManager.getLogger(SharedBytes.class);
+
+    private static final String CACHE_FILE_NAME = "shared_snapshot_cache";
 
     private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[] {
         StandardOpenOption.READ,
@@ -81,7 +82,7 @@ public class SharedBytes extends AbstractRefCounted {
         } else {
             this.fileChannel = null;
             for (Path path : environment.dataFiles()) {
-                Files.deleteIfExists(path.resolve(SnapshotsService.CACHE_FILE_NAME));
+                Files.deleteIfExists(path.resolve(CACHE_FILE_NAME));
             }
         }
         this.path = cacheFile;
@@ -99,7 +100,7 @@ public class SharedBytes extends AbstractRefCounted {
             Files.createDirectories(path);
             // TODO: be resilient to this check failing and try next path?
             long usableSpace = Environment.getUsableSpace(path);
-            Path p = path.resolve(SnapshotsService.CACHE_FILE_NAME);
+            Path p = path.resolve(CACHE_FILE_NAME);
             if (Files.exists(p)) {
                 usableSpace += Files.size(p);
             }

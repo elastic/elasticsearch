@@ -33,7 +33,7 @@ final class LinuxPreallocator implements Preallocator {
 
     private static class Natives {
 
-        public final static boolean NATIVES_AVAILABLE;
+        public static final boolean NATIVES_AVAILABLE;
 
         static {
             NATIVES_AVAILABLE = AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {
@@ -46,9 +46,9 @@ final class LinuxPreallocator implements Preallocator {
             });
         }
 
-        static native int fallocate(final int fd, final int mode, final long offset, final long length);
+        static native int fallocate(int fd, int mode, long offset, long length);
 
-        static native String strerror(final int errno);
+        static native String strerror(int errno);
 
     }
 

@@ -405,12 +405,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .put(legacyTemplate).put("composable-template", composableTemplate).build();
         String indexName = randomFrom("foo-123", "bar-xyz");
         String aliasName = randomFrom("foo-write", "bar-write");
-        try {
-            MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomBoolean());
-            // success
-        } catch (Exception e) {
-            fail("the valid v2 template takes priority over the v1 template. was not expecting a failure but got: " + e.getMessage());
-        }
+
+        // the valid v2 template takes priority over the v1 template so the validation should not throw any exception
+        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomBoolean());
     }
 
     public void testHiddenAffectsResolvedTemplates() {

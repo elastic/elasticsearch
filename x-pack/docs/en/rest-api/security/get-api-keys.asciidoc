@@ -146,7 +146,7 @@ Following creates an API key
 ------------------------------------------------------------
 POST /_security/api_key
 {
-  "name": "my-api-key-1"
+  "name": "my-api-key-1",
   "metadata": {
     "application": "my-application"
   }

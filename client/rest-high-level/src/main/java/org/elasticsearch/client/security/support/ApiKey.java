@@ -136,7 +136,7 @@ public final class ApiKey {
         PARSER.declareBoolean(constructorArg(), new ParseField("invalidated"));
         PARSER.declareString(constructorArg(), new ParseField("username"));
         PARSER.declareString(constructorArg(), new ParseField("realm"));
-        PARSER.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
     }
 
     public static ApiKey fromXContent(XContentParser parser) throws IOException {

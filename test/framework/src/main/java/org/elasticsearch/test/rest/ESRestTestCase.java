@@ -585,7 +585,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                         try {
                             adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
                         } catch (ResponseException e) {
-                            logger.debug(new ParameterizedMessage("unable to remove multiple composable index template {}", names), e);
+                            logger.debug(new ParameterizedMessage("unable to remove multiple composable index templates {}", names), e);
                         }
                     } else {
                         for (String name : names) {
@@ -606,15 +606,23 @@ public abstract class ESRestTestCase extends ESTestCase {
                     Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
                     List<String> names = ((List<?>) cTemplates.get("component_templates")).stream()
                         .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                        .filter(name -> isXPackTemplate(name) == false)
                         .collect(Collectors.toList());
-                    for (String componentTemplate : names) {
+                    // Ideally we would want to check the version of the elected master node and
+                    // send the delete request directly to that node.
+                    if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_8_0_0))) {
                         try {
-                            if (isXPackTemplate(componentTemplate)) {
-                                continue;
-                            }
-                            adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
+                            adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
                         } catch (ResponseException e) {
-                            logger.debug(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
+                            logger.debug(new ParameterizedMessage("unable to remove multiple component templates {}", names), e);
+                        }
+                    } else {
+                        for (String componentTemplate : names) {
+                            try {
+                                adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
+                            } catch (ResponseException e) {
+                                logger.debug(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
+                            }
                         }
                     }
                 } catch (Exception e) {

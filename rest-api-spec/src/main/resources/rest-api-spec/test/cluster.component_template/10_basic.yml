@@ -45,3 +45,65 @@
         name: test
 
   - is_false: test
+
+---
+"Delete multiple component templates":
+  - skip:
+      version: " - 7.99.99"
+      reason: "not yet backported"
+
+  - do:
+      cluster.put_component_template:
+        name: foo
+        body:
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+
+  - do:
+      cluster.put_component_template:
+        name: bar
+        body:
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+
+  - do:
+      cluster.put_component_template:
+        name: baz
+        body:
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+
+  - do:
+      cluster.get_component_template:
+        name: *
+
+  - match: {component_templates.0.name: foo}
+  - match: {component_templates.1.name: bar}
+  - match: {component_templates.2.name: baz}
+
+  - do:
+      cluster.delete_component_template:
+        name: foo,bar
+
+  - do:
+      catch: missing
+      cluster.get_component_template:
+        name: foo
+
+  - do:
+      catch: missing
+      cluster.get_component_template:
+        name: bar
+
+  - do:
+      cluster.get_component_template:
+        name: baz
+
+  - match: {component_templates.0.name: baz}
+

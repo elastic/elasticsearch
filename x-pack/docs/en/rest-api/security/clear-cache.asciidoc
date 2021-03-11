@@ -36,7 +36,7 @@ To evict API keys from the API key cache, see the
 ==== {api-path-parms-title}
 
 `<realms>`::
-(Required, list)
+(Required, string)
 Comma-separated list of realms to clear. To clear all realms, use `*`. Other
 wildcard patterns are not supported.
 

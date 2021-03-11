@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 

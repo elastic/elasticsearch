@@ -47,6 +47,7 @@ final class LinuxPreallocator implements Preallocator {
         }
 
         public static native int fallocate(final int fd, final int mode, final long offset, final long length);
+
         public static native String strerror(final int errno);
 
     }

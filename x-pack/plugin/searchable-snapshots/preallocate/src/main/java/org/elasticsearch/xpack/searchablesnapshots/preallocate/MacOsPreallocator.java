@@ -27,8 +27,7 @@ final class MacOsPreallocator implements Preallocator {
     @Override
     public int preallocate(final int fd, final long currentSize /* unused */ , final long fileSize) {
         // the Structure.ByReference constructor requires access to declared members
-        final Natives.Fcntl.FStore fst =
-            AccessController.doPrivileged((PrivilegedAction<Natives.Fcntl.FStore>) Natives.Fcntl.FStore::new);
+        final Natives.Fcntl.FStore fst = AccessController.doPrivileged((PrivilegedAction<Natives.Fcntl.FStore>) Natives.Fcntl.FStore::new);
         fst.fst_flags = Natives.Fcntl.F_ALLOCATEALL;
         fst.fst_posmode = Natives.Fcntl.F_PEOFPOSMODE;
         fst.fst_offset = new NativeLong(0);
@@ -92,7 +91,9 @@ final class MacOsPreallocator implements Preallocator {
         }
 
         public static native int fcntl(final int fd, final int cmd, final Fcntl.FStore fst);
+
         public static native int ftruncate(final int fd, final NativeLong length);
+
         public static native String strerror(final int errno);
 
     }

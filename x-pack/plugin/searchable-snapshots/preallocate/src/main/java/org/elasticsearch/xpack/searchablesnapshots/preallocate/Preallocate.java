@@ -35,7 +35,12 @@ public class Preallocate {
         }
     }
 
-    private static void preallocate(final Path cacheFile, final Environment environment, final long fileSize, final Preallocator prealloactor) throws IOException {
+    private static void preallocate(
+        final Path cacheFile,
+        final Environment environment,
+        final long fileSize,
+        final Preallocator prealloactor
+    ) throws IOException {
         if (prealloactor.available() == false) {
             logger.warn("failed to pre-allocate cache file [{}] as native methods are not available", cacheFile);
         }

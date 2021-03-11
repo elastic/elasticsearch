@@ -33,7 +33,7 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "_cat/ml/datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}"),
+            new Route(GET, "_cat/ml/datafeeds/{" + DatafeedConfig.ID + "}"),
             new Route(GET, "_cat/ml/datafeeds"));
     }
 

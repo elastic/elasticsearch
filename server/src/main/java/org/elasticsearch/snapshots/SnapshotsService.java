@@ -64,11 +64,8 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-<<<<<<< HEAD
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-=======
 import org.elasticsearch.common.util.CollectionUtils;
->>>>>>> 36683a4581a... Move shared cache pre-allocation and support macOS (#70285)
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndices;

@@ -876,8 +876,8 @@ public class ApiKeyService {
                                 String realm = (String) ((Map<String, Object>) source.get("creator")).get("realm");
                                 Map<String, Object> metadata = (Map<String, Object>) source.get("metadata_flattened");
                                 return new ApiKey(name, id, Instant.ofEpochMilli(creation),
-                                        (expiration != null) ? Instant.ofEpochMilli(expiration) : null, invalidated, username, realm,
-                                        metadata != null ? metadata : Map.of());
+                                    (expiration != null) ? Instant.ofEpochMilli(expiration) : null,
+                                    invalidated, username, realm, metadata);
                             }));
         }
     }

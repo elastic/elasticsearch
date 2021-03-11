@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,10 +38,11 @@ public final class ApiKey implements ToXContentObject, Writeable {
     private final boolean invalidated;
     private final String username;
     private final String realm;
+    @Nullable
     private final Map<String, Object> metadata;
 
     public ApiKey(String name, String id, Instant creation, Instant expiration, boolean invalidated, String username, String realm,
-                  Map<String, Object> metadata) {
+                  @Nullable Map<String, Object> metadata) {
         this.name = name;
         this.id = id;
         // As we do not yet support the nanosecond precision when we serialize to JSON,
@@ -69,7 +71,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             this.metadata = in.readMap();
         } else {
-            this.metadata = Map.of();
+            this.metadata = null;
         }
     }
 
@@ -117,7 +119,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         builder.field("invalidated", invalidated)
         .field("username", username)
         .field("realm", realm)
-        .field("metadata", metadata);
+        .field("metadata", (metadata == null ? Map.of() : metadata));
         return builder.endObject();
     }
 
@@ -169,7 +171,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
     static final ConstructingObjectParser<ApiKey, Void> PARSER = new ConstructingObjectParser<>("api_key", args -> {
         return new ApiKey((String) args[0], (String) args[1], Instant.ofEpochMilli((Long) args[2]),
                 (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3]), (Boolean) args[4], (String) args[5], (String) args[6],
-            (Map<String, Object>) args[7]);
+            (args[7] == null) ? null : (Map<String, Object>) args[7]);
     });
     static {
         PARSER.declareString(constructorArg(), new ParseField("name"));
@@ -179,7 +181,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         PARSER.declareBoolean(constructorArg(), new ParseField("invalidated"));
         PARSER.declareString(constructorArg(), new ParseField("username"));
         PARSER.declareString(constructorArg(), new ParseField("realm"));
-        PARSER.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
     }
 
     public static ApiKey fromXContent(XContentParser parser) throws IOException {

@@ -203,7 +203,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
             dependencies.add("testImplementation", dependencies.project(Map.of("path", ":test:framework")));
         } else {
             dependencies.add("compileOnly", "org.elasticsearch:elasticsearch:" + VersionProperties.getElasticsearch());
-            dependencies.add("testImplementation", ":test:framework:" + VersionProperties.getElasticsearch());
+            dependencies.add("testImplementation", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch());
         }
 
         // we "upgrade" these optional deps to provided for plugins, since they will run

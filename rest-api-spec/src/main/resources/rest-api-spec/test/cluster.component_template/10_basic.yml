@@ -81,7 +81,7 @@
 
   - do:
       cluster.get_component_template:
-        name: *
+        name: '*'
 
   - match: {component_templates.0.name: foo}
   - match: {component_templates.1.name: bar}
@@ -106,4 +106,3 @@
         name: baz
 
   - match: {component_templates.0.name: baz}
-

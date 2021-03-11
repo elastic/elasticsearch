@@ -123,8 +123,8 @@
 ---
 "Delete multiple templates":
   - skip:
-      version: " - 7.9.99"
-      reason: "not yet backported"
+      version: " - 7.12.99"
+      reason: "added support for deleting multiple templates in 7.13.0"
       features: allowed_warnings
 
   - do:
@@ -165,7 +165,7 @@
 
   - do:
       indices.get_index_template:
-        name: *
+        name: '*'
   - match: {index_templates.0.name: "foo"}
   - match: {index_templates.1.name: "bar"}
   - match: {index_templates.2.name: "baz"}
@@ -189,4 +189,3 @@
         name: baz
 
   - match: {index_templates.0.name: baz}
-

@@ -27,6 +27,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 
@@ -126,7 +127,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
                 new IndexId(SHARD_ID.getIndex().getName(), SHARD_ID.getIndex().getUUID()),
                 SHARD_ID,
                 Settings.builder()
-                    .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
+                    .put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
                     .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                     .build(),
                 System::currentTimeMillis,

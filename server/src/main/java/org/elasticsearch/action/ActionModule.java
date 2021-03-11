@@ -440,7 +440,8 @@ public class ActionModule extends AbstractModule {
                     throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST wrapper");
                 }
                 restWrapper = newRestWrapper;
-                if (restWrapper.getClass().getCanonicalName().startsWith("org.elasticsearch") == false) {
+                if (restWrapper.getClass().getCanonicalName() == null ||
+                    restWrapper.getClass().getCanonicalName().startsWith("org.elasticsearch") == false) {
                     deprecationLogger.deprecate(DeprecationCategory.SECURITY, "3rd_party_sec_deprecation", "Use of third-party " +
                         "security plugins is deprecated and will not be possible in 8.0. You can use built-in Elasticsearch features " +
                         "instead. Read https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +

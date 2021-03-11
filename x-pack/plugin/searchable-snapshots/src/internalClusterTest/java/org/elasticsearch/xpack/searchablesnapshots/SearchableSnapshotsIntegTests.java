@@ -1475,6 +1475,21 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                         indexInputStats.getTotalSize(),
                         greaterThan(0L)
                     );
+                    assertThat(
+                        "Unexpected min. file size for " + fileExt + " of shard " + shardRouting,
+                        indexInputStats.getMinSize().getBytes(),
+                        greaterThan(0L)
+                    );
+                    assertThat(
+                        "Unexpected max. file size for " + fileExt + " of shard " + shardRouting,
+                        indexInputStats.getMaxSize().getBytes(),
+                        greaterThan(0L)
+                    );
+                    assertThat(
+                        "Unexpected average file size for " + fileExt + " of shard " + shardRouting,
+                        indexInputStats.getAverageSize().getBytes(),
+                        greaterThan(0L)
+                    );
 
                     if (cacheEnabled == false || nonCachedExtensions.contains(fileExt)) {
                         assertThat(

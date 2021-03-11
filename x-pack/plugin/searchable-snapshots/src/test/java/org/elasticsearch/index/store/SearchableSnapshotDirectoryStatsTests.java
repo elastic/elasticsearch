@@ -655,11 +655,11 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 frozenCacheService
             ) {
                 @Override
-                protected IndexInputStats createIndexInputStats(final int numFiles, final long totalSize) {
+                protected IndexInputStats createIndexInputStats(long numFiles, long totalSize, long minSize, long maxSize) {
                     if (seekingThreshold == null) {
-                        return super.createIndexInputStats(numFiles, totalSize);
+                        return super.createIndexInputStats(numFiles, totalSize, minSize, maxSize);
                     }
-                    return new IndexInputStats(numFiles, totalSize, seekingThreshold, statsCurrentTimeNanos);
+                    return new IndexInputStats(numFiles, totalSize, minSize, maxSize, seekingThreshold, statsCurrentTimeNanos);
                 }
             }
         ) {

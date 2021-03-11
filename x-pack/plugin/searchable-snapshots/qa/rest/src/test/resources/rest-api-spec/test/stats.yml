@@ -390,3 +390,78 @@ teardown:
   - is_true: total.0.file_ext
   - is_true: indices.docs.total.0.file_ext
   - is_false: indices.docs.shards.0.0.files.0.file_ext
+
+
+---
+"Tests searchable snapshots stats with min/max/average sizes":
+  - skip:
+      version: " - 7.99.99"
+      reason:  min/max/average sizes introduced in 8.0.0
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: shared_cache
+        body:
+          index: docs
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: docs
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total: 3 }
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      searchable_snapshots.stats:
+        index: "d*"
+        level: "shards"
+
+  - match:  { _shards.total: 1 }
+  - match:  { _shards.failed: 0 }
+
+  - gt:      { total.0.min_size_in_bytes: 0 }
+  - gt:      { total.0.max_size_in_bytes: 0 }
+  - gt:      { total.0.avg_size_in_bytes: 0 }
+
+  - do:
+      searchable_snapshots.stats:
+        index: "d*"
+        level: "shards"
+        human: true
+
+  - is_true:   indices.docs.shards.0.0.files.0.min_size
+  - is_true:   indices.docs.shards.0.0.files.0.max_size
+  - is_true:   indices.docs.shards.0.0.files.0.avg_size
+
+  - do:
+      searchable_snapshots.stats:
+        index: "d*"
+        level: "cluster"
+
+  - gt:      { total.0.min_size_in_bytes: 0 }
+  - gt:      { total.0.max_size_in_bytes: 0 }
+  - gt:      { total.0.avg_size_in_bytes: 0 }
+
+  - do:
+      searchable_snapshots.stats:
+        index: "d*"
+
+  - gt:      { total.0.min_size_in_bytes: 0 }
+  - gt:      { total.0.max_size_in_bytes: 0 }
+  - gt:      { total.0.avg_size_in_bytes: 0 }
+

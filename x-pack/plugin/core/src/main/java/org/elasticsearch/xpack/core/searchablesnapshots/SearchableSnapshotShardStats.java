@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -126,6 +127,8 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         private final String fileExt;
         private final long numFiles;
         private final long totalSize;
+        private final ByteSizeValue minSize;
+        private final ByteSizeValue maxSize;
 
         private final long openCount;
         private final long closeCount;
@@ -144,7 +147,8 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         private final Counter blobStoreBytesRequested;
         private final long currentIndexCacheFills;
 
-        public CacheIndexInputStats(String fileExt, long numFiles, long totalSize, long openCount, long closeCount,
+        public CacheIndexInputStats(String fileExt, long numFiles, long totalSize, ByteSizeValue minSize, ByteSizeValue maxSize,
+                                    long openCount, long closeCount,
                                     Counter forwardSmallSeeks, Counter backwardSmallSeeks,
                                     Counter forwardLargeSeeks, Counter backwardLargeSeeks,
                                     Counter contiguousReads, Counter nonContiguousReads,
@@ -154,6 +158,8 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.fileExt = fileExt;
             this.numFiles = numFiles;
             this.totalSize = totalSize;
+            this.minSize = minSize;
+            this.maxSize = maxSize;
             this.openCount = openCount;
             this.closeCount = closeCount;
             this.forwardSmallSeeks = forwardSmallSeeks;
@@ -181,6 +187,13 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.fileExt = in.readString();
             this.numFiles = in.readVLong();
             this.totalSize = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO adapt BWC version after backport
+                this.minSize = new ByteSizeValue(in);
+                this.maxSize = new ByteSizeValue(in);
+            } else {
+                this.minSize = ByteSizeValue.ZERO;
+                this.maxSize = ByteSizeValue.ZERO;
+            }
             this.openCount = in.readVLong();
             this.closeCount = in.readVLong();
             this.forwardSmallSeeks = new Counter(in);
@@ -208,6 +221,8 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                 cis1.fileExt,
                 cis1.numFiles + cis2.numFiles,
                 cis1.totalSize + cis2.totalSize,
+                new ByteSizeValue(Math.min(cis1.minSize.getBytes(), cis2.minSize.getBytes())),
+                new ByteSizeValue(Math.max(cis1.maxSize.getBytes(), cis2.maxSize.getBytes())),
                 cis1.openCount + cis2.openCount,
                 cis1.closeCount + cis2.closeCount,
                 cis1.forwardSmallSeeks.add(cis2.forwardSmallSeeks),
@@ -237,6 +252,10 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             out.writeString(fileExt);
             out.writeVLong(numFiles);
             out.writeVLong(totalSize);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO adapt BWC version after backport
+                minSize.writeTo(out);
+                maxSize.writeTo(out);
+            }
             out.writeVLong(openCount);
             out.writeVLong(closeCount);
 
@@ -265,6 +284,19 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
 
         public long getTotalSize() {
             return totalSize;
+        }
+
+        public ByteSizeValue getMinSize() {
+            return minSize;
+        }
+
+        public ByteSizeValue getMaxSize() {
+            return maxSize;
+        }
+
+        public ByteSizeValue getAverageSize() {
+            final double average = (double) totalSize / (double) numFiles;
+            return new ByteSizeValue(Math.round(average));
         }
 
         public long getOpenCount() {
@@ -334,6 +366,9 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                 builder.field("file_ext", getFileExt());
                 builder.field("num_files", getNumFiles());
                 builder.field("total_size", getTotalSize());
+                builder.humanReadableField("min_size_in_bytes", "min_size", getMinSize());
+                builder.humanReadableField("max_size_in_bytes", "max_size", getMaxSize());
+                builder.humanReadableField("avg_size_in_bytes", "avg_size", getAverageSize());
                 builder.field("open_count", getOpenCount());
                 builder.field("close_count", getCloseCount());
                 builder.field("contiguous_bytes_read", getContiguousReads(), params);
@@ -375,6 +410,8 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                 && openCount == stats.openCount
                 && closeCount == stats.closeCount
                 && Objects.equals(fileExt, stats.fileExt)
+                && Objects.equals(minSize, stats.minSize)
+                && Objects.equals(maxSize, stats.maxSize)
                 && Objects.equals(forwardSmallSeeks, stats.forwardSmallSeeks)
                 && Objects.equals(backwardSmallSeeks, stats.backwardSmallSeeks)
                 && Objects.equals(forwardLargeSeeks, stats.forwardLargeSeeks)
@@ -392,7 +429,9 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
 
         @Override
         public int hashCode() {
-            return Objects.hash(fileExt, numFiles, totalSize, openCount, closeCount,
+            return Objects.hash(fileExt, numFiles, totalSize,
+                minSize, maxSize,
+                openCount, closeCount,
                 forwardSmallSeeks, backwardSmallSeeks,
                 forwardLargeSeeks, backwardLargeSeeks,
                 contiguousReads, nonContiguousReads,

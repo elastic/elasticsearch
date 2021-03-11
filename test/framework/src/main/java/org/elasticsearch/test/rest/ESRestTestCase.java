@@ -577,28 +577,35 @@ public abstract class ESRestTestCase extends ESTestCase {
                         EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()), false);
                     List<String> names = ((List<?>) composableIndexTemplates.get("index_templates")).stream()
                         .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                        .filter(name -> isXPackTemplate(name) == false)
                         .collect(Collectors.toList());
-                    for (String name : names) {
-                        if (isXPackTemplate(name)) {
-                            continue;
-                        }
+                    // Ideally we would want to check the version of the elected master node and
+                    // send the delete request directly to that node.
+                    if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_8_0_0))) {
                         try {
-                            adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
+                            adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
                         } catch (ResponseException e) {
-                            logger.debug(new ParameterizedMessage("unable to remove index template {}", name), e);
+                            logger.debug(new ParameterizedMessage("unable to remove multiple composable index template {}", names), e);
+                        }
+                    } else {
+                        for (String name : names) {
+                            try {
+                                adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
+                            } catch (ResponseException e) {
+                                logger.debug(new ParameterizedMessage("unable to remove composable index template {}", name), e);
+                            }
                         }
                     }
                 } catch (Exception e) {
-                    logger.info("ignoring exception removing all composable index templates", e);
+                    logger.debug("ignoring exception removing all composable index templates", e);
                     // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                 }
                 try {
                     Request compReq = new Request("GET", "_component_template");
                     String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
                     Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
-                    @SuppressWarnings("unchecked")
-                    List<String> names = ((List<Map<String, Object>>) cTemplates.get("component_templates")).stream()
-                        .map(ct -> (String) ct.get("name"))
+                    List<String> names = ((List<?>) cTemplates.get("component_templates")).stream()
+                        .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
                         .collect(Collectors.toList());
                     for (String componentTemplate : names) {
                         try {
@@ -611,7 +618,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                         }
                     }
                 } catch (Exception e) {
-                    logger.info("ignoring exception removing all component templates", e);
+                    logger.debug("ignoring exception removing all component templates", e);
                     // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                 }
                 Request getLegacyTemplatesRequest = new Request("GET", "_template");

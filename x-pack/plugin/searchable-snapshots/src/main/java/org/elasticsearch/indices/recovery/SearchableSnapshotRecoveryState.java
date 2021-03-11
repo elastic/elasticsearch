@@ -35,7 +35,7 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
             return this;
         }
 
-        return this;
+        return super.setStage(stage);
     }
 
     @Override

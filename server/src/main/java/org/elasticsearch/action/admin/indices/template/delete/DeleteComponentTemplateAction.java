@@ -48,8 +48,8 @@ public class DeleteComponentTemplateAction extends ActionType<AcknowledgedRespon
         /**
          * Constructs a new delete index request for the specified name.
          */
-        public Request(String... name) {
-            this.names = Objects.requireNonNull(name, "component templates to delete must not be null");
+        public Request(String... names) {
+            this.names = Objects.requireNonNull(names, "component templates to delete must not be null");
         }
 
         @Override

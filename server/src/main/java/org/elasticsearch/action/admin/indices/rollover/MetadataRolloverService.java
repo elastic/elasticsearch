@@ -307,15 +307,6 @@ public class MetadataRolloverService {
      */
     static void checkNoDuplicatedAliasInIndexTemplate(Metadata metadata, String rolloverIndexName, String rolloverRequestAlias,
                                                       @Nullable Boolean isHidden) {
-        final List<IndexTemplateMetadata> matchedTemplates = findV1Templates(metadata, rolloverIndexName, isHidden);
-        for (IndexTemplateMetadata template : matchedTemplates) {
-            if (template.aliases().containsKey(rolloverRequestAlias)) {
-                throw new IllegalArgumentException(String.format(Locale.ROOT,
-                    "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
-                    rolloverRequestAlias, template.aliases().keys(), template.name()));
-            }
-        }
-
         final String matchedV2Template = findV2Template(metadata, rolloverIndexName, isHidden == null ? false : isHidden);
         if (matchedV2Template != null) {
             List<Map<String, AliasMetadata>> aliases = MetadataIndexTemplateService.resolveAliases(metadata, matchedV2Template);
@@ -325,6 +316,16 @@ public class MetadataRolloverService {
                         "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
                         rolloverRequestAlias, aliasConfig.keySet(), matchedV2Template));
                 }
+            }
+            return;
+        }
+
+        final List<IndexTemplateMetadata> matchedTemplates = findV1Templates(metadata, rolloverIndexName, isHidden);
+        for (IndexTemplateMetadata template : matchedTemplates) {
+            if (template.aliases().containsKey(rolloverRequestAlias)) {
+                throw new IllegalArgumentException(String.format(Locale.ROOT,
+                    "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
+                    rolloverRequestAlias, template.aliases().keys(), template.name()));
             }
         }
     }

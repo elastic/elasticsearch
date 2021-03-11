@@ -86,7 +86,7 @@ final class DatabaseRegistry implements Closeable {
     DatabaseRegistry(Environment environment, Client client, GeoIpCache cache, Consumer<Runnable> genericExecutor) {
         this(
             environment.tmpFile(),
-            new OriginSettingClient(client, "geoip"),
+            new OriginSettingClient(client, IngestService.INGEST_ORIGIN),
             cache,
             new LocalDatabases(environment, cache),
             genericExecutor

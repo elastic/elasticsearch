@@ -87,7 +87,7 @@ final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTas
     }
 
     @Override
-    protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
+    protected GeoIpDownloader createTask(long id, String type, String action, TaskId parentTaskId,
                                                  PersistentTasksCustomMetadata.PersistentTask<GeoIpTaskParams> taskInProgress,
                                                  Map<String, String> headers) {
         return new GeoIpDownloader(client, httpClient, clusterService, threadPool, settings, id, type, action,

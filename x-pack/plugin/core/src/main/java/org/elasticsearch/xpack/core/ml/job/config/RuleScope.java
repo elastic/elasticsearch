@@ -44,7 +44,7 @@ public class RuleScope implements ToXContentObject, Writeable {
             Map<String, FilterRef> scope = new HashMap<>();
             for (Map.Entry<String, Object> entry : unparsedScope.entrySet()) {
                 try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    builder.map((Map<String, Object>) entry.getValue());
+                    builder.map((Map<String, ?>) entry.getValue());
                     try (XContentParser scopeParser = XContentFactory.xContent(builder.contentType()).createParser(
                             NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, Strings.toString(builder))) {
                         scope.put(entry.getKey(), filterRefParser.parse(scopeParser, null));

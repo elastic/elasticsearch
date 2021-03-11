@@ -32,6 +32,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,6 +47,8 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Base class for testing {@link Mapper}s.
@@ -440,5 +443,30 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected void assertSearchable(MappedFieldType fieldType) {
         assertEquals(fieldType.isSearchable(), fieldType.getTextSearchInfo() != TextSearchInfo.NONE);
+    }
+
+    /**
+     * Assert that fetching a value using {@link MappedFieldType#valueFetcher}
+     * produces the same value as fetching using doc values.
+     */
+    protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
+        MappedFieldType ft = mapperService.fieldType(field);
+        SourceToParse source = source(b -> b.field(ft.name(), value));
+        ValueFetcher docValueFetcher = new DocValueFetcher(
+            ft.docValueFormat(format, null),
+            ft.fielddataBuilder("test", () -> null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+        );
+        QueryShardContext searchExecutionContext = mock(QueryShardContext.class);
+        when(searchExecutionContext.sourcePath(field)).thenReturn(org.elasticsearch.common.collect.Set.of(field));
+        ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
+        ParsedDocument doc = mapperService.documentMapper().parse(source);
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
+            SourceLookup sourceLookup = new SourceLookup();
+            sourceLookup.setSegmentAndDocument(ir.leaves().get(0), 0);
+            docValueFetcher.setNextReader(ir.leaves().get(0));
+            List<?> fromDocValues = docValueFetcher.fetchValues(sourceLookup);
+            List<?> fromNative = nativeFetcher.fetchValues(sourceLookup);
+            assertEquals(fromDocValues, fromNative);
+        });
     }
 }

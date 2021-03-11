@@ -29,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.ApiKey;
+import org.elasticsearch.xpack.core.security.action.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 
@@ -85,7 +86,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final Instant creation = Instant.now();
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
         @SuppressWarnings("unchecked")
-        final Map<String, Object> metadata = randomMetadata();
+        final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
         final GetApiKeyResponse getApiKeyResponseExpected = new GetApiKeyResponse(
                 Collections.singletonList(
                     new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1", metadata)));
@@ -159,9 +160,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final Instant creation = Instant.now();
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
         final ApiKey apiKey1 = new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false,
-            "user-x", "realm-1", randomMetadata());
+            "user-x", "realm-1", ApiKeyTests.randomMetadata());
         final ApiKey apiKey2 = new ApiKey("api-key-name-2", "api-key-id-2", creation, expiration, false,
-            "user-y", "realm-1", randomMetadata());
+            "user-y", "realm-1", ApiKeyTests.randomMetadata());
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsTrue = new GetApiKeyResponse(Collections.singletonList(apiKey1));
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsFalse = new GetApiKeyResponse(List.of(apiKey1, apiKey2));
 
@@ -204,19 +205,6 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             }
         }
 
-    }
-
-    @SuppressWarnings("unchecked")
-    public static Map<String, Object> randomMetadata() {
-        return randomFrom(
-            Map.of("application", randomAlphaOfLength(5),
-                "number", 1,
-                "numbers", List.of(1, 3, 5),
-                "environment", Map.of("os", "linux", "level", 42, "category", "trusted")
-            ),
-            Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
-            Map.of(),
-            null);
     }
 
     private static MapBuilder<String, String> mapBuilder() {

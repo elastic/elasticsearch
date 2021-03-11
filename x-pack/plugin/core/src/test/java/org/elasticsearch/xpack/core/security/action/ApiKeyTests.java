@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -34,8 +35,7 @@ public class ApiKeyTests extends ESTestCase {
         final boolean invalidated = randomBoolean();
         final String username = randomAlphaOfLengthBetween(4, 10);
         final String realmName = randomAlphaOfLengthBetween(3, 8);
-        final Map<String, Object> metadata =
-            randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+        final Map<String, Object> metadata = randomMetadata();
 
         final ApiKey apiKey = new ApiKey(name, id, creation, expiration, invalidated, username, realmName, metadata);
 
@@ -57,4 +57,16 @@ public class ApiKeyTests extends ESTestCase {
         assertThat(map.get("metadata"), equalTo(Objects.requireNonNullElseGet(metadata, Map::of)));
     }
 
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> randomMetadata() {
+        return randomFrom(
+            Map.of("application", randomAlphaOfLength(5),
+                "number", 1,
+                "numbers", List.of(1, 3, 5),
+                "environment", Map.of("os", "linux", "level", 42, "category", "trusted")
+            ),
+            Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
+            Map.of(),
+            null);
+    }
 }

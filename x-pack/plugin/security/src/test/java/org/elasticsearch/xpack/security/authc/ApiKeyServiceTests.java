@@ -44,6 +44,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
@@ -59,7 +60,6 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyDoc;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyRoleDescriptors;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.CachedApiKeyHashResult;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
-import org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyActionTests;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -342,7 +342,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 AuthenticationType.ANONYMOUS), Collections.emptyMap());
         }
         @SuppressWarnings("unchecked")
-        final Map<String, Object> metadata = RestGetApiKeyActionTests.randomMetadata();
+        final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
         XContentBuilder docSource = service.newDocument(new SecureString(key.toCharArray()), "test", authentication,
             Collections.singleton(SUPERUSER_ROLE_DESCRIPTOR), Instant.now(), Instant.now().plus(expiry), keyRoles,
             Version.CURRENT, metadata);
@@ -1090,7 +1090,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         sourceMap.put("creator", creatorMap);
         sourceMap.put("api_key_invalidated", false);
         //noinspection unchecked
-        sourceMap.put("metadata_flattened", RestGetApiKeyActionTests.randomMetadata());
+        sourceMap.put("metadata_flattened", ApiKeyTests.randomMetadata());
         return sourceMap;
     }
 
@@ -1109,7 +1109,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     private ApiKeyDoc buildApiKeyDoc(char[] hash, long expirationTime, boolean invalidated) throws IOException {
         final BytesReference metadataBytes =
-            XContentTestUtils.convertToXContent(RestGetApiKeyActionTests.randomMetadata(), XContentType.JSON);
+            XContentTestUtils.convertToXContent(ApiKeyTests.randomMetadata(), XContentType.JSON);
         return new ApiKeyDoc(
             "api_key",
             Clock.systemUTC().instant().toEpochMilli(),

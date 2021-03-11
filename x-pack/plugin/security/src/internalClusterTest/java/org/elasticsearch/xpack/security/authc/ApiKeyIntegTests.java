@@ -40,6 +40,7 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.ApiKey;
+import org.elasticsearch.xpack.core.security.action.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
@@ -55,7 +56,6 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyActionTests;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.After;
 import org.junit.Before;
@@ -177,7 +177,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .setName("test key")
             .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
             .setRoleDescriptors(Collections.singletonList(descriptor))
-            .setMetadata(RestGetApiKeyActionTests.randomMetadata())
+            .setMetadata(ApiKeyTests.randomMetadata())
             .get();
 
         assertEquals("test key", response.getName());
@@ -227,7 +227,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
             final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName(keyName).setExpiration(null)
                 .setRoleDescriptors(Collections.singletonList(descriptor))
-                .setMetadata(RestGetApiKeyActionTests.randomMetadata()).get();
+                .setMetadata(ApiKeyTests.randomMetadata()).get();
             assertNotNull(response.getId());
             assertNotNull(response.getKey());
             responses.add(response);
@@ -911,7 +911,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .setName("key-1")
             .setRoleDescriptors(Collections.singletonList(
                 new RoleDescriptor("role", new String[] { "manage_api_key" }, null, null)))
-            .setMetadata(RestGetApiKeyActionTests.randomMetadata())
+            .setMetadata(ApiKeyTests.randomMetadata())
             .get();
 
         assertEquals("key-1", response.getName());
@@ -926,7 +926,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final String expectedMessage = "creating derived api keys requires an explicit role descriptor that is empty";
 
         final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class,
-            () -> new CreateApiKeyRequestBuilder(clientKey1).setName("key-2").setMetadata(RestGetApiKeyActionTests.randomMetadata()).get());
+            () -> new CreateApiKeyRequestBuilder(clientKey1).setName("key-2").setMetadata(ApiKeyTests.randomMetadata()).get());
         assertThat(e1.getMessage(), containsString(expectedMessage));
 
         final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
@@ -936,7 +936,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         final IllegalArgumentException e3 = expectThrows(IllegalArgumentException.class,
             () -> new CreateApiKeyRequestBuilder(clientKey1).setName("key-4")
-                .setMetadata(RestGetApiKeyActionTests.randomMetadata())
+                .setMetadata(ApiKeyTests.randomMetadata())
                 .setRoleDescriptors(Collections.singletonList(
                     new RoleDescriptor("role", new String[] { "manage_own_api_key" }, null, null)
                 )).get());
@@ -949,12 +949,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         final IllegalArgumentException e4 = expectThrows(IllegalArgumentException.class,
             () -> new CreateApiKeyRequestBuilder(clientKey1).setName("key-5")
-                .setMetadata(RestGetApiKeyActionTests.randomMetadata())
+                .setMetadata(ApiKeyTests.randomMetadata())
                 .setRoleDescriptors(roleDescriptors).get());
         assertThat(e4.getMessage(), containsString(expectedMessage));
 
         final CreateApiKeyResponse key100Response = new CreateApiKeyRequestBuilder(clientKey1).setName("key-100")
-            .setMetadata(RestGetApiKeyActionTests.randomMetadata())
+            .setMetadata(ApiKeyTests.randomMetadata())
             .setRoleDescriptors(Collections.singletonList(
                 new RoleDescriptor("role", null, null, null)
             )).get();
@@ -982,7 +982,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final CreateApiKeyResponse createApiKeyResponse = new CreateApiKeyRequestBuilder(client)
             .setName("auth only key")
             .setRoleDescriptors(Collections.singletonList(descriptor))
-            .setMetadata(RestGetApiKeyActionTests.randomMetadata())
+            .setMetadata(ApiKeyTests.randomMetadata())
             .get();
 
         assertNotNull(createApiKeyResponse.getId());
@@ -1137,7 +1137,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         final CreateApiKeyResponse createApiKeyResponse = new CreateApiKeyRequestBuilder(client)
             .setName("test key")
-            .setMetadata(RestGetApiKeyActionTests.randomMetadata())
+            .setMetadata(ApiKeyTests.randomMetadata())
             .get();
         final String docId = createApiKeyResponse.getId();
         final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
@@ -1235,7 +1235,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         for (int i = 0; i < noOfApiKeys; i++) {
             final RoleDescriptor descriptor = new RoleDescriptor("role", clusterPrivileges, null, null);
             Client client = client().filterWithHeader(headers);
-            final Map<String, Object> metadata = RestGetApiKeyActionTests.randomMetadata();
+            final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
             metadatas.add(metadata);
             final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client)
                 .setName(namePrefix + randomAlphaOfLengthBetween(5, 9) + i).setExpiration(expiration)

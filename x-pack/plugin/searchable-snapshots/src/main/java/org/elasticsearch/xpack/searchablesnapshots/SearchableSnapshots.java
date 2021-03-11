@@ -61,7 +61,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
@@ -293,9 +292,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             CacheService.SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING,
             CacheService.SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT,
             SearchableSnapshotEnableAllocationDecider.SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART,
-            SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING,
-            SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING,
-            SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING,
+            FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING,
+            FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING,
+            FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING,
             FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_MAX_FREQ_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING,

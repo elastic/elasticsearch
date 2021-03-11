@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.painless.PainlessScriptEngine;
+import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import org.elasticsearch.painless.action.PainlessSuggest.Suggestion;
 import org.elasticsearch.painless.lookup.PainlessLookup;
@@ -220,20 +221,23 @@ public class PainlessSuggestAction extends ActionType<PainlessSuggestAction.Resp
                 context = PainlessTestScript.CONTEXT.name;
             }
 
+            Class<?> script = null;
             PainlessLookup lookup = null;
 
             for (Map.Entry<ScriptContext<?>, PainlessLookup> contextLookupEntry : painlessScriptEngine.getContextsToLookups().entrySet()) {
                 if (contextLookupEntry.getKey().name.equals(context)) {
+                    script = contextLookupEntry.getKey().instanceClazz;
                     lookup = contextLookupEntry.getValue();
                     break;
                 }
             }
 
-            if (lookup == null) {
+            if (script == null || lookup == null) {
                 throw new IllegalArgumentException("script context [" + request.getContext() + "] not found");
             }
 
-            List<Suggestion> suggestions = PainlessSuggest.suggest(lookup, source);
+            ScriptClassInfo info = new ScriptClassInfo(lookup, script);
+            List<Suggestion> suggestions = PainlessSuggest.suggest(lookup, info, source);
 
             listener.onResponse(new Response(suggestions));
         }

@@ -10,7 +10,10 @@ package org.elasticsearch.painless;
 
 import junit.framework.AssertionFailedError;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.painless.action.PainlessSuggest;
+import org.elasticsearch.painless.action.PainlessSuggest.Suggestion;
 import org.elasticsearch.painless.antlr.Walker;
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -88,6 +91,26 @@ public abstract class ScriptTestCase extends ESTestCase {
         PainlessTestScript.Factory factory = scriptEngine.compile(null, script, PainlessTestScript.CONTEXT, compileParams);
         PainlessTestScript testScript = factory.newInstance(vars == null ? Collections.emptyMap() : vars);
         return testScript.execute();
+    }
+
+    public List<Suggestion> suggest(String source) {
+        Class<?> clazz = null;
+        PainlessLookup lookup = null;
+
+        for (Map.Entry<ScriptContext<?>, PainlessLookup> contextLookupEntry : scriptEngine.getContextsToLookups().entrySet()) {
+            if (contextLookupEntry.getKey().name.equals(PainlessTestScript.CONTEXT.name)) {
+                clazz = contextLookupEntry.getKey().instanceClazz;
+                lookup = contextLookupEntry.getValue();
+                break;
+            }
+        }
+
+        if (clazz == null || lookup == null) {
+            throw new IllegalArgumentException("script context [" + PainlessTestScript.CONTEXT.name + "] not found");
+        }
+
+        ScriptClassInfo info = new ScriptClassInfo(lookup, clazz);
+        return PainlessSuggest.suggest(lookup, info, source);
     }
 
     /**

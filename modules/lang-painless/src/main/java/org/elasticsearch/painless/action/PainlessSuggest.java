@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.antlr.EnhancedSuggestLexer;
 import org.elasticsearch.painless.antlr.SuggestLexer;
 import org.elasticsearch.painless.lookup.PainlessClass;
@@ -1019,19 +1020,21 @@ public class PainlessSuggest {
         }
     }
 
-    public static List<Suggestion> suggest(PainlessLookup lookup, String source) {
+    public static List<Suggestion> suggest(PainlessLookup lookup, ScriptClassInfo info, String source) {
         ANTLRInputStream stream = new ANTLRInputStream(source);
         SuggestLexer lexer = new EnhancedSuggestLexer(stream, lookup);
         lexer.removeErrorListeners();
 
-        return new PainlessSuggest(lookup, lexer.getAllTokens()).suggest();
+        return new PainlessSuggest(lookup, info, lexer.getAllTokens()).suggest();
     }
 
     private final PainlessLookup lookup;
+    private final ScriptClassInfo info;
     private final List<? extends Token> tokens;
 
-    private PainlessSuggest(PainlessLookup lookup, List<? extends Token> tokens) {
+    private PainlessSuggest(PainlessLookup lookup, ScriptClassInfo info, List<? extends Token> tokens) {
         this.lookup = Objects.requireNonNull(lookup);
+        this.info = Objects.requireNonNull(info);
         this.tokens = Collections.unmodifiableList(Objects.requireNonNull(tokens));
     }
 
@@ -1084,7 +1087,7 @@ public class PainlessSuggest {
             }
 
             if (resolved == null || resolved == def.class) {
-                return Collections.emptyList();
+                return new ArrayList<>();
             } else if (resolved.isPrimitive()) {
                 resolved = PainlessLookupUtility.typeToBoxedType(resolved);
             }
@@ -1092,10 +1095,9 @@ public class PainlessSuggest {
             segment = segment.child;
         }
 
-        List<Suggestion> suggestions = Collections.emptyList();
+        List<Suggestion> suggestions = new ArrayList<>();
 
         if (segment.child == null && (segment.modifiers & Segment.SUGGEST) == Segment.SUGGEST) {
-            suggestions = new ArrayList<>();
 
             if ((segment.modifiers & Segment.ID) == Segment.ID) {
                 for (String name : variables.keySet()) {
@@ -1205,8 +1207,6 @@ public class PainlessSuggest {
 
         List<? extends Token> tokens = this.tokens.subList(start, this.tokens.size());
 
-        segments.append(tokens);
-
         LambdaMachine.LambdaState ls = new LambdaMachine.LambdaState(new WalkState(tokens));
         LambdaMachine.walk(ls);
 
@@ -1232,15 +1232,38 @@ public class PainlessSuggest {
                 functions.put(function.functionName + "/" + function.parameterTypes.size(), function.returnType);
             }
 
-            suggestions = collect(functions, bs.scope.getVariables(), as.segment);
+            Map<String, String> variables = bs.scope.getVariables();
+
+            if (fd == null || fd.bodyEndToken != -1) {
+                for (ScriptClassInfo.MethodArgument argument : info.getExecuteArguments()) {
+                    variables.put(argument.getName(), PainlessLookupUtility.typeToCanonicalTypeName(argument.getClazz()));
+                }
+
+                for (int parameter = 0; parameter < info.getGetMethods().size(); ++parameter) {
+                    String type = PainlessLookupUtility.typeToCanonicalTypeName(info.getGetReturns().get(parameter));
+                    org.objectweb.asm.commons.Method method = info.getGetMethods().get(parameter);
+                    String name = method.getName().substring(3);
+                    name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
+                    variables.put(name, type);
+                }
+            } else {
+                if (fd.parameterNames.size() == fd.parameterTypes.size()) {
+                    for (int parameter = 0; parameter < fd.parameterNames.size(); ++parameter) {
+                        variables.put(fd.parameterNames.get(parameter), fd.parameterTypes.get(parameter));
+                    }
+                }
+            }
+
+            suggestions = collect(functions, variables, as.segment);
 
             // DEBUG
-            segments.append(functions);
+            suggestions.add(new Suggestion("variables", variables.toString()));
+            //segments.append(variables);
             // END DEBUG
         }
 
         // DEBUG
-        suggestions.add(new Suggestion("debug", "\n\n" + segments.toString()));
+        //suggestions.add(new Suggestion("debug", "\n\n" + variables));
         // END DEBUG
 
         return suggestions;

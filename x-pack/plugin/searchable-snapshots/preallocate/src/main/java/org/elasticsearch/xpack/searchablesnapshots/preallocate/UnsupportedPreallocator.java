@@ -15,12 +15,12 @@ final class UnsupportedPreallocator implements Preallocator {
     }
 
     @Override
-    public int preallocate(int fd, long currentSize, long fileSize) {
+    public int preallocate(final int fd, final long currentSize, final long fileSize) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public String error(int errno) {
+    public String error(final int errno) {
         throw new UnsupportedOperationException();
     }
 

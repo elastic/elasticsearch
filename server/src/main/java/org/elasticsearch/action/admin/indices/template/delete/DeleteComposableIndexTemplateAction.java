@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -48,7 +49,7 @@ public class DeleteComposableIndexTemplateAction extends ActionType<Acknowledged
          * Constructs a new delete template request for the specified name.
          */
         public Request(String... names) {
-            this.names = names;
+            this.names = Objects.requireNonNull(names, "templates to delete must not be null");
         }
 
         @Override

@@ -32,7 +32,10 @@ import java.util.concurrent.ConcurrentMap;
  */
 public final class ResponseCollectorService implements ClusterStateListener {
 
-    private static final double ALPHA = 0.3;
+    /**
+     * The weight parameter used for all moving averages of parameters.
+     */
+    public static final double ALPHA = 0.3;
 
     private final ConcurrentMap<String, NodeStatistics> nodeIdToStats = ConcurrentCollections.newConcurrentMap();
 

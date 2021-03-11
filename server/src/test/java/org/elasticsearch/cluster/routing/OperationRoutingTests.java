@@ -595,4 +595,52 @@ public class OperationRoutingTests extends ESTestCase{
         terminate(threadPool);
     }
 
+    public void testARSStatsAdjustment() throws Exception {
+        int numIndices = 1;
+        int numShards = 1;
+        int numReplicas = 1;
+        String[] indexNames = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indexNames[i] = "test" + i;
+        }
+
+        ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(indexNames, numShards, numReplicas);
+        OperationRouting opRouting = new OperationRouting(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        opRouting.setUseAdaptiveReplicaSelection(true);
+        TestThreadPool threadPool = new TestThreadPool("test");
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+        ResponseCollectorService collector = new ResponseCollectorService(clusterService);
+        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state,
+            indexNames, null, null, collector, new HashMap<>());
+        assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
+
+        // We have two nodes, where the second has more load
+        collector.addNodeStatistics("node_0", 1, TimeValue.timeValueMillis(50).nanos(), TimeValue.timeValueMillis(40).nanos());
+        collector.addNodeStatistics("node_1", 2, TimeValue.timeValueMillis(100).nanos(), TimeValue.timeValueMillis(60).nanos());
+
+        // Check the first node is usually selected, if it's stats don't change much
+        for (int i = 0; i < 10; i++) {
+            groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, new HashMap<>());
+            ShardRouting shardChoice = groupIterator.get(0).nextOrNull();
+            assertThat(shardChoice.currentNodeId(), equalTo("node_0"));
+
+            int responseTime = 50 + randomInt(5);
+            int serviceTime = 40 + randomInt(5);
+            collector.addNodeStatistics("node_0", 1,
+                TimeValue.timeValueMillis(responseTime).nanos(),
+                TimeValue.timeValueMillis(serviceTime).nanos());
+        }
+
+        // Check that we try the second when the first node slows down more
+        collector.addNodeStatistics("node_0", 2, TimeValue.timeValueMillis(60).nanos(), TimeValue.timeValueMillis(50).nanos());
+        groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, new HashMap<>());
+        ShardRouting shardChoice = groupIterator.get(0).nextOrNull();
+        assertThat(shardChoice.currentNodeId(), equalTo("node_1"));
+
+        IOUtils.close(clusterService);
+        terminate(threadPool);
+    }
+
 }

@@ -37,7 +37,7 @@ To evict API keys from the API key cache, see the
 
 `<realms>`::
 (Required, list)
-Comma-separated list of the realms to clear. To clear all realms, use `*`. Other
+Comma-separated list of realms to clear. To clear all realms, use `*`. Other
 wildcard patterns are not supported.
 
 `usernames`::

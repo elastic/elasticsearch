@@ -619,7 +619,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                         }
                     }
                 } catch (Exception e) {
-                    logger.info("ignoring exception removing all composable index templates", e);
+                    logger.debug("ignoring exception removing all composable index templates", e);
                     // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                 }
                 try {
@@ -627,9 +627,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                     compReq.setOptions(allowTypesRemovalWarnings());
                     String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
                     Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
-                    @SuppressWarnings("unchecked")
-                    List<String> names = ((List<Map<String, Object>>) cTemplates.get("component_templates")).stream()
-                        .map(ct -> (String) ct.get("name"))
+                    List<String> names = ((List<?>) cTemplates.get("component_templates")).stream()
+                        .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
                         .collect(Collectors.toList());
                     for (String componentTemplate : names) {
                         try {
@@ -642,7 +641,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                         }
                     }
                 } catch (Exception e) {
-                    logger.info("ignoring exception removing all component templates", e);
+                    logger.debug("ignoring exception removing all component templates", e);
                     // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                 }
                 Request getLegacyTemplatesRequest = new Request("GET", "_template");

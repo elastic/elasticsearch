@@ -12,13 +12,13 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction.Request.SNAPSHOT_ID;
-import static org.elasticsearch.xpack.core.ml.job.config.Job.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestRevertModelSnapshotAction extends BaseRestHandler {
@@ -28,8 +28,7 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() +
-                "}/model_snapshots/{" + SNAPSHOT_ID.getPreferredName() + "}/_revert")
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}/_revert")
         );
     }
 
@@ -40,7 +39,7 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String jobId = restRequest.param(ID.getPreferredName());
+        String jobId = restRequest.param(Job.ID.getPreferredName());
         String snapshotId = restRequest.param(SNAPSHOT_ID.getPreferredName());
         RevertModelSnapshotAction.Request request;
         if (restRequest.hasContentOrSourceParam()) {

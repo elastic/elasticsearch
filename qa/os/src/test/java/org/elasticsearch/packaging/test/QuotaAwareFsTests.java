@@ -12,7 +12,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.After;
@@ -49,7 +48,6 @@ public class QuotaAwareFsTests extends PackagingTestCase {
     @BeforeClass
     public static void filterDistros() {
         assumeTrue("only archives", distribution.isArchive());
-        assumeTrue("only default distribution", distribution.flavor == Distribution.Flavor.DEFAULT);
     }
 
     @After

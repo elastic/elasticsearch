@@ -508,6 +508,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testGroupByOrderByFieldFromGroupByFunction() {
         assertEquals("1:54: Cannot order by non-grouped column [int], expected [ABS(int)]",
                 error("SELECT ABS(int) FROM test GROUP BY ABS(int) ORDER BY int"));
+        assertEquals("1:91: Cannot order by non-grouped column [c], expected [b] or an aggregate function",
+            error("SELECT b, abs, 2 as c FROM (SELECT bool as b, ABS(int) abs FROM test) GROUP BY b ORDER BY c"));
     }
 
     public void testGroupByOrderByScalarOverNonGrouped_WithHaving() {
@@ -517,7 +519,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testGroupByHavingNonGrouped() {
         assertEquals("1:48: Cannot use HAVING filter on non-aggregate [int]; use WHERE instead",
-                error("SELECT AVG(int) FROM test GROUP BY text HAVING int > 10"));
+            error("SELECT AVG(int) FROM test GROUP BY bool HAVING int > 10"));
+        accept("SELECT AVG(int) FROM test GROUP BY bool HAVING AVG(int) > 2");
+    }
+    
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69758")
+    public void testGroupByWhereSubselect() {
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool) WHERE b = false");
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool HAVING AVG(int) > 2) WHERE b = false");
     }
 
     public void testGroupByAggregate() {

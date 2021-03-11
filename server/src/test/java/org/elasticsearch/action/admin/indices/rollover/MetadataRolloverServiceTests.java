@@ -399,8 +399,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .build();
 
         // v2 template overrides the v1 template and does not define the rollover aliases
-        final ComposableIndexTemplate composableTemplate = new ComposableIndexTemplate.Builder().indexPatterns(Arrays.asList("foo-*",
-            "bar-*")).template(new Template(null, null, null)).build();
+        final ComposableIndexTemplate composableTemplate = new ComposableIndexTemplate(Arrays.asList("foo-*", "bar-*"), null,
+            null, null, null, null, null, null);
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put(legacyTemplate).put("composable-template", composableTemplate).build();

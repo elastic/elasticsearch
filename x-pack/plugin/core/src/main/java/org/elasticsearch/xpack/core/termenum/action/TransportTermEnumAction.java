@@ -66,6 +66,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -136,6 +137,9 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
         // Group targeted shards by nodeId
         Map<String, Set<ShardId>> fastNodeBundles = new HashMap<>();
         for (String indexName : concreteIndices) {
+            
+            
+            //TODO remove this node filtering - rely on clients index_filters on _tier field instead?
             Settings settings = clusterState.metadata().index(indexName).getSettings();
             if (IndexSettings.INDEX_SEARCH_THROTTLED.get(settings)) {
                 // ignore slow throttled indices (this includes frozen)
@@ -146,26 +150,40 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
             
             GroupShardsIterator<ShardIterator> shards = clusterService.operationRouting()
                 .searchShards(clusterState, singleIndex, null, null);
-            assert (shards.size() == 1); // We are only considering a single concrete index
-            ShardIterator shardsForIndex = shards.get(0);
-            for (ShardRouting shardRouting : shardsForIndex.getShardRoutings()) {
-                String nodeId = shardRouting.currentNodeId();
-                
+            
+            Iterator<ShardIterator> shardsForIndex = shards.iterator();
+            while (shardsForIndex.hasNext()) {
+                ShardIterator copiesOfShard = shardsForIndex.next();
+                ShardRouting selectedCopyOfShard = null;
+                for(ShardRouting copy: copiesOfShard) {
+                    // Pick the first active node with a copy of the shard on a node in the hot or warm tiers
+                    if (copy.active() && copy.assignedToNode()) {
+                        DiscoveryNode node = clusterState.getNodes().getDataNodes().get(copy.currentNodeId());
+                        // TODO remove this once we have queryable _tier field.
+                        // (perhaps not as efficient though to hit data nodes with a canmatch query rather than
+                        // avoid nodes based on tags here at coordinating node)
+                        //Only consider hot and warm nodes
+                        if (DataTier.isHotNode(node)  || DataTier.isWarmNode(node)) {
+                            selectedCopyOfShard = copy;
+                            break;
+                        }
+                    }
+                }
+                if (selectedCopyOfShard == null) {
+                    break;
+                }
+                String nodeId = selectedCopyOfShard.currentNodeId();                
                 Set<ShardId> bundle = null;
                 if (fastNodeBundles.containsKey(nodeId)){
                     bundle = fastNodeBundles.get(nodeId);
                 } else {
-                    DiscoveryNode node = clusterState.getNodes().getDataNodes().get(nodeId);
-                    //Only consider hot and warm nodes
-                    if (DataTier.isHotNode(node)  || DataTier.isWarmNode(node)) {
-                        bundle = new HashSet<ShardId>();
-                        fastNodeBundles.put(nodeId, bundle);
-                    }
+                    bundle = new HashSet<ShardId>();
+                    fastNodeBundles.put(nodeId, bundle);
                 }
                 if (bundle != null) {
-                    bundle.add(shardRouting.shardId());
-                }
-            }
+                    bundle.add(selectedCopyOfShard.shardId());
+                }                
+            }            
         }
         return fastNodeBundles;
     }
@@ -179,26 +197,48 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
     }
 
     protected TermEnumResponse newResponse(TermEnumRequest request, AtomicReferenceArray nodesResponses,
-        ClusterState clusterState, boolean complete) {
+        ClusterState clusterState, boolean complete, Map<String, Set<ShardId>> nodeBundles) {
         int successfulShards = 0;
         int failedShards = 0;
         List<DefaultShardOperationFailedException> shardFailures = null;
         Map<String, TermCount> combinedResults = new HashMap<String, TermCount>();
         for (int i = 0; i < nodesResponses.length(); i++) {
-            Object shardResponse = nodesResponses.get(i);
-            if (shardResponse == null) {
+            Object nodeResponse = nodesResponses.get(i);
+            if (nodeResponse == null) {
                 // simply ignore non active shards
-            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
+            } else if (nodeResponse instanceof BroadcastShardOperationFailedException) {
+                complete = false;
                 failedShards++;
                 if (shardFailures == null) {
                     shardFailures = new ArrayList<>();
                 }
-                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
+                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) nodeResponse));
             } else {
-                NodeTermEnumResponse str = (NodeTermEnumResponse) shardResponse;
+                NodeTermEnumResponse str = (NodeTermEnumResponse) nodeResponse;
                 // Only one node response has to be incomplete for the entire result to be labelled incomplete.
                 if (str.getComplete() == false) {
                     complete = false;
+                }
+                
+                Set<ShardId> shards = nodeBundles.get(str.getNodeId());
+                if (str.getError() != null) {
+                    complete = false;
+                    // A single reported error is assumed to be for all shards queried on that node. 
+                    // When reading we read from multiple Lucene indices in one unified view so any error is 
+                    // assumed to be all shards on that node.
+                    failedShards += shards.size();
+                    if (shardFailures == null) {
+                        shardFailures = new ArrayList<>();
+                    }
+                    for (ShardId failedShard : shards) {
+                        shardFailures.add(
+                            new DefaultShardOperationFailedException(
+                                new BroadcastShardOperationFailedException(failedShard, str.getError())
+                            )
+                        );
+                    }
+                } else {
+                    successfulShards += shards.size();
                 }
                 for (TermCount term : str.terms()) {
                     TermCount existingTc = combinedResults.get(term.getTerm());
@@ -209,7 +249,6 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
                         existingTc.addToDocCount(term.getDocCount());
                     }
                 }
-                successfulShards++;
             }
         }
         int size = Math.min(request.size(), combinedResults.size());
@@ -237,7 +276,7 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
                 break;
             }
         }
-        return new TermEnumResponse(terms, nodesResponses.length(), successfulShards, failedShards, shardFailures, complete);
+        return new TermEnumResponse(terms, (failedShards + successfulShards), successfulShards, failedShards, shardFailures, complete);
     }
 
     static class TermCountPriorityQueue extends PriorityQueue<TermCount> {
@@ -355,7 +394,6 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
                         }
                         termCount = 0;
                     }
-                    // MH TODO - multireader needs to deal with counts > 2bn - how to handle? limit num shards per reader?
                     long df = te.docFreq();
                     BytesRef bytes = te.term();
                     termsList.add(new TermCount(bytes.utf8ToString(), df));
@@ -380,7 +418,7 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
         }
     }
     
-    // TODO remove this so we can shift code to server module
+    // TODO remove this so we can shift code to server module - see https://github.com/elastic/elasticsearch/issues/70221
     private boolean canAccess(String indexName, String fieldName, XPackLicenseState frozenLicenseState, ThreadContext threadContext) {
         if (frozenLicenseState.isSecurityEnabled()) {
             var licenseChecker = new MemoizedSupplier<>(() -> frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));
@@ -454,7 +492,7 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
             if (nodeBundles.size() == 0) {
                 // no shards
                 try {
-                    listener.onResponse(newResponse(request, new AtomicReferenceArray(0), clusterState, true));
+                    listener.onResponse(newResponse(request, new AtomicReferenceArray(0), clusterState, true, nodeBundles));
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }
@@ -555,7 +593,7 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
                 return;
             }
             try {
-                listener.onResponse(newResponse(request, nodesResponses, clusterState, complete));
+                listener.onResponse(newResponse(request, nodesResponses, clusterState, complete, nodeBundles));
             } catch (Exception e) {
                 listener.onFailure(e);
             }

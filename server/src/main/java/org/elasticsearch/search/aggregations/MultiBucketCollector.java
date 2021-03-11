@@ -35,7 +35,8 @@ public class MultiBucketCollector extends BucketCollector {
      * <ul>
      * <li>Filters out the {@link BucketCollector#NO_OP_COLLECTOR}s collectors, so they are not used
      * during search time.
-     * <li>If the input contains 1 real collector, it is returned.
+     * <li>If the input contains 1 real collector we wrap it in a collector that takes
+     * {@code terminateIfNoop} into account.
      * <li>Otherwise the method returns a {@link MultiBucketCollector} which wraps the
      * non-{@link BucketCollector#NO_OP_COLLECTOR} collectors.
      * </ul>
@@ -69,7 +70,43 @@ public class MultiBucketCollector extends BucketCollector {
                     break;
                 }
             }
-            return col;
+            final BucketCollector collector = col;
+            // Wrap the collector in one that takes terminateIfNoop into account.
+            return new BucketCollector() {
+                @Override
+                public ScoreMode scoreMode() {
+                    return collector.scoreMode();
+                }
+
+                @Override
+                public void preCollection() throws IOException {
+                    collector.preCollection();
+                }
+
+                @Override
+                public void postCollection() throws IOException {
+                    collector.postCollection();
+                }
+
+                @Override
+                public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+                    try {
+                        LeafBucketCollector leafCollector = collector.getLeafCollector(ctx);
+                        if (false == leafCollector.isNoop()) {
+                            return leafCollector;
+                        }
+                    } catch (CollectionTerminatedException e) {
+                        throw new IllegalStateException(
+                            "getLeafCollector should return a noop collector instead of throw "
+                                + CollectionTerminatedException.class.getSimpleName()
+                        );
+                    }
+                    if (terminateIfNoop) {
+                        throw new CollectionTerminatedException();
+                    }
+                    return LeafBucketCollector.NO_OP_COLLECTOR;
+                }
+            };
         } else {
             BucketCollector[] colls = new BucketCollector[n];
             n = 0;

@@ -198,8 +198,8 @@ public class FrozenCacheServiceTests extends ESTestCase {
     }
 
     public void testCacheSizeDeprecatedOnNonFrozenNodes() {
-        DiscoveryNode.setAdditionalRoles(
-            Set.of(DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE, DataTier.DATA_FROZEN_NODE_ROLE));
+        DiscoveryNode.setAdditionalRoles(Set.of(
+            DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE, DataTier.DATA_FROZEN_NODE_ROLE));
         final Settings settings = Settings.builder()
             .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")

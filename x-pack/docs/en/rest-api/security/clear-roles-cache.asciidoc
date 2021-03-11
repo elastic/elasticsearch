@@ -44,7 +44,7 @@ to clear the cache for `my_admin_role`:
 POST /_security/role/my_admin_role/_clear_cache
 --------------------------------------------------
 
-You can specify multiple roles as a comma-separated list.
+Specify multiple roles as a comma-separated list.
 
 [source,console]
 ----

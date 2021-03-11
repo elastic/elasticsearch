@@ -108,7 +108,7 @@ public class FrozenCacheService implements Releasable {
                             "setting [{}] to be positive [{}] on node without the data_frozen role is deprecated, roles are [{}]",
                             SHARED_CACHE_SETTINGS_PREFIX + "size",
                             value.getStringRep(),
-                            roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toUnmodifiableList())
+                            roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining(","))
                         );
                     }
                 }

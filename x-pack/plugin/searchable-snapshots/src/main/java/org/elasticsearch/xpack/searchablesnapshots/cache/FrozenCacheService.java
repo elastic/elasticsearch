@@ -23,6 +23,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -92,6 +93,9 @@ public class FrozenCacheService implements Releasable {
 
             @Override
             public void validate(final ByteSizeValue value, final Map<Setting<?>, Object> settings) {
+                if (value.getBytes() == -1) {
+                    throw new SettingsException("setting [{}] must be non-negative", SHARED_CACHE_SETTINGS_PREFIX + "size");
+                }
                 if (value.getBytes() > 0) {
                     @SuppressWarnings("unchecked") final List<DiscoveryNodeRole> roles =
                         (List<DiscoveryNodeRole>) settings.get(NodeRoleSettings.NODE_ROLES_SETTING);

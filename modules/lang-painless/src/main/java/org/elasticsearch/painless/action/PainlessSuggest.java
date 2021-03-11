@@ -21,6 +21,7 @@ import org.elasticsearch.painless.antlr.EnhancedSuggestLexer;
 import org.elasticsearch.painless.antlr.SuggestLexer;
 import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
+import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessLookup;
@@ -1050,18 +1051,24 @@ public class PainlessSuggest {
             } else if ((segment.modifiers & Segment.TYPE) == Segment.TYPE) {
                 resolved = segment.text == null ? null : lookup.canonicalTypeNameToType(segment.text);
             } else if ((segment.modifiers & Segment.CALL) == Segment.CALL) {
-                PainlessMethod pm = lookup.lookupImportedPainlessMethod(segment.text, segment.arity);
+                String type = functions.get(segment.text + "/" + segment.arity);
 
-                if (pm != null) {
-                    resolved = pm.returnType;
+                if (type != null) {
+                    resolved = lookup.canonicalTypeNameToType(type);
                 } else {
-                    PainlessClassBinding pcb = lookup.lookupPainlessClassBinding(segment.text, segment.arity);
+                    PainlessMethod pm = lookup.lookupImportedPainlessMethod(segment.text, segment.arity);
 
-                    if (pcb != null) {
-                        resolved = pcb.returnType;
+                    if (pm != null) {
+                        resolved = pm.returnType;
                     } else {
-                        PainlessInstanceBinding pib = lookup.lookupPainlessInstanceBinding(segment.text, segment.arity);
-                        resolved = pib == null ? null : pib.returnType;
+                        PainlessClassBinding pcb = lookup.lookupPainlessClassBinding(segment.text, segment.arity);
+
+                        if (pcb != null) {
+                            resolved = pcb.returnType;
+                        } else {
+                            PainlessInstanceBinding pib = lookup.lookupPainlessInstanceBinding(segment.text, segment.arity);
+                            resolved = pib == null ? null : pib.returnType;
+                        }
                     }
                 }
             } else if ((segment.modifiers & Segment.METHOD) == Segment.METHOD) {
@@ -1178,6 +1185,66 @@ public class PainlessSuggest {
                             for (String field : pc.fields.keySet()) {
                                 if (segment.text == null || field.startsWith(segment.text)) {
                                     suggestions.add(new Suggestion("field", field));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else if ((segment.modifiers & Segment.PARAMETERS) == Segment.PARAMETERS) {
+            if ((segment.modifiers & Segment.CONSTRUCTOR) == Segment.CONSTRUCTOR) {
+                PainlessClass pc = lookup.lookupPainlessClass(lookup.canonicalTypeNameToType(segment.text));
+
+                if (pc != null) {
+                    for (PainlessConstructor pcon : pc.constructors.values()) {
+                        StringBuilder parameters = new StringBuilder(" ");
+                        for (Class<?> type : pcon.typeParameters) {
+                            parameters.append(PainlessLookupUtility.typeToCanonicalTypeName(type));
+                            parameters.append(" ");
+                        }
+                        suggestions.add(new Suggestion("parameters", parameters.toString()));
+                    }
+                }
+            }
+
+            /*if ((segment.modifiers & Segment.CALL) == Segment.CALL) {
+                for (String call : functions.keySet()) {
+                    if (call.substring(0, call.length() - 2).equals(segment.text)) {
+                        StringBuilder parameters = new StringBuilder(" ");
+                        for (Class<?> type : pcon.typeParameters) {
+                            parameters.append(PainlessLookupUtility.typeToCanonicalTypeName(type));
+                            parameters.append(" ");
+                        }
+                        suggestions.add(new Suggestion("parameters", parameters.toString()));
+                    }
+                }
+            }*/
+
+            if ((segment.modifiers & Segment.METHOD) == Segment.METHOD) {
+                if (resolved != null) {
+                    PainlessClass pc = lookup.lookupPainlessClass(resolved);
+
+                    if (pc != null) {
+                        if ((segment.modifiers & Segment.STATIC) == Segment.STATIC) {
+                            for (PainlessMethod pm : pc.staticMethods.values()) {
+                                if (pm.javaMethod.getName().equals(segment.text)) {
+                                    StringBuilder parameters = new StringBuilder(" ");
+                                    for (Class<?> type : pm.typeParameters) {
+                                        parameters.append(PainlessLookupUtility.typeToCanonicalTypeName(type));
+                                        parameters.append(" ");
+                                    }
+                                    suggestions.add(new Suggestion("parameters", parameters.toString()));
+                                }
+                            }
+                        } else {
+                            for (PainlessMethod pm : pc.methods.values()) {
+                                if (pm.javaMethod.getName().equals(segment.text)) {
+                                    StringBuilder parameters = new StringBuilder(" ");
+                                    for (Class<?> type : pm.typeParameters) {
+                                        parameters.append(PainlessLookupUtility.typeToCanonicalTypeName(type));
+                                        parameters.append(" ");
+                                    }
+                                    suggestions.add(new Suggestion("parameters", parameters.toString()));
                                 }
                             }
                         }

@@ -30,10 +30,8 @@ public class Preallocate {
             preallocate(cacheFile, environment, fileSize, new LinuxPreallocator());
         } else if (Constants.MAC_OS_X) {
             preallocate(cacheFile, environment, fileSize, new MacOsPreallocator());
-        } else if (Constants.WINDOWS) {
-            preallocate(cacheFile, environment, fileSize, new WindowsPreallocator());
         } else {
-            logger.debug("unsupported platform, cache file [{}] will not be pre-allocated", cacheFile);
+            preallocate(cacheFile, environment, fileSize, new UnsupportedPreallocator());
         }
     }
 

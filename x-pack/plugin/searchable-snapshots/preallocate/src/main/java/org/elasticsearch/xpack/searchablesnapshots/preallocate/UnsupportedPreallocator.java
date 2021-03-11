@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.preallocate;
 
-final class WindowsPreallocator implements Preallocator {
+final class UnsupportedPreallocator implements Preallocator {
 
     @Override
     public boolean available() {
@@ -15,12 +15,12 @@ final class WindowsPreallocator implements Preallocator {
     }
 
     @Override
-    public int preallocate(final int fd, final long currentSize, final long fileSize) {
+    public int preallocate(int fd, long currentSize, long fileSize) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public String error(final int errno) {
+    public String error(int errno) {
         throw new UnsupportedOperationException();
     }
 

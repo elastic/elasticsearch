@@ -36,7 +36,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 
@@ -544,7 +544,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean())
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
-                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
+                .put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
@@ -560,7 +560,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             Settings.builder()
                 .put(SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.getKey(), uncachedChunkSize)
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), false)
-                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
+                .put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
@@ -576,7 +576,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
-                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
+                .put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
@@ -593,7 +593,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
-                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
+                .put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
@@ -607,7 +607,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     ) throws Exception {
 
         final String fileName;
-        if (SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.get(indexSettings)) {
+        if (SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.get(indexSettings)) {
             fileName = randomAlphaOfLength(10) + randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
         } else {
             fileName = randomAlphaOfLength(10) + randomFileExtension();

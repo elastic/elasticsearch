@@ -104,11 +104,6 @@ PUT _component_template/runtime_component_template
             "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
           }
         }
-      },
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
       }
     }
   }
@@ -131,7 +126,7 @@ PUT _index_template/template_1
     },
     "mappings": {
       "_source": {
-        "enabled": false
+        "enabled": true
       },
       "properties": {
         "host_name": {

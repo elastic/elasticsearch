@@ -114,7 +114,7 @@ public class Range extends ScalarFunction {
     private boolean areBoundariesInvalid() {
         Integer compare = BinaryComparison.compare(lower.fold(), upper.fold());
         // upper < lower OR upper == lower and the range doesn't contain any equals
-        return compare != null && (compare > 0 || (compare == 0 && (!includeLower || !includeUpper)));
+        return compare != null && (compare > 0 || (compare == 0 && (includeLower == false || includeUpper == false)));
     }
 
     @Override

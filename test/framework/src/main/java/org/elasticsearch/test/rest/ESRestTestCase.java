@@ -97,7 +97,6 @@ import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
@@ -572,36 +571,41 @@ public abstract class ESRestTestCase extends ESTestCase {
                  * slows down the test because xpack will just recreate
                  * them.
                  */
-                Request request = new Request("GET", "_cat/templates");
-                request.addParameter("h", "name");
-                String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
-                if (false == "".equals(templates)) {
-                    for (String template : templates.split("\n")) {
-                        if (isXPackTemplate(template)) continue;
-                        if ("".equals(template)) {
-                            throw new IllegalStateException("empty template in templates list:\n" + templates);
-                        }
-                        logger.info("Clearing template [{}]", template);
+                try {
+                    Request getTemplatesRequest = new Request("GET", "_index_template");
+                    Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent,
+                        EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()), false);
+                    List<String> names = ((List<?>) composableIndexTemplates.get("index_templates")).stream()
+                        .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                        .filter(name -> isXPackTemplate(name) == false)
+                        .collect(Collectors.toList());
+                    // Ideally we would want to check the version of the elected master node and
+                    // send the delete request directly to that node.
+                    if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_13_0))) {
                         try {
-                            adminClient().performRequest(new Request("DELETE", "_template/" + template));
+                            adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
                         } catch (ResponseException e) {
-                            // This is fine, it could be a V2 template
-                            assertThat(e.getMessage(), containsString("index_template [" + template + "] missing"));
+                            logger.debug(new ParameterizedMessage("unable to remove multiple composable index template {}", names), e);
+                        }
+                    } else {
+                        for (String name : names) {
                             try {
-                                adminClient().performRequest(new Request("DELETE", "_index_template/" + template));
-                            } catch (ResponseException e2) {
-                                // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                                adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
+                            } catch (ResponseException e) {
+                                logger.debug(new ParameterizedMessage("unable to remove composable index template {}", name), e);
                             }
                         }
                     }
+                } catch (Exception e) {
+                    logger.debug("ignoring exception removing all composable index templates", e);
+                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                 }
                 try {
                     Request compReq = new Request("GET", "_component_template");
                     String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
                     Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
-                    @SuppressWarnings("unchecked")
-                    List<String> names = ((List<Map<String, Object>>) cTemplates.get("component_templates")).stream()
-                        .map(ct -> (String) ct.get("name"))
+                    List<String> names = ((List<?>) cTemplates.get("component_templates")).stream()
+                        .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
                         .collect(Collectors.toList());
                     for (String componentTemplate : names) {
                         try {
@@ -610,12 +614,25 @@ public abstract class ESRestTestCase extends ESTestCase {
                             }
                             adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
                         } catch (ResponseException e) {
-                                logger.debug(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
+                            logger.debug(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
                         }
                     }
                 } catch (Exception e) {
-                    logger.info("ignoring exception removing all component templates", e);
+                    logger.debug("ignoring exception removing all component templates", e);
                     // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                }
+                Request getLegacyTemplatesRequest = new Request("GET", "_template");
+                Map<String, Object> legacyTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent,
+                    EntityUtils.toString(adminClient().performRequest(getLegacyTemplatesRequest).getEntity()), false);
+                for (String name : legacyTemplates.keySet()) {
+                    if (isXPackTemplate(name)) {
+                        continue;
+                    }
+                    try {
+                        adminClient().performRequest(new Request("DELETE", "_template/" + name));
+                    } catch (ResponseException e) {
+                        logger.debug(new ParameterizedMessage("unable to remove index template {}", name), e);
+                    }
                 }
             } else {
                 logger.debug("Clearing all templates");

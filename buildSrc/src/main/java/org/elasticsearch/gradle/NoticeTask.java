@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gradle;
 
-import org.apache.commons.io.FileUtils;
-import org.codehaus.groovy.runtime.ResourceGroovyMethods;
 import org.codehaus.groovy.runtime.StringGroovyMethods;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.FileCollection;
@@ -21,6 +19,7 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
+import org.elasticsearch.gradle.util.FileUtils;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -119,7 +118,7 @@ public class NoticeTask extends DefaultTask {
             StringBuilder header = new StringBuilder();
             String packageDeclaration = null;
 
-            for (String line : FileUtils.readLines(sourceFile)) {
+            for (String line : FileUtils.readLines(sourceFile, "UTF-8")) {
                 if (isPackageInfo && packageDeclaration == null && line.startsWith("package")) {
                     packageDeclaration = line;
                 }
@@ -170,8 +169,8 @@ public class NoticeTask extends DefaultTask {
         return sources;
     }
 
-    public static void appendFile(File file, String name, String type, StringBuilder output) throws IOException {
-        String text = ResourceGroovyMethods.getText(file, "UTF-8");
+    public static void appendFile(File file, String name, String type, StringBuilder output) {
+        String text = FileUtils.read(file, "UTF-8");
         if (text.trim().isEmpty()) {
             return;
         }

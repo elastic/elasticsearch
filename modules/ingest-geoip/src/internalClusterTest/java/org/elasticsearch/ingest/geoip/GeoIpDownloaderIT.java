@@ -85,7 +85,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     @After
-    public void disableDownloader(){
+    public void disableDownloader() {
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false))
@@ -107,39 +107,43 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
         }, 2, TimeUnit.MINUTES);
 
-        GeoIpTaskState state = (GeoIpTaskState) getTask().getState();
         for (String id : List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb")) {
             assertBusy(() -> {
-                GeoIpTaskState.Metadata metadata = state.get(id);
-                BoolQueryBuilder queryBuilder = new BoolQueryBuilder()
-                    .filter(new MatchQueryBuilder("name", id))
-                    .filter(new RangeQueryBuilder("chunk")
-                        .from(metadata.getFirstChunk())
-                        .to(metadata.getLastChunk(), true));
-                int size = metadata.getLastChunk() - metadata.getFirstChunk() + 1;
-                SearchResponse res = client().prepareSearch(GeoIpDownloader.DATABASES_INDEX)
-                    .setSize(size)
-                    .setQuery(queryBuilder)
-                    .addSort("chunk", SortOrder.ASC)
-                    .get();
-                TotalHits totalHits = res.getHits().getTotalHits();
-                assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation);
-                assertEquals(size, totalHits.value);
-                assertEquals(size, res.getHits().getHits().length);
+                try {
+                    GeoIpTaskState state = (GeoIpTaskState) getTask().getState();
+                    assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
+                    GeoIpTaskState.Metadata metadata = state.get(id);
+                    BoolQueryBuilder queryBuilder = new BoolQueryBuilder()
+                        .filter(new MatchQueryBuilder("name", id))
+                        .filter(new RangeQueryBuilder("chunk")
+                            .from(metadata.getFirstChunk())
+                            .to(metadata.getLastChunk(), true));
+                    int size = metadata.getLastChunk() - metadata.getFirstChunk() + 1;
+                    SearchResponse res = client().prepareSearch(GeoIpDownloader.DATABASES_INDEX)
+                        .setSize(size)
+                        .setQuery(queryBuilder)
+                        .addSort("chunk", SortOrder.ASC)
+                        .get();
+                    TotalHits totalHits = res.getHits().getTotalHits();
+                    assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation);
+                    assertEquals(size, totalHits.value);
+                    assertEquals(size, res.getHits().getHits().length);
 
-                List<byte[]> data = new ArrayList<>();
+                    List<byte[]> data = new ArrayList<>();
 
-                for (SearchHit hit : res.getHits().getHits()) {
-                    data.add((byte[]) hit.getSourceAsMap().get("data"));
+                    for (SearchHit hit : res.getHits().getHits()) {
+                        data.add((byte[]) hit.getSourceAsMap().get("data"));
+                    }
+
+                    GZIPInputStream stream = new GZIPInputStream(new MultiByteArrayInputStream(data));
+                    Path tempFile = createTempFile();
+                    try (OutputStream os = new BufferedOutputStream(Files.newOutputStream(tempFile, TRUNCATE_EXISTING, WRITE, CREATE))) {
+                        stream.transferTo(os);
+                    }
+                    parseDatabase(tempFile);
+                } catch (Exception e) {
+                    throw new AssertionError(e);
                 }
-
-                GZIPInputStream stream = new GZIPInputStream(new MultiByteArrayInputStream(data));
-                Path tempFile = createTempFile();
-                try (OutputStream os = new BufferedOutputStream(Files.newOutputStream(tempFile, TRUNCATE_EXISTING, WRITE, CREATE))) {
-                    stream.transferTo(os);
-                }
-
-                parseDatabase(tempFile);
             });
         }
     }

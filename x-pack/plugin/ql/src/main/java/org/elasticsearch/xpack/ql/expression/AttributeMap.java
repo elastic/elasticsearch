@@ -284,7 +284,8 @@ public class AttributeMap<E> implements Map<Attribute, E> {
             if (--allowedLookups == 0) {
                 throw new QlIllegalArgumentException("Potential cycle detected");
             }
-            key = value = candidate;
+            key = candidate;
+            value = candidate;
         }
         return value;
     }

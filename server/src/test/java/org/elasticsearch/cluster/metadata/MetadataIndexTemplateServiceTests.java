@@ -77,6 +77,9 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
@@ -456,6 +459,71 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         ClusterState updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foo");
         assertNull(updatedState.metadata().templatesV2().get("foo"));
+    }
+
+    public void testRemoveIndexTemplateV2Wildcards() throws Exception {
+        ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ClusterState result = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(ClusterState.EMPTY_STATE, "*");
+        assertThat(result, sameInstance(ClusterState.EMPTY_STATE));
+
+        ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", template);
+        assertThat(state.metadata().templatesV2().get("foo"), notNullValue());
+        assertTemplatesEqual(state.metadata().templatesV2().get("foo"), template);
+
+        Exception e = expectThrows(IndexTemplateMissingException.class,
+            () -> MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foob*"));
+        assertThat(e.getMessage(), equalTo("index_template [foob*] missing"));
+
+        ClusterState updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foo*");
+        assertThat(updatedState.metadata().templatesV2().get("foo"), nullValue());
+    }
+
+    public void testRemoveMultipleIndexTemplateV2() throws Exception {
+        ComposableIndexTemplate fooTemplate = ComposableIndexTemplateTests.randomInstance();
+        ComposableIndexTemplate barTemplate = ComposableIndexTemplateTests.randomInstance();
+        ComposableIndexTemplate bazTemplate = ComposableIndexTemplateTests.randomInstance();
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+
+        ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", fooTemplate);
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "bar", barTemplate);
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "baz", bazTemplate);
+        assertNotNull(state.metadata().templatesV2().get("foo"));
+        assertNotNull(state.metadata().templatesV2().get("bar"));
+        assertNotNull(state.metadata().templatesV2().get("baz"));
+        assertTemplatesEqual(state.metadata().templatesV2().get("foo"), fooTemplate);
+        assertTemplatesEqual(state.metadata().templatesV2().get("bar"), barTemplate);
+        assertTemplatesEqual(state.metadata().templatesV2().get("baz"), bazTemplate);
+
+        ClusterState updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foo", "baz");
+        assertNull(updatedState.metadata().templatesV2().get("foo"));
+        assertNotNull(updatedState.metadata().templatesV2().get("bar"));
+        assertNull(updatedState.metadata().templatesV2().get("baz"));
+    }
+
+    public void testRemoveMultipleIndexTemplateV2Wildcards() throws Exception {
+        ComposableIndexTemplate fooTemplate = ComposableIndexTemplateTests.randomInstance();
+        ComposableIndexTemplate barTemplate = ComposableIndexTemplateTests.randomInstance();
+        ComposableIndexTemplate bazTemplate = ComposableIndexTemplateTests.randomInstance();
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+
+        final ClusterState state;
+        {
+            ClusterState cs = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", fooTemplate);
+            cs = metadataIndexTemplateService.addIndexTemplateV2(cs, false, "bar", barTemplate);
+            state = metadataIndexTemplateService.addIndexTemplateV2(cs, false, "baz", bazTemplate);
+        }
+
+        Exception e = expectThrows(IndexTemplateMissingException.class,
+            () -> MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foo", "b*", "k*", "*"));
+        assertThat(e.getMessage(), equalTo("index_template [b*,k*,*] missing"));
+
+        assertNotNull(state.metadata().templatesV2().get("foo"));
+        assertNotNull(state.metadata().templatesV2().get("bar"));
+        assertNotNull(state.metadata().templatesV2().get("baz"));
+        assertTemplatesEqual(state.metadata().templatesV2().get("foo"), fooTemplate);
+        assertTemplatesEqual(state.metadata().templatesV2().get("bar"), barTemplate);
+        assertTemplatesEqual(state.metadata().templatesV2().get("baz"), bazTemplate);
     }
 
     /**

@@ -51,8 +51,8 @@ see <<common-log-format-example>>.
 image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Node Pipelines list view,align="center"]
 
 You can also use the <<ingest-apis,ingest APIs>> to create and manage pipelines.
-The following <<put-pipeline-api,put pipeline API>> request creates a pipeline
-containing <<set-processor,`set`>> processors followed by a
+The following <<put-pipeline-api,create pipeline API>> request creates
+a pipeline containing <<set-processor,`set`>> processors followed by a
 <<lowercase-processor,`lowercase`>> processors. The processors run sequentially
 in the order specified.
 

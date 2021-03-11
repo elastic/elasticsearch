@@ -56,7 +56,7 @@ public class SharedBytes extends AbstractRefCounted {
             if (cacheFile == null) {
                 throw new IOException("Could not find a directory with adequate free space for cache file");
             }
-            Preallocate.preallocate(cacheFile, environment, fileSize);
+            Preallocate.preallocate(cacheFile, fileSize);
             // TODO: maybe make this faster by allocating a larger direct buffer if this is too slow for very large files
             // We fill either the full file or the bytes between its current size and the desired size once with zeros to fully allocate
             // the file up front

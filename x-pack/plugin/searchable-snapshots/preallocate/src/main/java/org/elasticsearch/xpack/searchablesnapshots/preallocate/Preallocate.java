@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.env.Environment;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -25,7 +24,7 @@ public class Preallocate {
 
     private static final Logger logger = LogManager.getLogger(Preallocate.class);
 
-    public static void preallocate(final Path cacheFile, final Environment environment, final long fileSize) throws IOException {
+    public static void preallocate(final Path cacheFile, final long fileSize) throws IOException {
         if (Constants.LINUX) {
             preallocate(cacheFile, fileSize, new LinuxPreallocator());
         } else if (Constants.MAC_OS_X) {

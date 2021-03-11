@@ -33,7 +33,7 @@ import org.elasticsearch.index.store.cache.TestUtils.NoopBlobStoreCacheService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.SharedCacheConfiguration;
+import org.elasticsearch.xpack.searchablesnapshots.cache.SharedCacheConfiguration;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;

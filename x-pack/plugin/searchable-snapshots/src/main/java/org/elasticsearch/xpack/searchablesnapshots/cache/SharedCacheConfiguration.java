@@ -1,20 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.snapshots;
+package org.elasticsearch.xpack.searchablesnapshots.cache;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.SHARED_CACHE_SETTINGS_PREFIX;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING;
 
 /**
  * Configuration for the shared cache. The shared cache is made up of 3 sizes of pages and are used as the separate cache regions of a
@@ -29,6 +28,20 @@ import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_TINY_R
  * {@link RegionType#LARGE} pages, then the {@link RegionType#SMALL} and then the {@link RegionType#TINY} pages.
  */
 public final class SharedCacheConfiguration {
+
+    public static final Setting<Float> SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE = Setting.floatSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "small_region_size_share",
+        0.1f,
+        0.0f,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Float> SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE = Setting.floatSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "tiny_region_size_share",
+        0.01f,
+        0.001f,
+        Setting.Property.NodeScope
+    );
 
     public static final long TINY_REGION_SIZE = ByteSizeValue.ofKb(1).getBytes();
     public static final long SMALL_REGION_SIZE = ByteSizeValue.ofKb(64).getBytes();
@@ -84,8 +97,8 @@ public final class SharedCacheConfiguration {
         }
         // the page index is larger than the number of large- and small regions combined so its a tiny region physically located after
         // the large- and small regions combined plus a number of tiny regions
-        return largeRegionCombinedSize + numSmallRegions * SMALL_REGION_SIZE
-            + (sharedPageIndex - numSmallRegions - numLargeRegions) * TINY_REGION_SIZE;
+        return largeRegionCombinedSize + numSmallRegions * SMALL_REGION_SIZE + (sharedPageIndex - numSmallRegions - numLargeRegions)
+            * TINY_REGION_SIZE;
     }
 
     /**
@@ -265,8 +278,12 @@ public final class SharedCacheConfiguration {
         final int maxRegion = endingRegion(fileLength, cachedHeaderLength, footerCacheLength);
         if (region < maxRegion) {
             // this is not the last region so the distance between the start of this region and the next region is the size of this region
-            return getRegionStart(region + 1, fileLength, cachedHeaderLength, footerCacheLength) -
-                    getRegionStart(region, fileLength, cachedHeaderLength, footerCacheLength);
+            return getRegionStart(region + 1, fileLength, cachedHeaderLength, footerCacheLength) - getRegionStart(
+                region,
+                fileLength,
+                cachedHeaderLength,
+                footerCacheLength
+            );
         } else {
             // this is the last region in the file
             if (region == 0) {

@@ -23,8 +23,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
-import org.elasticsearch.snapshots.SharedCacheConfiguration;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.SharedCacheConfiguration;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
@@ -67,14 +67,14 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             );
         }
         builder.put(
-            SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(),
+            FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(),
             ByteSizeValue.ofBytes(
                 randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE + 1, SharedCacheConfiguration.SMALL_REGION_SIZE * 2)
             )
         );
         if (randomBoolean()) {
             builder.put(
-                SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
+                FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
                 ByteSizeValue.ofBytes(
                     randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE + 1, SharedCacheConfiguration.SMALL_REGION_SIZE * 2)
                 )
@@ -82,12 +82,12 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         }
         if (randomBoolean()) {
             builder.put(
-                SnapshotsService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
+                FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
                 new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
             );
         }
         // TODO: fix size == 0 behavior
-        builder.put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(10));
+        builder.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(10));
         return builder.build();
     }
 

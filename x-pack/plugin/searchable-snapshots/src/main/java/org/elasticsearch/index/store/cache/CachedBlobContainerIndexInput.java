@@ -27,7 +27,6 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.io.EOFException;
@@ -42,6 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.blobstore.cache.BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexInput {
@@ -87,7 +87,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             recoveryRangeSize,
             directory.getBlobCacheByteRange(name, fileInfo.length())
         );
-        assert getBufferSize() <= SnapshotsService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
+        assert getBufferSize() <= DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
         stats.incrementOpenCount();
     }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
@@ -30,7 +31,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.SparseFileTracker;
-import org.elasticsearch.snapshots.SharedCacheConfiguration;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -48,12 +48,40 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.snapshots.SnapshotsService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SHARED_CACHE_SETTINGS_PREFIX;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class FrozenCacheService implements Releasable {
+
+    public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
+    public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
+
+    public static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
+
+    public static final Setting<ByteSizeValue> SHARED_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "range_size",
+        ByteSizeValue.ofMb(16),                                 // default
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "region_size",
+        SHARED_CACHE_RANGE_SIZE_SETTING,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "size",
+        ByteSizeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size",
+        new ByteSizeValue(128, ByteSizeUnit.KB),                // default
+        MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
+        MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
+        Setting.Property.NodeScope
+    );
 
     public static final TimeValue MIN_SNAPSHOT_CACHE_DECAY_INTERVAL = TimeValue.timeValueSeconds(1L);
     public static final Setting<TimeValue> SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING = Setting.timeSetting(

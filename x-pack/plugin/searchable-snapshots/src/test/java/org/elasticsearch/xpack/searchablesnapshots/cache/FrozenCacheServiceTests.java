@@ -14,7 +14,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheKey;
-import org.elasticsearch.snapshots.SharedCacheConfiguration;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.CacheFileRegion;
 
@@ -23,10 +22,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.SharedCacheConfiguration.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.SharedCacheConfiguration.SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE;
 
 public class FrozenCacheServiceTests extends ESTestCase {
 

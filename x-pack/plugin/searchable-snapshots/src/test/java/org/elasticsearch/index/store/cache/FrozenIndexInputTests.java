@@ -24,9 +24,8 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.SharedCacheConfiguration;
+import org.elasticsearch.xpack.searchablesnapshots.cache.SharedCacheConfiguration;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
@@ -62,7 +61,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
         final ByteSizeValue rangeSize;
         if (rarely()) {
-            rangeSize = SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.get(Settings.EMPTY);
+            rangeSize = FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.get(Settings.EMPTY);
         } else if (randomBoolean()) {
             rangeSize = new ByteSizeValue(
                 randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE + 1, SharedCacheConfiguration.SMALL_REGION_SIZE * 2)
@@ -75,7 +74,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
         final ByteSizeValue regionSize;
         if (rarely()) {
-            regionSize = SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY);
+            regionSize = FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY);
         } else if (randomBoolean()) {
             regionSize = ByteSizeValue.ofBytes(
                 randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE + 1, SharedCacheConfiguration.SMALL_REGION_SIZE * 2)
@@ -91,11 +90,11 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         );
 
         final Settings settings = Settings.builder()
-            .put(SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
-            .put(SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
-            .put(SnapshotsService.SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE.getKey(), 0.25f)
-            .put(SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.getKey(), 0.125f)
-            .put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+            .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+            .put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
+            .put(SharedCacheConfiguration.SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE.getKey(), 0.25f)
+            .put(SharedCacheConfiguration.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.getKey(), 0.125f)
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
             .put("path.home", createTempDir())
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);

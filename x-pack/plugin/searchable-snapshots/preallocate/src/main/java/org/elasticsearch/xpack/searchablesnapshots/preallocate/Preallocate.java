@@ -27,20 +27,15 @@ public class Preallocate {
 
     public static void preallocate(final Path cacheFile, final Environment environment, final long fileSize) throws IOException {
         if (Constants.LINUX) {
-            preallocate(cacheFile, environment, fileSize, new LinuxPreallocator());
+            preallocate(cacheFile, fileSize, new LinuxPreallocator());
         } else if (Constants.MAC_OS_X) {
-            preallocate(cacheFile, environment, fileSize, new MacOsPreallocator());
+            preallocate(cacheFile, fileSize, new MacOsPreallocator());
         } else {
-            preallocate(cacheFile, environment, fileSize, new UnsupportedPreallocator());
+            preallocate(cacheFile, fileSize, new UnsupportedPreallocator());
         }
     }
 
-    private static void preallocate(
-        final Path cacheFile,
-        final Environment environment,
-        final long fileSize,
-        final Preallocator prealloactor
-    ) throws IOException {
+    private static void preallocate(final Path cacheFile, final long fileSize, final Preallocator prealloactor) throws IOException {
         if (prealloactor.available() == false) {
             logger.warn("failed to pre-allocate cache file [{}] as native methods are not available", cacheFile);
         }

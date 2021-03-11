@@ -9,15 +9,16 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
 
+<<<<<<< HEAD
 import java.util.ArrayList;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+=======
+>>>>>>> 36683a4581a... Move shared cache pre-allocation and support macOS (#70285)
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -115,28 +116,4 @@ public class SnapshotUtils {
         return Collections.unmodifiableList(new ArrayList<>(result));
     }
 
-    /**
-     * Tries to find a suitable path to a searchable snapshots shared cache file in the data paths founds in the environment.
-     *
-     * @return path for the cache file or {@code null} if none could be found
-     */
-    @Nullable
-    public static Path findCacheSnapshotCacheFilePath(Environment environment, long fileSize) throws IOException {
-        Path cacheFile = null;
-        for (Path path : environment.dataFiles()) {
-            Files.createDirectories(path);
-            // TODO: be resilient to this check failing and try next path?
-            long usableSpace = Environment.getUsableSpace(path);
-            Path p = path.resolve(SnapshotsService.CACHE_FILE_NAME);
-            if (Files.exists(p)) {
-                usableSpace += Files.size(p);
-            }
-            // TODO: leave some margin for error here
-            if (usableSpace > fileSize) {
-                cacheFile = p;
-                break;
-            }
-        }
-        return cacheFile;
-    }
 }

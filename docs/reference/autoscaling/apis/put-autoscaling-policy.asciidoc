@@ -1,14 +1,14 @@
 [role="xpack"]
 [testenv="enterprise"]
 [[autoscaling-put-autoscaling-policy]]
-=== Put autoscaling policy API
+=== Create or update autoscaling policy API
 ++++
-<titleabbrev>Put autoscaling policy</titleabbrev>
+<titleabbrev>Create or update autoscaling policy</titleabbrev>
 ++++
 
 include::../autoscaling-designed-for-note.asciidoc[]
 
-Put autoscaling policy.
+Creates or updates an autoscaling policy.
 
 [[autoscaling-put-autoscaling-policy-request]]
 ==== {api-request-title}

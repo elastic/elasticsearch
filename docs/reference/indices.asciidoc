@@ -91,9 +91,9 @@ For more information, see <<index-templates, Index Templates>>.
 
 
 
-include::indices/add-alias.asciidoc[]
-
 include::indices/analyze.asciidoc[]
+
+include::indices/aliases.asciidoc[]
 
 include::indices/clearcache.asciidoc[]
 
@@ -102,6 +102,8 @@ include::indices/clone-index.asciidoc[]
 include::indices/close.asciidoc[]
 
 include::indices/create-index.asciidoc[]
+
+include::indices/add-alias.asciidoc[]
 
 include::indices/delete-index.asciidoc[]
 
@@ -172,8 +174,6 @@ include::indices/simulate-template.asciidoc[]
 include::indices/split-index.asciidoc[]
 
 include::indices/apis/unfreeze.asciidoc[]
-
-include::indices/aliases.asciidoc[]
 
 include::indices/update-settings.asciidoc[]
 

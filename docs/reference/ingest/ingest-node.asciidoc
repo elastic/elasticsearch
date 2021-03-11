@@ -847,9 +847,11 @@ See <<handling-failure-in-pipelines>> to learn more about the `on_failure` field
 
 The <<cluster-nodes-info,node info API>> will provide a per node list of what processors are available.
 
-Custom processors must be installed on all nodes. The put pipeline API will fail if a processor specified in a pipeline
-doesn't exist on all nodes. If you rely on custom processor plugins make sure to mark these plugins as mandatory by adding
-`plugin.mandatory` setting to the `config/elasticsearch.yml` file, for example:
+Custom processors must be installed on all nodes. The create or update pipeline
+API will fail if a processor specified in a pipeline doesn't exist on all nodes.
+If you rely on custom processor plugins make sure to mark these plugins as
+mandatory by adding `plugin.mandatory` setting to the `config/elasticsearch.yml`
+file, for example:
 
 [source,yaml]
 --------------------------------------------------

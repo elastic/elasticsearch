@@ -5,10 +5,10 @@
 --
 
 [id="{upid}-{api}"]
-=== Put Mapping API
+=== Update mapping API
 
 [id="{upid}-{api}-request"]
-==== Put Mapping Request
+==== Request
 
 A +{request}+ requires an `index` argument:
 
@@ -63,7 +63,7 @@ include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Put Mapping Response
+==== Response
 
 The returned +{response}+ allows to retrieve information about the executed
  operation as follows:

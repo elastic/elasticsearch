@@ -286,13 +286,14 @@ public class ScopedSettingsTests extends ESTestCase {
 
             @Override
             public Iterator<Setting<?>> settings() {
-                return List.<Setting<?>>of(baseSetting).iterator();
+                return org.elasticsearch.common.collect.List.<Setting<?>>of(baseSetting).iterator();
             }
         };
         final Setting<String> dependingSetting = Setting.simpleString(prefix + "foo.depending", dependingValidator, scopeProperty);
 
-        final AbstractScopedSettings service = nodeSetting ? new ClusterSettings(Settings.EMPTY, Set.of(baseSetting, dependingSetting)) :
-            new IndexScopedSettings(Settings.EMPTY, Set.of(baseSetting, dependingSetting));
+        final AbstractScopedSettings service = nodeSetting ?
+            new ClusterSettings(Settings.EMPTY, org.elasticsearch.common.collect.Set.of(baseSetting, dependingSetting)) :
+            new IndexScopedSettings(Settings.EMPTY, org.elasticsearch.common.collect.Set.of(baseSetting, dependingSetting));
 
         service.validate(Settings.builder().put(baseSetting.getKey(), "1").put(dependingSetting.getKey(), 1).build(), true);
         service.validate(Settings.builder().put(dependingSetting.getKey(), "1").build(), false);

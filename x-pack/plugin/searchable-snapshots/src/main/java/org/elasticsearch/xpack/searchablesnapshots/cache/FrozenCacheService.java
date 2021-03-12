@@ -13,11 +13,15 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -30,13 +34,18 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.SparseFileTracker;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.DataTier;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
@@ -45,6 +54,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
@@ -67,9 +77,45 @@ public class FrozenCacheService implements Releasable {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = new Setting<>(
         SHARED_CACHE_SETTINGS_PREFIX + "size",
-        ByteSizeValue.ZERO,
+        ByteSizeValue.ZERO.getStringRep(),
+        s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "size"),
+        new Setting.Validator<ByteSizeValue>() {
+
+            @Override
+            public void validate(final ByteSizeValue value) {
+
+            }
+
+            @Override
+            public void validate(final ByteSizeValue value, final Map<Setting<?>, Object> settings) {
+                if (value.getBytes() == -1) {
+                    throw new SettingsException("setting [{}] must be non-negative", SHARED_CACHE_SETTINGS_PREFIX + "size");
+                }
+                if (value.getBytes() > 0) {
+                    @SuppressWarnings("unchecked")
+                    final List<DiscoveryNodeRole> roles = (List<DiscoveryNodeRole>) settings.get(NodeRoleSettings.NODE_ROLES_SETTING);
+                    if (DataTier.isFrozenNode(Set.of(roles.toArray(DiscoveryNodeRole[]::new))) == false) {
+                        deprecationLogger.deprecate(
+                            DeprecationCategory.SETTINGS,
+                            "shared_cache",
+                            "setting [{}] to be positive [{}] on node without the data_frozen role is deprecated, roles are [{}]",
+                            SHARED_CACHE_SETTINGS_PREFIX + "size",
+                            value.getStringRep(),
+                            roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining(","))
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(NodeRoleSettings.NODE_ROLES_SETTING);
+                return settings.iterator();
+            }
+
+        },
         Setting.Property.NodeScope
     );
 
@@ -105,6 +151,7 @@ public class FrozenCacheService implements Releasable {
     );
 
     private static final Logger logger = LogManager.getLogger(FrozenCacheService.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FrozenCacheService.class);
 
     private final ConcurrentHashMap<RegionKey, Entry<CacheFileRegion>> keyMapping;
 

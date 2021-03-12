@@ -8,18 +8,22 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheKey;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.CacheFileRegion;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Set;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 
@@ -190,6 +194,23 @@ public class FrozenCacheServiceTests extends ESTestCase {
             assertEquals(0, cacheService.getFreq(region0));
             assertEquals(0, cacheService.getFreq(region1));
         }
+    }
+
+    public void testCacheSizeDeprecatedOnNonFrozenNodes() {
+        DiscoveryNode.setAdditionalRoles(
+            Set.of(DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE, DataTier.DATA_FROZEN_NODE_ROLE)
+        );
+        final Settings settings = Settings.builder()
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
+            .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DataTier.DATA_HOT_NODE_ROLE.roleName())
+            .build();
+        FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
+        assertWarnings(
+            "setting ["
+                + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
+                + "] to be positive [500b] on node without the data_frozen role is deprecated, roles are [data_hot]"
+        );
     }
 
     private static CacheKey generateCacheKey() {

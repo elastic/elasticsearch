@@ -79,3 +79,7 @@ ${error.file}
 
 ## GC logging
 -Xlog:gc*,gc+age=trace,safepoint:file=${loggc}:utctime,pid,tags:filecount=32,filesize=64m
+
+# temporarily suppress illegal reflective access in searchable snapshots shared
+# cache preallocation; this is temporary while we explore alternatives
+--add-opens=java.base/java.io=ALL-UNNAMED

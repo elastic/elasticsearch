@@ -125,9 +125,7 @@ public class PainlessSuggest {
             }
         }
 
-        protected static class FunctionState {
-
-            protected final TokenState ts;
+        protected static class FunctionState extends TokenState {
 
             protected int target = 0;
 
@@ -140,8 +138,8 @@ public class PainlessSuggest {
 
             protected int brackets;
 
-            protected FunctionState(TokenState ts) {
-                this.ts = ts;
+            protected FunctionState(List<? extends Token> tokens) {
+                super(tokens);
             }
         }
 
@@ -151,7 +149,7 @@ public class PainlessSuggest {
             fstates = new ArrayList<>();
             // 0 - possible start of function
             fstates.add(fs -> {
-                Token token = fs.ts.tokens.get(fs.ts.current);
+                Token token = fs.tokens.get(fs.current);
                 if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
                     // VALID: possible return type for function
                     fs.returnType = token.getText();
@@ -162,7 +160,7 @@ public class PainlessSuggest {
             });
             // 1 - possible function name
             fstates.add(fs -> {
-                Token token = fs.ts.tokens.get(fs.ts.current);
+                Token token = fs.tokens.get(fs.current);
                 if (token.getType() == SuggestLexer.ID) {
                     // VALID: possible function name
                     fs.functionName = token.getText();
@@ -173,7 +171,7 @@ public class PainlessSuggest {
             });
             // 2 - start of parameters
             fstates.add(fs -> {
-                Token token = fs.ts.tokens.get(fs.ts.current);
+                Token token = fs.tokens.get(fs.current);
                 if (token.getType() == SuggestLexer.LP) {
                     // VALID: found a function, record return type and function name
                     fs.functionData = new FunctionData();
@@ -187,7 +185,7 @@ public class PainlessSuggest {
             });
             // 3 - start of a parameter or end of parameters
             fstates.add(fs -> {
-                Token token = fs.ts.tokens.get(fs.ts.current);
+                Token token = fs.tokens.get(fs.current);
                 if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
                     // VALID: found a parameter type
                     fs.parameterType = token.getText();
@@ -198,7 +196,7 @@ public class PainlessSuggest {
                 } else if (token.getType() == SuggestLexer.LBRACK) {
                     // ERROR (process): missing right parenthesis, but found start of function body
                     fs.brackets = 1;
-                    fs.functionData.bodyStartToken = fs.ts.current + 1;
+                    fs.functionData.bodyStartToken = fs.current + 1;
                     return 5;
                 }
                 // ERROR (ignore): unexpected token, keep looking for a sentinel
@@ -206,11 +204,11 @@ public class PainlessSuggest {
             });
             // 4 - start of function body
             fstates.add(fs -> {
-                Token token = fs.ts.tokens.get(fs.ts.current);
+                Token token = fs.tokens.get(fs.current);
                 if (token.getType() == SuggestLexer.LBRACK) {
                     // VALID: found start of function body
                     fs.brackets = 1;
-                    fs.functionData.bodyStartToken = fs.ts.current + 1;
+                    fs.functionData.bodyStartToken = fs.current + 1;
                     return 5;
                 }
                 // ERROR (ignore): unexpected token, keep looking for a sentinel
@@ -218,7 +216,7 @@ public class PainlessSuggest {
             });
             // 5 - possible end of function body
             fstates.add(fs -> {
-                Token token = fs.ts.tokens.get(fs.ts.current);
+                Token token = fs.tokens.get(fs.current);
                 if (token.getType() == SuggestLexer.LBRACK) {
                     // VALID: increase scope
                     ++fs.brackets;
@@ -227,7 +225,7 @@ public class PainlessSuggest {
                     --fs.brackets;
                     if (fs.brackets == 0) {
                         // VALID: end of function body
-                        fs.functionData.bodyEndToken = fs.ts.current - 1;
+                        fs.functionData.bodyEndToken = fs.current - 1;
                         return 0;
                     }
                 }
@@ -236,7 +234,7 @@ public class PainlessSuggest {
             });
             // 6 - parameter name
             fstates.add(fs -> {
-                Token token = fs.ts.tokens.get(fs.ts.current);
+                Token token = fs.tokens.get(fs.current);
                 if (token.getType() == SuggestLexer.ID) {
                     // VALID: found a parameter name, record parameter type and name
                     fs.functionData.parameterTypes.add(fs.parameterType);
@@ -254,7 +252,7 @@ public class PainlessSuggest {
             });
             // 7 - start of another parameter or end of parameters
             fstates.add(fs -> {
-                Token token = fs.ts.tokens.get(fs.ts.current);
+                Token token = fs.tokens.get(fs.current);
                 if (token.getType() == SuggestLexer.COMMA) {
                     // VALID: found comma, look for another parameter
                     return 8;
@@ -270,7 +268,7 @@ public class PainlessSuggest {
             });
             // 8 - start of another parameter
             fstates.add(fs -> {
-                Token token = fs.ts.tokens.get(fs.ts.current);
+                Token token = fs.tokens.get(fs.current);
                 if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
                     // VALID: found a parameter type
                     fs.parameterType = token.getText();
@@ -288,12 +286,10 @@ public class PainlessSuggest {
         }
 
         protected static void walk(FunctionState fs) {
-            TokenState ts = fs.ts;
-
-            while (ts.current < ts.tokens.size()) {
+            while (fs.current < fs.tokens.size()) {
                 Function<FunctionState, Integer> state = fstates.get(fs.target);
                 fs.target = state.apply(fs);
-                ++ts.current;
+                ++fs.current;
             }
         }
 
@@ -330,19 +326,17 @@ public class PainlessSuggest {
             }
         }
 
-        protected static class LambdaState {
-
-            protected final TokenState ws;
-
-            protected LambdaState(TokenState ws) {
-                this.ws = ws;
-            }
+        protected static class LambdaState extends TokenState {
 
             protected int target = 0;
 
             protected LambdaData lambdaData;
 
             protected final List<LambdaMachine.LambdaData> lambdas = new ArrayList<>();
+
+            protected LambdaState(List<? extends Token> tokens) {
+                super(tokens);
+            }
         }
 
         protected static final List<Function<LambdaMachine.LambdaState, Integer>> lstates;
@@ -352,13 +346,13 @@ public class PainlessSuggest {
 
             // 0 - possible start of a lambda header
             lstates.add(ls -> {
-                Token token = ls.ws.tokens.get(ls.ws.current);
+                Token token = ls.tokens.get(ls.current);
                 if (token.getType() == SuggestLexer.ARROW) {
                     // VALID: found start of a lambda header
                     ls.lambdaData = new LambdaData();
                     ls.lambdas.add(ls.lambdaData);
-                    ls.lambdaData.headerStartToken = ls.ws.current;
-                    ls.lambdaData.headerEndToken = ls.ws.current;
+                    ls.lambdaData.headerStartToken = ls.current;
+                    ls.lambdaData.headerEndToken = ls.current;
                     return 1;
                 }
                 // VALID: not a start of a lambda header
@@ -366,18 +360,18 @@ public class PainlessSuggest {
             });
             // 1 - parameter name or start of parameters
             lstates.add(ls -> {
-                Token token = ls.ws.tokens.get(ls.ws.current);
+                Token token = ls.tokens.get(ls.current);
                 if (token.getType() == SuggestLexer.ID) {
                     // VALID: found a singular parameter name
-                    ls.lambdaData.headerStartToken = ls.ws.current;
+                    ls.lambdaData.headerStartToken = ls.current;
                     ls.lambdaData.parameterTypes.add("def");
                     ls.lambdaData.parameterNames.add(token.getText());
                 } else if (token.getType() == SuggestLexer.ARROW) {
                     // ERROR (process): unexpected token, found a possible new start of a lambda header
                     ls.lambdaData = new LambdaData();
                     ls.lambdas.add(ls.lambdaData);
-                    ls.lambdaData.headerStartToken = ls.ws.current;
-                    ls.lambdaData.headerEndToken = ls.ws.current;
+                    ls.lambdaData.headerStartToken = ls.current;
+                    ls.lambdaData.headerEndToken = ls.current;
                     return 1;
                 } else if (token.getType() == SuggestLexer.RP) {
                     // VALID: found a right parenthesis
@@ -388,14 +382,14 @@ public class PainlessSuggest {
             });
             // 2 - parameter name or end of parameters
             lstates.add(ls -> {
-                Token token = ls.ws.tokens.get(ls.ws.current);
+                Token token = ls.tokens.get(ls.current);
                 if (token.getType() == SuggestLexer.LP) {
                     // VALID: found a left parenthesis, end of lambda header
-                    ls.lambdaData.headerStartToken = ls.ws.current;
+                    ls.lambdaData.headerStartToken = ls.current;
                     return 0;
                 } else if (token.getType() == SuggestLexer.ID) {
                     // VALID: found a parameter name
-                    ls.lambdaData.headerStartToken = ls.ws.current;
+                    ls.lambdaData.headerStartToken = ls.current;
                     ls.lambdaData.parameterTypes.add("def");
                     ls.lambdaData.parameterNames.add(token.getText());
                     return 3;
@@ -403,8 +397,8 @@ public class PainlessSuggest {
                     // ERROR (process): unexpected token, found a possible new start of a lambda header
                     ls.lambdaData = new LambdaData();
                     ls.lambdas.add(ls.lambdaData);
-                    ls.lambdaData.headerStartToken = ls.ws.current;
-                    ls.lambdaData.headerEndToken = ls.ws.current;
+                    ls.lambdaData.headerStartToken = ls.current;
+                    ls.lambdaData.headerEndToken = ls.current;
                     return 1;
                 }
                 // ERROR (ignore): unexpected token, start looking for a new lambda header
@@ -412,122 +406,143 @@ public class PainlessSuggest {
             });
             // 3 - parameter type or end of parameters
             lstates.add(ls -> {
-                Token token = ls.ws.tokens.get(ls.ws.current);
+                Token token = ls.tokens.get(ls.current);
                 if (token.getType() == SuggestLexer.LP) {
-                    ls.lambdaData.headerStartToken = ls.ws.current;
+                    // VALID: found a left parenthesis, end of lambda header
+                    ls.lambdaData.headerStartToken = ls.current;
                     return 0;
                 } else if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
-                    ls.lambdaData.headerStartToken = ls.ws.current;
+                    // VALID: found a type to complete a parameter declaration
+                    ls.lambdaData.headerStartToken = ls.current;
                     ls.lambdaData.parameterTypes.set(ls.lambdaData.parameterTypes.size() - 1, token.getText());
                     return 4;
                 } else if (token.getType() == SuggestLexer.COMMA) {
+                    // VALID: found a comma to complete a parameter declaration and specify another
                     return 2;
                 } else if (token.getType() == SuggestLexer.ARROW) {
+                    // ERROR (process): unexpected token, found a possible new start of a lambda header
                     ls.lambdaData = new LambdaData();
                     ls.lambdas.add(ls.lambdaData);
-                    ls.lambdaData.headerStartToken = ls.ws.current;
-                    ls.lambdaData.headerEndToken = ls.ws.current;
+                    ls.lambdaData.headerStartToken = ls.current;
+                    ls.lambdaData.headerEndToken = ls.current;
                     return 1;
                 }
+                // ERROR (ignore): unexpected token, start looking for a new lambda header
                 return 0;
             });
             // 4
             lstates.add(ls -> {
-                Token token = ls.ws.tokens.get(ls.ws.current);
+                Token token = ls.tokens.get(ls.current);
                 if (token.getType() == SuggestLexer.LP) {
-                    ls.lambdaData.headerStartToken = ls.ws.current;
+                    // VALID: found a left parenthesis, end of lambda header
+                    ls.lambdaData.headerStartToken = ls.current;
                     return 0;
                 } if (token.getType() == SuggestLexer.COMMA) {
+                    // VALID: found a comma to complete a parameter declaration and specify another
                     return 2;
                 } else if (token.getType() == SuggestLexer.ARROW) {
+                    // ERROR (process): unexpected token, found a possible new start of a lambda header
                     ls.lambdaData = new LambdaData();
                     ls.lambdas.add(ls.lambdaData);
-                    ls.lambdaData.headerStartToken = ls.ws.current;
-                    ls.lambdaData.headerEndToken = ls.ws.current;
+                    ls.lambdaData.headerStartToken = ls.current;
+                    ls.lambdaData.headerEndToken = ls.current;
                     return 1;
                 }
+                // ERROR (ignore): unexpected token, start looking for a new lambda header
                 return 0;
             });
         }
 
         protected static void walk(LambdaMachine.LambdaState ls) {
-            TokenState ws = ls.ws;
-            ws.current = ws.tokens.size() - 1;
+            ls.current = ls.tokens.size() - 1;
 
-            while (ws.current >= 0) {
+            while (ls.current >= 0) {
                 Function<LambdaMachine.LambdaState, Integer> state = lstates.get(ls.target);
                 ls.target = state.apply(ls);
-                --ws.current;
+                --ls.current;
             }
         }
 
-        protected LambdaMachine() {
-
+        private LambdaMachine() {
+            // do not instantiate
         }
     }
 
+    /**
+     * BlockMachine collects data about declarations within each
+     * scope. This allows for suggestions based on variables that are
+     * available within the appropriate scope. BlockMachine maintains
+     * two separate pieces of state that combine to give an accurate
+     * representation of current variables in a scope. BlockMachine must
+     * maintain the appropriate scope through a stack with a potentially
+     * different delimiter for a scope's closure. BlockMachine must
+     * also use a state machine to track declarations and adds
+     * new variables to the current scope. While these are both within
+     * BlockMachine, the state transitions are handled separately.
+     */
     protected static class BlockMachine {
 
-        protected static class BlockState {
+        protected static class BlockData {
 
-            protected static class BlockScope {
+            protected final BlockData parent;
 
-                protected final BlockScope parent;
+            protected int type;
+            protected int sentinel;
+            protected boolean pop = false;
+            protected int parens = 0;
+            protected int braces = 0;
 
-                protected int type;
-                protected int sentinel;
-                protected boolean pop = false;
-                protected int parens = 0;
-                protected int braces = 0;
+            protected int decltarget = 0;
+            protected String decltype = null;
+            protected int declparens = 0;
+            protected int declbraces = 0;
 
-                protected final Map<String, String> variables = new HashMap<>();
-                protected int decltarget = 0;
-                protected String decltype = null;
-                protected int declparens = 0;
-                protected int declbraces = 0;
+            protected final Map<String, String> variables = new HashMap<>();
 
-                protected BlockScope(BlockScope parent, int type, int sentinel) {
-                    this.parent = parent;
-                    this.type = type;
-                    this.sentinel = sentinel;
-                }
-
-                public Map<String, String> getVariables() {
-                    Map<String, String> rtn = new HashMap<>(variables);
-
-                    if (parent != null) {
-                        rtn.putAll(parent.getVariables());
-                    }
-
-                    return rtn;
-                }
-
-                public String toString() {
-                    StringBuilder builder = new StringBuilder();
-                    builder.append("[");
-                    builder.append(type == -1 ? "EOF" : SuggestLexer.ruleNames[type - 1]);
-                    builder.append(" : ");
-                    builder.append(sentinel == -1 ? "EOF" : SuggestLexer.ruleNames[sentinel - 1]);
-                    builder.append(" : ");
-                    builder.append(variables);
-                    builder.append("]");
-
-                    if (parent != null) {
-                        builder.append(" ");
-                        builder.append(parent.toString());
-                    }
-
-                    return builder.toString();
-                }
+            protected BlockData(BlockData parent, int type, int sentinel) {
+                this.parent = parent;
+                this.type = type;
+                this.sentinel = sentinel;
             }
 
-            protected final TokenState ws;
+            protected Map<String, String> getVariables() {
+                Map<String, String> rtn = new HashMap<>(variables);
+
+                if (parent != null) {
+                    rtn.putAll(parent.getVariables());
+                }
+
+                return rtn;
+            }
+
+            @Override
+            public String toString() {
+                StringBuilder builder = new StringBuilder();
+                builder.append("[");
+                builder.append(type == -1 ? "EOF" : SuggestLexer.ruleNames[type - 1]);
+                builder.append(" : ");
+                builder.append(sentinel == -1 ? "EOF" : SuggestLexer.ruleNames[sentinel - 1]);
+                builder.append(" : ");
+                builder.append(variables);
+                builder.append("]");
+
+                if (parent != null) {
+                    builder.append(" ");
+                    builder.append(parent.toString());
+                }
+
+                return builder.toString();
+            }
+        }
+
+        protected static class BlockState extends TokenState {
+
             protected final Map<Integer, LambdaMachine.LambdaData> mld;
 
-            protected BlockScope scope = new BlockScope(null, SuggestLexer.EOF, SuggestLexer.EOF);
+            protected BlockData scope = new BlockData(null, SuggestLexer.EOF, SuggestLexer.EOF);
 
-            protected BlockState(TokenState ws, Map<Integer, LambdaMachine.LambdaData> mld) {
-                this.ws = ws;
+            protected BlockState(List<? extends Token> tokens, Map<Integer, LambdaMachine.LambdaData> mld) {
+                super(tokens);
                 this.mld = mld;
             }
         }
@@ -537,49 +552,59 @@ public class PainlessSuggest {
         static {
             declstates = new ArrayList<>();
 
-            // 0
+            // 0 - possible start of a declaration
             declstates.add(bs -> {
-                Token token = bs.ws.tokens.get(bs.ws.current);
+                Token token = bs.tokens.get(bs.current);
                 if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
+                    // VALID: found a type, possible start of a declaration
                     bs.scope.decltype = token.getText();
                     return 1;
                 } else if (token.getType() == SuggestLexer.IN) {
-                    Token prev = bs.ws.current > 0 ? bs.ws.tokens.get(bs.ws.current - 1) : null;
+                    // VALID: found a for each loop, add the variable to the scope if previous is a name
+                    Token prev = bs.current > 0 ? bs.tokens.get(bs.current - 1) : null;
 
                     if (prev != null && prev.getType() == SuggestLexer.ID) {
                         bs.scope.variables.put(prev.getText(), "def");
                     }
                 }
+                // VALID: no declaration found, continue looking for sentinel
                 return 0;
             });
-            // 1
+            // 1 - possible declaration name
             declstates.add(bs -> {
-                Token token = bs.ws.tokens.get(bs.ws.current);
+                Token token = bs.tokens.get(bs.current);
                 if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
+                    // ERROR (process): found a type, possible start of a declaration
                     bs.scope.decltype = token.getText();
                     return 1;
                 } else if (token.getType() == SuggestLexer.ID) {
+                    // VALID: found a declaration name, add the variable to the scope
                     bs.scope.variables.put(token.getText(), bs.scope.decltype);
                     return 2;
                 }
+                // VALID: no declaration found, continue looking for sentinel
                 return 0;
             });
-            // 2
+            // 2 - possible multiple names in a declaration
             declstates.add(bs -> {
-                Token token = bs.ws.tokens.get(bs.ws.current);
+                Token token = bs.tokens.get(bs.current);
                 if (token.getType() == SuggestLexer.COMMA) {
+                    // VALID: found a comma, look for another declaration name
                     return 1;
                 } else if (token.getType() == SuggestLexer.ASSIGN) {
+                    // VALID: found an assignment
                     return 3;
                 } else if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
+                    // ERROR (process): found a type, possible start of a declaration
                     bs.scope.decltype = token.getText();
                     return 1;
                 }
+                // VALID: declaration completed, look for next possible declaration
                 return 0;
             });
-            // 3
+            // 3 - skip an assignment expression
             declstates.add(bs -> {
-                Token token = bs.ws.tokens.get(bs.ws.current);
+                Token token = bs.tokens.get(bs.current);
                 if (token.getType() == SuggestLexer.COMMA && bs.scope.declparens == 0 && bs.scope.declbraces == 0) {
                     return 1;
                 } else if (token.getType() == SuggestLexer.LP) {
@@ -600,115 +625,117 @@ public class PainlessSuggest {
             });
         }
 
-        protected static void scope(BlockState bs, StringBuilder builder) {
-            TokenState ws = bs.ws;
-
-            int token = ws.tokens.get(ws.current).getType();
-            int prev = ws.current > 0 ? ws.tokens.get(ws.current - 1).getType() : SuggestLexer.EOF;
+        protected static void scope(BlockState bs) {
+            int token = bs.tokens.get(bs.current).getType();
+            int prev = bs.current > 0 ? bs.tokens.get(bs.current - 1).getType() : SuggestLexer.EOF;
 
             if (bs.scope.pop) {
+                // NOTE: current scope is marked for closure
+
                 if (token == SuggestLexer.CATCH && (bs.scope.type == SuggestLexer.TRY || bs.scope.type == SuggestLexer.CATCH)) {
+                    // CLOSE: found a catch, close the sibling try or catch scope
                     bs.scope = bs.scope.parent;
                 } else if (token == SuggestLexer.ELSE) {
                     while (bs.scope.type != SuggestLexer.IF && bs.scope.sentinel == SuggestLexer.SEMICOLON) {
+                        // CLOSE: close scopes until we reach the sibling if scope for this specific else
                         bs.scope = bs.scope.parent;
                     }
 
                     if (bs.scope.type == SuggestLexer.IF) {
+                        // CLOSE: close the sibling if scope
                         bs.scope = bs.scope.parent;
                     }
                 } else {
+                    // CLOSE: close the child scope
                     bs.scope = bs.scope.parent;
 
                     while (bs.scope.sentinel == SuggestLexer.SEMICOLON) {
+                        // CLOSE: a scope without brackets may require that multiple child scopes close based on a single delimiter
                         bs.scope = bs.scope.parent;
                     }
                 }
             }
 
-            LambdaMachine.LambdaData ld = bs.mld.get(ws.current);
+            LambdaMachine.LambdaData ld = bs.mld.get(bs.current);
 
             if (ld != null) {
-                bs.scope = new BlockState.BlockScope(bs.scope, SuggestLexer.ARROW, SuggestLexer.EOF);
+                // OPEN: open a lambda scope and skip the previously processed header
+                bs.scope = new BlockData(bs.scope, SuggestLexer.ARROW, SuggestLexer.EOF);
 
                 for (int param = 0; param < ld.parameterTypes.size(); ++param) {
+                    // NOTE: add lambda parameters to the scope
                     bs.scope.variables.put(ld.parameterNames.get(param), ld.parameterTypes.get(param));
                 }
 
-                ws.current = ld.headerEndToken;
+                // NOTE: skip to the end of the pre-processed lambda header
+                bs.current = ld.headerEndToken;
                 token = SuggestLexer.ARROW;
             } else if (token == SuggestLexer.WHILE || token == SuggestLexer.IF || token == SuggestLexer.ELSE) {
                 if (prev == SuggestLexer.ELSE && token == SuggestLexer.IF) {
+                    // SWITCH: found an else if statement, so just switch the scope type
                     bs.scope.type = SuggestLexer.IF;
                 } else {
-                    bs.scope = new BlockState.BlockScope(bs.scope, token, SuggestLexer.SEMICOLON);
+                    // OPEN: open a new scope for a while/if/else statement with a semicolon delimiter
+                    bs.scope = new BlockData(bs.scope, token, SuggestLexer.SEMICOLON);
                 }
             } else if (token == SuggestLexer.FOR) {
-                bs.scope = new BlockState.BlockScope(bs.scope, token, SuggestLexer.RP);
+                // OPEN: open a new scope for a for loop with a right parenthesis delimiter
+                bs.scope = new BlockData(bs.scope, token, SuggestLexer.RP);
             } else if (token == SuggestLexer.DO || token == SuggestLexer.TRY || token == SuggestLexer.CATCH) {
-                bs.scope = new BlockState.BlockScope(bs.scope, token, SuggestLexer.RBRACK);
+                // OPEN: open a new scope for a do/try/catch statement with a right bracket delimiter
+                bs.scope = new BlockData(bs.scope, token, SuggestLexer.RBRACK);
             } else if (token == SuggestLexer.LBRACK) {
                 if (bs.scope.sentinel == SuggestLexer.SEMICOLON || bs.scope.sentinel == SuggestLexer.RP) {
+                    // NOTE: found a left bracket so switch semicolon or right parenthesis delimiters to
                     bs.scope.sentinel = SuggestLexer.RBRACK;
                 }
             } else if (token == SuggestLexer.LP) {
+                // NOTE: track our parenthesis depth
                 ++bs.scope.parens;
             } else if (token == SuggestLexer.RP) {
+                // NOTE: track our parenthesis depth
                 bs.scope.parens = Math.max(0, bs.scope.parens - 1);
 
                 if (bs.scope.sentinel == SuggestLexer.RP && bs.scope.parens == 0) {
+                    // SWITCH: switch a right parenthesis delimiter to a semicolon delimiter
                     bs.scope.sentinel = SuggestLexer.SEMICOLON;
                 }
             } else if (token == SuggestLexer.LBRACE) {
+                // NOTE: track our brace depth
                 ++bs.scope.braces;
             } else if (token == SuggestLexer.RBRACE) {
+                // NOTE: track our brace depth
                 bs.scope.braces = Math.max(0, bs.scope.braces - 1);
             }
 
             if (bs.scope.type == SuggestLexer.ARROW) {
                 if (token == SuggestLexer.COMMA || token == SuggestLexer.RP && bs.scope.parens == 0 && bs.scope.braces == 0) {
+                    // CLOSE: close the current lambda scope
                     bs.scope = bs.scope.parent;
                 }
             } else if (token == bs.scope.sentinel) {
                 if (bs.scope.type == SuggestLexer.DO) {
+                    // SWITCH: update a closed do scope to a while scope
                     bs.scope.type = SuggestLexer.WHILE;
                     bs.scope.sentinel = SuggestLexer.SEMICOLON;
                 } else {
+                    // NOTE: mark the current scope for closure
                     bs.scope.pop = true;
                 }
             }
         }
 
-        protected static void walk(BlockState bs, StringBuilder builder) {
-            TokenState ws = bs.ws;
-
-            // DEBUG
-            String previous = "[EOF : EOF]";
-            // END DEBUG
-
-            while (ws.current < ws.tokens.size()) {
-                scope(bs, builder);
-
-                // DEBUG
-                String str = bs.scope.toString();
-                if (str.equals(previous) == false) {
-                    int token = ws.tokens.get(ws.current).getType();
-                    builder.append(token == -1 ? "EOF" : SuggestLexer.ruleNames[token - 1]);
-                    builder.append(" : ");
-                    builder.append(bs.scope);
-                    builder.append("\n");
-                    previous = str;
-                }
-                // END DEBUG
-
+        protected static void walk(BlockState bs) {
+            while (bs.current < bs.tokens.size()) {
+                scope(bs);
                 Function<BlockState, Integer> declstate = declstates.get(bs.scope.decltarget);
                 bs.scope.decltarget = declstate.apply(bs);
-                ++ws.current;
+                ++bs.current;
             }
         }
 
-        protected BlockMachine() {
-
+        private BlockMachine() {
+            // do not instantiate
         }
     }
 

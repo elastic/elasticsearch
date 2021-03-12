@@ -93,6 +93,7 @@ public abstract class ScriptTestCase extends ESTestCase {
         return testScript.execute();
     }
 
+    /** Generates suggestions for the given source using the PainlessTestScript context */
     public List<Suggestion> suggest(String source) {
         Class<?> clazz = null;
         PainlessLookup lookup = null;

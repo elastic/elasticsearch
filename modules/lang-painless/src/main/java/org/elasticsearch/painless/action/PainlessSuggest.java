@@ -385,13 +385,13 @@ public class PainlessSuggest {
      */
     public static class Suggestion {
 
-        public final static String VARIABLE = "variable";
-        public final static String TYPE = "type";
-        public final static String USER = "user";
-        public final static String CALL = "call";
-        public final static String METHOD = "method";
-        public final static String FIELD = "field";
-        public final static String PARAMETERS = "parameters";
+        public static final String VARIABLE = "variable";
+        public static final String TYPE = "type";
+        public static final String USER = "user";
+        public static final String CALL = "call";
+        public static final String METHOD = "method";
+        public static final String FIELD = "field";
+        public static final String PARAMETERS = "parameters";
 
         protected final String type;
         protected final String text;
@@ -407,6 +407,19 @@ public class PainlessSuggest {
 
         public String getText() {
             return text;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Suggestion that = (Suggestion)o;
+            return Objects.equals(type, that.type) && Objects.equals(text, that.text);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type, text);
         }
 
         @Override

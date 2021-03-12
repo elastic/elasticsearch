@@ -62,6 +62,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
     private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});
 
+    private static final long PRUNE_THROTTLE_INTERVAL = TimeUnit.SECONDS.toMillis(60);
+    private static final long MAX_CLIENT_STATS_AGE = TimeUnit.MINUTES.toMillis(5);
+
     protected final Settings settings;
     public final HttpHandlingSettings handlingSettings;
     protected final NetworkService networkService;
@@ -142,11 +145,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * @param throttled When true, executes the prune process only if more than 60 seconds has elapsed since the last execution.
      */
     void pruneClientStats(boolean throttled) {
-        if (throttled == false || (threadPool.relativeTimeInMillis() - lastClientStatsPruneTime > TimeUnit.SECONDS.toMillis(60))) {
+        if (throttled == false || (threadPool.relativeTimeInMillis() - lastClientStatsPruneTime > PRUNE_THROTTLE_INTERVAL)) {
             long nowMillis = threadPool.absoluteTimeInMillis();
             for (var statsEntry : httpChannelStats.entrySet()) {
                 long closedTimeMillis = statsEntry.getValue().closedTimeMillis;
-                if (closedTimeMillis > 0 && (nowMillis - closedTimeMillis > TimeUnit.MINUTES.toMillis(5))) {
+                if (closedTimeMillis > 0 && (nowMillis - closedTimeMillis > MAX_CLIENT_STATS_AGE)) {
                     httpChannelStats.remove(statsEntry.getKey());
                 }
             }
@@ -326,7 +329,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     clientStats.closedTimeMillis = threadPool.absoluteTimeInMillis();
                 }
             } catch (Exception e) {
-
+                // the listener code about should never throw
+                logger.trace("error removing HTTP channel listener", e);
             }
         }));
         pruneClientStats(true);

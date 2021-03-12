@@ -8,7 +8,6 @@
 
 package org.elasticsearch.http;
 
-import joptsimple.internal.Strings;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -89,34 +88,21 @@ public class HttpStats implements Writeable, ToXContentFragment {
         builder.field(Fields.TOTAL_OPENED, totalOpen);
         builder.startArray(Fields.CLIENTS);
         for (ClientStats clientStats : this.clientStats) {
-            builder.startObject();
-            builder.field(Fields.CLIENT_ID, clientStats.id);
-            builder.field(Fields.CLIENT_AGENT, clientStats.agent);
-            builder.field(Fields.CLIENT_LOCAL_ADDRESS, clientStats.localAddress);
-            builder.field(Fields.CLIENT_REMOTE_ADDRESS, clientStats.remoteAddress);
-            builder.field(Fields.CLIENT_LAST_URI, clientStats.lastUri);
-            builder.field(Fields.CLIENT_FORWARDED_FOR, clientStats.forwardedFor);
-            builder.field(Fields.CLIENT_OPAQUE_ID, clientStats.opaqueId);
-            builder.field(Fields.CLIENT_OPENED_TIME_MILLIS, clientStats.openedTimeMillis);
-            builder.field(Fields.CLIENT_CLOSED_TIME_MILLIS, clientStats.closedTimeMillis);
-            builder.field(Fields.CLIENT_LAST_REQUEST_TIME_MILLIS, clientStats.lastRequestTimeMillis);
-            builder.field(Fields.CLIENT_REQUEST_COUNT, clientStats.requestCount.longValue());
-            builder.field(Fields.CLIENT_REQUEST_SIZE_BYTES, clientStats.requestSizeBytes.longValue());
-            builder.endObject();
+            clientStats.toXContent(builder, params);
         }
         builder.endArray();
         builder.endObject();
         return builder;
     }
 
-    public static class ClientStats implements Writeable {
+    public static class ClientStats implements Writeable, ToXContentFragment {
         final int id;
-        String agent = Strings.EMPTY;
-        String localAddress = Strings.EMPTY;
-        String remoteAddress = Strings.EMPTY;
-        String lastUri = Strings.EMPTY;
-        String forwardedFor = Strings.EMPTY;
-        String opaqueId = Strings.EMPTY;
+        String agent;
+        String localAddress;
+        String remoteAddress;
+        String lastUri;
+        String forwardedFor;
+        String opaqueId;
         long openedTimeMillis;
         long closedTimeMillis = -1;
         volatile long lastRequestTimeMillis = -1;
@@ -158,6 +144,32 @@ public class HttpStats implements Writeable, ToXContentFragment {
             this.lastRequestTimeMillis = in.readLong();
             this.requestCount.add(in.readLong());
             this.requestSizeBytes.add(in.readLong());
+        }
+
+        @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(Fields.CLIENT_ID, id);
+            if (agent != null) {
+                builder.field(Fields.CLIENT_AGENT, agent);
+            }
+            builder.field(Fields.CLIENT_LOCAL_ADDRESS, localAddress);
+            builder.field(Fields.CLIENT_REMOTE_ADDRESS, remoteAddress);
+            builder.field(Fields.CLIENT_LAST_URI, lastUri);
+            if (forwardedFor != null) {
+                builder.field(Fields.CLIENT_FORWARDED_FOR, forwardedFor);
+            }
+            if (opaqueId != null) {
+                builder.field(Fields.CLIENT_OPAQUE_ID, opaqueId);
+            }
+            builder.field(Fields.CLIENT_OPENED_TIME_MILLIS, openedTimeMillis);
+            if (closedTimeMillis != -1) {
+                builder.field(Fields.CLIENT_CLOSED_TIME_MILLIS, closedTimeMillis);
+            }
+            builder.field(Fields.CLIENT_LAST_REQUEST_TIME_MILLIS, lastRequestTimeMillis);
+            builder.field(Fields.CLIENT_REQUEST_COUNT, requestCount.longValue());
+            builder.field(Fields.CLIENT_REQUEST_SIZE_BYTES, requestSizeBytes.longValue());
+            builder.endObject();
+            return builder;
         }
 
         @Override

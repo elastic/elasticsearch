@@ -10,12 +10,6 @@ package org.elasticsearch.painless.action;
 
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.Token;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.antlr.EnhancedSuggestLexer;
 import org.elasticsearch.painless.antlr.SuggestLexer;
@@ -29,7 +23,6 @@ import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,24 +31,35 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
+/**
+ * PainlessSuggest generates suggestions for partially completed scripts
+ * based on context and source. The parsing for suggestions is
+ * extremely lenient and never issues an error outright. The parser attempts
+ * to recover given extraneous or unknown input. If an error is unrecoverable,
+ * no suggestions are given. Also note that no suggestions are given if
+ * a type is resolved as def as there is no way to know what def represents.
+ */
 public class PainlessSuggest {
 
-    public static class Suggestion implements Writeable, ToXContentObject {
+    /**
+     * Suggestion contains the type of suggestion along
+     * with the suggested text.
+     */
+    public static class Suggestion {
 
-        private static final ParseField TYPE_FIELD = new ParseField("type");
-        private static final ParseField TEXT_FIELD = new ParseField("text");
+        public final static String VARIABLE = "variable";
+        public final static String TYPE = "type";
+        public final static String CALL = "call";
+        public final static String METHOD = "method";
+        public final static String FIELD = "field";
+        public final static String PARAMETERS = "parameters";
 
-        private final String type;
-        private final String text;
+        protected final String type;
+        protected final String text;
 
         public Suggestion(String type, String text) {
             this.type = type;
             this.text = text;
-        }
-
-        public Suggestion(StreamInput in) throws IOException {
-            this.type = in.readString();
-            this.text = in.readString();
         }
 
         public String getType() {
@@ -67,34 +71,6 @@ public class PainlessSuggest {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(this.type);
-            out.writeString(this.text);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(TYPE_FIELD.getPreferredName(), type);
-            builder.field(TEXT_FIELD.getPreferredName(), text);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Suggestion that = (Suggestion)o;
-            return Objects.equals(type, that.type) && Objects.equals(text, that.text);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(type, text);
-        }
-
-        @Override
         public String toString() {
             return "Suggestion{" +
                     "type='" + type + '\'' +
@@ -103,27 +79,38 @@ public class PainlessSuggest {
         }
     }
 
-    private static class WalkState {
+    /**
+     * TokenState keeps track of the current token. The state machines
+     * each increment a single token at a time and make decisions by
+     * storing state appropriately.
+     */
+    protected static class TokenState {
 
-        private final List<? extends Token> tokens;
+        protected final List<? extends Token> tokens;
 
-        private WalkState(List<? extends Token> tokens) {
+        protected int current = 0;
+
+        protected TokenState(List<? extends Token> tokens) {
             this.tokens = Collections.unmodifiableList(tokens);
         }
-
-        private int current = 0;
     }
 
-    private static class FunctionMachine {
+    /**
+     * FunctionMachine collects information about user-defined functions.
+     * This is required for suggestions relating to static-style calls,
+     * and to determine what top-level variables are available.
+     */
+    protected static class FunctionMachine {
 
-        private static class FunctionData {
-            private String returnType = "";
-            private String functionName = "";
-            private final List<String> parameterTypes = new ArrayList<>();
-            private final List<String> parameterNames = new ArrayList<>();
+        protected static class FunctionData {
 
-            private int bodyStartToken = -1;
-            private int bodyEndToken = -1;
+            protected String returnType = "";
+            protected String functionName = "";
+            protected final List<String> parameterTypes = new ArrayList<>();
+            protected final List<String> parameterNames = new ArrayList<>();
+
+            protected int bodyStartToken = -1;
+            protected int bodyEndToken = -1;
 
             @Override
             public String toString() {
@@ -138,33 +125,33 @@ public class PainlessSuggest {
             }
         }
 
-        private static class FunctionState {
+        protected static class FunctionState {
 
-            private final WalkState ws;
+            protected final TokenState ts;
 
-            private FunctionState(WalkState ws) {
-                this.ws = ws;
+            protected int target = 0;
+
+            protected String returnType;
+            protected String functionName;
+            protected String parameterType;
+            protected FunctionData functionData;
+
+            protected final List<FunctionData> functions = new ArrayList<>();
+
+            protected int brackets;
+
+            protected FunctionState(TokenState ts) {
+                this.ts = ts;
             }
-
-            private int target = 0;
-
-            private String returnType;
-            private String functionName;
-            private String parameterType;
-            private FunctionData functionData;
-
-            private final List<FunctionData> functions = new ArrayList<>();
-
-            private int brackets;
         }
 
-        private static final List<Function<FunctionState, Integer>> fstates;
+        protected static final List<Function<FunctionState, Integer>> fstates;
 
         static {
             fstates = new ArrayList<>();
             // 0 - possible start of function
             fstates.add(fs -> {
-                Token token = fs.ws.tokens.get(fs.ws.current);
+                Token token = fs.ts.tokens.get(fs.ts.current);
                 if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
                     // VALID: possible return type for function
                     fs.returnType = token.getText();
@@ -175,7 +162,7 @@ public class PainlessSuggest {
             });
             // 1 - possible function name
             fstates.add(fs -> {
-                Token token = fs.ws.tokens.get(fs.ws.current);
+                Token token = fs.ts.tokens.get(fs.ts.current);
                 if (token.getType() == SuggestLexer.ID) {
                     // VALID: possible function name
                     fs.functionName = token.getText();
@@ -186,7 +173,7 @@ public class PainlessSuggest {
             });
             // 2 - start of parameters
             fstates.add(fs -> {
-                Token token = fs.ws.tokens.get(fs.ws.current);
+                Token token = fs.ts.tokens.get(fs.ts.current);
                 if (token.getType() == SuggestLexer.LP) {
                     // VALID: found a function, record return type and function name
                     fs.functionData = new FunctionData();
@@ -200,7 +187,7 @@ public class PainlessSuggest {
             });
             // 3 - start of a parameter or end of parameters
             fstates.add(fs -> {
-                Token token = fs.ws.tokens.get(fs.ws.current);
+                Token token = fs.ts.tokens.get(fs.ts.current);
                 if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
                     // VALID: found a parameter type
                     fs.parameterType = token.getText();
@@ -211,7 +198,7 @@ public class PainlessSuggest {
                 } else if (token.getType() == SuggestLexer.LBRACK) {
                     // ERROR (process): missing right parenthesis, but found start of function body
                     fs.brackets = 1;
-                    fs.functionData.bodyStartToken = fs.ws.current + 1;
+                    fs.functionData.bodyStartToken = fs.ts.current + 1;
                     return 5;
                 }
                 // ERROR (ignore): unexpected token, keep looking for a sentinel
@@ -219,11 +206,11 @@ public class PainlessSuggest {
             });
             // 4 - start of function body
             fstates.add(fs -> {
-                Token token = fs.ws.tokens.get(fs.ws.current);
+                Token token = fs.ts.tokens.get(fs.ts.current);
                 if (token.getType() == SuggestLexer.LBRACK) {
                     // VALID: found start of function body
                     fs.brackets = 1;
-                    fs.functionData.bodyStartToken = fs.ws.current + 1;
+                    fs.functionData.bodyStartToken = fs.ts.current + 1;
                     return 5;
                 }
                 // ERROR (ignore): unexpected token, keep looking for a sentinel
@@ -231,7 +218,7 @@ public class PainlessSuggest {
             });
             // 5 - possible end of function body
             fstates.add(fs -> {
-                Token token = fs.ws.tokens.get(fs.ws.current);
+                Token token = fs.ts.tokens.get(fs.ts.current);
                 if (token.getType() == SuggestLexer.LBRACK) {
                     // VALID: increase scope
                     ++fs.brackets;
@@ -240,7 +227,7 @@ public class PainlessSuggest {
                     --fs.brackets;
                     if (fs.brackets == 0) {
                         // VALID: end of function body
-                        fs.functionData.bodyEndToken = fs.ws.current - 1;
+                        fs.functionData.bodyEndToken = fs.ts.current - 1;
                         return 0;
                     }
                 }
@@ -249,7 +236,7 @@ public class PainlessSuggest {
             });
             // 6 - parameter name
             fstates.add(fs -> {
-                Token token = fs.ws.tokens.get(fs.ws.current);
+                Token token = fs.ts.tokens.get(fs.ts.current);
                 if (token.getType() == SuggestLexer.ID) {
                     // VALID: found a parameter name, record parameter type and name
                     fs.functionData.parameterTypes.add(fs.parameterType);
@@ -267,7 +254,7 @@ public class PainlessSuggest {
             });
             // 7 - start of another parameter or end of parameters
             fstates.add(fs -> {
-                Token token = fs.ws.tokens.get(fs.ws.current);
+                Token token = fs.ts.tokens.get(fs.ts.current);
                 if (token.getType() == SuggestLexer.COMMA) {
                     // VALID: found comma, look for another parameter
                     return 8;
@@ -283,7 +270,7 @@ public class PainlessSuggest {
             });
             // 8 - start of another parameter
             fstates.add(fs -> {
-                Token token = fs.ws.tokens.get(fs.ws.current);
+                Token token = fs.ts.tokens.get(fs.ts.current);
                 if (token.getType() == SuggestLexer.ATYPE || token.getType() == SuggestLexer.TYPE) {
                     // VALID: found a parameter type
                     fs.parameterType = token.getText();
@@ -300,29 +287,37 @@ public class PainlessSuggest {
             });
         }
 
-        private static void walk(FunctionState fs) {
-            WalkState ws = fs.ws;
+        protected static void walk(FunctionState fs) {
+            TokenState ts = fs.ts;
 
-            while (ws.current < ws.tokens.size()) {
+            while (ts.current < ts.tokens.size()) {
                 Function<FunctionState, Integer> state = fstates.get(fs.target);
                 fs.target = state.apply(fs);
-                ++ws.current;
+                ++ts.current;
             }
         }
 
         private FunctionMachine() {
-
+            // do not instantiate
         }
     }
 
-    private static class LambdaMachine {
+    /**
+     * LambdaMachine collects information about lambdas by doing a pass through
+     * each token in reverse order. This allows for easier collection of
+     * parameter types and parameter names by using the arrow '->' token as a
+     * sentinel. Skipping the parameters is possible in BlockMachine using the
+     * data collected here.
+     */
+    protected static class LambdaMachine {
 
-        private static class LambdaData {
-            private final List<String> parameterTypes = new ArrayList<>();
-            private final List<String> parameterNames = new ArrayList<>();
+        protected static class LambdaData {
 
-            private int headerStartToken = -1;
-            private int headerEndToken = -1;
+            protected final List<String> parameterTypes = new ArrayList<>();
+            protected final List<String> parameterNames = new ArrayList<>();
+
+            protected int headerStartToken = -1;
+            protected int headerEndToken = -1;
 
             @Override
             public String toString() {
@@ -335,77 +330,87 @@ public class PainlessSuggest {
             }
         }
 
-        private static class LambdaState {
+        protected static class LambdaState {
 
-            private final WalkState ws;
+            protected final TokenState ws;
 
-            private LambdaState(WalkState ws) {
+            protected LambdaState(TokenState ws) {
                 this.ws = ws;
             }
 
-            private int target = 0;
+            protected int target = 0;
 
-            private LambdaData lambdaData;
+            protected LambdaData lambdaData;
 
-            private final List<LambdaMachine.LambdaData> lambdas = new ArrayList<>();
+            protected final List<LambdaMachine.LambdaData> lambdas = new ArrayList<>();
         }
 
-        private static final List<Function<LambdaMachine.LambdaState, Integer>> lstates;
+        protected static final List<Function<LambdaMachine.LambdaState, Integer>> lstates;
 
         static {
             lstates = new ArrayList<>();
 
-            // 0
+            // 0 - possible start of a lambda header
             lstates.add(ls -> {
                 Token token = ls.ws.tokens.get(ls.ws.current);
                 if (token.getType() == SuggestLexer.ARROW) {
+                    // VALID: found start of a lambda header
                     ls.lambdaData = new LambdaData();
                     ls.lambdas.add(ls.lambdaData);
                     ls.lambdaData.headerStartToken = ls.ws.current;
                     ls.lambdaData.headerEndToken = ls.ws.current;
                     return 1;
                 }
+                // VALID: not a start of a lambda header
                 return 0;
             });
-            // 1
+            // 1 - parameter name or start of parameters
             lstates.add(ls -> {
                 Token token = ls.ws.tokens.get(ls.ws.current);
                 if (token.getType() == SuggestLexer.ID) {
+                    // VALID: found a singular parameter name
                     ls.lambdaData.headerStartToken = ls.ws.current;
                     ls.lambdaData.parameterTypes.add("def");
                     ls.lambdaData.parameterNames.add(token.getText());
                 } else if (token.getType() == SuggestLexer.ARROW) {
+                    // ERROR (process): unexpected token, found a possible new start of a lambda header
                     ls.lambdaData = new LambdaData();
                     ls.lambdas.add(ls.lambdaData);
                     ls.lambdaData.headerStartToken = ls.ws.current;
                     ls.lambdaData.headerEndToken = ls.ws.current;
                     return 1;
                 } else if (token.getType() == SuggestLexer.RP) {
+                    // VALID: found a right parenthesis
                     return 2;
                 }
+                // ERROR (ignore): unexpected token, start looking for a new lambda header
                 return 0;
             });
-            // 2
+            // 2 - parameter name or end of parameters
             lstates.add(ls -> {
                 Token token = ls.ws.tokens.get(ls.ws.current);
                 if (token.getType() == SuggestLexer.LP) {
+                    // VALID: found a left parenthesis, end of lambda header
                     ls.lambdaData.headerStartToken = ls.ws.current;
                     return 0;
                 } else if (token.getType() == SuggestLexer.ID) {
+                    // VALID: found a parameter name
                     ls.lambdaData.headerStartToken = ls.ws.current;
                     ls.lambdaData.parameterTypes.add("def");
                     ls.lambdaData.parameterNames.add(token.getText());
                     return 3;
                 } else if (token.getType() == SuggestLexer.ARROW) {
+                    // ERROR (process): unexpected token, found a possible new start of a lambda header
                     ls.lambdaData = new LambdaData();
                     ls.lambdas.add(ls.lambdaData);
                     ls.lambdaData.headerStartToken = ls.ws.current;
                     ls.lambdaData.headerEndToken = ls.ws.current;
                     return 1;
                 }
+                // ERROR (ignore): unexpected token, start looking for a new lambda header
                 return 0;
             });
-            // 3
+            // 3 - parameter type or end of parameters
             lstates.add(ls -> {
                 Token token = ls.ws.tokens.get(ls.ws.current);
                 if (token.getType() == SuggestLexer.LP) {
@@ -445,8 +450,8 @@ public class PainlessSuggest {
             });
         }
 
-        private static void walk(LambdaMachine.LambdaState ls) {
-            WalkState ws = ls.ws;
+        protected static void walk(LambdaMachine.LambdaState ls) {
+            TokenState ws = ls.ws;
             ws.current = ws.tokens.size() - 1;
 
             while (ws.current >= 0) {
@@ -456,32 +461,32 @@ public class PainlessSuggest {
             }
         }
 
-        private LambdaMachine() {
+        protected LambdaMachine() {
 
         }
     }
 
-    private static class BlockMachine {
+    protected static class BlockMachine {
 
-        private static class BlockState {
+        protected static class BlockState {
 
-            private static class BlockScope {
+            protected static class BlockScope {
 
-                private final BlockScope parent;
+                protected final BlockScope parent;
 
-                private int type;
-                private int sentinel;
-                private boolean pop = false;
-                private int parens = 0;
-                private int braces = 0;
+                protected int type;
+                protected int sentinel;
+                protected boolean pop = false;
+                protected int parens = 0;
+                protected int braces = 0;
 
-                private final Map<String, String> variables = new HashMap<>();
-                private int decltarget = 0;
-                private String decltype = null;
-                private int declparens = 0;
-                private int declbraces = 0;
+                protected final Map<String, String> variables = new HashMap<>();
+                protected int decltarget = 0;
+                protected String decltype = null;
+                protected int declparens = 0;
+                protected int declbraces = 0;
 
-                private BlockScope(BlockScope parent, int type, int sentinel) {
+                protected BlockScope(BlockScope parent, int type, int sentinel) {
                     this.parent = parent;
                     this.type = type;
                     this.sentinel = sentinel;
@@ -516,18 +521,18 @@ public class PainlessSuggest {
                 }
             }
 
-            private final WalkState ws;
-            private final Map<Integer, LambdaMachine.LambdaData> mld;
+            protected final TokenState ws;
+            protected final Map<Integer, LambdaMachine.LambdaData> mld;
 
-            private BlockScope scope = new BlockScope(null, SuggestLexer.EOF, SuggestLexer.EOF);
+            protected BlockScope scope = new BlockScope(null, SuggestLexer.EOF, SuggestLexer.EOF);
 
-            private BlockState(WalkState ws, Map<Integer, LambdaMachine.LambdaData> mld) {
+            protected BlockState(TokenState ws, Map<Integer, LambdaMachine.LambdaData> mld) {
                 this.ws = ws;
                 this.mld = mld;
             }
         }
 
-        private static final List<Function<BlockState, Integer>> declstates;
+        protected static final List<Function<BlockState, Integer>> declstates;
 
         static {
             declstates = new ArrayList<>();
@@ -595,8 +600,8 @@ public class PainlessSuggest {
             });
         }
 
-        private static void scope(BlockState bs, StringBuilder builder) {
-            WalkState ws = bs.ws;
+        protected static void scope(BlockState bs, StringBuilder builder) {
+            TokenState ws = bs.ws;
 
             int token = ws.tokens.get(ws.current).getType();
             int prev = ws.current > 0 ? ws.tokens.get(ws.current - 1).getType() : SuggestLexer.EOF;
@@ -674,8 +679,8 @@ public class PainlessSuggest {
             }
         }
 
-        private static void walk(BlockState bs, StringBuilder builder) {
-            WalkState ws = bs.ws;
+        protected static void walk(BlockState bs, StringBuilder builder) {
+            TokenState ws = bs.ws;
 
             // DEBUG
             String previous = "[EOF : EOF]";
@@ -702,32 +707,32 @@ public class PainlessSuggest {
             }
         }
 
-        private BlockMachine() {
+        protected BlockMachine() {
 
         }
     }
 
-    private static class Segment {
+    protected static class Segment {
 
-        private static final int RESOLVE = 1 << 0;
-        private static final int SUGGEST = 1 << 1;
-        private static final int ID = 1 << 2;
-        private static final int TYPE = 1 << 3;
-        private static final int CALL = 1 << 4;
-        private static final int STATIC = 1 << 5;
-        private static final int METHOD = 1 << 6;
-        private static final int FIELD = 1 << 7;
-        private static final int CONSTRUCTOR = 1 << 8;
-        private static final int INDEX = 1 << 9;
-        private static final int NUMBER = 1 << 10;
-        private static final int PARAMETERS = 1 << 12;
+        protected static final int RESOLVE = 1 << 0;
+        protected static final int SUGGEST = 1 << 1;
+        protected static final int ID = 1 << 2;
+        protected static final int TYPE = 1 << 3;
+        protected static final int CALL = 1 << 4;
+        protected static final int STATIC = 1 << 5;
+        protected static final int METHOD = 1 << 6;
+        protected static final int FIELD = 1 << 7;
+        protected static final int CONSTRUCTOR = 1 << 8;
+        protected static final int INDEX = 1 << 9;
+        protected static final int NUMBER = 1 << 10;
+        protected static final int PARAMETERS = 1 << 12;
 
-        private Segment child;
-        private int modifiers;
-        private String text;
-        private int arity;
+        protected Segment child;
+        protected int modifiers;
+        protected String text;
+        protected int arity;
 
-        private Segment(Segment child, int modifiers, String text, int arity) {
+        protected Segment(Segment child, int modifiers, String text, int arity) {
             this.child = child;
             this.modifiers = modifiers;
             this.text = text;
@@ -786,17 +791,17 @@ public class PainlessSuggest {
         }
     }
 
-    private static class AccessMachine {
+    protected static class AccessMachine {
 
-        private static class AccessState {
+        protected static class AccessState {
 
-            private final WalkState ws;
+            protected final TokenState ws;
 
-            private AccessState(WalkState ws) {
+            protected AccessState(TokenState ws) {
                 this.ws = ws;
             }
 
-            private int target = 0;
+            protected int target = 0;
             Segment segment;
 
             int brackets = 0;
@@ -804,7 +809,7 @@ public class PainlessSuggest {
             int braces = 0;
         }
 
-        private static final List<Function<AccessState, Integer>> astates;
+        protected static final List<Function<AccessState, Integer>> astates;
 
         static {
             astates = new ArrayList<>();
@@ -996,8 +1001,8 @@ public class PainlessSuggest {
             });
         }
 
-        private static void walk(AccessMachine.AccessState as, StringBuilder debug) {
-            WalkState ws = as.ws;
+        protected static void walk(AccessMachine.AccessState as, StringBuilder debug) {
+            TokenState ws = as.ws;
             ws.current = ws.tokens.size() - 1;
 
             while (ws.current >= 0) {
@@ -1016,7 +1021,7 @@ public class PainlessSuggest {
             }
         }
 
-        private AccessMachine() {
+        protected AccessMachine() {
 
         }
     }
@@ -1029,17 +1034,17 @@ public class PainlessSuggest {
         return new PainlessSuggest(lookup, info, lexer.getAllTokens()).suggest();
     }
 
-    private final PainlessLookup lookup;
-    private final ScriptClassInfo info;
-    private final List<? extends Token> tokens;
+    protected final PainlessLookup lookup;
+    protected final ScriptClassInfo info;
+    protected final List<? extends Token> tokens;
 
-    private PainlessSuggest(PainlessLookup lookup, ScriptClassInfo info, List<? extends Token> tokens) {
+    protected PainlessSuggest(PainlessLookup lookup, ScriptClassInfo info, List<? extends Token> tokens) {
         this.lookup = Objects.requireNonNull(lookup);
         this.info = Objects.requireNonNull(info);
         this.tokens = Collections.unmodifiableList(Objects.requireNonNull(tokens));
     }
 
-    private List<Suggestion> collect(Map<String, String> functions, Map<String, String> variables, Segment segment) {
+    protected List<Suggestion> collect(Map<String, String> functions, Map<String, String> variables, Segment segment) {
 
         Class<?> resolved = null;
 
@@ -1256,8 +1261,8 @@ public class PainlessSuggest {
         return suggestions;
     }
 
-    private List<Suggestion> suggest() {
-        FunctionMachine.FunctionState fs = new FunctionMachine.FunctionState(new WalkState(this.tokens));
+    protected List<Suggestion> suggest() {
+        FunctionMachine.FunctionState fs = new FunctionMachine.FunctionState(new TokenState(this.tokens));
         FunctionMachine.walk(fs);
 
         FunctionMachine.FunctionData fd = fs.functions.isEmpty() ? null : fs.functions.get(fs.functions.size() - 1);
@@ -1274,7 +1279,7 @@ public class PainlessSuggest {
 
         List<? extends Token> tokens = this.tokens.subList(start, this.tokens.size());
 
-        LambdaMachine.LambdaState ls = new LambdaMachine.LambdaState(new WalkState(tokens));
+        LambdaMachine.LambdaState ls = new LambdaMachine.LambdaState(new TokenState(tokens));
         LambdaMachine.walk(ls);
 
         Map<Integer, LambdaMachine.LambdaData> mld = new HashMap<>();
@@ -1284,10 +1289,10 @@ public class PainlessSuggest {
         }
 
         StringBuilder builder = new StringBuilder();
-        BlockMachine.BlockState bs = new BlockMachine.BlockState(new WalkState(tokens), mld);
+        BlockMachine.BlockState bs = new BlockMachine.BlockState(new TokenState(tokens), mld);
         BlockMachine.walk(bs, builder);
 
-        AccessMachine.AccessState as = new AccessMachine.AccessState(new WalkState(tokens));
+        AccessMachine.AccessState as = new AccessMachine.AccessState(new TokenState(tokens));
         AccessMachine.walk(as, builder);
 
         List<Suggestion> suggestions = new ArrayList<>();

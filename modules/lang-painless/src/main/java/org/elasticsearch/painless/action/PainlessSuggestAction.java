@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -237,7 +238,8 @@ public class PainlessSuggestAction extends ActionType<PainlessSuggestAction.Resp
             }
 
             ScriptClassInfo info = new ScriptClassInfo(lookup, script);
-            List<Suggestion> suggestions = PainlessSuggest.suggest(lookup, info, source);
+            List<Suggestion> suggestions = PainlessSuggest.suggest(lookup, info, source).stream().map(
+                    s -> new Suggestion(s.type, s.text)).collect(Collectors.toList());
 
             listener.onResponse(new Response(suggestions));
         }
@@ -259,6 +261,69 @@ public class PainlessSuggestAction extends ActionType<PainlessSuggestAction.Resp
         protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
             Request request = Request.parse(restRequest.contentOrSourceParamParser());
             return channel -> client.executeLocally(INSTANCE, request, new RestToXContentListener<>(channel));
+        }
+    }
+
+    public static class Suggestion implements Writeable, ToXContentObject {
+
+        private static final ParseField TYPE_FIELD = new ParseField("type");
+        private static final ParseField TEXT_FIELD = new ParseField("text");
+
+        private final String type;
+        private final String text;
+
+        public Suggestion(String type, String text) {
+            this.type = type;
+            this.text = text;
+        }
+
+        public Suggestion(StreamInput in) throws IOException {
+            this.type = in.readString();
+            this.text = in.readString();
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public String getText() {
+            return text;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(this.type);
+            out.writeString(this.text);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(TYPE_FIELD.getPreferredName(), type);
+            builder.field(TEXT_FIELD.getPreferredName(), text);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Suggestion that = (Suggestion)o;
+            return Objects.equals(type, that.type) && Objects.equals(text, that.text);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type, text);
+        }
+
+        @Override
+        public String toString() {
+            return "Suggestion{" +
+                    "type='" + type + '\'' +
+                    ", text='" + text + '\'' +
+                    '}';
         }
     }
 }

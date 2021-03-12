@@ -309,9 +309,8 @@
   - match: { nodes.$node_id.http.clients.0.remote_address: "/.*/" }
   - is_true:  nodes.$node_id.http.clients.0.last_uri
   - gte: { nodes.$node_id.http.clients.0.opened_time_millis: 1614028911317 }
-  - gte: { nodes.$node_id.http.clients.0.closed_time_millis: -1 }
   - gte: { nodes.$node_id.http.clients.0.last_request_time_millis: 1614028911317 }
   - gte: { nodes.$node_id.http.clients.0.request_count: 1 }
   - gte: { nodes.$node_id.http.clients.0.request_size_bytes: 0 }
-  - match: { nodes.$node_id.http.clients.0.x_forwarded_for: "/.*/" }
-  - match: { nodes.$node_id.http.clients.0.x_opaque_id: "/.*/" }
+  # values for clients.0.closed_time_millis, clients.0.x_forwarded_for, and clients.0.x_opaque_id are often
+  # null and cannot be tested here

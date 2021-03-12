@@ -31,7 +31,7 @@ PUT /my-index-000001
 GET /my-index-000001/_search
 {
   "sort" : [
-    { "post_date" : {"order" : "asc"}},
+    { "post_date" : {"order" : "asc", "format": "strict_date_optional_time_nanos"}},
     "user",
     { "name" : "desc" },
     { "age" : "desc" },
@@ -51,8 +51,25 @@ should sort by `_doc`. This especially helps when <<scroll-search-results,scroll
 [discrete]
 === Sort Values
 
-The sort values for each document returned are also returned as part of
-the response.
+The sort values for each document returned are also returned as part of the response.
+The returned sort values of a <<date,`date`>> or <<date_nanos,`date_nanos`>> field
+can be formatted using a <<mapping-date-format, date format>> configured via the `format`
+parameter. In the example below the returned sort value of the `post_date` field will be
+formatted using the builtin format `strict_date_optional_time_nanos`.
+
+[source,console]
+--------------------------------------------------
+GET /my-index-000001/_search
+{
+  "sort" : [
+    { "post_date" : {"format": "strict_date_optional_time_nanos"}}
+  ],
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
 
 [discrete]
 === Sort Order

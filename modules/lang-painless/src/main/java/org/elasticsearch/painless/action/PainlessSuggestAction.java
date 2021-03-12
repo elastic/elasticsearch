@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.painless.PainlessScriptEngine;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
-import org.elasticsearch.painless.action.PainlessSuggest.Suggestion;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;

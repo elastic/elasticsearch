@@ -55,4 +55,3 @@ the https://github.com/elastic/elasticsearch/blob/{branch}/x-pack/plugin/core/sr
 By default, audit information is appended to the
 `<clustername>_audit.json` file located in the standard Elasticsearch `logs` directory
 (typically located at `$ES_HOME/logs`).
-The file is also rotated and archived daily or upon reaching the 1GB file size limit.

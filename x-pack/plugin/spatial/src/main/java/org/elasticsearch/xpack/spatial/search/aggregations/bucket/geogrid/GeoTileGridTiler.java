@@ -61,13 +61,14 @@ public class GeoTileGridTiler implements GeoGridTiler {
         int minYTile = GeoTileUtils.getYTile(bounds.maxY(), (long) tiles);
         int maxXTile = GeoTileUtils.getXTile(bounds.maxX(), (long) tiles);
         int maxYTile = GeoTileUtils.getYTile(bounds.minY(), (long) tiles);
-        int count = (maxXTile - minXTile + 1) * (maxYTile - minYTile + 1);
+        long count = (long) (maxXTile - minXTile + 1) * (maxYTile - minYTile + 1);
         if (count == 1) {
             return setValue(values, geoValue, minXTile, minYTile, precision);
         } else if (count <= precision) {
             return setValuesByBruteForceScan(values, geoValue, precision, minXTile, minYTile, maxXTile, maxYTile);
         } else {
-            return setValuesByRasterization(0, 0, 0, values, 0, precision, geoValue);
+            final long maxtiles = getMaxTilesAtPrecision(precision);
+            return setValuesByRasterization(0, 0, 0, values, 0, precision, geoValue, maxtiles);
         }
     }
 
@@ -109,7 +110,7 @@ public class GeoTileGridTiler implements GeoGridTiler {
     }
 
     protected int setValuesByRasterization(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex,
-                                           int targetPrecision, GeoShapeValues.GeoShapeValue geoValue) {
+                                           int targetPrecision, GeoShapeValues.GeoShapeValue geoValue, long maxtiles) {
         zTile++;
         for (int i = 0; i < 2; i++) {
             for (int j = 0; j < 2; j++) {
@@ -118,24 +119,45 @@ public class GeoTileGridTiler implements GeoGridTiler {
                 GeoRelation relation = relateTile(geoValue, nextX, nextY, zTile);
                 if (GeoRelation.QUERY_INSIDE == relation) {
                     if (zTile == targetPrecision) {
-                        values.resizeCell(valuesIndex + 1);
+                        values.resizeCell(getNewSize(valuesIndex, 1));
                         values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
                     } else {
-                        final int numTilesAtPrecision  = 1 << (2 * (targetPrecision - zTile));
-                        values.resizeCell(valuesIndex + numTilesAtPrecision + 1);
+                        int numTilesAtPrecision = getNumTilesAtPrecision(targetPrecision, zTile, maxtiles);
+                        values.resizeCell(getNewSize(valuesIndex, numTilesAtPrecision + 1));
                         valuesIndex = setValuesForFullyContainedTile(nextX, nextY, zTile, values, valuesIndex, targetPrecision);
                     }
                 } else if (GeoRelation.QUERY_CROSSES == relation) {
                     if (zTile == targetPrecision) {
-                        values.resizeCell(valuesIndex + 1);
+                        values.resizeCell(getNewSize(valuesIndex, 1));
                         values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
                     } else {
-                        valuesIndex = setValuesByRasterization(nextX, nextY, zTile, values, valuesIndex, targetPrecision, geoValue);
+                        valuesIndex =
+                            setValuesByRasterization(nextX, nextY, zTile, values, valuesIndex, targetPrecision, geoValue, maxtiles);
                     }
                 }
             }
         }
         return valuesIndex;
+    }
+
+    private int getNewSize(int valuesIndex, int increment) {
+        long newSize  = (long) valuesIndex + increment;
+        if (newSize > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Tile aggregation array overflow");
+        }
+        return (int) newSize;
+    }
+
+    private int getNumTilesAtPrecision(int finalPrecision, int currentPrecision, long maxtiles) {
+        final long numTilesAtPrecision  = Math.min(1L << (2 * (finalPrecision - currentPrecision)), maxtiles);
+        if (numTilesAtPrecision > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Tile aggregation array overflow");
+        }
+        return (int) numTilesAtPrecision;
+    }
+
+    protected long getMaxTilesAtPrecision(int finalPrecision) {
+        return Long.MAX_VALUE;
     }
 
     protected int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex,
@@ -153,5 +175,19 @@ public class GeoTileGridTiler implements GeoGridTiler {
             }
         }
         return valuesIndex;
+    }
+
+    /**
+     * Return the number of tiles contained in the provided bounding box at the given zoom level
+     */
+    protected static long numTilesFromPrecision(int zoom, double minX, double maxX, double minY, double maxY) {
+        final long tiles = 1L << zoom;
+        final double xDeltaPrecision = 360.0 / (10 * tiles);
+        final double yHalfPrecision = 180.0 / (10 * tiles);
+        final int minXTile = GeoTileUtils.getXTile(Math.max(-180, minX - xDeltaPrecision), tiles);
+        final int minYTile = GeoTileUtils.getYTile(maxY + yHalfPrecision, tiles);
+        final int maxXTile = GeoTileUtils.getXTile(Math.min(180, maxX + xDeltaPrecision), tiles);
+        final int maxYTile = GeoTileUtils.getYTile(minY - yHalfPrecision, tiles);
+        return (long) (maxXTile - minXTile + 1) * (maxYTile - minYTile + 1);
     }
 }

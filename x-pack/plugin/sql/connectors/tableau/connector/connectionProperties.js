@@ -10,7 +10,6 @@
         for (var i = 0; i < avps.length; i++) {
             var tokens = avps[i].split("=");
             if (tokens.length != 2 || tokens[0].length == 0 || tokens[1].length == 0) {
-                logging.log("Malformed attribute-value pair: [" + avps[i] + "] in additional params: [" + extraProps + "]");
                 var errMessage = "Invalid additional settings property `" + avps[i] + "`: " +
                     "not conforming to the attribute=value format."
                 return connectionHelper.ThrowTableauException(errMessage);

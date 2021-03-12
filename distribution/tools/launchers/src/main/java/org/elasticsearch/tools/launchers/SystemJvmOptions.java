@@ -56,7 +56,8 @@ final class SystemJvmOptions {
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
 
-                javaLocaleProviders()
+                javaLocaleProviders(),
+                maybeAddOpensJavaIoToAllUnnamed()
             )
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }
@@ -85,6 +86,21 @@ final class SystemJvmOptions {
         } else {
             return "-Djava.locale.providers=SPI,COMPAT";
         }
+    }
+
+    private static String maybeAddOpensJavaIoToAllUnnamed() {
+        /*
+         * Temporarily suppress illegal reflective access in searchable snapshots shared cache preallocation; this is temporary while we
+         * explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
+         *
+         * TODO: either modularlize Elasticsearch so that we can limit the opening of this module, or find an alternative
+         */
+        if (JavaVersion.majorVersion(JavaVersion.CURRENT) >= 9) {
+            return "--add-opens=java.base/java.io=ALL-UNNAMED";
+        } else {
+            return "";
+        }
+
     }
 
 }

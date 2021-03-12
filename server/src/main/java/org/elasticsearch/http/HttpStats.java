@@ -133,12 +133,12 @@ public class HttpStats implements Writeable, ToXContentFragment {
 
         ClientStats(StreamInput in) throws IOException {
             this.id = in.readInt();
-            this.agent = in.readString();
+            this.agent = in.readOptionalString();
             this.localAddress = in.readString();
             this.remoteAddress = in.readString();
             this.lastUri = in.readString();
-            this.forwardedFor = in.readString();
-            this.opaqueId = in.readString();
+            this.forwardedFor = in.readOptionalString();
+            this.opaqueId = in.readOptionalString();
             this.openedTimeMillis = in.readLong();
             this.closedTimeMillis = in.readLong();
             this.lastRequestTimeMillis = in.readLong();
@@ -175,12 +175,12 @@ public class HttpStats implements Writeable, ToXContentFragment {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(id);
-            out.writeString(agent);
+            out.writeOptionalString(agent);
             out.writeString(localAddress);
             out.writeString(remoteAddress);
             out.writeString(lastUri);
-            out.writeString(forwardedFor);
-            out.writeString(opaqueId);
+            out.writeOptionalString(forwardedFor);
+            out.writeOptionalString(opaqueId);
             out.writeLong(openedTimeMillis);
             out.writeLong(closedTimeMillis);
             out.writeLong(lastRequestTimeMillis);

@@ -12,6 +12,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -19,6 +21,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
@@ -54,6 +57,20 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
     }
 
     @Override
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                InternalVariableWidthHistogram.EmptyBucketInfo emptyBucketInfo = new InternalVariableWidthHistogram.EmptyBucketInfo(
+                    buildEmptySubAggregations()
+                );
+                return new InternalVariableWidthHistogram(name(), Collections.emptyList(), emptyBucketInfo,
+                    numBuckets, config.format(), metadata());
+            }
+        };
+    }
+
+    @Override
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
         if (cardinality != CardinalityUpperBound.ONE) {
@@ -65,11 +82,5 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
         }
         return aggregatorSupplier
             .build(name, factories, numBuckets, shardSize, initialBuffer, config, context, parent, metadata);
-    }
-
-    @Override
-    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new VariableWidthHistogramAggregator(name, factories, numBuckets, shardSize, initialBuffer, config,
-            context, parent, metadata);
     }
 }

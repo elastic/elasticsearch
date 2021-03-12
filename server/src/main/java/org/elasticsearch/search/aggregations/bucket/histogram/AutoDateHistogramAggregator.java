@@ -113,8 +113,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         super(name, factories, context, parent, metadata);
         this.targetBuckets = targetBuckets;
-        // TODO: Remove null usage here, by using a different aggregator for create
-        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.formatter = valuesSourceConfig.format();
         this.roundingInfos = roundingInfos;
         this.roundingPreparer = valuesSourceConfig.roundingPreparer();
@@ -122,7 +122,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     @Override
     public final ScoreMode scoreMode() {
-        if (valuesSource != null && valuesSource.needsScores()) {
+        if (valuesSource.needsScores()) {
             return ScoreMode.COMPLETE;
         }
         return super.scoreMode();
@@ -143,9 +143,6 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     @Override
     public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
         return getLeafCollector(valuesSource.longValues(ctx), sub);
     }
 

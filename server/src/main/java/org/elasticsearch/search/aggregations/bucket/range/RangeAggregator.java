@@ -490,7 +490,6 @@ public abstract class RangeAggregator extends BucketsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, context, parent, cardinality.multiply(ranges.length), metadata);
-        assert valuesSource != null;
         this.valuesSource = valuesSource;
         this.format = format;
         this.keyed = keyed;
@@ -502,7 +501,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
 
     @Override
     public ScoreMode scoreMode() {
-        if (valuesSource != null && valuesSource.needsScores()) {
+        if (valuesSource.needsScores()) {
             return ScoreMode.COMPLETE;
         }
         return super.scoreMode();

@@ -13,6 +13,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -20,8 +22,12 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds.getEffectiveMax;
+import static org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds.getEffectiveMin;
 
 /**
  * Constructs the per-shard aggregator instance for histogram aggregation.  Selects the numeric or range field implementation based on the
@@ -77,6 +83,22 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                InternalHistogram.EmptyBucketInfo emptyBucketInfo = null;
+                if (minDocCount == 0) {
+                    emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(interval, offset, getEffectiveMin(extendedBounds),
+                        getEffectiveMax(extendedBounds), buildEmptySubAggregations());
+                }
+                return new InternalHistogram(name, Collections.emptyList(), order, minDocCount,
+                    emptyBucketInfo, config.format(), keyed, metadata());
+            }
+        };
+    }
+
+    @Override
     protected Aggregator doCreateInternal(Aggregator parent,
                                           CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
@@ -97,11 +119,5 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                 cardinality,
                 metadata
             );
-    }
-
-    @Override
-    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, extendedBounds,
-            hardBounds, config, context, parent, CardinalityUpperBound.NONE, metadata);
     }
 }

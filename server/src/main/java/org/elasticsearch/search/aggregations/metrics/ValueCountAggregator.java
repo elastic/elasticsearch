@@ -45,20 +45,15 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
             Aggregator parent,
             Map<String, Object> metadata) throws IOException {
         super(name, aggregationContext, parent, metadata);
-        // TODO: stop expecting nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
-        if (valuesSource != null) {
-            counts = bigArrays().newLongArray(1, true);
-        }
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = valuesSourceConfig.getValuesSource();
+
+        counts = bigArrays().newLongArray(1, true);
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-
         if (valuesSource instanceof ValuesSource.Numeric) {
             final SortedNumericDocValues values = ((ValuesSource.Numeric)valuesSource).longValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
@@ -102,12 +97,12 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        return (valuesSource == null || owningBucketOrd >= counts.size()) ? 0 : counts.get(owningBucketOrd);
+        return (owningBucketOrd >= counts.size()) ? 0 : counts.get(owningBucketOrd);
     }
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= counts.size()) {
+        if (bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
         return new InternalValueCount(name, counts.get(bucket), metadata());
@@ -115,7 +110,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override

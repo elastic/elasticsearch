@@ -62,8 +62,8 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
             cardinality,
             metadata
         );
-        // TODO: Stop using nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Range) valuesSourceConfig.getValuesSource() : null;
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (ValuesSource.Range) valuesSourceConfig.getValuesSource();
         if (this.valuesSource.rangeType().isNumeric() == false) {
             throw new IllegalArgumentException(
                 "Expected numeric range type but found non-numeric range [" + this.valuesSource.rangeType().name + "]"
@@ -73,9 +73,6 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
         final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
         final RangeType rangeType = valuesSource.rangeType();
         return new LeafBucketCollectorBase(sub, values) {

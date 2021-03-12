@@ -244,8 +244,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
         this.hardBounds = hardBounds;
-        // TODO: Stop using null here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.formatter = valuesSourceConfig.format();
 
         bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
@@ -253,7 +253,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
     @Override
     public ScoreMode scoreMode() {
-        if (valuesSource != null && valuesSource.needsScores()) {
+        if (valuesSource.needsScores()) {
             return ScoreMode.COMPLETE;
         }
         return super.scoreMode();
@@ -261,9 +261,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
         SortedNumericDocValues values = valuesSource.longValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override

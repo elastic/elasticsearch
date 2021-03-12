@@ -65,13 +65,13 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
             cardinalityUpperBound,
             metadata
         );
-        // TODO: Stop using null here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
     }
 
     @Override
     public ScoreMode scoreMode() {
-        if (valuesSource != null && valuesSource.needsScores()) {
+        if (valuesSource.needsScores()) {
             return ScoreMode.COMPLETE;
         }
         return super.scoreMode();
@@ -80,10 +80,6 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override

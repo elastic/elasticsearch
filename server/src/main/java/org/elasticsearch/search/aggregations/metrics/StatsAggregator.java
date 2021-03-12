@@ -45,31 +45,27 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        // TODO: stop using nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
-        if (valuesSource != null) {
-            counts = bigArrays().newLongArray(1, true);
-            sums = bigArrays().newDoubleArray(1, true);
-            compensations = bigArrays().newDoubleArray(1, true);
-            mins = bigArrays().newDoubleArray(1, false);
-            mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
-            maxes = bigArrays().newDoubleArray(1, false);
-            maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
-        }
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
+
+        counts = bigArrays().newLongArray(1, true);
+        sums = bigArrays().newDoubleArray(1, true);
+        compensations = bigArrays().newDoubleArray(1, true);
+        mins = bigArrays().newDoubleArray(1, false);
+        mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
+        maxes = bigArrays().newDoubleArray(1, false);
+        maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         this.format = valuesSourceConfig.format();
     }
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
@@ -126,7 +122,7 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public double metric(String name, long owningBucketOrd) {
-        if (valuesSource == null || owningBucketOrd >= counts.size()) {
+        if (owningBucketOrd >= counts.size()) {
             switch(InternalStats.Metrics.resolve(name)) {
                 case count: return 0;
                 case sum: return 0;
@@ -150,7 +146,7 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= sums.size()) {
+        if (bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
         return new InternalStats(name, counts.get(bucket), sums.get(bucket), mins.get(bucket),

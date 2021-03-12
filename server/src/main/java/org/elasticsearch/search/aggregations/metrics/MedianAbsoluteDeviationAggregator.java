@@ -68,7 +68,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
     @Override
     public ScoreMode scoreMode() {
-        if (valuesSource != null && valuesSource.needsScores()) {
+        if (valuesSource.needsScores()) {
             return ScoreMode.COMPLETE;
         } else {
             return ScoreMode.COMPLETE_NO_SCORES;
@@ -77,10 +77,6 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
 
         return new LeafBucketCollectorBase(sub, values) {

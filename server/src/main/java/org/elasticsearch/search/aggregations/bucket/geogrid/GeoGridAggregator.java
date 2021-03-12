@@ -50,7 +50,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
 
     @Override
     public ScoreMode scoreMode() {
-        if (valuesSource != null && valuesSource.needsScores()) {
+        if (valuesSource.needsScores()) {
             return ScoreMode.COMPLETE;
         }
         return super.scoreMode();

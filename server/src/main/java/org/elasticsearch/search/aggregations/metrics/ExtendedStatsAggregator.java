@@ -52,35 +52,31 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        // TODO: stop depending on nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.format = valuesSourceConfig.format();
         this.sigma = sigma;
-        if (valuesSource != null) {
-            final BigArrays bigArrays = context.bigArrays();
-            counts = bigArrays.newLongArray(1, true);
-            sums = bigArrays.newDoubleArray(1, true);
-            compensations = bigArrays.newDoubleArray(1, true);
-            mins = bigArrays.newDoubleArray(1, false);
-            mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
-            maxes = bigArrays.newDoubleArray(1, false);
-            maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
-            sumOfSqrs = bigArrays.newDoubleArray(1, true);
-            compensationOfSqrs = bigArrays.newDoubleArray(1, true);
-        }
+
+        final BigArrays bigArrays = context.bigArrays();
+        counts = bigArrays.newLongArray(1, true);
+        sums = bigArrays.newDoubleArray(1, true);
+        compensations = bigArrays.newDoubleArray(1, true);
+        mins = bigArrays.newDoubleArray(1, false);
+        mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
+        maxes = bigArrays.newDoubleArray(1, false);
+        maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
+        sumOfSqrs = bigArrays.newDoubleArray(1, true);
+        compensationOfSqrs = bigArrays.newDoubleArray(1, true);
     }
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum compensatedSum = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumOfSqr = new CompensatedSum(0, 0);
@@ -149,7 +145,7 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public double metric(String name, long owningBucketOrd) {
-        if (valuesSource == null || owningBucketOrd >= counts.size()) {
+        if (owningBucketOrd >= counts.size()) {
             switch(InternalExtendedStats.Metrics.resolve(name)) {
                 case count: return 0;
                 case sum: return 0;
@@ -211,7 +207,7 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= counts.size()) {
+        if (bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
         return new InternalExtendedStats(name, counts.get(bucket), sums.get(bucket),

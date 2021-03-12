@@ -66,23 +66,18 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             Aggregator parent,
             Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
-        // TODO: Stop using nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = valuesSourceConfig.getValuesSource();
         this.precision = precision;
-        this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+        this.counts = new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
     }
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     private Collector pickCollector(LeafReaderContext ctx) throws IOException {
-        if (valuesSource == null) {
-            emptyCollectorsUsed++;
-            return new EmptyCollector();
-        }
-
         if (valuesSource instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric source = (ValuesSource.Numeric) valuesSource;
             MurmurHash3Values hashValues = source.isFloatingPoint() ?

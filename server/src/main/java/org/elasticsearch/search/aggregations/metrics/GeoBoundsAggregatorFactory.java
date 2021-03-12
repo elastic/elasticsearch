@@ -12,6 +12,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -39,9 +41,16 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
         this.aggregatorSupplier = aggregatorSupplier;
     }
 
+
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new GeoBoundsAggregator(name, context, parent, config, wrapLongitude, metadata);
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                return new InternalGeoBounds(name, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
+                    Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, wrapLongitude, metadata());
+            }
+        };
     }
 
     @Override

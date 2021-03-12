@@ -89,8 +89,9 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
         this.hardBounds = hardBounds;
-        // TODO: Stop using null here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Range) valuesSourceConfig.getValuesSource() : null;
+
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (ValuesSource.Range) valuesSourceConfig.getValuesSource();
         this.formatter = valuesSourceConfig.format();
         if (this.valuesSource.rangeType() != RangeType.DATE) {
             throw new IllegalArgumentException("Expected date range type but found range type [" + this.valuesSource.rangeType().name
@@ -102,7 +103,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
 
     @Override
     public ScoreMode scoreMode() {
-        if (valuesSource != null && valuesSource.needsScores()) {
+        if (valuesSource.needsScores()) {
             return ScoreMode.COMPLETE;
         }
         return super.scoreMode();
@@ -110,9 +111,6 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
         SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
         RangeType rangeType = valuesSource.rangeType();
         return new LeafBucketCollectorBase(sub, values) {

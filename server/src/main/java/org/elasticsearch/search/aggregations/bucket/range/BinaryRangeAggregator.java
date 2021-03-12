@@ -80,7 +80,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
 
     @Override
     public ScoreMode scoreMode() {
-        if (valuesSource != null && valuesSource.needsScores()) {
+        if (valuesSource.needsScores()) {
             return ScoreMode.COMPLETE;
         }
         return super.scoreMode();
@@ -88,9 +88,6 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
         if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
             SortedSetDocValues values = ((ValuesSource.Bytes.WithOrdinals) valuesSource).ordinalsValues(ctx);
             return new SortedSetRangeLeafCollector(values, ranges, sub) {

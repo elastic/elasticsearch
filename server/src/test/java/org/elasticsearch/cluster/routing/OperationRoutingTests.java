@@ -635,4 +635,60 @@ public class OperationRoutingTests extends ESTestCase{
         terminate(threadPool);
     }
 
+    public void testARSOutstandingRequestTracking() throws Exception {
+        int numIndices = 1;
+        int numShards = 2;
+        int numReplicas = 1;
+        String[] indexNames = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indexNames[i] = "test" + i;
+        }
+
+        ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(indexNames, numShards, numReplicas);
+        OperationRouting opRouting = new OperationRouting(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        opRouting.setUseAdaptiveReplicaSelection(true);
+        TestThreadPool threadPool = new TestThreadPool("test");
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+        ResponseCollectorService collector = new ResponseCollectorService(clusterService);
+
+        // We have two nodes with very similar statistics
+        collector.addNodeStatistics("node_0", 1, TimeValue.timeValueMillis(50).nanos(), TimeValue.timeValueMillis(40).nanos());
+        collector.addNodeStatistics("node_1", 1, TimeValue.timeValueMillis(51).nanos(), TimeValue.timeValueMillis(40).nanos());
+        Map<String, Long> outstandingRequests = new HashMap<>();
+        outstandingRequests.put("node_0", 1L);
+        outstandingRequests.put("node_1", 1L);
+
+        // Check that we choose to search over both nodes
+        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
+            state, indexNames, null, null, collector, outstandingRequests);
+
+        Set<String> nodeIds = new HashSet<>();
+        nodeIds.add(groupIterator.get(0).nextOrNull().currentNodeId());
+        nodeIds.add(groupIterator.get(1).nextOrNull().currentNodeId());
+        assertThat(nodeIds, equalTo(Set.of("node_0", "node_1")));
+        assertThat(outstandingRequests.get("node_0"), equalTo(2L));
+        assertThat(outstandingRequests.get("node_1"), equalTo(2L));
+
+        // The first node becomes much more loaded
+        collector.addNodeStatistics("node_0", 5, TimeValue.timeValueMillis(300).nanos(), TimeValue.timeValueMillis(200).nanos());
+        outstandingRequests = new HashMap<>();
+        outstandingRequests.put("node_0", 1L);
+        outstandingRequests.put("node_1", 1L);
+
+        // Check that we always choose the second node
+        groupIterator = opRouting.searchShards(
+            state, indexNames, null, null, collector, outstandingRequests);
+
+        nodeIds = new HashSet<>();
+        nodeIds.add(groupIterator.get(0).nextOrNull().currentNodeId());
+        nodeIds.add(groupIterator.get(1).nextOrNull().currentNodeId());
+        assertThat(nodeIds, equalTo(Set.of("node_1")));
+        assertThat(outstandingRequests.get("node_1"), equalTo(3L));
+
+        IOUtils.close(clusterService);
+        terminate(threadPool);
+    }
+
 }

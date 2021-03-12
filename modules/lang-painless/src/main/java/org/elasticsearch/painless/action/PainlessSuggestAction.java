@@ -238,8 +238,8 @@ public class PainlessSuggestAction extends ActionType<PainlessSuggestAction.Resp
             }
 
             ScriptClassInfo info = new ScriptClassInfo(lookup, script);
-            List<Suggestion> suggestions = PainlessSuggest.suggest(lookup, info, source).stream().map(
-                    s -> new Suggestion(s.type, s.text)).collect(Collectors.toList());
+            List<Suggestion> suggestions = PainlessSuggest.suggest(lookup, info, source).stream()
+                    .map(suggestion -> new Suggestion(suggestion.type, suggestion.text)).collect(Collectors.toList());
 
             listener.onResponse(new Response(suggestions));
         }

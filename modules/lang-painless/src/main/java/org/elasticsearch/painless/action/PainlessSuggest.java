@@ -41,6 +41,344 @@ import java.util.function.Function;
  */
 public class PainlessSuggest {
 
+    public static List<Suggestion> suggest(PainlessLookup lookup, ScriptClassInfo info, String source) {
+        ANTLRInputStream stream = new ANTLRInputStream(source);
+        SuggestLexer lexer = new EnhancedSuggestLexer(stream, lookup);
+        lexer.removeErrorListeners();
+
+        return new PainlessSuggest(lookup, info, lexer.getAllTokens()).suggest();
+    }
+
+    protected final PainlessLookup lookup;
+    protected final ScriptClassInfo info;
+    protected final List<? extends Token> tokens;
+
+    protected PainlessSuggest(PainlessLookup lookup, ScriptClassInfo info, List<? extends Token> tokens) {
+        this.lookup = Objects.requireNonNull(lookup);
+        this.info = Objects.requireNonNull(info);
+        this.tokens = Collections.unmodifiableList(Objects.requireNonNull(tokens));
+    }
+
+    protected List<Suggestion> suggest() {
+        // collect data on user-defined functions
+        FunctionMachine.FunctionState fs = new FunctionMachine.FunctionState(this.tokens);
+        FunctionMachine.walk(fs);
+
+        // setup which function we are in based on the end of the token stream
+        // to allow for appropriate top-level parameters to be added to the suggestions
+        FunctionMachine.FunctionData fd = fs.functions.isEmpty() ? null : fs.functions.get(fs.functions.size() - 1);
+
+        // set our starting token at the beginning of the stream
+        // and this does not change unless there are user-defined functions
+        int start = 0;
+
+        if (fd != null) {
+            if (fd.bodyEndToken == -1) {
+                // cursor ended in a function, so set the starting token for the other
+                // state machines to the beginning of the function
+                start = fd.bodyStartToken;
+            } else {
+                // cursor ended in the execute body, so set the starting token to outside
+                // the last
+                start = fd.bodyEndToken + 2;
+            }
+        }
+
+        // cut the tokens to just our method body up to the cursor
+        List<? extends Token> tokens = this.tokens.subList(start, this.tokens.size());
+
+        // collect data on lambdas
+        LambdaMachine.LambdaState ls = new LambdaMachine.LambdaState(tokens);
+        LambdaMachine.walk(ls);
+
+        Map<Integer, LambdaMachine.LambdaData> mld = new HashMap<>();
+
+        // set up our lambda at the starting token for use in the block machine
+        for (LambdaMachine.LambdaData ld : ls.lambdas) {
+            mld.put(ld.headerStartToken, ld);
+        }
+
+        // collect data on declarations within the scope the cursor is in
+        BlockMachine.BlockState bs = new BlockMachine.BlockState(tokens, mld);
+        BlockMachine.walk(bs);
+
+        // collect a list of type resolvable pieces along with a piece to generate
+        // suggestion from
+        AccessMachine.AccessState as = new AccessMachine.AccessState(tokens);
+        AccessMachine.walk(as);
+
+        List<Suggestion> suggestions = new ArrayList<>();
+
+        if (as.target == -2) {
+            // the access machine had a result that allows for suggestion generation
+            Map<String, String> functions = new HashMap<>();
+
+            // collect user-defined functions that may be provided as suggestions
+            for (FunctionMachine.FunctionData function : fs.functions) {
+                functions.put(function.functionName + "/" + function.parameterTypes.size(), function.returnType);
+            }
+
+            // collect variables that may be provided as suggestions
+            Map<String, String> variables = bs.scope.getVariables();
+
+            // add top-level parameters as variables that may be provided as suggestions
+            if (fd == null || fd.bodyEndToken != -1) {
+                // adds execute method parameters
+                for (ScriptClassInfo.MethodArgument argument : info.getExecuteArguments()) {
+                    variables.put(argument.getName(), PainlessLookupUtility.typeToCanonicalTypeName(argument.getClazz()));
+                }
+
+                for (int parameter = 0; parameter < info.getGetMethods().size(); ++parameter) {
+                    String type = PainlessLookupUtility.typeToCanonicalTypeName(info.getGetReturns().get(parameter));
+                    org.objectweb.asm.commons.Method method = info.getGetMethods().get(parameter);
+                    String name = method.getName().substring(3);
+                    name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
+                    variables.put(name, type);
+                }
+            } else {
+                // adds user-defined function parameters
+                if (fd.parameterNames.size() == fd.parameterTypes.size()) {
+                    for (int parameter = 0; parameter < fd.parameterNames.size(); ++parameter) {
+                        variables.put(fd.parameterNames.get(parameter), fd.parameterTypes.get(parameter));
+                    }
+                }
+            }
+
+            suggestions = collect(functions, variables, as.segment);
+        }
+
+        return suggestions;
+    }
+
+    protected List<Suggestion> collect(Map<String, String> functions, Map<String, String> variables, AccessMachine.AccessData segment) {
+
+        Class<?> resolved = null;
+
+        // resolve the types for each segment
+        while (segment.child != null && (segment.modifiers & AccessMachine.AccessData.RESOLVE) == AccessMachine.AccessData.RESOLVE) {
+
+            if ((segment.modifiers & AccessMachine.AccessData.ID) == AccessMachine.AccessData.ID) {
+                // resolve a type for a variable
+                String type = variables.get(segment.text);
+                resolved = type == null ? null : lookup.canonicalTypeNameToType(type);
+            } else if ((segment.modifiers & AccessMachine.AccessData.TYPE) == AccessMachine.AccessData.TYPE) {
+                // resolve a type for a type
+                resolved = segment.text == null ? null : lookup.canonicalTypeNameToType(segment.text);
+            } else if ((segment.modifiers & AccessMachine.AccessData.CALL) == AccessMachine.AccessData.CALL) {
+                // resolve a type for a call
+                String type = functions.get(segment.text + "/" + segment.arity);
+
+                if (type != null) {
+                    resolved = lookup.canonicalTypeNameToType(type);
+                } else {
+                    PainlessMethod pm = lookup.lookupImportedPainlessMethod(segment.text, segment.arity);
+
+                    if (pm != null) {
+                        resolved = pm.returnType;
+                    } else {
+                        PainlessClassBinding pcb = lookup.lookupPainlessClassBinding(segment.text, segment.arity);
+
+                        if (pcb != null) {
+                            resolved = pcb.returnType;
+                        } else {
+                            PainlessInstanceBinding pib = lookup.lookupPainlessInstanceBinding(segment.text, segment.arity);
+                            resolved = pib == null ? null : pib.returnType;
+                        }
+                    }
+                }
+            } else if ((segment.modifiers & AccessMachine.AccessData.METHOD) == AccessMachine.AccessData.METHOD) {
+                // resolve a type for a method
+                PainlessMethod pm = lookup.lookupPainlessMethod(
+                        resolved,
+                        (segment.modifiers & AccessMachine.AccessData.STATIC) == AccessMachine.AccessData.STATIC,
+                        segment.text,
+                        segment.arity);
+                resolved = pm == null ? null : pm.returnType;
+            } else if ((segment.modifiers & AccessMachine.AccessData.FIELD) == AccessMachine.AccessData.FIELD) {
+                // resolve a type for a field
+                PainlessField pf = lookup.lookupPainlessField(
+                        resolved, (segment.modifiers & AccessMachine.AccessData.STATIC) == AccessMachine.AccessData.STATIC, segment.text);
+                resolved = pf == null ? null : pf.typeParameter;
+            } else if ((segment.modifiers & AccessMachine.AccessData.CONSTRUCTOR) == AccessMachine.AccessData.CONSTRUCTOR) {
+                // resolve the type for a constructor
+                resolved = lookup.canonicalTypeNameToType(segment.text);
+            } else if ((segment.modifiers & AccessMachine.AccessData.INDEX) == AccessMachine.AccessData.INDEX) {
+                // resolve the type for an index
+                if (resolved != null) {
+                    if (resolved.isArray()) {
+                        resolved = resolved.getComponentType();
+                    } else if (List.class.isAssignableFrom(resolved) || Map.class.isAssignableFrom(resolved)) {
+                        resolved = def.class;
+                    }
+                }
+            } else if ((segment.modifiers & AccessMachine.AccessData.NUMBER) == AccessMachine.AccessData.NUMBER) {
+                // resolve the type for a number
+                resolved = def.class;
+            }
+
+            if (resolved == null || resolved == def.class) {
+                // the def type does not have suggestions
+                return new ArrayList<>();
+            } else if (resolved.isPrimitive()) {
+                // suggest based on a boxed type for a primitive
+                resolved = PainlessLookupUtility.typeToBoxedType(resolved);
+            }
+
+            // resolve the next segment
+            segment = segment.child;
+        }
+
+        List<Suggestion> suggestions = new ArrayList<>();
+
+        // generate suggestions for the final segment
+        if (segment.child == null && (segment.modifiers & AccessMachine.AccessData.SUGGEST) == AccessMachine.AccessData.SUGGEST) {
+
+            // generate suggestions for variables
+            if ((segment.modifiers & AccessMachine.AccessData.ID) == AccessMachine.AccessData.ID) {
+                for (String name : variables.keySet()) {
+                    if (name.startsWith(segment.text)) {
+                        suggestions.add(new Suggestion(Suggestion.VARIABLE, name));
+                    }
+                }
+            }
+
+            // generate suggestions for types
+            if ((segment.modifiers & AccessMachine.AccessData.TYPE) == AccessMachine.AccessData.TYPE) {
+                for (String type : lookup.getCanonicalClassNames()) {
+                    if (type.startsWith(segment.text)) {
+                        suggestions.add(new Suggestion(Suggestion.TYPE, type));
+                    }
+                }
+            }
+
+            // generate suggestions for calls
+            if ((segment.modifiers & AccessMachine.AccessData.CALL) == AccessMachine.AccessData.CALL) {
+                for (String call : functions.keySet()) {
+                    if (call.startsWith(segment.text)) {
+                        suggestions.add(new Suggestion(Suggestion.USER, call));
+                    }
+                }
+
+                for (String call : lookup.getImportedPainlessMethodsKeys()) {
+                    if (call.startsWith(segment.text)) {
+                        suggestions.add(new Suggestion(Suggestion.CALL, call));
+                    }
+                }
+
+                for (String call : lookup.getPainlessClassBindingsKeys()) {
+                    if (call.startsWith(segment.text)) {
+                        suggestions.add(new Suggestion(Suggestion.CALL, call));
+                    }
+                }
+
+                for (String call : lookup.getPainlessInstanceBindingsKeys()) {
+                    if (call.startsWith(segment.text)) {
+                        suggestions.add(new Suggestion(Suggestion.CALL, call));
+                    }
+                }
+            }
+
+            // generate suggestions for methods
+            if ((segment.modifiers & AccessMachine.AccessData.METHOD) == AccessMachine.AccessData.METHOD) {
+                if (resolved != null) {
+                    PainlessClass pc = lookup.lookupPainlessClass(resolved);
+
+                    if (pc != null) {
+                        if ((segment.modifiers & AccessMachine.AccessData.STATIC) == AccessMachine.AccessData.STATIC) {
+                            for (String method : pc.staticMethods.keySet()) {
+                                if (segment.text == null || method.startsWith(segment.text)) {
+                                    suggestions.add(new Suggestion(Suggestion.METHOD, method));
+                                }
+                            }
+                        } else {
+                            for (String method : pc.methods.keySet()) {
+                                if (segment.text == null || method.startsWith(segment.text)) {
+                                    suggestions.add(new Suggestion(Suggestion.METHOD, method));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // generate suggestions for fields
+            if ((segment.modifiers & AccessMachine.AccessData.FIELD) == AccessMachine.AccessData.FIELD) {
+                if (resolved != null) {
+                    PainlessClass pc = lookup.lookupPainlessClass(resolved);
+
+                    if (pc != null) {
+                        if ((segment.modifiers & AccessMachine.AccessData.STATIC) == AccessMachine.AccessData.STATIC) {
+                            for (String field : pc.staticFields.keySet()) {
+                                if (segment.text == null || field.startsWith(segment.text)) {
+                                    suggestions.add(new Suggestion(Suggestion.FIELD, field));
+                                }
+                            }
+                        } else {
+                            for (String field : pc.fields.keySet()) {
+                                if (segment.text == null || field.startsWith(segment.text)) {
+                                    suggestions.add(new Suggestion(Suggestion.FIELD, field));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        // generate suggestions for the parameters of a specific constructor/call/method
+        } else if ((segment.modifiers & AccessMachine.AccessData.PARAMETERS) == AccessMachine.AccessData.PARAMETERS) {
+
+            // generate parameters for a specific constructor
+            if ((segment.modifiers & AccessMachine.AccessData.CONSTRUCTOR) == AccessMachine.AccessData.CONSTRUCTOR) {
+                PainlessClass pc = lookup.lookupPainlessClass(lookup.canonicalTypeNameToType(segment.text));
+
+                if (pc != null) {
+                    for (PainlessConstructor pcon : pc.constructors.values()) {
+                        StringBuilder parameters = new StringBuilder(" ");
+                        for (Class<?> type : pcon.typeParameters) {
+                            parameters.append(PainlessLookupUtility.typeToCanonicalTypeName(type));
+                            parameters.append(" ");
+                        }
+                        suggestions.add(new Suggestion(Suggestion.PARAMETERS, parameters.toString()));
+                    }
+                }
+            }
+
+            // generate parameters for a specific method
+            if ((segment.modifiers & AccessMachine.AccessData.METHOD) == AccessMachine.AccessData.METHOD) {
+                if (resolved != null) {
+                    PainlessClass pc = lookup.lookupPainlessClass(resolved);
+
+                    if (pc != null) {
+                        if ((segment.modifiers & AccessMachine.AccessData.STATIC) == AccessMachine.AccessData.STATIC) {
+                            for (PainlessMethod pm : pc.staticMethods.values()) {
+                                if (pm.javaMethod.getName().equals(segment.text)) {
+                                    StringBuilder parameters = new StringBuilder(" ");
+                                    for (Class<?> type : pm.typeParameters) {
+                                        parameters.append(PainlessLookupUtility.typeToCanonicalTypeName(type));
+                                        parameters.append(" ");
+                                    }
+                                    suggestions.add(new Suggestion("parameters", parameters.toString()));
+                                }
+                            }
+                        } else {
+                            for (PainlessMethod pm : pc.methods.values()) {
+                                if (pm.javaMethod.getName().equals(segment.text)) {
+                                    StringBuilder parameters = new StringBuilder(" ");
+                                    for (Class<?> type : pm.typeParameters) {
+                                        parameters.append(PainlessLookupUtility.typeToCanonicalTypeName(type));
+                                        parameters.append(" ");
+                                    }
+                                    suggestions.add(new Suggestion("parameters", parameters.toString()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return suggestions;
+    }
+
     /**
      * Suggestion contains the type of suggestion along
      * with the suggested text.
@@ -49,6 +387,7 @@ public class PainlessSuggest {
 
         public final static String VARIABLE = "variable";
         public final static String TYPE = "type";
+        public final static String USER = "user";
         public final static String CALL = "call";
         public final static String METHOD = "method";
         public final static String FIELD = "field";
@@ -739,101 +1078,108 @@ public class PainlessSuggest {
         }
     }
 
-    protected static class Segment {
-
-        protected static final int RESOLVE = 1 << 0;
-        protected static final int SUGGEST = 1 << 1;
-        protected static final int ID = 1 << 2;
-        protected static final int TYPE = 1 << 3;
-        protected static final int CALL = 1 << 4;
-        protected static final int STATIC = 1 << 5;
-        protected static final int METHOD = 1 << 6;
-        protected static final int FIELD = 1 << 7;
-        protected static final int CONSTRUCTOR = 1 << 8;
-        protected static final int INDEX = 1 << 9;
-        protected static final int NUMBER = 1 << 10;
-        protected static final int PARAMETERS = 1 << 12;
-
-        protected Segment child;
-        protected int modifiers;
-        protected String text;
-        protected int arity;
-
-        protected Segment(Segment child, int modifiers, String text, int arity) {
-            this.child = child;
-            this.modifiers = modifiers;
-            this.text = text;
-            this.arity = arity;
-        }
-
-        @Override
-        public String toString() {
-            String mods = "[ ";
-
-            if ((modifiers & RESOLVE) == RESOLVE) {
-                mods += "RESOLVE ";
-            }
-            if ((modifiers & SUGGEST) == SUGGEST) {
-                mods += "SUGGEST ";
-            }
-            if ((modifiers & ID) == ID) {
-                mods += "ID ";
-            }
-            if ((modifiers & TYPE) == TYPE) {
-                mods += "TYPE ";
-            }
-            if ((modifiers & CALL) == CALL) {
-                mods += "CALL ";
-            }
-            if ((modifiers & STATIC) == STATIC) {
-                mods += "STATIC ";
-            }
-            if ((modifiers & METHOD) == METHOD) {
-                mods += "METHOD ";
-            }
-            if ((modifiers & FIELD) == FIELD) {
-                mods += "FIELD ";
-            }
-            if ((modifiers & CONSTRUCTOR) == CONSTRUCTOR) {
-                mods += "CONSTRUCTOR ";
-            }
-            if ((modifiers & INDEX) == INDEX) {
-                mods += "INDEX ";
-            }
-            if ((modifiers & NUMBER) == NUMBER) {
-                mods += "NUMBER ";
-            }
-            if ((modifiers & PARAMETERS) == PARAMETERS) {
-                mods += "PARAMETERS ";
-            }
-
-            mods += "]";
-
-            return "Segment{" +
-                    "child=" + child +
-                    ", modifiers=" + mods +
-                    ", text='" + text + '\'' +
-                    ", arity=" + arity +
-                    '}';
-        }
-    }
-
+    /**
+     * AccessMachine builds a chain of type resolvable pieces processing
+     * each token from the end in reverse order until it reaches a
+     * piece that is not resolvable. Upon completion, the AccessData
+     * chain is used to resolve types and offer suggestions based on
+     * data collected from the other machines. Sometimes no suggestions
+     * are available depending on whether the types exist or if
+     * the result is a def type.
+     */
     protected static class AccessMachine {
 
-        protected static class AccessState {
+        protected static class AccessData {
 
-            protected final TokenState ws;
+            protected static final int RESOLVE = 1 << 0;     // piece to resolve type from
+            protected static final int SUGGEST = 1 << 1;     // piece to generate suggestions from
+            protected static final int ID = 1 << 2;          // piece that is a simple id
+            protected static final int TYPE = 1 << 3;        // piece that is a known type
+            protected static final int CALL = 1 << 4;        // piece that is a loose call
+            protected static final int STATIC = 1 << 5;      // piece that is static
+            protected static final int METHOD = 1 << 6;      // piece that a method call
+            protected static final int FIELD = 1 << 7;       // piece that is a field access
+            protected static final int CONSTRUCTOR = 1 << 8; // piece that is a constructor
+            protected static final int INDEX = 1 << 9;       // piece that is an index
+            protected static final int NUMBER = 1 << 10;     // piece that a number
+            protected static final int PARAMETERS = 1 << 12; // piece that is an open parenthesis
 
-            protected AccessState(TokenState ws) {
-                this.ws = ws;
+            protected AccessData child;
+            protected int modifiers;
+            protected String text;
+            protected int arity;
+
+            protected AccessData(AccessData child, int modifiers, String text, int arity) {
+                this.child = child;
+                this.modifiers = modifiers;
+                this.text = text;
+                this.arity = arity;
             }
 
+            @Override
+            public String toString() {
+                String mods = "[ ";
+
+                if ((modifiers & RESOLVE) == RESOLVE) {
+                    mods += "RESOLVE ";
+                }
+                if ((modifiers & SUGGEST) == SUGGEST) {
+                    mods += "SUGGEST ";
+                }
+                if ((modifiers & ID) == ID) {
+                    mods += "ID ";
+                }
+                if ((modifiers & TYPE) == TYPE) {
+                    mods += "TYPE ";
+                }
+                if ((modifiers & CALL) == CALL) {
+                    mods += "CALL ";
+                }
+                if ((modifiers & STATIC) == STATIC) {
+                    mods += "STATIC ";
+                }
+                if ((modifiers & METHOD) == METHOD) {
+                    mods += "METHOD ";
+                }
+                if ((modifiers & FIELD) == FIELD) {
+                    mods += "FIELD ";
+                }
+                if ((modifiers & CONSTRUCTOR) == CONSTRUCTOR) {
+                    mods += "CONSTRUCTOR ";
+                }
+                if ((modifiers & INDEX) == INDEX) {
+                    mods += "INDEX ";
+                }
+                if ((modifiers & NUMBER) == NUMBER) {
+                    mods += "NUMBER ";
+                }
+                if ((modifiers & PARAMETERS) == PARAMETERS) {
+                    mods += "PARAMETERS ";
+                }
+
+                mods += "]";
+
+                return "Segment{" +
+                        "child=" + child +
+                        ", modifiers=" + mods +
+                        ", text='" + text + '\'' +
+                        ", arity=" + arity +
+                        '}';
+            }
+        }
+
+        protected static class AccessState extends TokenState {
+
             protected int target = 0;
-            Segment segment;
+            AccessData segment;
 
             int brackets = 0;
             int parens = 0;
             int braces = 0;
+
+            protected AccessState(List<? extends Token> tokens) {
+                super(tokens);
+            }
         }
 
         protected static final List<Function<AccessState, Integer>> astates;
@@ -841,90 +1187,114 @@ public class PainlessSuggest {
         static {
             astates = new ArrayList<>();
 
-            // 0
+            // 0 - possible piece to generate suggestions from
             astates.add(as -> {
-                Token token = as.ws.tokens.get(as.ws.current);
+                Token token = as.tokens.get(as.current);
                 if (token.getType() == SuggestLexer.ID || token.getType() == SuggestLexer.TYPE) {
-                    as.segment = new Segment(null, Segment.SUGGEST | Segment.TYPE | Segment.ID | Segment.CALL, token.getText(), -1);
-                    return as.ws.current == 0 ? -2 : 1;
+                    // VALID: found a name to generate suggestions from
+                    as.segment = new AccessData(
+                            null, AccessData.SUGGEST | AccessData.TYPE | AccessData.ID | AccessData.CALL, token.getText(), -1);
+                    return as.current == 0 ? -2 : 1;
                 } else if (token.getType() == SuggestLexer.LP) {
-                    as.segment = new Segment(null, Segment.PARAMETERS, null, -1);
+                    // VALID: found a possible call/method to generate suggestions for
+                    as.segment = new AccessData(null, AccessData.PARAMETERS, null, -1);
                     return 2;
                 } else if (token.getType() == SuggestLexer.DOT || token.getType() == SuggestLexer.NSDOT) {
-                    as.segment = new Segment(null, Segment.SUGGEST | Segment.FIELD | Segment.METHOD, null, -1);
+                    // VALID: found a dot to generate suggestions for
+                    as.segment = new AccessData(null, AccessData.SUGGEST | AccessData.FIELD | AccessData.METHOD, null, -1);
                     return 4;
                 } else if (token.getType() == SuggestLexer.DOTID) {
-                    as.segment = new Segment(null, Segment.SUGGEST | Segment.FIELD | Segment.METHOD, token.getText(), -1);
+                    // VALID: found a name to generate suggestions from
+                    as.segment = new AccessData(null, AccessData.SUGGEST | AccessData.FIELD | AccessData.METHOD, token.getText(), -1);
                     return 3;
                 }
+                // VALID: cannot generate suggestions
                 return -1;
             });
-            // 1
+            // 1 - check for declaration or constructor
             astates.add(as -> {
-                Token token = as.ws.tokens.get(as.ws.current);
+                Token token = as.tokens.get(as.current);
                 if (token.getType() == SuggestLexer.TYPE || token.getType() == SuggestLexer.ATYPE) {
+                    // VALID: found a declaration, do not generate suggestions
                     return -1;
                 } else if (token.getType() == SuggestLexer.NEW) {
-                    as.segment = new Segment(null, Segment.SUGGEST | Segment.TYPE, token.getText(), -1);
+                    // VALID: found an instantiation, generate suggestions
+                    as.segment = new AccessData(null, AccessData.SUGGEST | AccessData.TYPE, token.getText(), -1);
                 }
+                // VALID: generate suggestions
                 return -2;
             });
-            // 2
+            // 2 - check for valid open parenthesis
             astates.add(as -> {
-                Token token = as.ws.tokens.get(as.ws.current);
+                Token token = as.tokens.get(as.current);
                 if (token.getType() == SuggestLexer.TYPE) {
-                    as.segment.modifiers |= Segment.CONSTRUCTOR;
+                    // VALID: found a constructor
+                    as.segment.modifiers |= AccessData.CONSTRUCTOR;
                     as.segment.text = token.getText();
                     return 9;
                 } else if (token.getType() == SuggestLexer.ID) {
-                    as.segment.modifiers |= Segment.CALL;
+                    // VALID: found a call, generate suggestions
+                    as.segment.modifiers |= AccessData.CALL;
                     as.segment.text = token.getText();
                     return -2;
                 } else if (token.getType() == SuggestLexer.DOTID) {
-                    as.segment.modifiers |= Segment.METHOD;
+                    // VALID: found a method
+                    as.segment.modifiers |= AccessData.METHOD;
                     as.segment.text = token.getText();
                     return 3;
                 }
+                // VALID: cannot generate suggestions
                 return -1;
             });
-            // 3
+            // 3 - check for valid method/field
             astates.add(as -> {
-                Token token = as.ws.tokens.get(as.ws.current);
+                Token token = as.tokens.get(as.current);
                 if (token.getType() == SuggestLexer.DOT || token.getType() == SuggestLexer.NSDOT) {
+                    // VALID: found a dot
                     return 4;
                 }
+
+                // ERROR (ignore): cannot generate suggestions
                 return -1;
             });
-            // 4
+            // 4 - look for a resolvable piece from a dot
             astates.add(as -> {
-                Token token = as.ws.tokens.get(as.ws.current);
+                Token token = as.tokens.get(as.current);
                 if (token.getType() == SuggestLexer.ID) {
-                    as.segment = new Segment(as.segment, Segment.RESOLVE | Segment.ID, token.getText(), -1);
+                    // VALID: found a variable, generate suggestions
+                    as.segment = new AccessData(as.segment, AccessData.RESOLVE | AccessData.ID, token.getText(), -1);
                     return -2;
                 } else if (token.getType() == SuggestLexer.TYPE || token.getType() == SuggestLexer.ATYPE) {
-                    as.segment.modifiers |= Segment.STATIC;
-                    as.segment = new Segment(as.segment, Segment.RESOLVE | Segment.TYPE, token.getText(), -1);
+                    // VALID: found a type, generate suggestions
+                    as.segment.modifiers |= AccessData.STATIC;
+                    as.segment = new AccessData(as.segment, AccessData.RESOLVE | AccessData.TYPE, token.getText(), -1);
                     return -2;
                 } else if (token.getType() == SuggestLexer.DOTID) {
-                    as.segment = new Segment(as.segment, Segment.RESOLVE | Segment.FIELD, token.getText(), -1);
+                    // VALID: found a method/field
+                    as.segment = new AccessData(as.segment, AccessData.RESOLVE | AccessData.FIELD, token.getText(), -1);
                     return 3;
                 } else if (token.getType() == SuggestLexer.DOTINTEGER) {
-                    as.segment = new Segment(as.segment, Segment.RESOLVE | Segment.NUMBER, token.getText(), -1);
+                    // VALID: found a list access
+                    as.segment = new AccessData(as.segment, AccessData.RESOLVE | AccessData.NUMBER, token.getText(), -1);
                     return 3;
                 } else if (token.getType() == SuggestLexer.RBRACE) {
-                    as.segment = new Segment(as.segment, Segment.RESOLVE | Segment.INDEX, null, -1);
+                    // VALID: found an index access
+                    as.segment = new AccessData(as.segment, AccessData.RESOLVE | AccessData.INDEX, null, -1);
                     return 5;
                 } else if (token.getType() == SuggestLexer.RP) {
-                    as.segment = new Segment(as.segment, Segment.RESOLVE, null, 0);
+                    // VALID: found a possible call/method
+                    as.segment = new AccessData(as.segment, AccessData.RESOLVE, null, 0);
                     return 7;
                 }
+                // VALID: cannot generate suggestions
                 return -1;
             });
-            // 5
+            // 5 - look for a brace access completion
             astates.add(as -> {
-                Token token = as.ws.tokens.get(as.ws.current);
+                Token token = as.tokens.get(as.current);
                 if (token.getType() == SuggestLexer.LBRACE) {
                     if (as.brackets == 0 && as.parens == 0 && as.braces == 0) {
+                        // VALID: found a left brace
                         return 6;
                     } else {
                         --as.braces;
@@ -942,40 +1312,49 @@ public class PainlessSuggest {
                 }
 
                 if (as.brackets < 0 || as.parens < 0 || as.braces < 0) {
+                    // ERROR (ignore): cannot track brackets/parens/braces, cannot generate suggestions
                     return -1;
                 }
 
+                // VALID: continue looking for a sentinel to complete the brace access
                 return 5;
             });
-            // 6
+            // 6 - look for a resolvable piece from a brace
             astates.add(as -> {
-                Token token = as.ws.tokens.get(as.ws.current);
+                Token token = as.tokens.get(as.current);
                 if (token.getType() == SuggestLexer.ID) {
-                    as.segment = new Segment(as.segment, Segment.RESOLVE | Segment.ID, token.getText(), -1);
+                    // VALID: found a variable, generate suggestions
+                    as.segment = new AccessData(as.segment, AccessData.RESOLVE | AccessData.ID, token.getText(), -1);
                     return -2;
                 } else if (token.getType() == SuggestLexer.DOTID) {
-                    as.segment = new Segment(as.segment, Segment.RESOLVE | Segment.FIELD, token.getText(), -1);
+                    // VALID: found a method/field
+                    as.segment = new AccessData(as.segment, AccessData.RESOLVE | AccessData.FIELD, token.getText(), -1);
                     return 3;
                 } else if (token.getType() == SuggestLexer.RBRACE) {
-                    as.segment = new Segment(as.segment, Segment.RESOLVE | Segment.INDEX, null, -1);
+                    // VALID: found an index access
+                    as.segment = new AccessData(as.segment, AccessData.RESOLVE | AccessData.INDEX, null, -1);
                     return 5;
                 } else if (token.getType() == SuggestLexer.RP) {
-                    as.segment = new Segment(as.segment, Segment.RESOLVE, null, 0);
+                    // VALID: found a possible call/method
+                    as.segment = new AccessData(as.segment, AccessData.RESOLVE, null, 0);
                     return 7;
                 }
+                // VALID: cannot generate suggestions
                 return -1;
             });
-            // 7
+            // 7 - look for a call/method parenthesis completion
             astates.add(as -> {
-                Token token = as.ws.tokens.get(as.ws.current);
+                Token token = as.tokens.get(as.current);
                 if (token.getType() == SuggestLexer.LP) {
                     if (as.brackets == 0 && as.parens == 0 && as.braces == 0) {
+                        // VALID: found a left parenthesis
                         return 8;
                     } else {
                         --as.parens;
                     }
                 } else if (token.getType() == SuggestLexer.COMMA) {
                     if (as.brackets == 0 && as.parens == 0 && as.braces == 0) {
+                        // VALID: found a comma for an additional argument
                         ++as.segment.arity;
                     }
                 } else if (token.getType() == SuggestLexer.RP) {
@@ -991,380 +1370,69 @@ public class PainlessSuggest {
                 }
 
                 if (as.brackets < 0 || as.parens < 0 || as.braces < 0) {
+                    // ERROR (ignore): cannot track brackets/parens/braces, cannot generate suggestions
                     return -1;
                 }
 
                 if (as.segment.arity == 0) {
+                    // NOTE: assume arity is 1 if a left parenthesis isn't immediately found
                     as.segment.arity = 1;
                 }
 
+                // VALID: continue looking for a sentinel to complete the call/method parenthesis
                 return 7;
             });
-            // 8
+            // 8 - look for call/method completion
             astates.add(as -> {
-                Token token = as.ws.tokens.get(as.ws.current);
+                Token token = as.tokens.get(as.current);
                 if (token.getType() == SuggestLexer.ID) {
-                    as.segment.modifiers |= Segment.CALL;
+                    // VALID: found a call, generate suggestions
+                    as.segment.modifiers |= AccessData.CALL;
                     as.segment.text = token.getText();
                     return -2;
                 } else if (token.getType() == SuggestLexer.DOTID) {
-                    as.segment.modifiers |= Segment.METHOD;
+                    // VALID: found a method
+                    as.segment.modifiers |= AccessData.METHOD;
                     as.segment.text = token.getText();
                     return 3;
                 } else if (token.getType() == SuggestLexer.TYPE) {
-                    as.segment.modifiers |= Segment.CONSTRUCTOR;
+                    // VALID: found a constructor
+                    as.segment.modifiers |= AccessData.CONSTRUCTOR;
                     as.segment.text = token.getText();
                     return 9;
                 }
+                // VALID: cannot generate suggestions
                 return -1;
             });
-            // 9
+            // 9 - validate constructor
             astates.add(as -> {
-                Token token = as.ws.tokens.get(as.ws.current);
+                Token token = as.tokens.get(as.current);
                 if (token.getType() == SuggestLexer.NEW) {
+                    // VALID: generate suggestions
                     return -2;
                 }
+                // ERROR (ignore): cannot generate suggestions
                 return -1;
             });
         }
 
-        protected static void walk(AccessMachine.AccessState as, StringBuilder debug) {
-            TokenState ws = as.ws;
-            ws.current = ws.tokens.size() - 1;
+        protected static void walk(AccessMachine.AccessState as) {
+            as.current = as.tokens.size() - 1;
 
-            while (ws.current >= 0) {
+            while (as.current >= 0) {
                 Function<AccessMachine.AccessState, Integer> state = astates.get(as.target);
                 as.target = state.apply(as);
-                //debug.append(as.target);
-                //debug.append(":");
-                //debug.append(as.segment.toString());
-                //debug.append("\n");
 
                 if (as.target < 0) {
                     break;
                 }
 
-                --ws.current;
+                --as.current;
             }
         }
 
         protected AccessMachine() {
-
+            // do not instantiate
         }
-    }
-
-    public static List<Suggestion> suggest(PainlessLookup lookup, ScriptClassInfo info, String source) {
-        ANTLRInputStream stream = new ANTLRInputStream(source);
-        SuggestLexer lexer = new EnhancedSuggestLexer(stream, lookup);
-        lexer.removeErrorListeners();
-
-        return new PainlessSuggest(lookup, info, lexer.getAllTokens()).suggest();
-    }
-
-    protected final PainlessLookup lookup;
-    protected final ScriptClassInfo info;
-    protected final List<? extends Token> tokens;
-
-    protected PainlessSuggest(PainlessLookup lookup, ScriptClassInfo info, List<? extends Token> tokens) {
-        this.lookup = Objects.requireNonNull(lookup);
-        this.info = Objects.requireNonNull(info);
-        this.tokens = Collections.unmodifiableList(Objects.requireNonNull(tokens));
-    }
-
-    protected List<Suggestion> collect(Map<String, String> functions, Map<String, String> variables, Segment segment) {
-
-        Class<?> resolved = null;
-
-        while (segment.child != null && (segment.modifiers & Segment.RESOLVE) == Segment.RESOLVE) {
-
-            if ((segment.modifiers & Segment.ID) == Segment.ID) {
-                String type = variables.get(segment.text);
-                resolved = type == null ? null : lookup.canonicalTypeNameToType(type);
-            } else if ((segment.modifiers & Segment.TYPE) == Segment.TYPE) {
-                resolved = segment.text == null ? null : lookup.canonicalTypeNameToType(segment.text);
-            } else if ((segment.modifiers & Segment.CALL) == Segment.CALL) {
-                String type = functions.get(segment.text + "/" + segment.arity);
-
-                if (type != null) {
-                    resolved = lookup.canonicalTypeNameToType(type);
-                } else {
-                    PainlessMethod pm = lookup.lookupImportedPainlessMethod(segment.text, segment.arity);
-
-                    if (pm != null) {
-                        resolved = pm.returnType;
-                    } else {
-                        PainlessClassBinding pcb = lookup.lookupPainlessClassBinding(segment.text, segment.arity);
-
-                        if (pcb != null) {
-                            resolved = pcb.returnType;
-                        } else {
-                            PainlessInstanceBinding pib = lookup.lookupPainlessInstanceBinding(segment.text, segment.arity);
-                            resolved = pib == null ? null : pib.returnType;
-                        }
-                    }
-                }
-            } else if ((segment.modifiers & Segment.METHOD) == Segment.METHOD) {
-                PainlessMethod pm = lookup.lookupPainlessMethod(
-                        resolved, (segment.modifiers & Segment.STATIC) == Segment.STATIC, segment.text, segment.arity);
-                resolved = pm == null ? null : pm.returnType;
-            } else if ((segment.modifiers & Segment.FIELD) == Segment.FIELD) {
-                PainlessField pf = lookup.lookupPainlessField(
-                        resolved, (segment.modifiers & Segment.STATIC) == Segment.STATIC, segment.text);
-                resolved = pf == null ? null : pf.typeParameter;
-            } else if ((segment.modifiers & Segment.CONSTRUCTOR) == Segment.CONSTRUCTOR) {
-                resolved = lookup.canonicalTypeNameToType(segment.text);
-            } else if ((segment.modifiers & Segment.INDEX) == Segment.INDEX) {
-                if (resolved != null) {
-                    if (resolved.isArray()) {
-                        resolved = resolved.getComponentType();
-                    } else if (List.class.isAssignableFrom(resolved) || Map.class.isAssignableFrom(resolved)) {
-                        resolved = def.class;
-                    }
-                }
-            } else if ((segment.modifiers & Segment.NUMBER) == Segment.NUMBER) {
-                resolved = def.class;
-            }
-
-            if (resolved == null || resolved == def.class) {
-                return new ArrayList<>();
-            } else if (resolved.isPrimitive()) {
-                resolved = PainlessLookupUtility.typeToBoxedType(resolved);
-            }
-
-            segment = segment.child;
-        }
-
-        List<Suggestion> suggestions = new ArrayList<>();
-
-        if (segment.child == null && (segment.modifiers & Segment.SUGGEST) == Segment.SUGGEST) {
-
-            if ((segment.modifiers & Segment.ID) == Segment.ID) {
-                for (String name : variables.keySet()) {
-                    if (name.startsWith(segment.text)) {
-                        suggestions.add(new Suggestion("variable", name));
-                    }
-                }
-            }
-
-            if ((segment.modifiers & Segment.TYPE) == Segment.TYPE) {
-                for (String type : lookup.getCanonicalClassNames()) {
-                    if (type.startsWith(segment.text)) {
-                        suggestions.add(new Suggestion("type", type));
-                    }
-                }
-            }
-
-            if ((segment.modifiers & Segment.CALL) == Segment.CALL) {
-                for (String call : functions.keySet()) {
-                    if (call.startsWith(segment.text)) {
-                        suggestions.add(new Suggestion("user", call));
-                    }
-                }
-
-                for (String call : lookup.getImportedPainlessMethodsKeys()) {
-                    if (call.startsWith(segment.text)) {
-                        suggestions.add(new Suggestion("call", call));
-                    }
-                }
-
-                for (String call : lookup.getPainlessClassBindingsKeys()) {
-                    if (call.startsWith(segment.text)) {
-                        suggestions.add(new Suggestion("call", call));
-                    }
-                }
-
-                for (String call : lookup.getPainlessInstanceBindingsKeys()) {
-                    if (call.startsWith(segment.text)) {
-                        suggestions.add(new Suggestion("call", call));
-                    }
-                }
-            }
-
-            if ((segment.modifiers & Segment.METHOD) == Segment.METHOD) {
-                if (resolved != null) {
-                    PainlessClass pc = lookup.lookupPainlessClass(resolved);
-
-                    if (pc != null) {
-                        if ((segment.modifiers & Segment.STATIC) == Segment.STATIC) {
-                            for (String method : pc.staticMethods.keySet()) {
-                                if (segment.text == null || method.startsWith(segment.text)) {
-                                    suggestions.add(new Suggestion("method", method));
-                                }
-                            }
-                        } else {
-                            for (String method : pc.methods.keySet()) {
-                                if (segment.text == null || method.startsWith(segment.text)) {
-                                    suggestions.add(new Suggestion("method", method));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if ((segment.modifiers & Segment.FIELD) == Segment.FIELD) {
-                if (resolved != null) {
-                    PainlessClass pc = lookup.lookupPainlessClass(resolved);
-
-                    if (pc != null) {
-                        if ((segment.modifiers & Segment.STATIC) == Segment.STATIC) {
-                            for (String field : pc.staticFields.keySet()) {
-                                if (segment.text == null || field.startsWith(segment.text)) {
-                                    suggestions.add(new Suggestion("field", field));
-                                }
-                            }
-                        } else {
-                            for (String field : pc.fields.keySet()) {
-                                if (segment.text == null || field.startsWith(segment.text)) {
-                                    suggestions.add(new Suggestion("field", field));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        } else if ((segment.modifiers & Segment.PARAMETERS) == Segment.PARAMETERS) {
-            if ((segment.modifiers & Segment.CONSTRUCTOR) == Segment.CONSTRUCTOR) {
-                PainlessClass pc = lookup.lookupPainlessClass(lookup.canonicalTypeNameToType(segment.text));
-
-                if (pc != null) {
-                    for (PainlessConstructor pcon : pc.constructors.values()) {
-                        StringBuilder parameters = new StringBuilder(" ");
-                        for (Class<?> type : pcon.typeParameters) {
-                            parameters.append(PainlessLookupUtility.typeToCanonicalTypeName(type));
-                            parameters.append(" ");
-                        }
-                        suggestions.add(new Suggestion("parameters", parameters.toString()));
-                    }
-                }
-            }
-
-            /*if ((segment.modifiers & Segment.CALL) == Segment.CALL) {
-                for (String call : functions.keySet()) {
-                    if (call.substring(0, call.length() - 2).equals(segment.text)) {
-                        StringBuilder parameters = new StringBuilder(" ");
-                        for (Class<?> type : pcon.typeParameters) {
-                            parameters.append(PainlessLookupUtility.typeToCanonicalTypeName(type));
-                            parameters.append(" ");
-                        }
-                        suggestions.add(new Suggestion("parameters", parameters.toString()));
-                    }
-                }
-            }*/
-
-            if ((segment.modifiers & Segment.METHOD) == Segment.METHOD) {
-                if (resolved != null) {
-                    PainlessClass pc = lookup.lookupPainlessClass(resolved);
-
-                    if (pc != null) {
-                        if ((segment.modifiers & Segment.STATIC) == Segment.STATIC) {
-                            for (PainlessMethod pm : pc.staticMethods.values()) {
-                                if (pm.javaMethod.getName().equals(segment.text)) {
-                                    StringBuilder parameters = new StringBuilder(" ");
-                                    for (Class<?> type : pm.typeParameters) {
-                                        parameters.append(PainlessLookupUtility.typeToCanonicalTypeName(type));
-                                        parameters.append(" ");
-                                    }
-                                    suggestions.add(new Suggestion("parameters", parameters.toString()));
-                                }
-                            }
-                        } else {
-                            for (PainlessMethod pm : pc.methods.values()) {
-                                if (pm.javaMethod.getName().equals(segment.text)) {
-                                    StringBuilder parameters = new StringBuilder(" ");
-                                    for (Class<?> type : pm.typeParameters) {
-                                        parameters.append(PainlessLookupUtility.typeToCanonicalTypeName(type));
-                                        parameters.append(" ");
-                                    }
-                                    suggestions.add(new Suggestion("parameters", parameters.toString()));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return suggestions;
-    }
-
-    protected List<Suggestion> suggest() {
-        FunctionMachine.FunctionState fs = new FunctionMachine.FunctionState(new TokenState(this.tokens));
-        FunctionMachine.walk(fs);
-
-        FunctionMachine.FunctionData fd = fs.functions.isEmpty() ? null : fs.functions.get(fs.functions.size() - 1);
-        int start = 0;
-        if (fd != null) {
-            if (fd.bodyEndToken == -1) {
-                start = fd.bodyStartToken;
-            } else {
-                start = fd.bodyEndToken + 2;
-            }
-        }
-
-        StringBuilder segments = new StringBuilder();
-
-        List<? extends Token> tokens = this.tokens.subList(start, this.tokens.size());
-
-        LambdaMachine.LambdaState ls = new LambdaMachine.LambdaState(new TokenState(tokens));
-        LambdaMachine.walk(ls);
-
-        Map<Integer, LambdaMachine.LambdaData> mld = new HashMap<>();
-
-        for (LambdaMachine.LambdaData ld : ls.lambdas) {
-            mld.put(ld.headerStartToken, ld);
-        }
-
-        StringBuilder builder = new StringBuilder();
-        BlockMachine.BlockState bs = new BlockMachine.BlockState(new TokenState(tokens), mld);
-        BlockMachine.walk(bs, builder);
-
-        AccessMachine.AccessState as = new AccessMachine.AccessState(new TokenState(tokens));
-        AccessMachine.walk(as, builder);
-
-        List<Suggestion> suggestions = new ArrayList<>();
-
-        if (as.target == -2) {
-            Map<String, String> functions = new HashMap<>();
-
-            for (FunctionMachine.FunctionData function : fs.functions) {
-                functions.put(function.functionName + "/" + function.parameterTypes.size(), function.returnType);
-            }
-
-            Map<String, String> variables = bs.scope.getVariables();
-
-            if (fd == null || fd.bodyEndToken != -1) {
-                for (ScriptClassInfo.MethodArgument argument : info.getExecuteArguments()) {
-                    variables.put(argument.getName(), PainlessLookupUtility.typeToCanonicalTypeName(argument.getClazz()));
-                }
-
-                for (int parameter = 0; parameter < info.getGetMethods().size(); ++parameter) {
-                    String type = PainlessLookupUtility.typeToCanonicalTypeName(info.getGetReturns().get(parameter));
-                    org.objectweb.asm.commons.Method method = info.getGetMethods().get(parameter);
-                    String name = method.getName().substring(3);
-                    name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
-                    variables.put(name, type);
-                }
-            } else {
-                if (fd.parameterNames.size() == fd.parameterTypes.size()) {
-                    for (int parameter = 0; parameter < fd.parameterNames.size(); ++parameter) {
-                        variables.put(fd.parameterNames.get(parameter), fd.parameterTypes.get(parameter));
-                    }
-                }
-            }
-
-            suggestions = collect(functions, variables, as.segment);
-
-            // DEBUG
-            suggestions.add(new Suggestion("variables", variables.toString()));
-            //segments.append(variables);
-            // END DEBUG
-        }
-
-        // DEBUG
-        //suggestions.add(new Suggestion("debug", "\n\n" + variables));
-        // END DEBUG
-
-        return suggestions;
     }
 }

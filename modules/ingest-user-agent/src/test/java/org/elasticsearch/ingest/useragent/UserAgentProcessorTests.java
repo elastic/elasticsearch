@@ -37,7 +37,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         assertNotNull(regexStream);
         assertNotNull(deviceTypeRegexStream);
 
-        UserAgentParser parser = new UserAgentParser(randomAlphaOfLength(10), regexStream,deviceTypeRegexStream, new UserAgentCache(1000));
+        UserAgentParser parser = new UserAgentParser(randomAlphaOfLength(10), regexStream, deviceTypeRegexStream, new UserAgentCache(1000));
 
         processor = new UserAgentProcessor(randomAlphaOfLength(10), null, "source_field", "target_field", parser,
                 EnumSet.allOf(UserAgentProcessor.Property.class), false);
@@ -109,7 +109,7 @@ public class UserAgentProcessorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testWIndowsOS() throws Exception {
+    public void testWindowsOS() throws Exception {
         Map<String, Object> document = new HashMap<>();
         document.put("source_field",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36");

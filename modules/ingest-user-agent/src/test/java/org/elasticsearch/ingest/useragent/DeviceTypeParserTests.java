@@ -34,7 +34,6 @@ public class DeviceTypeParserTests extends ESTestCase {
 
     private static DeviceTypeParser deviceTypeParser;
 
-
     private ArrayList<HashMap<String, String>> readTestDevices(InputStream regexStream, String keyName) throws IOException {
         XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML).createParser(NamedXContentRegistry.EMPTY,
             LoggingDeprecationHandler.INSTANCE, regexStream);
@@ -68,6 +67,9 @@ public class DeviceTypeParserTests extends ESTestCase {
         return testDevices;
     }
 
+    private static VersionedName getVersionName(String name){
+        return new VersionedName(name, null, null, null, null);
+    }
 
     @BeforeClass
     public static void setupDeviceParser() throws IOException {
@@ -82,9 +84,9 @@ public class DeviceTypeParserTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testMacDesktop() throws Exception {
-        VersionedName os = new VersionedName("Mac OS X");
+        VersionedName os = getVersionName("Mac OS X");
 
-        VersionedName userAgent = new VersionedName("Chrome");
+        VersionedName userAgent = getVersionName("Chrome");
 
         String deviceType = deviceTypeParser.findDeviceType(userAgent, os, null);
 
@@ -94,9 +96,9 @@ public class DeviceTypeParserTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testAndroidMobile() throws Exception {
 
-        VersionedName os = new VersionedName("iOS");
+        VersionedName os = getVersionName("iOS");
 
-        VersionedName userAgent = new VersionedName("Safari");
+        VersionedName userAgent = getVersionName("Safari");
 
         String deviceType = deviceTypeParser.findDeviceType(userAgent, os, null);
 
@@ -106,11 +108,11 @@ public class DeviceTypeParserTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testIPadTablet() throws Exception {
 
-        VersionedName os = new VersionedName("iOS");
+        VersionedName os = getVersionName("iOS");
 
-        VersionedName userAgent = new VersionedName("Safari");
+        VersionedName userAgent = getVersionName("Safari");
 
-        VersionedName device = new VersionedName("iPad");
+        VersionedName device = getVersionName("iPad");
 
         String deviceType = deviceTypeParser.findDeviceType(userAgent, os, device);
 
@@ -120,9 +122,9 @@ public class DeviceTypeParserTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testWindowDesktop() throws Exception {
 
-        VersionedName os = new VersionedName("Mac OS X");
+        VersionedName os = getVersionName("Mac OS X");
 
-        VersionedName userAgent = new VersionedName("Chrome");
+        VersionedName userAgent = getVersionName("Chrome");
 
         String deviceType = deviceTypeParser.findDeviceType(userAgent, os, null);
 
@@ -146,9 +148,9 @@ public class DeviceTypeParserTests extends ESTestCase {
         ArrayList<HashMap<String, String>> testDevices = readTestDevices(deviceTypeRegexStream, "robot_devices");
 
         for (HashMap<String, String> testDevice : testDevices) {
-            VersionedName os = new VersionedName(testDevice.get("os"));
+            VersionedName os = getVersionName(testDevice.get("os"));
 
-            VersionedName userAgent = new VersionedName(testDevice.get("browser"));
+            VersionedName userAgent = getVersionName(testDevice.get("browser"));
 
             String deviceType = deviceTypeParser.findDeviceType(userAgent, os, null);
 
@@ -164,9 +166,9 @@ public class DeviceTypeParserTests extends ESTestCase {
         ArrayList<HashMap<String, String>> testDevices = readTestDevices(deviceTypeRegexStream, "desktop_devices");
 
         for (HashMap<String, String> testDevice : testDevices) {
-            VersionedName os = new VersionedName(testDevice.get("os"));
+            VersionedName os = getVersionName(testDevice.get("os"));
 
-            VersionedName userAgent = new VersionedName(testDevice.get("browser"));
+            VersionedName userAgent = getVersionName(testDevice.get("browser"));
 
             String deviceType = deviceTypeParser.findDeviceType(userAgent, os, null);
 
@@ -182,9 +184,9 @@ public class DeviceTypeParserTests extends ESTestCase {
         ArrayList<HashMap<String, String>> testDevices = readTestDevices(deviceTypeRegexStream, "mobile_devices");
 
         for (HashMap<String, String> testDevice : testDevices) {
-            VersionedName os = new VersionedName(testDevice.get("os"));
+            VersionedName os = getVersionName(testDevice.get("os"));
 
-            VersionedName userAgent = new VersionedName(testDevice.get("browser"));
+            VersionedName userAgent = getVersionName(testDevice.get("browser"));
 
             String deviceType = deviceTypeParser.findDeviceType(userAgent, os, null);
 
@@ -200,11 +202,11 @@ public class DeviceTypeParserTests extends ESTestCase {
         ArrayList<HashMap<String, String>> testDevices = readTestDevices(deviceTypeRegexStream, "tablet_devices");
 
         for (HashMap<String, String> testDevice : testDevices) {
-            VersionedName os = new VersionedName(testDevice.get("os"));
+            VersionedName os = getVersionName(testDevice.get("os"));
 
-            VersionedName userAgent = new VersionedName(testDevice.get("browser"));
+            VersionedName userAgent = getVersionName(testDevice.get("browser"));
 
-            VersionedName device = new VersionedName(testDevice.get("device"));
+            VersionedName device = getVersionName(testDevice.get("device"));
 
             String deviceType = deviceTypeParser.findDeviceType(userAgent, os, device);
 

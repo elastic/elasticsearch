@@ -33,6 +33,7 @@ public class DeviceTypeParser {
     private static final String BROWSER_PARSER = "browser_parsers";
     private static final String DEVICE_PARSER = "device_parsers";
     private static final String AGENT_STRING_PARSER = "agent_string_parsers";
+    private static final String robot = "Robot", tablet = "Tablet", desktop = "Desktop", phone = "Phone";
 
     private final List<String> patternListKeys = List.of(OS_PARSERS, BROWSER_PARSER, DEVICE_PARSER, AGENT_STRING_PARSER);
 
@@ -68,7 +69,7 @@ public class DeviceTypeParser {
     }
 
     public String findDeviceType(String agentString, VersionedName userAgent, VersionedName os, VersionedName device) {
-        if(deviceTypePatterns.isEmpty()){
+        if (deviceTypePatterns.isEmpty()) {
             return null;
         }
         if (agentString != null) {
@@ -82,13 +83,11 @@ public class DeviceTypeParser {
 
     public String findDeviceType(VersionedName userAgent, VersionedName os, VersionedName device) {
 
-        if(deviceTypePatterns.isEmpty()){
+        if (deviceTypePatterns.isEmpty()) {
             return null;
         }
 
         ArrayList<String> extractedDeviceTypes = new ArrayList<>();
-
-        String robot = "Robot", tablet = "Tablet", desktop = "Desktop", phone = "Phone";
 
         for (String patternKey : patternListKeys) {
             String deviceType = null;

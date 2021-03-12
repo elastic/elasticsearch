@@ -26,9 +26,7 @@ import java.util.regex.Pattern;
 final class UserAgentParser {
 
     private final UserAgentCache cache;
-
     private final DeviceTypeParser deviceTypeParser = new DeviceTypeParser();
-
     private final List<UserAgentSubpattern> uaPatterns = new ArrayList<>();
     private final List<UserAgentSubpattern> osPatterns = new ArrayList<>();
     private final List<UserAgentSubpattern> devicePatterns = new ArrayList<>();
@@ -40,18 +38,9 @@ final class UserAgentParser {
 
         try {
             init(regexStream);
-            this.deviceTypeParser.init(deviceTypeRegexStream);
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("error parsing regular expression file", e);
-        }
-    }
-
-    UserAgentParser(String name, InputStream regexStream, UserAgentCache cache) {
-        this.name = name;
-        this.cache = cache;
-
-        try {
-            init(regexStream);
+            if (deviceTypeRegexStream != null) {
+                deviceTypeParser.init(deviceTypeRegexStream);
+            }
         } catch (IOException e) {
             throw new ElasticsearchParseException("error parsing regular expression file", e);
         }
@@ -160,6 +149,10 @@ final class UserAgentParser {
         return devicePatterns;
     }
 
+    String getName() {
+        return name;
+    }
+
     public Details parse(String agentString) {
         Details details = cache.get(name, agentString);
 
@@ -168,10 +161,7 @@ final class UserAgentParser {
             VersionedName operatingSystem = findMatch(osPatterns, agentString);
             VersionedName device = findMatch(devicePatterns, agentString);
             String deviceType = deviceTypeParser.findDeviceType(agentString, userAgent, operatingSystem, device);
-
-
             details = new Details(userAgent, operatingSystem, device, deviceType);
-
             cache.put(name, agentString, details);
         }
 
@@ -218,14 +208,6 @@ final class UserAgentParser {
             this.minor = minor;
             this.patch = patch;
             this.build = build;
-        }
-
-        VersionedName(String name) {
-            this.name = name;
-            this.major = null;
-            this.minor = null;
-            this.patch = null;
-            this.build = null;
         }
     }
 

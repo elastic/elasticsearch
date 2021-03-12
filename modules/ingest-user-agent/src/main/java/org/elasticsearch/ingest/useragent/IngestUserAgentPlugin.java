@@ -13,6 +13,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -53,10 +54,16 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
 
     static Map<String, UserAgentParser> createUserAgentParsers(Path userAgentConfigDirectory, UserAgentCache cache) throws IOException {
         Map<String, UserAgentParser> userAgentParsers = new HashMap<>();
+        InputStream deviceTypeRegexStream = IngestUserAgentPlugin.class.getResourceAsStream("/device_type_regexes.yml");
+        boolean checkDeviceTypeFile = new File(String.valueOf(userAgentConfigDirectory), "/device_type_regexes.yml").exists();
+
+        if (checkDeviceTypeFile == false) {
+            deviceTypeRegexStream = null;
+        }
 
         UserAgentParser defaultParser = new UserAgentParser(DEFAULT_PARSER_NAME,
             IngestUserAgentPlugin.class.getResourceAsStream("/regexes.yml"),
-            IngestUserAgentPlugin.class.getResourceAsStream("/device_type_regexes.yml"), cache);
+            deviceTypeRegexStream, cache);
         userAgentParsers.put(DEFAULT_PARSER_NAME, defaultParser);
 
         if (Files.exists(userAgentConfigDirectory) && Files.isDirectory(userAgentConfigDirectory)) {
@@ -68,7 +75,7 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
                 for (Path path : iterable) {
                     String parserName = path.getFileName().toString();
                     try (InputStream regexStream = Files.newInputStream(path, StandardOpenOption.READ)) {
-                        userAgentParsers.put(parserName, new UserAgentParser(parserName, regexStream, cache));
+                        userAgentParsers.put(parserName, new UserAgentParser(parserName, regexStream, deviceTypeRegexStream, cache));
                     }
                 }
             }

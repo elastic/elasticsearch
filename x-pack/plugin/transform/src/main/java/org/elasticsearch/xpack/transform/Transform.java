@@ -148,17 +148,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     );
 
     /**
-     * @deprecated
-     *
-     * Only kept for BWC to nodes before 7.13
-     *
-     * Node attributes for transform, automatically created and retrievable via cluster state.
-     * These attributes should never be set directly, use the node setting counter parts instead.
-     */
-    @Deprecated
-    private static final String TRANSFORM_ENABLED_NODE_ATTR = "transform.node";
-
-    /**
      * Setting whether transform (the coordinator task) can run on this node.
      */
     private static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
@@ -333,24 +322,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public List<Setting<?>> getSettings() {
         return Collections.unmodifiableList(Arrays.asList(TRANSFORM_ENABLED_NODE, NUM_FAILURE_RETRIES_SETTING));
-    }
-
-    @Override
-    public Settings additionalSettings() {
-        // TODO: TRANSFORM_ENABLED_NODE_ATTR has been deprecated in 7.x, remove for 8.0
-        String transformEnabledNodeAttribute = "node.attr." + TRANSFORM_ENABLED_NODE_ATTR;
-
-        if (settings.get(transformEnabledNodeAttribute) != null) {
-            throw new IllegalArgumentException(
-                "Directly setting transform node attributes is not permitted, please use the documented node settings instead"
-            );
-        }
-
-        Settings.Builder additionalSettings = Settings.builder();
-
-        additionalSettings.put(transformEnabledNodeAttribute, DiscoveryNode.hasRole(settings, Transform.TRANSFORM_ROLE));
-
-        return additionalSettings.build();
     }
 
     @Override

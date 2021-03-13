@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.Builder;
 
@@ -203,5 +204,12 @@ public class GenerateUniqueIndexNameStepTests extends AbstractStepTestCase<Gener
             assertThat(validationException.validationErrors(), containsInAnyOrder("the index name we generated [" + generatedIndexName
                 + "] already exists as alias"));
         }
+    }
+
+    public void testParseOriginationDateFromGeneratedIndexName() {
+        String indexName = "testIndex-2021.03.13-000001";
+        String generateValidIndexName = generateValidIndexName("shrink-", indexName);
+        long extractedDateMillis = IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate(generateValidIndexName);
+        assertThat(extractedDateMillis, is(DateFormatter.forPattern("uuuu.MM.dd").parseMillis("2021.03.13")));
     }
 }

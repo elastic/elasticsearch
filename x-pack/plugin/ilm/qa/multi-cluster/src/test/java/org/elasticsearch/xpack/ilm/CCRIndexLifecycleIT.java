@@ -797,7 +797,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         String[] shrunkenIndexName = new String[1];
         waitUntil(() -> {
             try {
-                Request explainRequest = new Request("GET", "*" + originalIndex + "*/_ilm/explain");
+                Request explainRequest = new Request("GET", ShrinkAction.SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex
+                    + "/_ilm/explain");
                 explainRequest.addParameter("only_errors", Boolean.toString(false));
                 explainRequest.addParameter("only_managed", Boolean.toString(false));
                 Response response = client.performRequest(explainRequest);
@@ -812,7 +813,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     // maybe we swapped the alias from the original index to the shrunken one already
                     for (Map.Entry<String, Map<String, Object>> indexToExplainMap : indexResponse.entrySet()) {
                         // we don't know the exact name of the shrunken index, but we know it starts with the configured prefix
-                        if (indexToExplainMap.getKey().startsWith(ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex)) {
+                        String indexName = indexToExplainMap.getKey();
+                        if (indexName.startsWith(ShrinkAction.SHRUNKEN_INDEX_PREFIX) && indexName.contains(originalIndex)) {
                             explainIndexResponse = indexToExplainMap.getValue();
                             break;
                         }

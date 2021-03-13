@@ -29,16 +29,17 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndex
 
 /**
  * Generates a unique index name prefixing the original index name with the configured
- * prefix and appending a random UUID. The generated index name will be stored in the lifecycle
+ * prefix, concatenated with a random UUID. The generated index name will be stored in the lifecycle
  * execution state in the field designated by the configured setter method {@link #lifecycleStateSetter}
  * <p>
- * The generated name will be in the format {prefix-indexName-randomUUID}
+ * The generated name will be in the format {prefix-randomUUID-indexName}
  */
 public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
     private static final Logger logger = LogManager.getLogger(GenerateUniqueIndexNameStep.class);
 
     public static final String NAME = "generate-index-name";
     static final String ILLEGAL_INDEXNAME_CHARS_REGEX = "[/:\"*?<>|# ,\\\\]+";
+    static final int MAX_GENERATED_UUID_LENGTH = 4;
 
     private final String prefix;
     private final BiFunction<String, Builder, Builder> lifecycleStateSetter;
@@ -81,7 +82,7 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
         String generatedIndexName = generateValidIndexName(prefix, index.getName());
         ActionRequestValidationException validationException = validateGeneratedIndexName(generatedIndexName, clusterState);
         if (validationException != null) {
-            logger.warn("unable to generate a valid shrink index name as part of policy [{}] for index [{}] due to [{}]",
+            logger.warn("unable to generate a valid index name as part of policy [{}] for index [{}] due to [{}]",
                 policy, index.getName(), validationException.getMessage());
             throw validationException;
         }
@@ -133,12 +134,12 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
     }
 
     /**
-     * This generates a valid unique index name by using the provided prefix and index name and
-     * appending a unique identifier so expressions that may overlap
-     * still result in unique snapshot names.
+     * This generates a valid unique index name by using the provided prefix, appended with a generated UUID, and the index name.
      */
     static String generateValidIndexName(String prefix, String indexName) {
-        return prefix + indexName + "-" + generateValidIndexSuffix(() -> UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT));
+        String randomUUID = generateValidIndexSuffix(() -> UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT));
+        randomUUID = randomUUID.substring(0, Math.min(randomUUID.length(), MAX_GENERATED_UUID_LENGTH));
+        return prefix + randomUUID + "-" + indexName;
     }
 
     static String generateValidIndexSuffix(Supplier<String> randomGenerator) {
@@ -150,5 +151,4 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
 
         return randomSuffix;
     }
-
 }

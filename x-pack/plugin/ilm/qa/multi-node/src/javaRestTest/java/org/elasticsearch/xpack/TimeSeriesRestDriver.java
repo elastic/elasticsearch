@@ -338,7 +338,7 @@ public final class TimeSeriesRestDriver {
         waitUntil(() -> {
             try {
                 // we're including here the case where the original index was already deleted and we have to look for the shrunken index
-                Request explainRequest = new Request("GET", ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex + "*," + originalIndex
+                Request explainRequest = new Request("GET", ShrinkAction.SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex
                     + "/_ilm/explain");
                 explainRequest.addParameter("only_errors", Boolean.toString(false));
                 explainRequest.addParameter("only_managed", Boolean.toString(false));
@@ -354,7 +354,8 @@ public final class TimeSeriesRestDriver {
                     // maybe we swapped the alias from the original index to the shrunken one already
                     for (Map.Entry<String, Map<String, Object>> indexToExplainMap : indexResponse.entrySet()) {
                         // we don't know the exact name of the shrunken index, but we know it starts with the configured prefix
-                        if (indexToExplainMap.getKey().startsWith(ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex)) {
+                        String indexName = indexToExplainMap.getKey();
+                        if (indexName.startsWith(ShrinkAction.SHRUNKEN_INDEX_PREFIX) && indexName.contains(originalIndex)) {
                             explainIndexResponse = indexToExplainMap.getValue();
                             break;
                         }

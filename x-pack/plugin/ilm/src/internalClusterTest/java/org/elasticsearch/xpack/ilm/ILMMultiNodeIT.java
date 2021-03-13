@@ -111,10 +111,11 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
                 client().execute(ExplainLifecycleAction.INSTANCE, new ExplainLifecycleRequest().indices("*")).get();
             logger.info("--> explain: {}", Strings.toString(explain));
 
-            String shrinkIndexNamePrefix = "shrink-" + DataStream.getDefaultBackingIndexName(index, 1);
+            String backingIndexName = DataStream.getDefaultBackingIndexName(index, 1);
             IndexLifecycleExplainResponse indexResp = null;
             for (Map.Entry<String, IndexLifecycleExplainResponse> indexNameAndResp : explain.getIndexResponses().entrySet()) {
-                if (indexNameAndResp.getKey().startsWith(shrinkIndexNamePrefix)) {
+                if (indexNameAndResp.getKey().startsWith(ShrinkAction.SHRUNKEN_INDEX_PREFIX) &&
+                    indexNameAndResp.getKey().contains(backingIndexName)) {
                     indexResp = indexNameAndResp.getValue();
                     assertNotNull(indexResp);
                     assertThat(indexResp.getPhase(), equalTo("warm"));

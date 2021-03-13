@@ -204,7 +204,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertTrue(steps.get(7) instanceof ClusterStateWaitUntilThresholdStep);
         assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(7)).getStepToExecute(), is(instanceOf(CheckShrinkReadyStep.class)));
         // assert in case the threshold is breached we go back to the "cleanup shrunk index" step
-        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(7)).getNextKeyOnThreshold(), is(expectedFifthKey));
+        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(7)).getNextKeyOnThreshold(), is(expectedSeventhKey));
         assertThat(steps.get(7).getKey(), equalTo(expectedEighthKey));
         assertThat(steps.get(7).getNextStepKey(), equalTo(expectedNinthKey));
 

@@ -191,7 +191,7 @@ public class ShrinkAction implements LifecycleAction {
                 (generatedIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setShrinkIndexName(generatedIndexName));
         SetSingleNodeAllocateStep setSingleNodeStep = new SetSingleNodeAllocateStep(setSingleNodeKey, allocationRoutedKey, client);
         ClusterStateWaitUntilThresholdStep checkShrinkReadyStep = new ClusterStateWaitUntilThresholdStep(
-            new CheckShrinkReadyStep(allocationRoutedKey, shrinkKey), cleanupShrinkIndexKey);
+            new CheckShrinkReadyStep(allocationRoutedKey, shrinkKey), setSingleNodeKey);
         ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, maxPrimaryShardSize, SHRUNKEN_INDEX_PREFIX);
         ClusterStateWaitUntilThresholdStep allocated = new ClusterStateWaitUntilThresholdStep(
             new ShrunkShardsAllocatedStep(enoughShardsKey, copyMetadataKey, SHRUNKEN_INDEX_PREFIX), cleanupShrinkIndexKey);

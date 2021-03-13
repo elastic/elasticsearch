@@ -1,26 +1,20 @@
 ---
 "Action to get suggestions with a default context":
-  - skip:
-      features: fips_140
-      reason: "the tests expect to be run with OSS distribution"
   - do:
-      scripts_painless_context:
+      scripts_painless_suggestions:
         body:
           script:
-            source: test
-  - match: { suggestions.0.type: test }
-  - match: { suggestions.0.text: text }
+            source: "int test; te"
+  - match: { suggestions.0.type: variable }
+  - match: { suggestions.0.text: test }
 
 ---
 "Action to get suggestions with a specific context":
-  - skip:
-      features: fips_140
-      reason: "the tests expect to be run with OSS distribution"
   - do:
-      scripts_painless_context:
+      scripts_painless_suggestions:
         body:
           context: score
           script:
-            source: test
-  - match: { suggestions.0.type: test }
-  - match: { suggestions.0.text: text }
+            source: "satura"
+  - match: { suggestions.0.type: call }
+  - match: { suggestions.0.text: "saturation/2" }

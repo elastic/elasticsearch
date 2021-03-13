@@ -44,7 +44,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * Internal REST API for providing auto-complete suggestions for a
@@ -52,7 +52,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * {@code
  * Request:
  *
- * GET _scripts/painless/suggestions
+ * POST _scripts/painless/suggestions
  * {
  *     "context": "score", // optional
  *     "script": {
@@ -248,7 +248,7 @@ public class PainlessSuggestAction extends ActionType<PainlessSuggestAction.Resp
 
         @Override
         public List<Route> routes() {
-            return List.of(new Route(GET, "/_scripts/painless/_suggestions"));
+            return List.of(new Route(POST, "/_scripts/painless/_suggestions"));
         }
 
         @Override

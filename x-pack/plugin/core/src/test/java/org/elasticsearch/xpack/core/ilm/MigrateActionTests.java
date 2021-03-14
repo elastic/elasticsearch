@@ -42,7 +42,12 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
 
     @Override
     protected MigrateAction createTestInstance() {
-        return new MigrateAction();
+        return new MigrateAction(randomBoolean());
+    }
+
+    @Override
+    protected MigrateAction mutateInstance(MigrateAction instance) throws IOException {
+        return new MigrateAction(instance.isEnabled() == false);
     }
 
     @Override

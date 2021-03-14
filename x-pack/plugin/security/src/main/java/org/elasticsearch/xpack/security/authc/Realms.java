@@ -227,7 +227,7 @@ public class Realms implements Iterable<Realm> {
 
         if (realms.isEmpty() == false) {
             Collections.sort(realms);
-            logDeprecationForImplicitlyDisabledNativeRealms(implicitlyDisabledBasicRealmTypes);
+            logDeprecationForImplicitlyDisabledBasicRealms(implicitlyDisabledBasicRealmTypes);
         } else {
             // there is no "realms" configuration, add the defaults
             addNativeRealms(realms);
@@ -377,7 +377,7 @@ public class Realms implements Iterable<Realm> {
         }
     }
 
-    private void logDeprecationForImplicitlyDisabledNativeRealms(List<String> implicitlyDisabledNativeRealmTypes) {
+    private void logDeprecationForImplicitlyDisabledBasicRealms(List<String> implicitlyDisabledNativeRealmTypes) {
         if (implicitlyDisabledNativeRealmTypes.isEmpty()) {
             return;
         }

@@ -115,7 +115,7 @@ class NodeDeprecationChecks {
         if (realmSettings.isEmpty()) {
             return null;
         }
-        // If all configured realms are disabled, this equals to no realm is configured. The implicitly behaviour in this case
+        // If all configured realms are disabled, this equals to no realm is configured. The implicit behaviour in this case
         // is to add file and native realms. So we are good here.
         if (false == realmSettings.entrySet().stream().anyMatch(
             e -> e.getValue().getAsBoolean(RealmSettings.ENABLED_SETTING_KEY, true))) {

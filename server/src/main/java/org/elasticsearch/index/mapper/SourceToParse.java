@@ -28,10 +28,10 @@ public class SourceToParse {
 
     private final XContentType xContentType;
 
-    private final Map<String, String> dynamicMatchMappingHints;
+    private final Map<String, String> dynamicMappingHints;
 
     public SourceToParse(String index, String id, BytesReference source, XContentType xContentType, @Nullable String routing,
-                         Map<String, String> dynamicMatchMappingHints) {
+                         Map<String, String> dynamicMappingHints) {
         this.index = Objects.requireNonNull(index);
         this.id = Objects.requireNonNull(id);
         // we always convert back to byte array, since we store it and Field only supports bytes..
@@ -39,7 +39,7 @@ public class SourceToParse {
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
-        this.dynamicMatchMappingHints = dynamicMatchMappingHints;
+        this.dynamicMappingHints = dynamicMappingHints;
     }
 
     public SourceToParse(String index, String id, BytesReference source, XContentType xContentType) {
@@ -63,10 +63,10 @@ public class SourceToParse {
     }
 
     /**
-     * Returns a map of hints from the full path (i.e. foo.bar) of field names to match mapping hints defined in dynamic templates.
+     * Returns a map of hints from the full path (i.e. foo.bar) of field names to mapping hints defined in dynamic templates.
      */
-    public Map<String, String> dynamicMatchMappingHints() {
-        return dynamicMatchMappingHints;
+    public Map<String, String> dynamicMappingHints() {
+        return dynamicMappingHints;
     }
 
     public XContentType getXContentType() {

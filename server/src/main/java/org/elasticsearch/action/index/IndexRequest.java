@@ -109,7 +109,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
-    private Map<String, String> dynamicMatchMappingHints = Map.of();
+    private Map<String, String> dynamicMappingHints = Map.of();
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -149,9 +149,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             requireAlias = false;
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            dynamicMatchMappingHints = in.readMap(StreamInput::readString, StreamInput::readString);
+            dynamicMappingHints = in.readMap(StreamInput::readString, StreamInput::readString);
         } else {
-            dynamicMatchMappingHints = Map.of();
+            dynamicMappingHints = Map.of();
         }
     }
 
@@ -663,9 +663,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeBoolean(requireAlias);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeMap(dynamicMatchMappingHints, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(dynamicMappingHints, StreamOutput::writeString, StreamOutput::writeString);
         } else {
-            if (dynamicMatchMappingHints.isEmpty() == false) {
+            if (dynamicMappingHints.isEmpty() == false) {
                 throw new IllegalStateException("Dynamic mapping type hints requires all nodes in the cluster on 8.0 or later");
             }
         }
@@ -728,19 +728,19 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * Specifies a map of hints from the full path of field names to match mapping hints defined in dynamic templates.
+     * Specifies a map of hints from the full path of field names to mapping hints defined in dynamic templates.
      */
-    public IndexRequest setDynamicMatchMappingHints(Map<String, String> dynamicMatchMappingHints) {
-        this.dynamicMatchMappingHints = Objects.requireNonNull(dynamicMatchMappingHints);
+    public IndexRequest setDynamicMappingHints(Map<String, String> dynamicMappingHints) {
+        this.dynamicMappingHints = Objects.requireNonNull(dynamicMappingHints);
         return this;
     }
 
     /**
-     * Returns a map of hints from the full path (i.e. foo.bar) of field names to match mapping hints defined in dynamic templates.
+     * Returns a map of hints from the full path (i.e. foo.bar) of field names to mapping hints defined in dynamic templates.
      *
-     * @see #setDynamicMatchMappingHints(Map)
+     * @see #setDynamicMappingHints(Map)
      */
-    public Map<String, String> getDynamicMatchMappingHints() {
-        return dynamicMatchMappingHints;
+    public Map<String, String> getDynamicMappingHints() {
+        return dynamicMappingHints;
     }
 }

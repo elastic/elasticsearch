@@ -23,6 +23,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
@@ -38,7 +39,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugin {
+public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugin, ActionPlugin {
 
     private static final Boolean ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED;
     static {
@@ -63,7 +64,7 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
     static final String REPOSITORY_TYPE_NAME = "encrypted";
     // TODO add at least hdfs, and investigate supporting all `BlobStoreRepository` implementations
     static final List<String> SUPPORTED_ENCRYPTED_TYPE_NAMES = Arrays.asList("fs", "gcs", "azure", "s3");
-    static final Setting.AffixSetting<SecureString> ENCRYPTION_PASSWORD_SETTING = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<SecureString> ENCRYPTION_PASSWORD_SETTING = Setting.affixKeySetting(
         "repository.encrypted.",
         "password",
         key -> SecureSetting.secureString(key, null)

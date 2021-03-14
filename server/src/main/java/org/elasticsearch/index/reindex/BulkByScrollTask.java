@@ -815,8 +815,8 @@ public class BulkByScrollTask extends CancellableTask {
             return
                 Objects.equals(sliceId, other.sliceId) &&
                     total == other.total &&
-                    (!includeUpdated || updated == other.updated) &&
-                    (!includeCreated || created == other.created) &&
+                    (includeUpdated == false || updated == other.updated) &&
+                    (includeCreated == false || created == other.created) &&
                     deleted == other.deleted &&
                     batches == other.batches &&
                     versionConflicts == other.versionConflicts &&

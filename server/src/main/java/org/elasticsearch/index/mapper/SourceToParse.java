@@ -28,10 +28,10 @@ public class SourceToParse {
 
     private final XContentType xContentType;
 
-    private final Map<String, String> dynamicMappingHints;
+    private final Map<String, String> dynamicMatchMappingHints;
 
     public SourceToParse(String index, String id, BytesReference source, XContentType xContentType, @Nullable String routing,
-                         Map<String, String> dynamicMappingHints) {
+                         Map<String, String> dynamicMatchMappingHints) {
         this.index = Objects.requireNonNull(index);
         this.id = Objects.requireNonNull(id);
         // we always convert back to byte array, since we store it and Field only supports bytes..
@@ -39,7 +39,7 @@ public class SourceToParse {
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
-        this.dynamicMappingHints = dynamicMappingHints;
+        this.dynamicMatchMappingHints = dynamicMatchMappingHints;
     }
 
     public SourceToParse(String index, String id, BytesReference source, XContentType xContentType) {
@@ -62,8 +62,8 @@ public class SourceToParse {
         return this.routing;
     }
 
-    public Map<String, String> dynamicMappingHints() {
-        return dynamicMappingHints;
+    public Map<String, String> dynamicMatchMappingHints() {
+        return dynamicMatchMappingHints;
     }
 
     public XContentType getXContentType() {

@@ -1134,8 +1134,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "hello"), null, Map.of(field, "keyword")));
         assertThat(getFieldTypes(doc, field), arrayWithSize(2));
         MapperParsingException error = expectThrows(MapperParsingException.class, () ->
-            mapper.parse(source("1", b -> b.field(field, "hello"), null, Map.of(field, "new_type"))));
-        assertThat(error.getMessage(), containsString("Can't find template for matching hint [new_type] of field"));
+            mapper.parse(source("1", b -> b.field(field, "hello"), null, Map.of(field, "match_hint"))));
+        assertThat(error.getMessage(), containsString("Can't find template for match mapping hint [match_hint] of field"));
     }
 
     public void testDynamicDottedFieldNameLongArrayWithExistingParent() throws Exception {

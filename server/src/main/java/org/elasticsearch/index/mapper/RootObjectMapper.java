@@ -297,7 +297,7 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
         if (hint != null) {
-            throw new MapperParsingException("Can't find template for matching type [" + hint + "] of field [" + name + "]");
+            throw new MapperParsingException("Can't find template for match mapping hint [" + hint + "] of field [" + name + "]");
         }
         return null;
     }

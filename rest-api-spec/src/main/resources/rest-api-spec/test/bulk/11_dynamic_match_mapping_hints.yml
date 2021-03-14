@@ -1,0 +1,122 @@
+---
+"Match mapping hint":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Match mapping hint is introduced in 8.0"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            dynamic_templates:
+              - locations:
+                  match_mapping_hint: location_type
+                  mapping:
+                    type: geo_point
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_index
+              _id: id_1
+              match_mapping_hints:
+                location: location_type
+          - { "location": [ -71.34, 41.12 ], "date": "2021-01-01" }
+          - index:
+              _index: test_index
+              _id: id_2
+              match_mapping_hints:
+                location: location_type
+          - { "location": "41.12,-71.34", "date": "2021-01-02" }
+  - match: { errors: false }
+  - match: { items.0.index.result: created }
+  - match: { items.1.index.result: created }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          sort: [ { date: desc } ]
+          query:
+            geo_bounding_box:
+              location:
+                top_left:
+                  lat: 42
+                  lon: -72
+                bottom_right:
+                  lat: 40
+                  lon: -74
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.1._source.date: "2021-01-01" }
+  - match: { hits.hits.0._source.date: "2021-01-02" }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_index
+              _id: id_1
+              match_mapping_hints:
+                location: undefined_location_field  # ok as fields are defined
+          - { "location": [ -71.34, 41.12 ], "date": "2021-06-01" }
+          - index:
+              _index: test_index
+              _id: id_2
+              match_mapping_hints:
+                new_location: undefined_location_field # ok as fields are defined
+          - { "location": "41.12,-71.34", "date": "2021-06-02" }
+  - match: { errors: false }
+  - match: { items.0.index.result: updated }
+  - match: { items.1.index.result: updated }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          sort: [ { date: desc } ]
+          query:
+            geo_bounding_box:
+              location:
+                top_left:
+                  lat: 42
+                  lon: -72
+                bottom_right:
+                  lat: 40
+                  lon: -74
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.1._source.date: "2021-06-01" }
+  - match: { hits.hits.0._source.date: "2021-06-02" }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_index
+              _id: id_1
+              match_mapping_hints:
+                new_location: bar_foo
+          - { "new_location": [ -71.34, 41.12 ], "date": "2021-09-01" } # failed because of undefined hint
+          - index:
+              _index: test_index
+              _id: id_2
+              match_mapping_hints:
+                new_location: foo_bar
+          - { "new_location": "41.12,-71.34", "date": "2021-09-02" } # failed because of undefined hint
+          - index:
+              _index: test_index
+              _id: id_3
+              match_mapping_hints:
+                new_location: foo
+          - { "location": "41.12,-71.34", "date": "2022-09-02" } # ok as fields are defined
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: mapper_parsing_exception }
+  - match: { items.0.index.error.reason: "Can't find template for match mapping hint [bar_foo] of field [new_location]"}
+  - match: { items.1.index.status: 400 }
+  - match: { items.1.index.error.type: mapper_parsing_exception }
+  - match: { items.1.index.error.reason: "Can't find template for match mapping hint [foo_bar] of field [new_location]"}
+  - match: { items.2.index.result: created }

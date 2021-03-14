@@ -118,7 +118,8 @@ public class DynamicTemplateTests extends ESTestCase {
         // if a wrong match type is specified, we ignore the template
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> DynamicTemplate.parse("my_template", templateDef2));
-        assertThat(e.getMessage(), containsString("No field type matched on [text], possible values are ["));
+        assertEquals("No field type matched on [text], possible values are [object, string, long, double, boolean, date, binary]",
+            e.getMessage());
     }
 
     public void testParseInvalidRegex() {

@@ -21,11 +21,9 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
@@ -93,14 +91,6 @@ public class DynamicMappingIT extends ESIntegTestCase {
         Map<String, Object> typeMappingsMap = indexMappings.getSourceAsMap();
         Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
         assertTrue("Could not find [" + field + "] in " + typeMappingsMap.toString(), properties.containsKey(field));
-    }
-
-    private static void assertFieldMappingType(String index, String field, String expectedType) {
-        final GetMappingsResponse resp = client().admin().indices().prepareGetMappings(index).get();
-        final Map<String, Object> mappings = resp.mappings().get(index).sourceAsMap();
-        final String path = "properties." + String.join(".properties.", field.split("\\.")) + ".type";
-        Object actualType = ObjectPath.eval(path, mappings);
-        assertThat(Strings.toString(resp), actualType, equalTo(expectedType));
     }
 
     public void testConcurrentDynamicUpdates() throws Throwable {

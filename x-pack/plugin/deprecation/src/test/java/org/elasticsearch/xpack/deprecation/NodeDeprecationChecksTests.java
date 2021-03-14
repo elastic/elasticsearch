@@ -22,8 +22,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 
 import java.util.Collection;
 import java.util.Collections;

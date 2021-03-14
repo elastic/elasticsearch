@@ -232,21 +232,21 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         if (otherRealmConfigured && otherRealmEnabled) {
             if (false == fileRealmConfigured && false == nativeRealmConfigured) {
                 assertCommonImplicitDisabledRealms(deprecationIssues);
-                assertEquals("Found implicitly disabled native realms: [file,native]. " +
+                assertEquals("Found implicitly disabled basic realms: [file,native]. " +
                         "They are disabled because there are other explicitly configured realms." +
-                        "In next major release, native realms will always be enabled unless explicitly disabled.",
+                        "In next major release, basic realms will always be enabled unless explicitly disabled.",
                     deprecationIssues.get(0).getDetails());
             } else if (false == fileRealmConfigured) {
                 assertCommonImplicitDisabledRealms(deprecationIssues);
-                assertEquals("Found implicitly disabled native realm: [file]. " +
+                assertEquals("Found implicitly disabled basic realm: [file]. " +
                         "It is disabled because there are other explicitly configured realms." +
-                        "In next major release, native realms will always be enabled unless explicitly disabled.",
+                        "In next major release, basic realms will always be enabled unless explicitly disabled.",
                     deprecationIssues.get(0).getDetails());
             } else if (false == nativeRealmConfigured) {
                 assertCommonImplicitDisabledRealms(deprecationIssues);
-                assertEquals("Found implicitly disabled native realm: [native]. " +
+                assertEquals("Found implicitly disabled basic realm: [native]. " +
                         "It is disabled because there are other explicitly configured realms." +
-                        "In next major release, native realms will always be enabled unless explicitly disabled.",
+                        "In next major release, basic realms will always be enabled unless explicitly disabled.",
                     deprecationIssues.get(0).getDetails());
             } else {
                 assertTrue(deprecationIssues.isEmpty());
@@ -257,9 +257,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             } else if (false == fileRealmConfigured) {
                 if (nativeRealmEnabled) {
                     assertCommonImplicitDisabledRealms(deprecationIssues);
-                    assertEquals("Found implicitly disabled native realm: [file]. " +
+                    assertEquals("Found implicitly disabled basic realm: [file]. " +
                             "It is disabled because there are other explicitly configured realms." +
-                            "In next major release, native realms will always be enabled unless explicitly disabled.",
+                            "In next major release, basic realms will always be enabled unless explicitly disabled.",
                         deprecationIssues.get(0).getDetails());
                 } else {
                     assertTrue(deprecationIssues.isEmpty());
@@ -267,9 +267,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             } else if (false == nativeRealmConfigured) {
                 if (fileRealmEnabled) {
                     assertCommonImplicitDisabledRealms(deprecationIssues);
-                    assertEquals("Found implicitly disabled native realm: [native]. " +
+                    assertEquals("Found implicitly disabled basic realm: [native]. " +
                             "It is disabled because there are other explicitly configured realms." +
-                            "In next major release, native realms will always be enabled unless explicitly disabled.",
+                            "In next major release, basic realms will always be enabled unless explicitly disabled.",
                         deprecationIssues.get(0).getDetails());
                 } else {
                     assertTrue(deprecationIssues.isEmpty());

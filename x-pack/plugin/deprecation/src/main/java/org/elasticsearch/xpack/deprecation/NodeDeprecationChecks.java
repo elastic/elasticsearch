@@ -110,7 +110,7 @@ class NodeDeprecationChecks {
         );
     }
 
-    static DeprecationIssue checkImplicitlyDisabledNativeRealms(final Settings settings, final PluginsAndModules pluginsAndModules) {
+    static DeprecationIssue checkImplicitlyDisabledBasicRealms(final Settings settings, final PluginsAndModules pluginsAndModules) {
         final Map<RealmConfig.RealmIdentifier, Settings> realmSettings = RealmSettings.getRealmSettings(settings);
         if (realmSettings.isEmpty()) {
             return null;
@@ -121,25 +121,25 @@ class NodeDeprecationChecks {
             e -> e.getValue().getAsBoolean(RealmSettings.ENABLED_SETTING_KEY, true))) {
             return null;
         }
-        final List<String> implicitlyDisabledNativeRealmTypes =
+        final List<String> implicitlyDisabledBasicRealmTypes =
             new ArrayList<>(org.elasticsearch.common.collect.List.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE));
-        realmSettings.keySet().forEach(ri -> implicitlyDisabledNativeRealmTypes.remove(ri.getType()));
-        if (implicitlyDisabledNativeRealmTypes.isEmpty()) {
+        realmSettings.keySet().forEach(ri -> implicitlyDisabledBasicRealmTypes.remove(ri.getType()));
+        if (implicitlyDisabledBasicRealmTypes.isEmpty()) {
             return null;
         }
 
         final String details = String.format(
             Locale.ROOT,
-            "Found implicitly disabled native %s: [%s]. %s disabled because there are other explicitly configured realms." +
-                "In next major release, native realms will always be enabled unless explicitly disabled.",
-            implicitlyDisabledNativeRealmTypes.size() == 1 ? "realm" : "realms",
-            Strings.collectionToDelimitedString(implicitlyDisabledNativeRealmTypes, ","),
-            implicitlyDisabledNativeRealmTypes.size() == 1 ? "It is" : "They are");
+            "Found implicitly disabled basic %s: [%s]. %s disabled because there are other explicitly configured realms." +
+                "In next major release, basic realms will always be enabled unless explicitly disabled.",
+            implicitlyDisabledBasicRealmTypes.size() == 1 ? "realm" : "realms",
+            Strings.collectionToDelimitedString(implicitlyDisabledBasicRealmTypes, ","),
+            implicitlyDisabledBasicRealmTypes.size() == 1 ? "It is" : "They are");
 
         return new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "File and/or native realms are enabled by default in next major release.",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/deprecated-7.13.html#implicitly-disabled-native-realms",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/deprecated-7.13.html#implicitly-disabled-basic-realms",
             details
         );
     }

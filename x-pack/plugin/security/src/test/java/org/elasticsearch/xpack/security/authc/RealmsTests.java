@@ -691,17 +691,17 @@ public class RealmsTests extends ESTestCase {
 
         if (otherRealmConfigured && otherRealmEnabled) {
             if (false == fileRealmConfigured && false == nativeRealmConfigured) {
-                assertWarnings("Found implicitly disabled native realms: [file,native]. " +
+                assertWarnings("Found implicitly disabled basic realms: [file,native]. " +
                     "They are disabled because there are other explicitly configured realms." +
-                    "In next major release, native realms will always be enabled unless explicitly disabled.");
+                    "In next major release, basic realms will always be enabled unless explicitly disabled.");
             } else if (false == fileRealmConfigured) {
-                assertWarnings("Found implicitly disabled native realm: [file]. " +
+                assertWarnings("Found implicitly disabled basic realm: [file]. " +
                     "It is disabled because there are other explicitly configured realms." +
-                    "In next major release, native realms will always be enabled unless explicitly disabled.");
+                    "In next major release, basic realms will always be enabled unless explicitly disabled.");
             } else if (false == nativeRealmConfigured) {
-                assertWarnings("Found implicitly disabled native realm: [native]. " +
+                assertWarnings("Found implicitly disabled basic realm: [native]. " +
                     "It is disabled because there are other explicitly configured realms." +
-                    "In next major release, native realms will always be enabled unless explicitly disabled.");
+                    "In next major release, basic realms will always be enabled unless explicitly disabled.");
             }
         } else {
             if (false == fileRealmConfigured && false == nativeRealmConfigured) {
@@ -710,18 +710,18 @@ public class RealmsTests extends ESTestCase {
                 assertNotNull(realms.realm(NativeRealmSettings.DEFAULT_NAME));
             } else if (false == fileRealmConfigured) {
                 if (nativeRealmEnabled) {
-                    assertWarnings("Found implicitly disabled native realm: [file]. " +
+                    assertWarnings("Found implicitly disabled basic realm: [file]. " +
                         "It is disabled because there are other explicitly configured realms." +
-                        "In next major release, native realms will always be enabled unless explicitly disabled.");
+                        "In next major release, basic realms will always be enabled unless explicitly disabled.");
                 } else {
                     assertNotNull(realms.realm(FileRealmSettings.DEFAULT_NAME));
                     assertNotNull(realms.realm(NativeRealmSettings.DEFAULT_NAME));
                 }
             } else if (false == nativeRealmConfigured) {
                 if (fileRealmEnabled) {
-                    assertWarnings("Found implicitly disabled native realm: [native]. " +
+                    assertWarnings("Found implicitly disabled basic realm: [native]. " +
                         "It is disabled because there are other explicitly configured realms." +
-                        "In next major release, native realms will always be enabled unless explicitly disabled.");
+                        "In next major release, basic realms will always be enabled unless explicitly disabled.");
                 } else {
                     assertNotNull(realms.realm(FileRealmSettings.DEFAULT_NAME));
                     assertNotNull(realms.realm(NativeRealmSettings.DEFAULT_NAME));

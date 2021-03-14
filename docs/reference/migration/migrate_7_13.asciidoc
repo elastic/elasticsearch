@@ -53,7 +53,7 @@ enable <<deprecation-logging, deprecation logging>>.
 [[breaking_713_security_changes]]
 ==== Security deprecations
 
-[[implicitly-disabled-native-realms]]
+[[implicitly-disabled-basic-realms]]
 Currently, if native and file realms are not configured, they are implicitly disabled if there
 are other explicitly configured realms. This behaviour is deprecated.
 In version 8.0.0, the native and file realms will always be enabled unless explicitly

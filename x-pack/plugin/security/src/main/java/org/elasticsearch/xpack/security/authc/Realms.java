@@ -176,7 +176,7 @@ public class Realms implements Iterable<Realm> {
         Map<String, Set<String>> nameToRealmIdentifier = new HashMap<>();
         Set<String> missingOrderRealmSettingKeys = new TreeSet<>();
         Map<String, Set<String>> orderToRealmOrderSettingKeys = new HashMap<>();
-        List<String> implicitlyDisabledNativeRealmTypes = new ArrayList<>(
+        List<String> implicitlyDisabledBasicRealmTypes = new ArrayList<>(
             org.elasticsearch.common.collect.List.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE));
         for (final Map.Entry<RealmConfig.RealmIdentifier, Settings> entry: realmsSettings.entrySet()) {
             final RealmConfig.RealmIdentifier identifier = entry.getKey();
@@ -195,7 +195,7 @@ public class Realms implements Iterable<Realm> {
                 throw new IllegalArgumentException("unknown realm type [" + identifier.getType() + "] for realm [" + identifier + "]");
             }
             RealmConfig config = new RealmConfig(identifier, settings, env, threadContext);
-            implicitlyDisabledNativeRealmTypes.remove(identifier.getType());
+            implicitlyDisabledBasicRealmTypes.remove(identifier.getType());
             if (config.enabled() == false) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("realm [{}] is disabled", identifier);
@@ -227,7 +227,7 @@ public class Realms implements Iterable<Realm> {
 
         if (realms.isEmpty() == false) {
             Collections.sort(realms);
-            logDeprecationForImplicitlyDisabledNativeRealms(implicitlyDisabledNativeRealmTypes);
+            logDeprecationForImplicitlyDisabledNativeRealms(implicitlyDisabledBasicRealmTypes);
         } else {
             // there is no "realms" configuration, add the defaults
             addNativeRealms(realms);
@@ -381,9 +381,9 @@ public class Realms implements Iterable<Realm> {
         if (implicitlyDisabledNativeRealmTypes.isEmpty()) {
             return;
         }
-        deprecationLogger.deprecate(DeprecationCategory.SECURITY, "implicitly_disabled_native_realms",
-            "Found implicitly disabled native {}: [{}]. {} disabled because there are other explicitly configured realms." +
-            "In next major release, native realms will always be enabled unless explicitly disabled.",
+        deprecationLogger.deprecate(DeprecationCategory.SECURITY, "implicitly_disabled_basic_realms",
+            "Found implicitly disabled basic {}: [{}]. {} disabled because there are other explicitly configured realms." +
+            "In next major release, basic realms will always be enabled unless explicitly disabled.",
             implicitlyDisabledNativeRealmTypes.size() == 1 ? "realm" : "realms",
             Strings.collectionToDelimitedString(implicitlyDisabledNativeRealmTypes, ","),
             implicitlyDisabledNativeRealmTypes.size() == 1 ? "It is" : "They are"

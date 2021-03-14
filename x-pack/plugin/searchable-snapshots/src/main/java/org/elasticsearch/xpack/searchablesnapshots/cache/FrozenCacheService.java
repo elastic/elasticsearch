@@ -263,12 +263,12 @@ public class FrozenCacheService implements Releasable {
      * Returns a {@link CacheFileRegion} instance for the given file parameters. The returned instance is reference must have its
      * reference count decremented by one once no longer used.
      *
-     * @param cacheKey
-     * @param fileLength
-     * @param region
-     * @param headerCacheLength
-     * @param footerCacheLength
-     * @return
+     * @param cacheKey          cache key under which the region is tracked
+     * @param fileLength        overall length of the file to cache
+     * @param region            file region number to cache
+     * @param headerCacheLength length of the separate header cache region
+     * @param footerCacheLength length of the separate footer cache region
+     * @return cache file region
      */
     public CacheFileRegion get(CacheKey cacheKey, long fileLength, int region, long headerCacheLength, long footerCacheLength) {
         final long regionSize = sharedBytes.sharedCacheConfiguration.getRegionSize(
@@ -281,16 +281,13 @@ public class FrozenCacheService implements Releasable {
             final RegionKey regionKey = new RegionKey(cacheKey, region);
             final long now = currentTimeSupplier.getAsLong();
             final Entry<CacheFileRegion> entry = keyMapping.compute(regionKey, (key, en) -> {
-                // if there isn't an entry for the given key yet or if its reference count can't be incremented, create a new entry
-                if (en == null || en.chunk.tryIncRef() == false) {
+                // If there isn't an entry for the given key, the existing entry has been evicted already or if its reference count can't
+                // be incremented, create a new entry and increment its count by one to account for the caller. Callers of this method do
+                // not start at reference count `1` but start at `2` since the initial reference is used by the eviction logic and
+                // decremented only when this region is evicted from the cache.
+                if (en == null || en.chunk.isEvicted() || en.chunk.tryIncRef() == false) {
                     en = new Entry<>(new CacheFileRegion(regionKey, regionSize), now);
                     en.chunk.incRef();
-                } else {
-                    if (en.chunk.isEvicted()) {
-                        en.chunk.decRef();
-                        en = new Entry<>(new CacheFileRegion(regionKey, regionSize), now);
-                        en.chunk.incRef();
-                    }
                 }
                 return en;
             });
@@ -800,24 +797,13 @@ public class FrozenCacheService implements Releasable {
         ) {
             assert rangeToWrite.length() > 0 : "should not try to populate and read empty range";
             StepListener<Integer> stepListener = null;
-            final int lastRegion = sharedBytes.sharedCacheConfiguration.getRegion(
-                rangeToWrite.end() - 1,
-                fileSize,
-                headerCacheLength,
-                footerCacheLength
-            );
-            final int firstRegion = sharedBytes.sharedCacheConfiguration.getRegion(
-                rangeToWrite.start(),
-                fileSize,
-                headerCacheLength,
-                footerCacheLength
-            );
+            final int lastRegion = regionForPosition(rangeToWrite.end() - 1);
+            final int firstRegion = regionForPosition(rangeToWrite.start());
             final List<List<SparseFileTracker.Gap>> gapsList = new ArrayList<>();
             final List<SharedBytes.IO> channels = new ArrayList<>();
             final List<CacheFileRegion> regions = new ArrayList<>();
             long writeStartInRegion = -1L;
             long writeEnd = -1L;
-            int firstWriteRegion = -1;
             int lastRegionToWrite = -1;
             for (int region = firstRegion; region <= lastRegion; region++) {
                 final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region, fileSize, headerCacheLength, footerCacheLength);
@@ -873,19 +859,18 @@ public class FrozenCacheService implements Releasable {
                         if (writeStartInRegion < 0) {
                             // negative region-relative position for write means this is the first region we write to, we track its number
                             // and the position relative to its start that we begin writing at
-                            firstWriteRegion = region;
                             writeStartInRegion = gaps.get(0).start();
                         }
                         // since we have gaps to fill for the current region we track the writable IO to write to
                         channels.add(fileChannel);
                         regions.add(fileRegion);
 
-                        // we will at least have to write to the last gap's end so for now this is the upper bound of the write
+                        // we will at least have to write to the last gap's end, so for now this is the upper bound of the write
                         writeEnd = regionStart + gaps.get(gaps.size() - 1).end();
-
+                        // track the highest region number we will execute a write to
                         lastRegionToWrite = region;
                     } else {
-                        // there were not gaps for the current region, no need to keep a reference for it and its IO
+                        // there were no gaps to fill for the current region, no need to keep a reference for it and its IO
                         fileChannel.decRef();
                         fileRegion.decRef();
                         if (gapsList.isEmpty() == false) {
@@ -900,10 +885,10 @@ public class FrozenCacheService implements Releasable {
                 }
             }
 
-            final int numberOfRegionsToIterate = lastRegionToWrite >= 0 ? lastRegionToWrite - firstWriteRegion + 1 : 0;
+            final int numberOfRegionsToIterate = lastRegionToWrite >= 0 ? lastRegionToWrite - regions.get(0).regionKey.region + 1 : 0;
 
-            // if there's no gaps to fill in the write range to be done just break out, the read side listener is already resolved in this
-            // case
+            // If there are no gaps to fill in the write range to be done just break out, the read side listener is already resolved in
+            // this case
             if (numberOfRegionsToIterate == 0) {
                 return stepListener;
             }
@@ -912,7 +897,7 @@ public class FrozenCacheService implements Releasable {
             assert writeStartInRegion >= 0;
             // compute the offset of the first byte to write
             final long writeStart = sharedBytes.sharedCacheConfiguration.getRegionStart(
-                firstWriteRegion,
+                regions.get(0).regionKey.region,
                 fileSize,
                 headerCacheLength,
                 footerCacheLength
@@ -925,13 +910,13 @@ public class FrozenCacheService implements Releasable {
             for (int i = 0; i < numberOfRegionsToIterate; i++) {
                 lengths[i] = sharedBytes.sharedCacheConfiguration.getRegionSize(
                     fileSize,
-                    firstWriteRegion + i,
+                    regions.get(0).regionKey.region + i,
                     headerCacheLength,
                     footerCacheLength
                 );
             }
             final List<SharedBytes.IO> ios = channels.subList(0, numberOfRegionsToIterate);
-            final ByteBufferHandler handler = new ByteBufferHandler(writeStartInRegion, ios, regions, lengths, gapsList, length);
+            final SharedCacheFillContext handler = new SharedCacheFillContext(writeStartInRegion, ios, regions, lengths, gapsList, length);
             final long relativeWritePos = writeStart - rangeToWrite.start();
             executor.execute(new AbstractRunnable() {
                 @Override
@@ -957,18 +942,8 @@ public class FrozenCacheService implements Releasable {
             assert rangeToRead.length() > 0 : "read range must not be empty";
             StepListener<Integer> stepListener = null;
             final long start = rangeToRead.start();
-            final int lastRegion = sharedBytes.sharedCacheConfiguration.getRegion(
-                rangeToRead.end() - 1,
-                fileSize,
-                headerCacheLength,
-                footerCacheLength
-            );
-            for (int region = sharedBytes.sharedCacheConfiguration.getRegion(
-                start,
-                fileSize,
-                headerCacheLength,
-                footerCacheLength
-            ); region <= lastRegion; region++) {
+            final int lastRegion = regionForPosition(rangeToRead.end() - 1);
+            for (int region = regionForPosition(start); region <= lastRegion; region++) {
                 final CacheFileRegion fileRegion = get(cacheKey, fileSize, region, headerCacheLength, footerCacheLength);
                 final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region, fileSize, headerCacheLength, footerCacheLength);
                 final long regionRelativeStart = sharedBytes.sharedCacheConfiguration.getRegionStart(
@@ -988,6 +963,10 @@ public class FrozenCacheService implements Releasable {
                 }
             }
             return stepListener;
+        }
+
+        private int regionForPosition(long position) {
+            return sharedBytes.sharedCacheConfiguration.getRegion(position, fileSize, headerCacheLength, footerCacheLength);
         }
 
         @Override
@@ -1026,22 +1005,29 @@ public class FrozenCacheService implements Releasable {
     /**
      * Consumer of {@link ByteBuffer} that is used by the {@link RangeMissingHandler}.
      */
-    private final class ByteBufferHandler implements CheckedConsumer<ByteBuffer, IOException> {
+    private final class SharedCacheFillContext implements CheckedConsumer<ByteBuffer, IOException> {
 
         private final long startingOffset;
 
         /**
-         * Regions to be written to or to be skipped if {@code null}.
+         * Regions to be written to or to be skipped if {@code null}
          */
         private final List<SharedBytes.IO> ios;
 
+        /**
+         * Cache file region instances for those regions that should be written into and {@code null} entries for regions that should just
+         * be skipped.
+         */
         private final List<CacheFileRegion> regions;
 
         /**
-         * Length of each region.
+         * Length of each region
          */
         private final long[] lengths;
 
+        /**
+         * List of list of gaps per region to fill. Can contain {@code null} entries for regions that need no writes
+         */
         private final List<List<SparseFileTracker.Gap>> gapsList;
 
         /**
@@ -1049,16 +1035,22 @@ public class FrozenCacheService implements Releasable {
          */
         private final long length;
 
-        // Number of bytes already written through this instance
+        /**
+         * Number of bytes already written through this instance
+         */
         private long written = 0L;
 
-        // Index of the current region in #ios
+        /**
+         * Index of the current region in #ios
+         */
         private int regionIndex = 0;
 
-        // Offset at which the currently written to region starts
+        /**
+         * Offset at which the currently written to region starts
+         */
         private long regionStart = 0L;
 
-        ByteBufferHandler(
+        SharedCacheFillContext(
             long startingOffset,
             List<SharedBytes.IO> ios,
             List<CacheFileRegion> regions,
@@ -1136,7 +1128,7 @@ public class FrozenCacheService implements Releasable {
                     assert fileRegionIO == null
                         : "we don't have a gap to resolve for this region so we should not have an open file region to write either";
                 }
-                assert written <= length;
+                assert written <= length : "wrote beyond the requested range by writing [" + written + "]";
                 offsetInRegion = 0;
             }
 
@@ -1176,7 +1168,7 @@ public class FrozenCacheService implements Releasable {
          * Fills given shared bytes channel instance with the requested number of bytes at the given {@code channelPos}.
          *
          * @param cacheWriter        consumer that writes the bytes in the consumed buffer to the cache
-         * @param relativePos        position on the cached file that should be written to the channel at the given position
+         * @param relativePos        position in the cached file that should be written to the channel at the given position
          * @param length             number of bytes to read and cache
          */
         void fillCacheRange(CheckedConsumer<ByteBuffer, IOException> cacheWriter, long relativePos, long length) throws IOException;

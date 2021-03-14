@@ -150,8 +150,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             dynamicMappingHints = in.readMap(StreamInput::readString, StreamInput::readString);
-        } else {
-            dynamicMappingHints = Map.of();
         }
     }
 
@@ -664,10 +662,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeMap(dynamicMappingHints, StreamOutput::writeString, StreamOutput::writeString);
-        } else {
-            if (dynamicMappingHints.isEmpty() == false) {
-                throw new IllegalStateException("Dynamic mapping type hints requires all nodes in the cluster on 8.0 or later");
-            }
         }
     }
 

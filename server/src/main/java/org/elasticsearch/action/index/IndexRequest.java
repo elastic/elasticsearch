@@ -727,11 +727,19 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
+    /**
+     * Specifies a map of hints from the full path of field names to match mapping hints defined in dynamic templates.
+     */
     public IndexRequest setDynamicMatchMappingHints(Map<String, String> dynamicMatchMappingHints) {
         this.dynamicMatchMappingHints = Objects.requireNonNull(dynamicMatchMappingHints);
         return this;
     }
 
+    /**
+     * Returns a map of hints from the full path (i.e. foo.bar) of field names to match mapping hints defined in dynamic templates.
+     *
+     * @see #setDynamicMatchMappingHints(Map)
+     */
     public Map<String, String> getDynamicMatchMappingHints() {
         return dynamicMatchMappingHints;
     }

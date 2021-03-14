@@ -62,6 +62,9 @@ public class SourceToParse {
         return this.routing;
     }
 
+    /**
+     * Returns a map of hints from the full path (i.e. foo.bar) of field names to match mapping hints defined in dynamic templates.
+     */
     public Map<String, String> dynamicMatchMappingHints() {
         return dynamicMatchMappingHints;
     }

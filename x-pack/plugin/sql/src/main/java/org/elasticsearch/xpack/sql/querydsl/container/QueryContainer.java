@@ -77,7 +77,7 @@ public class QueryContainer {
 
     // scalar function processors - recorded as functions get folded;
     // at scrolling, their inputs (leaves) get updated
-    private final AttributeMap<Pipe> scalarFunctions;
+    private AttributeMap<Pipe> scalarFunctions;
 
     private final Map<String, Sort> sort;
     private final int limit;
@@ -185,7 +185,7 @@ public class QueryContainer {
         aliasName(columns.get(0));
 
         for (Attribute column : columns) {
-            Expression expression = aliases.getOrDefault(column, column);
+            Expression expression = aliases.resolve(column, column);
 
             // find the column index
             String id = Expressions.id(expression);
@@ -375,7 +375,11 @@ public class QueryContainer {
 
     // replace function/operators's input with references
     private Tuple<QueryContainer, FieldExtraction> resolvedTreeComputingRef(ScalarFunction function, Attribute attr) {
-        Pipe proc = scalarFunctions.computeIfAbsent(attr, v -> function.asPipe());
+        Pipe proc = null;
+        if ((proc = scalarFunctions.resolve(attr)) == null) {
+            proc = function.asPipe();
+            scalarFunctions = AttributeMap.builder(scalarFunctions).put(attr, proc).build();
+        }
 
         // find the processor inputs (Attributes) and convert them into references
         // no need to promote them to the top since the container doesn't have to be aware
@@ -407,14 +411,14 @@ public class QueryContainer {
     }
 
     public QueryContainer addColumn(Attribute attr) {
-        Expression expression = aliases.getOrDefault(attr, attr);
+        Expression expression = aliases.resolve(attr, attr);
         Tuple<QueryContainer, FieldExtraction> tuple = asFieldExtraction(attr);
         return tuple.v1().addColumn(tuple.v2(), Expressions.id(expression));
     }
 
     private Tuple<QueryContainer, FieldExtraction> asFieldExtraction(Attribute attr) {
         // resolve it Expression
-        Expression expression = aliases.getOrDefault(attr, attr);
+        Expression expression = aliases.resolve(attr, attr);
 
         if (expression instanceof FieldAttribute) {
             FieldAttribute fa = (FieldAttribute) expression;

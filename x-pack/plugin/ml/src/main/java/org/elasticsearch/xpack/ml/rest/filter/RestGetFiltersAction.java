@@ -14,14 +14,14 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 public class RestGetFiltersAction extends BaseRestHandler {
 
@@ -33,12 +33,12 @@ public class RestGetFiltersAction extends BaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
-            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}"),
-            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "filters/",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "filters/")
-        ));
+        return org.elasticsearch.common.collect.List.of(
+            new ReplacedRoute(GET, BASE_PATH + "filters/{" + MlFilter.ID + "}",
+                GET, PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID + "}"),
+            new ReplacedRoute(GET, BASE_PATH + "filters/",
+                GET, PRE_V7_BASE_PATH + "filters/")
+        );
     }
 
     @Override

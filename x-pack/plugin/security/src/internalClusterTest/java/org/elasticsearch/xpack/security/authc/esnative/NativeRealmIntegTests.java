@@ -49,10 +49,13 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -624,17 +627,18 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             () -> securityClient().preparePutUser(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, new SecureString(foobar), hasher).get());
         assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
 
+        final String internalUser = randomFrom(SystemUser.NAME, XPackUser.NAME, XPackSecurityUser.NAME, AsyncSearchUser.NAME);
         exception = expectThrows(IllegalArgumentException.class,
-            () -> securityClient().preparePutUser(SystemUser.NAME, new SecureString(foobar), hasher).get());
-        assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
+            () -> securityClient().preparePutUser(internalUser, new SecureString(foobar), hasher).get());
+        assertThat(exception.getMessage(), containsString("user [" + internalUser + "] is internal"));
 
         exception = expectThrows(IllegalArgumentException.class,
-            () -> securityClient().prepareChangePassword(SystemUser.NAME, foobar, hasher).get());
-        assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
+            () -> securityClient().prepareChangePassword(internalUser, foobar, hasher).get());
+        assertThat(exception.getMessage(), containsString("user [" + internalUser + "] is internal"));
 
         exception = expectThrows(IllegalArgumentException.class,
-            () -> securityClient().prepareDeleteUser(SystemUser.NAME).get());
-        assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
+            () -> securityClient().prepareDeleteUser(internalUser).get());
+        assertThat(exception.getMessage(), containsString("user [" + internalUser + "] is internal"));
 
         // get should work
         GetUsersResponse response = securityClient().prepareGetUsers(username).get();

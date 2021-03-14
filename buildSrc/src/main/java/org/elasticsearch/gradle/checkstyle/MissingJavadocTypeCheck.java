@@ -154,7 +154,9 @@ public class MissingJavadocTypeCheck extends AbstractCheck {
 
         return customScope.isIn(scope)
             && (surroundingScope == null || surroundingScope.isIn(scope))
-            && (excludeScope == null || !customScope.isIn(excludeScope) || surroundingScope != null && !surroundingScope.isIn(excludeScope))
+            && (excludeScope == null
+                || customScope.isIn(excludeScope) == false
+                || surroundingScope != null && surroundingScope.isIn(excludeScope) == false)
             && AnnotationUtil.containsAnnotation(ast, skipAnnotations) == false
             && ignorePattern.matcher(outerTypeName).find() == false;
     }

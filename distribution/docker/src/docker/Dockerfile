@@ -183,9 +183,13 @@ LABEL name="Elasticsearch" \\
   release="1" \\
   summary="Elasticsearch" \\
   description="You know, for search."
+<% } %>
 
-RUN mkdir /licenses && \\
-    cp LICENSE.txt /licenses/LICENSE
+<% if (docker_base == 'ubi') { %>
+RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
+<% } else if (docker_base == 'iron_bank') { %>
+RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
+COPY LICENSE /licenses/LICENSE.addendum
 <% } %>
 
 ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]

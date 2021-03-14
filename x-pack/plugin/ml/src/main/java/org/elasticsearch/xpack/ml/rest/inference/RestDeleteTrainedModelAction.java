@@ -12,14 +12,13 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestDeleteTrainedModelAction extends BaseRestHandler {
 
@@ -30,10 +29,10 @@ public class RestDeleteTrainedModelAction extends BaseRestHandler {
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {
-        return singletonList(
+        return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(
-                DELETE, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
-                DELETE, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"));
+                DELETE, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}",
+                DELETE, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}"));
     }
 
     @Override

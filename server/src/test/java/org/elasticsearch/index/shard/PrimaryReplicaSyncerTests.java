@@ -35,7 +35,8 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.transport.MockTransport;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -47,6 +48,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -62,7 +64,8 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
 
     public void testSyncerSendsOffCorrectDocuments() throws Exception {
         IndexShard shard = newStartedShard(true);
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        TransportService transportService = new MockTransport().createTransportService(Settings.EMPTY, threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, address -> null, null, emptySet());
         AtomicBoolean syncActionCalled = new AtomicBoolean();
         List<ResyncReplicationRequest> resyncRequests = new ArrayList<>();
         PrimaryReplicaSyncer.SyncAction syncAction =
@@ -73,7 +76,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
                 assertThat(parentTask, instanceOf(PrimaryReplicaSyncer.ResyncTask.class));
                 listener.onResponse(new ResyncReplicationResponse());
             };
-        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(taskManager, syncAction);
+        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(transportService, syncAction);
         syncer.setChunkSize(new ByteSizeValue(randomIntBetween(1, 10)));
 
         int numDocs = randomInt(10);
@@ -139,8 +142,9 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
                 syncActionCalled.set(true);
                 threadPool.generic().execute(() -> listener.onResponse(new ResyncReplicationResponse()));
             };
-        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()), syncAction);
+        TransportService transportService = new MockTransport().createTransportService(Settings.EMPTY, threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> null, null, emptySet());
+        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(transportService, syncAction);
         syncer.setChunkSize(new ByteSizeValue(1)); // every document is sent off separately
 
         int numDocs = 10;
@@ -201,13 +205,14 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         Engine.HistorySource source =
             shard.indexSettings.isSoftDeleteEnabled() ? Engine.HistorySource.INDEX : Engine.HistorySource.TRANSLOG;
         doReturn(TestTranslog.newSnapshotFromOperations(operations)).when(shard).getHistoryOperations(anyString(), eq(source), anyLong());
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        TransportService transportService = new MockTransport().createTransportService(Settings.EMPTY, threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> null, null, emptySet());
         List<Translog.Operation> sentOperations = new ArrayList<>();
         PrimaryReplicaSyncer.SyncAction syncAction = (request, parentTask, allocationId, primaryTerm, listener) -> {
             sentOperations.addAll(Arrays.asList(request.getOperations()));
             listener.onResponse(new ResyncReplicationResponse());
         };
-        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(taskManager, syncAction);
+        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(transportService, syncAction);
         syncer.setChunkSize(new ByteSizeValue(randomIntBetween(1, 10)));
         PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<>();
         syncer.resync(shard, fut);

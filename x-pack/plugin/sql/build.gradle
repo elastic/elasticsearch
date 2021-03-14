@@ -139,3 +139,10 @@ if (BuildParams.inFipsJvm){
   // Test clusters run with security disabled
   tasks.named("internalClusterTest").configure{enabled = false }
 }
+
+tasks.named("test").configure {
+  // SqlParserTests need some extra cushion on Java 8 due to tests that explicitly try to generate StackOverflowExceptions
+  if (BuildParams.runtimeJavaVersion == JavaVersion.VERSION_1_8) {
+    maxHeapSize = "1g"
+  }
+}

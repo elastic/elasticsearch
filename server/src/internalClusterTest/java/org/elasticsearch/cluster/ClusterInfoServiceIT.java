@@ -42,7 +42,6 @@ import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -83,8 +82,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME,
-                "System index for [" + getTestClass().getName() + ']'));
+            return singletonList(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, "Test system index"));
         }
 
         @Override

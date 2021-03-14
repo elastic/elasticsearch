@@ -23,7 +23,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -34,10 +33,10 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetTrainedModelsAction extends BaseRestHandler {
 
@@ -50,13 +49,14 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {
-        return unmodifiableList(asList(
+        return org.elasticsearch.common.collect.List.of(
             new ReplacedRoute(
-                GET, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
-                GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"),
+                GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}",
+                GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}"),
             new ReplacedRoute(
-                GET, MachineLearning.BASE_PATH + "trained_models",
-                GET, MachineLearning.BASE_PATH + "inference")));
+                GET, BASE_PATH + "trained_models",
+                GET, BASE_PATH + "inference")
+        );
     }
 
     private static final Map<String, String> DEFAULT_TO_XCONTENT_VALUES =

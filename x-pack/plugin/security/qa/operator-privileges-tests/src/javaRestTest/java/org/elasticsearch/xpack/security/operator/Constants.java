@@ -13,8 +13,8 @@ public class Constants {
 
     public static final Set<String> NON_OPERATOR_ACTIONS = org.elasticsearch.common.collect.Set.of(
         // "cluster:admin/autoscaling/delete_autoscaling_policy",
-        // "cluster:admin/autoscaling/get_autoscaling_capacity",
-        // "cluster:admin/autoscaling/get_autoscaling_policy",
+        "cluster:admin/autoscaling/get_autoscaling_capacity",
+        "cluster:admin/autoscaling/get_autoscaling_policy",
         // "cluster:admin/autoscaling/put_autoscaling_policy",
         "cluster:admin/component_template/delete",
         "cluster:admin/component_template/get",
@@ -80,7 +80,7 @@ public class Constants {
         "cluster:admin/snapshot/mount",
         "cluster:admin/snapshot/restore",
         "cluster:admin/snapshot/status",
-        "cluster:admin/snapshot/features/get",
+        "cluster:admin/features/get",
         "cluster:admin/tasks/cancel",
         "cluster:admin/transform/delete",
         "cluster:admin/transform/preview",
@@ -118,6 +118,7 @@ public class Constants {
         "cluster:admin/xpack/ml/data_frame/analytics/delete",
         "cluster:admin/xpack/ml/data_frame/analytics/explain",
         "cluster:admin/xpack/ml/data_frame/analytics/put",
+        "cluster:admin/xpack/ml/data_frame/analytics/preview",
         "cluster:admin/xpack/ml/data_frame/analytics/start",
         "cluster:admin/xpack/ml/data_frame/analytics/stop",
         "cluster:admin/xpack/ml/data_frame/analytics/update",
@@ -376,6 +377,8 @@ public class Constants {
         "internal:admin/ccr/restore/session/clear",
         "internal:admin/ccr/restore/session/put",
         "internal:admin/xpack/searchable_snapshots/cache/store",
+        "internal:admin/xpack/searchable_snapshots/frozen_cache_info",
+        "internal:admin/xpack/searchable_snapshots/frozen_cache_info[n]",
         "internal:indices/admin/upgrade"
     );
 }

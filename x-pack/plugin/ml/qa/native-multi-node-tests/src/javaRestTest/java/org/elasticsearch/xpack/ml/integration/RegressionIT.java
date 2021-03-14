@@ -16,8 +16,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
@@ -36,12 +36,11 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -53,6 +52,7 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -78,23 +78,9 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private String sourceIndex;
     private String destIndex;
 
-    @Before
-    public void setupLogging() {
-        client().admin().cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
-                .put("logger.org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler", "DEBUG"))
-            .get();
-    }
-
     @After
     public void cleanup() {
         cleanUp();
-        client().admin().cluster()
-        .prepareUpdateSettings()
-        .setTransientSettings(Settings.builder()
-            .putNull("logger.org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler"))
-        .get();
     }
 
     @Override
@@ -751,6 +737,45 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started analyzing",
             "Started writing results",
             "Finished analysis");
+    }
+
+    public void testPreview() throws Exception {
+        initialize("preview_analytics");
+        indexData(sourceIndex, 300, 50);
+
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Regression(DEPENDENT_VARIABLE_FIELD));
+        putAnalytics(config);
+        List<Map<String, Object>> preview = previewDataFrame(jobId).getFeatureValues();
+        for (Map<String, Object> feature : preview) {
+            assertThat(feature.keySet(), hasItems(NUMERICAL_FEATURE_FIELD, DISCRETE_NUMERICAL_FEATURE_FIELD, DEPENDENT_VARIABLE_FIELD));
+        }
+    }
+
+    public void testPreviewWithProcessors() throws Exception {
+        initialize("processed_preview_analytics");
+        indexData(sourceIndex, 300, 50);
+
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null,
+            new Regression(
+                DEPENDENT_VARIABLE_FIELD,
+                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                Arrays.asList(
+                    new OneHotEncoding(DISCRETE_NUMERICAL_FEATURE_FIELD,
+                        Collections.singletonMap(DISCRETE_NUMERICAL_FEATURE_VALUES.get(0).toString(), "tenner"), true)
+                ),
+                null)
+        );
+        putAnalytics(config);
+        List<Map<String, Object>> preview = previewDataFrame(jobId).getFeatureValues();
+        for (Map<String, Object> feature : preview) {
+            assertThat(feature.keySet(), hasItems(NUMERICAL_FEATURE_FIELD, "tenner", DEPENDENT_VARIABLE_FIELD));
+            assertThat(feature, not(hasKey(DISCRETE_NUMERICAL_FEATURE_VALUES)));
+        }
     }
 
     private void initialize(String jobId) {

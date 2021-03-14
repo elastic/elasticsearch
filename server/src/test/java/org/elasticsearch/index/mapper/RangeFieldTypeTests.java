@@ -29,8 +29,8 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.joda.time.DateTime;
 import org.junit.Before;
@@ -249,7 +249,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         long lower = randomLongBetween(formatter.parseMillis("2000-01-01T00:00"), formatter.parseMillis("2010-01-01T00:00"));
         long upper = randomLongBetween(formatter.parseMillis("2011-01-01T00:00"), formatter.parseMillis("2020-01-01T00:00"));
 
-        RangeFieldType fieldType = new RangeFieldType("field", true, false, false, formatter, false, null);
+        RangeFieldType fieldType = new RangeFieldType("field", true, false, false, formatter, false, Collections.emptyMap());
         String lowerAsString = formatter.formatMillis(lower);
         String upperAsString = formatter.formatMillis(upper);
         // also add date math rounding to days occasionally

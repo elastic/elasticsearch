@@ -13,12 +13,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 
@@ -40,19 +40,8 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
         .build();
 
     TestSystemIndexDescriptor() {
-        super(
-            INDEX_NAME + "*",
-            PRIMARY_INDEX_NAME,
-            "Test system index",
-            null,
-            SETTINGS,
-            INDEX_NAME,
-            0,
-            "version",
-            "stack",
-            MapperService.SINGLE_MAPPING_NAME,
-            null
-        );
+        super(INDEX_NAME + "*", PRIMARY_INDEX_NAME, "Test system index", null, SETTINGS, INDEX_NAME, 0, "version", "stack",
+            SINGLE_MAPPING_NAME, null, Type.INTERNAL, emptyList());
     }
 
     @Override

@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
-import org.elasticsearch.client.snapshots.GetSnapshottableFeaturesRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -188,15 +187,6 @@ final class SnapshotRequestConverters {
 
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withMasterTimeout(deleteSnapshotRequest.masterNodeTimeout());
-        request.addParameters(parameters.asMap());
-        return request;
-    }
-
-    static Request getSnapshottableFeatures(GetSnapshottableFeaturesRequest getSnapshottableFeaturesRequest) {
-        String endpoint = "/_snapshottable_features";
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withMasterTimeout(getSnapshottableFeaturesRequest.masterNodeTimeout());
         request.addParameters(parameters.asMap());
         return request;
     }

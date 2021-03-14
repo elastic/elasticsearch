@@ -15,6 +15,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,6 +30,8 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUti
 public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInput {
 
     protected final Logger logger;
+    protected final String name;
+    protected final SearchableSnapshotDirectory directory;
     protected final BlobContainer blobContainer;
     protected final FileInfo fileInfo;
     protected final IOContext context;
@@ -36,27 +39,36 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     protected final long offset;
     protected final long length;
 
+    /**
+     * Range of bytes that should be cached in the blob cache for the current index input's header.
+     */
+    protected final ByteRange headerBlobCacheByteRange;
+
     // the following are only mutable so they can be adjusted after cloning/slicing
     protected volatile boolean isClone;
     private AtomicBoolean closed;
 
     public BaseSearchableSnapshotIndexInput(
         Logger logger,
-        String resourceDesc,
-        BlobContainer blobContainer,
+        String name,
+        SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
         long offset,
-        long length
+        long length,
+        ByteRange blobCacheByteRange
     ) {
-        super(resourceDesc, context);
+        super(name, context);
+        this.name = Objects.requireNonNull(name);
         this.logger = Objects.requireNonNull(logger);
-        this.blobContainer = Objects.requireNonNull(blobContainer);
+        this.directory = Objects.requireNonNull(directory);
+        this.blobContainer = Objects.requireNonNull(directory.blobContainer());
         this.fileInfo = Objects.requireNonNull(fileInfo);
         this.context = Objects.requireNonNull(context);
         assert fileInfo.metadata().hashEqualsContents() == false
             : "this method should only be used with blobs that are NOT stored in metadata's hash field " + "(fileInfo: " + fileInfo + ')';
+        this.headerBlobCacheByteRange = Objects.requireNonNull(blobCacheByteRange);
         this.stats = Objects.requireNonNull(stats);
         this.offset = offset;
         this.length = length;
@@ -67,6 +79,13 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     @Override
     public final long length() {
         return length;
+    }
+
+    protected long getAbsolutePosition() {
+        final long position = getFilePointer() + this.offset;
+        assert position >= 0L : "absolute position is negative: " + position;
+        assert position <= fileInfo.length() : position + " vs " + fileInfo.length();
+        return position;
     }
 
     @Override
@@ -99,7 +118,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         if (remaining > CodecUtil.footerLength()) {
             return false;
         }
-        final long position = getFilePointer() + this.offset;
+        final long position = getAbsolutePosition();
         final long checksumPosition = fileInfo.length() - CodecUtil.footerLength();
         if (position < checksumPosition) {
             return false;
@@ -122,6 +141,13 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
             assert b.remaining() == (success ? 0L : remaining) : b.remaining() + " remaining bytes but success is " + success;
         }
         return success;
+    }
+
+    protected ByteRange maybeReadFromBlobCache(long position, int length) {
+        if (headerBlobCacheByteRange.contains(position, position + length)) {
+            return headerBlobCacheByteRange;
+        }
+        return ByteRange.EMPTY;
     }
 
     /**
@@ -210,6 +236,20 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         clone.closed = new AtomicBoolean(false);
         clone.isClone = true;
         return clone;
+    }
+
+    @Override
+    public String toString() {
+        return super.toString() + "[length=" + length() + ", file pointer=" + getFilePointer() + ", offset=" + offset + ']';
+    }
+
+    @Override
+    protected String getFullSliceDescription(String sliceDescription) {
+        final String resourceDesc = super.toString();
+        if (sliceDescription != null) {
+            return "slice(" + sliceDescription + ") of " + resourceDesc;
+        }
+        return resourceDesc;
     }
 
     protected void ensureOpen() throws IOException {

@@ -24,9 +24,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
+import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 
@@ -80,7 +80,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             );
         }
         builder.put(
-            SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
+            FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
             rarely()
                 ? randomBoolean()
                     ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
@@ -88,14 +88,14 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
         );
         builder.put(
-            SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(),
+            FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(),
             rarely()
                 ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
                 : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
         );
         if (randomBoolean()) {
             builder.put(
-                SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
+                FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
                 rarely()
                     ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
                     : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
@@ -131,6 +131,17 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         String restoredIndexName,
         Settings restoredIndexSettings
     ) throws Exception {
+        mountSnapshot(repositoryName, snapshotName, indexName, restoredIndexName, restoredIndexSettings, Storage.FULL_COPY);
+    }
+
+    protected void mountSnapshot(
+        String repositoryName,
+        String snapshotName,
+        String indexName,
+        String restoredIndexName,
+        Settings restoredIndexSettings,
+        final Storage storage
+    ) throws Exception {
         final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
             restoredIndexName,
             repositoryName,
@@ -142,10 +153,10 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 .build(),
             Strings.EMPTY_ARRAY,
             true,
-            MountSearchableSnapshotRequest.Storage.FULL_COPY
+            storage
         );
 
-        final RestoreSnapshotResponse restoreResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).get();
+        final RestoreSnapshotResponse restoreResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
         assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(getNumShards(restoredIndexName).numPrimaries));
         assertThat(restoreResponse.getRestoreInfo().failedShards(), equalTo(0));
     }

@@ -85,7 +85,7 @@ final class QueryTranslator {
 
         public static Query doTranslate(InsensitiveBinaryComparison bc, TranslatorHandler handler) {
             checkInsensitiveComparison(bc);
-            return handler.wrapFunctionQuery(bc, bc.left(), translate(bc, handler));
+            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
         }
 
         public static void checkInsensitiveComparison(InsensitiveBinaryComparison bc) {
@@ -164,7 +164,7 @@ final class QueryTranslator {
                 }
             }
 
-            return handler.wrapFunctionQuery(f, f, new ScriptQuery(f.source(), f.asScript()));
+            return handler.wrapFunctionQuery(f, f, () -> new ScriptQuery(f.source(), f.asScript()));
         }
     }
 

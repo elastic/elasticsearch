@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.snapshots.SnapshotUtils;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -29,6 +29,8 @@ import java.util.Map;
 public class SharedBytes extends AbstractRefCounted {
 
     private static final Logger logger = LogManager.getLogger(SharedBytes.class);
+
+    private static final String CACHE_FILE_NAME = "shared_snapshot_cache";
 
     private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[] {
         StandardOpenOption.READ,
@@ -51,10 +53,11 @@ public class SharedBytes extends AbstractRefCounted {
         final long fileSize = numRegions * regionSize;
         Path cacheFile = null;
         if (fileSize > 0) {
-            cacheFile = SnapshotUtils.findCacheSnapshotCacheFilePath(environment, fileSize);
+            cacheFile = findCacheSnapshotCacheFilePath(environment, fileSize);
             if (cacheFile == null) {
                 throw new IOException("Could not find a directory with adequate free space for cache file");
             }
+            Preallocate.preallocate(cacheFile, fileSize);
             // TODO: maybe make this faster by allocating a larger direct buffer if this is too slow for very large files
             // We fill either the full file or the bytes between its current size and the desired size once with zeros to fully allocate
             // the file up front
@@ -79,10 +82,35 @@ public class SharedBytes extends AbstractRefCounted {
         } else {
             this.fileChannel = null;
             for (Path path : environment.dataFiles()) {
-                Files.deleteIfExists(path.resolve(SnapshotsService.CACHE_FILE_NAME));
+                Files.deleteIfExists(path.resolve(CACHE_FILE_NAME));
             }
         }
         this.path = cacheFile;
+    }
+
+    /**
+     * Tries to find a suitable path to a searchable snapshots shared cache file in the data paths founds in the environment.
+     *
+     * @return path for the cache file or {@code null} if none could be found
+     */
+    @Nullable
+    public static Path findCacheSnapshotCacheFilePath(Environment environment, long fileSize) throws IOException {
+        Path cacheFile = null;
+        for (Path path : environment.dataFiles()) {
+            Files.createDirectories(path);
+            // TODO: be resilient to this check failing and try next path?
+            long usableSpace = Environment.getUsableSpace(path);
+            Path p = path.resolve(CACHE_FILE_NAME);
+            if (Files.exists(p)) {
+                usableSpace += Files.size(p);
+            }
+            // TODO: leave some margin for error here
+            if (usableSpace > fileSize) {
+                cacheFile = p;
+                break;
+            }
+        }
+        return cacheFile;
     }
 
     @Override

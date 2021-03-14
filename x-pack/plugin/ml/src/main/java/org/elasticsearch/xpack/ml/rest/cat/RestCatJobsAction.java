@@ -31,17 +31,16 @@ import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestCatJobsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "_cat/ml/anomaly_detectors/{" + Job.ID.getPreferredName() + "}"),
-            new Route(GET, "_cat/ml/anomaly_detectors")));
+        return org.elasticsearch.common.collect.List.of(
+            new Route(GET, "_cat/ml/anomaly_detectors/{" + Job.ID + "}"),
+            new Route(GET, "_cat/ml/anomaly_detectors")
+        );
     }
 
     @Override

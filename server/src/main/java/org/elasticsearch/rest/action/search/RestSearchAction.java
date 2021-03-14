@@ -207,9 +207,18 @@ public class RestSearchAction extends BaseRestHandler {
         if (from != -1) {
             searchSourceBuilder.from(from);
         }
-        int size = request.paramAsInt("size", -1);
-        if (size != -1) {
-            setSize.accept(size);
+        if (request.hasParam("size")) {
+            int size = request.paramAsInt("size", -1);
+            if (size != -1) {
+                setSize.accept(size);
+            } else {
+                deprecationLogger.deprecate(
+                    DeprecationCategory.API,
+                    "search-api-size-1",
+                    "Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` parameter "
+                        + "if you don't want to set it explicitely."
+                );
+            }
         }
 
         if (request.hasParam("explain")) {
@@ -225,13 +234,8 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.timeout(request.paramAsTime("timeout", null));
         }
         if (request.hasParam("terminate_after")) {
-            int terminateAfter = request.paramAsInt("terminate_after",
-                    SearchContext.DEFAULT_TERMINATE_AFTER);
-            if (terminateAfter < 0) {
-                throw new IllegalArgumentException("terminateAfter must be > 0");
-            } else if (terminateAfter > 0) {
-                searchSourceBuilder.terminateAfter(terminateAfter);
-            }
+            int terminateAfter = request.paramAsInt("terminate_after", SearchContext.DEFAULT_TERMINATE_AFTER);
+            searchSourceBuilder.terminateAfter(terminateAfter);
         }
 
         StoredFieldsContext storedFieldsContext =

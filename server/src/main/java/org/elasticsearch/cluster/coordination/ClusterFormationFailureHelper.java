@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -30,8 +31,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
@@ -133,16 +132,21 @@ public class ClusterFormationFailureHelper {
             if (statusInfo.getStatus() == UNHEALTHY) {
                 return String.format(Locale.ROOT, "this node is unhealthy: %s", statusInfo.getInfo());
             }
-            final List<String> clusterStateNodes = StreamSupport.stream(clusterState.nodes().getMasterNodes().values().spliterator(), false)
-                .map(n -> n.value.toString()).collect(Collectors.toList());
+
+            final StringBuilder clusterStateNodes = new StringBuilder();
+            DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(
+                    clusterState.nodes().getMasterNodes().valuesIt(), clusterStateNodes);
 
             final String discoveryWillContinueDescription = String.format(Locale.ROOT,
-                "discovery will continue using %s from hosts providers and %s from last-known cluster state; " +
+                "discovery will continue using %s from hosts providers and [%s] from last-known cluster state; " +
                     "node term %d, last-accepted version %d in term %d",
                 resolvedAddresses, clusterStateNodes, currentTerm, clusterState.getVersionOrMetadataVersion(), clusterState.term());
 
-            final String discoveryStateIgnoringQuorum = String.format(Locale.ROOT, "have discovered %s; %s",
-                foundPeers, discoveryWillContinueDescription);
+            final StringBuilder foundPeersDescription = new StringBuilder();
+            DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(foundPeers.iterator(), foundPeersDescription);
+
+            final String discoveryStateIgnoringQuorum = String.format(Locale.ROOT, "have discovered [%s]; %s",
+                    foundPeersDescription, discoveryWillContinueDescription);
 
             if (clusterState.nodes().getLocalNode().isMasterNode() == false) {
                 return String.format(Locale.ROOT, "master not discovered yet: %s", discoveryStateIgnoringQuorum);
@@ -171,8 +175,8 @@ public class ClusterFormationFailureHelper {
 
             if (clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
                 return String.format(Locale.ROOT,
-                        "master not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",
-                        foundPeers, discoveryWillContinueDescription);
+                        "master not discovered yet and this node was detached from its previous cluster, have discovered [%s]; %s",
+                        foundPeersDescription, discoveryWillContinueDescription);
             }
 
             final String quorumDescription;
@@ -193,8 +197,8 @@ public class ClusterFormationFailureHelper {
                     voteCollection) ? "is a quorum" : "is not a quorum";
 
             return String.format(Locale.ROOT,
-                "master not discovered or elected yet, an election requires %s, have discovered %s which %s; %s",
-                quorumDescription, foundPeers, isQuorumOrNot, discoveryWillContinueDescription);
+                "master not discovered or elected yet, an election requires %s, have discovered [%s] which %s; %s",
+                quorumDescription, foundPeersDescription, isQuorumOrNot, discoveryWillContinueDescription);
         }
 
         private String describeQuorum(VotingConfiguration votingConfiguration) {

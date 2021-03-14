@@ -21,7 +21,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Test harness for verifying {@link IndexInput} implementations.
@@ -163,11 +162,11 @@ public class ESIndexInputTestCase extends ESTestCase {
 
                     try {
                         startLatch.countDown();
-                        assertTrue(startLatch.await(30, TimeUnit.SECONDS));
+                        startLatch.await();
                         ActionListener.completeWith(mainThreadResultFuture, () -> randomReadAndSlice(indexInput, mainThreadReadEnd));
                         System.arraycopy(mainThreadResultFuture.actionGet(), readPos, output, readPos, mainThreadReadEnd - readPos);
                         readPos = mainThreadReadEnd;
-                        assertTrue(finishLatch.await(30, TimeUnit.SECONDS));
+                        finishLatch.await();
                     } catch (InterruptedException e) {
                         throw new AssertionError(e);
                     }

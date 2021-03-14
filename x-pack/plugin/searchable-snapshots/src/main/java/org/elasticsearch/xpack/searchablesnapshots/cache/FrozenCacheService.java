@@ -752,6 +752,10 @@ public class FrozenCacheService implements Releasable {
         /**
          * Populate frozen cache with the requested {@code rangeToWrite} end resolve given {@link RangeAvailableHandler} with the requested
          * {@code rangeToRead}.
+         * NOTE: this method will only invoke the provided {@code writer} once with the maximum range necessary to populate the cache
+         * with the {@code rangeToWrite}. This is done with the assumption that each invocation of {@code writer} has a non-trivial
+         * overhead due e.g. sending separate requests to a blob-store that outweighs the cost of reading a some bytes that will simply
+         * be skipped because they already are in the cache.
          *
          * @param rangeToWrite range to populate cache with
          * @param rangeToRead  range to pass to {@code reader} once available

@@ -17,10 +17,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.CacheFileRegion;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
@@ -69,32 +71,33 @@ public class FrozenCacheServiceTests extends ESTestCase {
             assertEquals(1, cacheService.freeLargeRegionCount());
             assertEquals(2, cacheService.freeSmallRegionCount());
 
+            region1.decRef();
             assertTrue(region1.tryEvict());
             assertEquals(2, cacheService.freeLargeRegionCount());
             assertEquals(2, cacheService.freeSmallRegionCount());
             assertFalse(region1.tryEvict());
             assertEquals(2, cacheService.freeLargeRegionCount());
             assertEquals(2, cacheService.freeSmallRegionCount());
-            /*
-            TODO: rework this
-            region0.populateAndRead(
-                ByteRange.of(0L, 1L),
-                ByteRange.of(0L, 1L),
-                (channel, channelPos, relativePos, length) -> 1,
-                (channel, channelPos, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
-                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC)
-            );
+            cacheService.getFrozenCacheFile(cacheKey, fileSize, ByteRange.of(0L, cacheHeaderRange), ByteRange.of(0L, footerCacheRange))
+                .populateAndRead(
+                    ByteRange.of(0L, 1L),
+                    ByteRange.of(0L, 1L),
+                    (channel, channelPos, relativePos, length) -> 1,
+                    (channel, relativePos, length) -> channel.accept(ByteBuffer.allocate(1)),
+                    taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC)
+                );
             assertFalse(region0.tryEvict());
             assertEquals(2, cacheService.freeLargeRegionCount());
             assertEquals(2, cacheService.freeSmallRegionCount());
             taskQueue.runAllRunnableTasks();
+            region0.decRef();
             assertTrue(region0.tryEvict());
             assertEquals(3, cacheService.freeLargeRegionCount());
             assertEquals(2, cacheService.freeSmallRegionCount());
+            region2.decRef();
             assertTrue(region2.tryEvict());
             assertEquals(4, cacheService.freeLargeRegionCount());
             assertEquals(2, cacheService.freeSmallRegionCount());
-            */
         }
     }
 
@@ -125,6 +128,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             assertEquals(0, cacheService.freeTinyRegionCount());
             assertFalse(region0.isEvicted());
 
+            region0.decRef();
             final CacheFileRegion region1 = cacheService.get(
                 generateCacheKey(),
                 SharedCacheConfiguration.TINY_REGION_SIZE,
@@ -135,12 +139,14 @@ public class FrozenCacheServiceTests extends ESTestCase {
             assertEquals(SharedCacheConfiguration.TINY_REGION_SIZE, region1.tracker.getLength());
             assertTrue(region0.isEvicted());
 
+            region1.decRef();
             final CacheFileRegion region2 = cacheService.get(generateCacheKey(), 7, 0, cacheHeaderRange, footerCacheRange);
             assertEquals(7L, region2.tracker.getLength());
             assertEquals(0, cacheService.freeTinyRegionCount());
             assertTrue(region0.isEvicted());
             assertTrue(region1.isEvicted());
 
+            region2.decRef();
             final long file3Length = SharedCacheConfiguration.TINY_REGION_SIZE + 1;
             final CacheFileRegion region3 = cacheService.get(generateCacheKey(), file3Length, 1, cacheHeaderRange, footerCacheRange);
             assertEquals(1L, region3.tracker.getLength());
@@ -193,6 +199,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             assertFalse(region3.isEvicted());
 
             // acquire region 4, which should evict region 0 (oldest)
+            region0.decRef();
             final CacheFileRegion region4 = cacheService.get(cacheKey, fileSize, 4, cacheHeaderRange, footerCacheRange);
             assertEquals(largeRegionSize.getBytes(), region4.tracker.getLength());
             assertEquals(0, cacheService.freeLargeRegionCount());
@@ -202,6 +209,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             assertFalse(region3.isEvicted());
             assertFalse(region4.isEvicted());
 
+            region1.decRef();
             // explicitly evict region 1
             assertTrue(region1.tryEvict());
             assertEquals(1, cacheService.freeLargeRegionCount());
@@ -265,6 +273,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             assertEquals(largeRegionSize.getBytes(), region4.tracker.getLength());
             assertEquals(5, cacheService.freeTinyRegionCount());
 
+            region1.decRef();
             // acquire region 5 which should evict region 1 (oldest large region)
             final CacheFileRegion region5 = cacheService.get(cacheKey, fileSize, 5, cacheHeaderRange, footerCacheRange);
             assertEquals(largeRegionSize.getBytes() - SharedCacheConfiguration.TINY_REGION_SIZE, region5.tracker.getLength());
@@ -283,6 +292,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
 
             assertFalse(region2.isEvicted());
 
+            region2.decRef();
             // acquire region 1 of second file which should evict region 2 (oldest large region)
             final CacheFileRegion otherRegion1 = cacheService.get(
                 otherKey,
@@ -300,11 +310,13 @@ public class FrozenCacheServiceTests extends ESTestCase {
             assertTrue(region2.isEvicted());
             assertTrue(region1.isEvicted());
 
+            region3.decRef();
             // explicitly evict region 3
             assertTrue(region3.tryEvict());
             assertEquals(1, cacheService.freeLargeRegionCount());
             assertEquals(2, cacheService.freeSmallRegionCount());
 
+            otherRegion0.decRef();
             // explicitly evict region 0 (tiny) in the second file
             assertTrue(otherRegion0.tryEvict());
             assertEquals(1, cacheService.freeLargeRegionCount());
@@ -342,6 +354,8 @@ public class FrozenCacheServiceTests extends ESTestCase {
             cacheService.removeFromCache(cacheKey1);
             assertTrue(region0.isEvicted());
             assertFalse(region1.isEvicted());
+            region0.decRef();
+            region1.decRef();
             assertEquals(3, cacheService.freeLargeRegionCount());
         }
     }

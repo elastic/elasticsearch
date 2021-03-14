@@ -259,6 +259,17 @@ public class FrozenCacheService implements Releasable {
         return ByteRange.of(start, start + overlap.length());
     }
 
+    /**
+     * Returns a {@link CacheFileRegion} instance for the given file parameters. The returned instance is reference must have its
+     * reference count decremented by one once no longer used.
+     *
+     * @param cacheKey
+     * @param fileLength
+     * @param region
+     * @param headerCacheLength
+     * @param footerCacheLength
+     * @return
+     */
     public CacheFileRegion get(CacheKey cacheKey, long fileLength, int region, long headerCacheLength, long footerCacheLength) {
         final long regionSize = sharedBytes.sharedCacheConfiguration.getRegionSize(
             fileLength,
@@ -269,10 +280,20 @@ public class FrozenCacheService implements Releasable {
         try (Releasable ignore = keyedLock.acquire(cacheKey)) {
             final RegionKey regionKey = new RegionKey(cacheKey, region);
             final long now = currentTimeSupplier.getAsLong();
-            final Entry<CacheFileRegion> entry = keyMapping.computeIfAbsent(
-                regionKey,
-                key -> new Entry<>(new CacheFileRegion(regionKey, regionSize), now)
-            );
+            final Entry<CacheFileRegion> entry = keyMapping.compute(regionKey, (key, en) -> {
+                // if there isn't an entry for the given key yet or if its reference count can't be incremented, create a new entry
+                if (en == null || en.chunk.tryIncRef() == false) {
+                    en = new Entry<>(new CacheFileRegion(regionKey, regionSize), now);
+                    en.chunk.incRef();
+                } else {
+                    if (en.chunk.isEvicted()) {
+                        en.chunk.decRef();
+                        en = new Entry<>(new CacheFileRegion(regionKey, regionSize), now);
+                        en.chunk.incRef();
+                    }
+                }
+                return en;
+            });
             if (entry.chunk.sharedPageIndex == -1) {
                 // new item
                 assert entry.freq == 0;
@@ -299,6 +320,7 @@ public class FrozenCacheService implements Releasable {
                     } else {
                         boolean removed = keyMapping.remove(regionKey, entry);
                         assert removed;
+                        entry.chunk.decRef();
                         throw new AlreadyClosedException("no free region found");
                     }
                 }
@@ -661,21 +683,11 @@ public class FrozenCacheService implements Releasable {
             return evicted.get();
         }
 
-        public boolean isReleased() {
-            return isEvicted() && refCount() == 0;
-        }
-
         @Override
         protected void closeInternal() {
             // now actually free the region associated with this chunk
             onClose(this);
             logger.trace("closed {} with channel offset {}", regionKey, physicalStartOffset());
-        }
-
-        private void ensureOpen() {
-            if (evicted.get()) {
-                throwAlreadyEvicted();
-            }
         }
 
         private void throwAlreadyEvicted() {
@@ -689,14 +701,9 @@ public class FrozenCacheService implements Releasable {
             final RangeAvailableHandler reader
         ) {
             final StepListener<Integer> listener = new StepListener<>();
-            Releasable decrementRef = null;
+            final Releasable decrementRef = Releasables.releaseOnce(this::decRef);
             try {
-                ensureOpen();
-                incRef();
-                decrementRef = Releasables.releaseOnce(this::decRef);
-                ensureOpen();
-                final Releasable finalDecrementRef = decrementRef;
-                listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
+                listener.whenComplete(integer -> decrementRef.close(), throwable -> decrementRef.close());
                 final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedPageIndex);
                 listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
                 if (tracker.waitForRangeIfPending(
@@ -807,6 +814,7 @@ public class FrozenCacheService implements Releasable {
             );
             final List<List<SparseFileTracker.Gap>> gapsList = new ArrayList<>();
             final List<SharedBytes.IO> channels = new ArrayList<>();
+            final List<CacheFileRegion> regions = new ArrayList<>();
             long writeStartInRegion = -1L;
             long writeEnd = -1L;
             int firstWriteRegion = -1;
@@ -824,29 +832,26 @@ public class FrozenCacheService implements Releasable {
                     footerCacheLength
                 );
                 final long readRangeRelativeStart = regionStart - rangeToRead.start();
-                final CacheFileRegion fileRegion = get(cacheKey, fileSize, region, headerCacheLength, footerCacheLength);
-                final StepListener<Integer> listener = new StepListener<>();
-                Releasable decrementRef = null;
+                final CacheFileRegion fileRegion;
                 try {
-                    // first make sure the region has not been concurrently evicted
-                    fileRegion.ensureOpen();
-                    // it has not been evicted otherwise the above call would have thrown, now we acquire a reference for reading from it
-                    fileRegion.incRef();
-                    // now get the IO reference for the region
-                    final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(fileRegion.sharedPageIndex);
-                    decrementRef = Releasables.releaseOnce(() -> Releasables.close(fileChannel::decRef, fileRegion::decRef));
-                    // once again, make sure it has not been concurrently evicted now that we have a reference for it
-                    fileRegion.ensureOpen();
-
-                    // as we are also potentially going to write to the region and its IO we acquire another reference for both the region
+                    fileRegion = get(cacheKey, fileSize, region, headerCacheLength, footerCacheLength);
+                } catch (Exception e) {
+                    failGaps(e, gapsList);
+                    releaseCacheResources(channels, regions);
+                    throw e;
+                }
+                final StepListener<Integer> listener = new StepListener<>();
+                // first make sure the region has not been concurrently evicted
+                final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(fileRegion.sharedPageIndex);
+                final Releasable decrementRef = Releasables.releaseOnce(() -> Releasables.close(fileChannel::decRef, fileRegion::decRef));
+                try {
+                    // as we are potentially going to write to the region and its IO we acquire another reference for both the region
                     // and the IO for writing
-                    // TODO: where is this properly released?
-                    fileRegion.incRef();
                     fileChannel.incRef();
+                    fileRegion.incRef();
 
                     // release the references for the reading that we acquired above when the read listener completes
-                    final Releasable finalReleasable = decrementRef;
-                    listener.whenComplete(ignored -> finalReleasable.close(), ignored -> finalReleasable.close());
+                    listener.whenComplete(ignored -> decrementRef.close(), ignored -> decrementRef.close());
 
                     // find out what gaps we must fill for the given region
                     final List<SparseFileTracker.Gap> gaps = fileRegion.tracker.waitForRange(
@@ -873,6 +878,7 @@ public class FrozenCacheService implements Releasable {
                         }
                         // since we have gaps to fill for the current region we track the writable IO to write to
                         channels.add(fileChannel);
+                        regions.add(fileRegion);
 
                         // we will at least have to write to the last gap's end so for now this is the upper bound of the write
                         writeEnd = regionStart + gaps.get(gaps.size() - 1).end();
@@ -885,6 +891,7 @@ public class FrozenCacheService implements Releasable {
                         if (gapsList.isEmpty() == false) {
                             gapsList.add(null);
                             channels.add(null);
+                            regions.add(null);
                         }
                     }
                 } catch (Exception e) {
@@ -913,7 +920,6 @@ public class FrozenCacheService implements Releasable {
             final long length = writeEnd - writeStart;
 
             // collect region sizes and writable shared file region IOs into separate arrays
-            final SharedBytes.IO[] ios = new SharedBytes.IO[numberOfRegionsToIterate];
             final long[] lengths = new long[numberOfRegionsToIterate];
 
             for (int i = 0; i < numberOfRegionsToIterate; i++) {
@@ -923,9 +929,9 @@ public class FrozenCacheService implements Releasable {
                     headerCacheLength,
                     footerCacheLength
                 );
-                ios[i] = channels.get(i);
             }
-            final ByteBufferHandler handler = new ByteBufferHandler(writeStartInRegion, ios, lengths, gapsList, length);
+            final List<SharedBytes.IO> ios = channels.subList(0, numberOfRegionsToIterate);
+            final ByteBufferHandler handler = new ByteBufferHandler(writeStartInRegion, ios, regions, lengths, gapsList, length);
             final long relativeWritePos = writeStart - rangeToWrite.start();
             executor.execute(new AbstractRunnable() {
                 @Override
@@ -935,20 +941,12 @@ public class FrozenCacheService implements Releasable {
 
                 @Override
                 public void onFailure(Exception e) {
-                    for (List<SparseFileTracker.Gap> gaps : gapsList) {
-                        for (SparseFileTracker.Gap gap : gaps) {
-                            gap.onFailure(e);
-                        }
-                    }
+                    failGaps(e, gapsList);
                 }
 
                 @Override
                 public void onAfter() {
-                    for (SharedBytes.IO io : ios) {
-                        if (io != null) {
-                            io.decRef();
-                        }
-                    }
+                    releaseCacheResources(ios, regions);
                 }
             });
             return stepListener;
@@ -996,137 +994,164 @@ public class FrozenCacheService implements Releasable {
         public String toString() {
             return "FrozenCacheFile{" + "cacheKey=" + cacheKey + ", length=" + fileSize + '}';
         }
+    }
 
-        /**
-         * Consumer of {@link ByteBuffer} that is used by the {@link RangeMissingHandler}.
-         */
-        private final class ByteBufferHandler implements CheckedConsumer<ByteBuffer, IOException> {
-
-            private final long startingOffset;
-
-            /**
-             * Regions to be written to or to be skipped if {@code null}.
-             */
-            private final SharedBytes.IO[] ios;
-
-            /**
-             * Length of each region.
-             */
-            private final long[] lengths;
-
-            private final List<List<SparseFileTracker.Gap>> gapsList;
-
-            /**
-             * Number of bytes to write overall.
-             */
-            private final long length;
-
-            // Number of bytes already written through this instance
-            private long written = 0L;
-
-            // Index of the current region in #ios
-            private int regionIndex = 0;
-
-            // Offset at which the currently written to region starts
-            private long regionStart = 0L;
-
-            ByteBufferHandler(
-                long startingOffset,
-                SharedBytes.IO[] ios,
-                long[] lengths,
-                List<List<SparseFileTracker.Gap>> gapsList,
-                long length
-            ) {
-                this.startingOffset = startingOffset;
-                this.ios = ios;
-                this.lengths = lengths;
-                this.gapsList = gapsList;
-                this.length = length;
+    private static void releaseCacheResources(List<SharedBytes.IO> channels, List<CacheFileRegion> regions) {
+        for (SharedBytes.IO channel : channels) {
+            if (channel != null) {
+                channel.decRef();
             }
-
-            @Override
-            public void accept(ByteBuffer bb) throws IOException {
-                long offsetInRegion = startingOffset + written - regionStart;
-                for (int i = regionIndex; i < ios.length && bb.hasRemaining(); i++) {
-                    if (offsetInRegion == 0) {
-                        // if we end up right at the region boundary we move the region index and region start accordingly
-                        regionStart = written + startingOffset;
-                        regionIndex = i;
-                    }
-
-                    // track how many bytes we had remaining in the buffer before we do any writing or skipping on the buffer
-                    final int remainingBefore = bb.remaining();
-
-                    final SharedBytes.IO fileRegionIO = ios[i];
-                    if (fileRegionIO == null) {
-                        // we don't have a region for this index which means we just skip the bytes in this region
-                        // TODO: this makes sense for blob stores with high seek latency and cost but for (N)FS and maybe HDFS
-                        // repositories it might not be optimal to read redundant bytes only to avoid a seek
-                        bb.position(Math.min(bb.position() + Math.toIntExact(lengths[i] - offsetInRegion), bb.limit()));
-                    } else if (offsetInRegion + bb.remaining() > lengths[i]) {
-                        // we have a region to write to but writing the remaining bytes in the buffer to it would exceed the capacity of
-                        // the current region so we limit the buffer accordingly and adjust the write limit back afterwards
-                        final int oldLimit = bb.limit();
-                        final int remainingInPage = Math.toIntExact(lengths[i] - offsetInRegion);
-                        if (bb.remaining() > remainingInPage) {
-                            bb.limit(bb.position() + remainingInPage);
-                        }
-                        fileRegionIO.write(bb, offsetInRegion);
-                        bb.limit(oldLimit);
-                    } else {
-                        // we have a region to write to and the buffer fits into it fully
-                        fileRegionIO.write(bb, offsetInRegion);
-                    }
-
-                    // calculate how many bytes we were able to write or skip
-                    final int progressInThisStep = remainingBefore - bb.remaining();
-
-                    written += progressInThisStep;
-
-                    // we filled the region at index i so we can resolve all gaps in it that might now be fully filled
-                    List<SparseFileTracker.Gap> gaps = gapsList.get(i);
-                    if (gaps != null) {
-                        final long maxInRegionPositionCompleted = offsetInRegion + progressInThisStep;
-                        for (Iterator<SparseFileTracker.Gap> iterator = gaps.iterator(); iterator.hasNext();) {
-                            SparseFileTracker.Gap gap = iterator.next();
-                            final long gapEnd = gap.end();
-                            if (gapEnd <= maxInRegionPositionCompleted) {
-                                gap.onProgress(gapEnd);
-                                gap.onCompletion();
-                                iterator.remove();
-                            }
-                        }
-                        if (gaps.isEmpty()) {
-                            gapsList.set(i, null);
-                            assert fileRegionIO != null : "we had gaps for this region so we also had a physical write region";
-                            fileRegionIO.decRef();
-                            ios[i] = null;
-                        }
-                    } else {
-                        assert fileRegionIO == null
-                            : "we don't have a gap to resolve for this region so we should not have an open file region to write either";
-                    }
-                    assert written <= length;
-                    offsetInRegion = 0;
-                }
-
-                assert assertGapsResolvedOnDone();
-                assert bb.hasRemaining() == false : "we should always consume the full buffer on each call";
+        }
+        for (CacheFileRegion r : regions) {
+            if (r != null) {
+                r.decRef();
             }
+        }
+    }
 
-            private boolean assertGapsResolvedOnDone() {
-                if (written == length) {
-                    for (List<SparseFileTracker.Gap> gaps : gapsList) {
-                        assert gaps == null : "All gaps should be resolved after writing out all bytes";
-                    }
+    private static void failGaps(Exception e, List<List<SparseFileTracker.Gap>> gapsList) {
+        for (List<SparseFileTracker.Gap> gaps : gapsList) {
+            if (gaps != null) {
+                for (SparseFileTracker.Gap gap : gaps) {
+                    gap.onFailure(e);
                 }
-                return true;
             }
         }
     }
 
     public FrozenCacheFile getFrozenCacheFile(CacheKey cacheKey, long length, ByteRange cacheRange, ByteRange sliceFooterByteRange) {
         return new FrozenCacheFile(cacheKey, length, cacheRange, sliceFooterByteRange);
+    }
+
+    /**
+     * Consumer of {@link ByteBuffer} that is used by the {@link RangeMissingHandler}.
+     */
+    private final class ByteBufferHandler implements CheckedConsumer<ByteBuffer, IOException> {
+
+        private final long startingOffset;
+
+        /**
+         * Regions to be written to or to be skipped if {@code null}.
+         */
+        private final List<SharedBytes.IO> ios;
+
+        private final List<CacheFileRegion> regions;
+
+        /**
+         * Length of each region.
+         */
+        private final long[] lengths;
+
+        private final List<List<SparseFileTracker.Gap>> gapsList;
+
+        /**
+         * Number of bytes to write overall.
+         */
+        private final long length;
+
+        // Number of bytes already written through this instance
+        private long written = 0L;
+
+        // Index of the current region in #ios
+        private int regionIndex = 0;
+
+        // Offset at which the currently written to region starts
+        private long regionStart = 0L;
+
+        ByteBufferHandler(
+            long startingOffset,
+            List<SharedBytes.IO> ios,
+            List<CacheFileRegion> regions,
+            long[] lengths,
+            List<List<SparseFileTracker.Gap>> gapsList,
+            long length
+        ) {
+            this.startingOffset = startingOffset;
+            this.ios = ios;
+            this.regions = regions;
+            this.lengths = lengths;
+            this.gapsList = gapsList;
+            this.length = length;
+        }
+
+        @Override
+        public void accept(ByteBuffer bb) throws IOException {
+            long offsetInRegion = startingOffset + written - regionStart;
+            for (int i = regionIndex; i < ios.size() && bb.hasRemaining(); i++) {
+                if (offsetInRegion == 0) {
+                    // if we end up right at the region boundary we move the region index and region start accordingly
+                    regionStart = written + startingOffset;
+                    regionIndex = i;
+                }
+
+                // track how many bytes we had remaining in the buffer before we do any writing or skipping on the buffer
+                final int remainingBefore = bb.remaining();
+
+                final SharedBytes.IO fileRegionIO = ios.get(i);
+                if (fileRegionIO == null) {
+                    // we don't have a region for this index which means we just skip the bytes in this region
+                    // TODO: this makes sense for blob stores with high seek latency and cost but for (N)FS and maybe HDFS
+                    // repositories it might not be optimal to read redundant bytes only to avoid a seek
+                    bb.position(Math.min(bb.position() + Math.toIntExact(lengths[i] - offsetInRegion), bb.limit()));
+                } else if (offsetInRegion + bb.remaining() > lengths[i]) {
+                    // we have a region to write to but writing the remaining bytes in the buffer to it would exceed the capacity of
+                    // the current region so we limit the buffer accordingly and adjust the write limit back afterwards
+                    final int oldLimit = bb.limit();
+                    final int remainingInPage = Math.toIntExact(lengths[i] - offsetInRegion);
+                    if (bb.remaining() > remainingInPage) {
+                        bb.limit(bb.position() + remainingInPage);
+                    }
+                    fileRegionIO.write(bb, offsetInRegion);
+                    bb.limit(oldLimit);
+                } else {
+                    // we have a region to write to and the buffer fits into it fully
+                    fileRegionIO.write(bb, offsetInRegion);
+                }
+
+                // calculate how many bytes we were able to write or skip
+                final int progressInThisStep = remainingBefore - bb.remaining();
+
+                written += progressInThisStep;
+
+                // we filled the region at index i so we can resolve all gaps in it that might now be fully filled
+                List<SparseFileTracker.Gap> gaps = gapsList.get(i);
+                if (gaps != null) {
+                    final long maxInRegionPositionCompleted = offsetInRegion + progressInThisStep;
+                    for (Iterator<SparseFileTracker.Gap> iterator = gaps.iterator(); iterator.hasNext();) {
+                        SparseFileTracker.Gap gap = iterator.next();
+                        final long gapEnd = gap.end();
+                        if (gapEnd <= maxInRegionPositionCompleted) {
+                            gap.onProgress(gapEnd);
+                            gap.onCompletion();
+                            iterator.remove();
+                        }
+                    }
+                    if (gaps.isEmpty()) {
+                        gapsList.set(i, null);
+                        assert fileRegionIO != null : "we had gaps for this region so we also had a physical write region";
+                        ios.set(i, null).decRef();
+                        regions.set(i, null).decRef();
+                    }
+                } else {
+                    assert fileRegionIO == null
+                        : "we don't have a gap to resolve for this region so we should not have an open file region to write either";
+                }
+                assert written <= length;
+                offsetInRegion = 0;
+            }
+
+            assert assertGapsResolvedOnDone();
+            assert bb.hasRemaining() == false : "we should always consume the full buffer on each call";
+        }
+
+        private boolean assertGapsResolvedOnDone() {
+            if (written == length) {
+                for (List<SparseFileTracker.Gap> gaps : gapsList) {
+                    assert gaps == null : "All gaps should be resolved after writing out all bytes";
+                }
+            }
+            return true;
+        }
     }
 
     @FunctionalInterface

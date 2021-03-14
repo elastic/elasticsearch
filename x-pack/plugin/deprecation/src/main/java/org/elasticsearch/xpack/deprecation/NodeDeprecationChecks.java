@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.script.ScriptService;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -115,33 +117,50 @@ class NodeDeprecationChecks {
         if (realmSettings.isEmpty()) {
             return null;
         }
-        // If all configured realms are disabled, this equals to no realm is configured. The implicit behaviour in this case
-        // is to add file and native realms. So we are good here.
-        if (false == realmSettings.entrySet().stream().anyMatch(
-            e -> e.getValue().getAsBoolean(RealmSettings.ENABLED_SETTING_KEY, true))) {
-            return null;
-        }
-        final List<String> implicitlyDisabledBasicRealmTypes =
-            new ArrayList<>(org.elasticsearch.common.collect.List.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE));
-        realmSettings.keySet().forEach(ri -> implicitlyDisabledBasicRealmTypes.remove(ri.getType()));
-        if (implicitlyDisabledBasicRealmTypes.isEmpty()) {
-            return null;
+
+        boolean anyRealmEnabled = false;
+        final Set<String> unconfiguredBasicRealms =
+            new HashSet<>(org.elasticsearch.common.collect.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE));
+        for (Map.Entry<RealmConfig.RealmIdentifier, Settings> realmSetting: realmSettings.entrySet()) {
+            anyRealmEnabled = anyRealmEnabled || realmSetting.getValue().getAsBoolean(RealmSettings.ENABLED_SETTING_KEY, true);
+            unconfiguredBasicRealms.remove(realmSetting.getKey().getType());
         }
 
-        final String details = String.format(
-            Locale.ROOT,
-            "Found implicitly disabled basic %s: [%s]. %s disabled because there are other explicitly configured realms." +
-                "In next major release, basic realms will always be enabled unless explicitly disabled.",
-            implicitlyDisabledBasicRealmTypes.size() == 1 ? "realm" : "realms",
-            Strings.collectionToDelimitedString(implicitlyDisabledBasicRealmTypes, ","),
-            implicitlyDisabledBasicRealmTypes.size() == 1 ? "It is" : "They are");
-
+        final String details;
+        if (false == anyRealmEnabled) {
+            final List<String> explicitlyDisabledBasicRealms =
+                Sets.difference(org.elasticsearch.common.collect.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE),
+                    unconfiguredBasicRealms).stream().sorted().collect(Collectors.toList());
+            if (explicitlyDisabledBasicRealms.isEmpty()) {
+                return null;
+            }
+            details = String.format(
+                Locale.ROOT,
+                "Found explicitly disabled basic %s: [%s]. But %s will be enabled because no realm is configured or enabled. " +
+                    "In next major release, explicitly disabled basic realms will remain disabled.",
+                explicitlyDisabledBasicRealms.size() == 1 ? "realm" : "realms",
+                Strings.collectionToDelimitedString(explicitlyDisabledBasicRealms, ","),
+                explicitlyDisabledBasicRealms.size() == 1 ? "it" : "they"
+                );
+        } else {
+            if (unconfiguredBasicRealms.isEmpty()) {
+                return null;
+            }
+            details = String.format(
+                Locale.ROOT,
+                "Found implicitly disabled basic %s: [%s]. %s disabled because there are other explicitly configured realms." +
+                    "In next major release, basic realms will always be enabled unless explicitly disabled.",
+                unconfiguredBasicRealms.size() == 1 ? "realm" : "realms",
+                Strings.collectionToDelimitedString(unconfiguredBasicRealms, ","),
+                unconfiguredBasicRealms.size() == 1 ? "It is" : "They are");
+        }
         return new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "File and/or native realms are enabled by default in next major release.",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/deprecated-7.13.html#implicitly-disabled-basic-realms",
             details
         );
+
     }
 
     static DeprecationIssue checkThreadPoolListenerQueueSize(final Settings settings) {

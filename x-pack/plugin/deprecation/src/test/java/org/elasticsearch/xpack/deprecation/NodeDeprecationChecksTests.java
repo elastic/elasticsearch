@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -189,7 +191,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertTrue(deprecationIssues.isEmpty());
     }
 
-    public void testCheckImplicitlyDisabledNativeRealms() {
+    public void testCheckImplicitlyDisabledBasicRealms() {
         final Settings.Builder builder = Settings.builder();
 
         final boolean otherRealmConfigured = randomBoolean();
@@ -255,24 +257,38 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             if (false == fileRealmConfigured && false == nativeRealmConfigured) {
                 assertTrue(deprecationIssues.isEmpty());
             } else if (false == fileRealmConfigured) {
+                assertCommonImplicitDisabledRealms(deprecationIssues);
                 if (nativeRealmEnabled) {
-                    assertCommonImplicitDisabledRealms(deprecationIssues);
                     assertEquals("Found implicitly disabled basic realm: [file]. " +
                             "It is disabled because there are other explicitly configured realms." +
                             "In next major release, basic realms will always be enabled unless explicitly disabled.",
                         deprecationIssues.get(0).getDetails());
                 } else {
-                    assertTrue(deprecationIssues.isEmpty());
+                    assertEquals("Found explicitly disabled basic realm: [native]. " +
+                            "But it will be enabled because no realm is configured or enabled. " +
+                            "In next major release, explicitly disabled basic realms will remain disabled.",
+                        deprecationIssues.get(0).getDetails());
                 }
             } else if (false == nativeRealmConfigured) {
+                assertCommonImplicitDisabledRealms(deprecationIssues);
                 if (fileRealmEnabled) {
-                    assertCommonImplicitDisabledRealms(deprecationIssues);
                     assertEquals("Found implicitly disabled basic realm: [native]. " +
                             "It is disabled because there are other explicitly configured realms." +
                             "In next major release, basic realms will always be enabled unless explicitly disabled.",
                         deprecationIssues.get(0).getDetails());
                 } else {
-                    assertTrue(deprecationIssues.isEmpty());
+                    assertEquals("Found explicitly disabled basic realm: [file]. " +
+                            "But it will be enabled because no realm is configured or enabled. " +
+                            "In next major release, explicitly disabled basic realms will remain disabled.",
+                        deprecationIssues.get(0).getDetails());
+                }
+            } else {
+                if (false == fileRealmEnabled && false == nativeRealmEnabled) {
+                    assertCommonImplicitDisabledRealms(deprecationIssues);
+                    assertEquals("Found explicitly disabled basic realms: [file,native]. " +
+                            "But they will be enabled because no realm is configured or enabled. " +
+                            "In next major release, explicitly disabled basic realms will remain disabled.",
+                        deprecationIssues.get(0).getDetails());
                 }
             }
         }
@@ -462,7 +478,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertEquals("File and/or native realms are enabled by default in next major release.",
             deprecationIssues.get(0).getMessage());
         assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference" +
-                "/7.13/deprecated-7.13.html#implicitly-disabled-native-realms",
+                "/7.13/deprecated-7.13.html#implicitly-disabled-basic-realms",
             deprecationIssues.get(0).getUrl());
     }
 

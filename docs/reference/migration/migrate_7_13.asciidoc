@@ -54,7 +54,14 @@ enable <<deprecation-logging, deprecation logging>>.
 ==== Security deprecations
 
 [[implicitly-disabled-basic-realms]]
-Currently, if native and file realms are not configured, they are implicitly disabled if there
-are other explicitly configured realms. This behaviour is deprecated.
-In version 8.0.0, the native and file realms will always be enabled unless explicitly
-disabled.
+Currently, the file and native realms have following implicit behaviours:
+
+* If file and native realms are not configured, they are implicitly disabled
+if there are other explicitly configured realms.
+* If no realm is available due to either unconfigured, explicitly disabled
+or disallowed by the license, the file and native realms are always enabled
+even when they are explicitly disabled.
+
+Both of the above behaviours are deprecated. In version 8.0.0, the file and
+native realms will always be enabled unless explicitly disabled. If they are
+explicitly disabled, they remain disabled at all times.

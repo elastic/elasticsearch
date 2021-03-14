@@ -180,7 +180,7 @@ public class TermVectorsService  {
             }
             // already retrieved, only if the analyzer hasn't been overridden at the field
             if (fieldType.getTextSearchInfo().termVectors() != TextSearchInfo.TermVector.NONE &&
-                    (request.perFieldAnalyzer() == null || !request.perFieldAnalyzer().containsKey(field))) {
+                    (request.perFieldAnalyzer() == null || request.perFieldAnalyzer().containsKey(field) == false)) {
                 continue;
             }
             validFields.add(field);

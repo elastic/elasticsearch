@@ -106,7 +106,8 @@ public class CommunityIdProcessorTests extends ESTestCase {
         var destination = (Map<String, Object>) event.get("destination");
         destination.put("port", null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, null));
-        assertThat(e.getMessage(), containsString("invalid destination port [0]"));
+        // slightly modified from the beats test in that this one reports the actual invalid value rather than '0'
+        assertThat(e.getMessage(), containsString("invalid destination port [null]"));
     }
 
     public void testBeatsUnknownProtocol() throws Exception {
@@ -267,6 +268,38 @@ public class CommunityIdProcessorTests extends ESTestCase {
         icmp.put("code", "3");
         event.put("icmp", icmp);
         testCommunityIdProcessor(event, "1:KF3iG9XD24nhlSy4r1TcYIr5mfE=");
+    }
+
+    public void testLongsForNumericValues() throws Exception {
+        event = buildEvent();
+        @SuppressWarnings("unchecked")
+        var source2 = (Map<String, Object>) event.get("source");
+        source2.put("port", 34855L);
+        testCommunityIdProcessor(event, "1:LQU9qZlK+B5F3KDmev6m5PMibrg=");
+    }
+
+    public void testFloatsForNumericValues() throws Exception {
+        event = buildEvent();
+        @SuppressWarnings("unchecked")
+        var source2 = (Map<String, Object>) event.get("source");
+        source2.put("port", 34855.0);
+        testCommunityIdProcessor(event, "1:LQU9qZlK+B5F3KDmev6m5PMibrg=");
+    }
+
+    public void testInvalidPort() throws Exception {
+        event = buildEvent();
+        @SuppressWarnings("unchecked")
+        var source = (Map<String, Object>) event.get("source");
+        source.put("port", 0);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, null));
+        assertThat(e.getMessage(), containsString("invalid source port [0]"));
+
+        event = buildEvent();
+        @SuppressWarnings("unchecked")
+        var source2 = (Map<String, Object>) event.get("source");
+        source2.put("port", 65536);
+        e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, null));
+        assertThat(e.getMessage(), containsString("invalid source port [65536]"));
     }
 
     public void testIgnoreMissing() throws Exception {

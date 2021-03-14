@@ -192,6 +192,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
+        TransformNodes.warnIfNoTransformNodes(clusterState);
 
         // set headers to run transform as calling user
         Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());

@@ -1,0 +1,30 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+apply plugin: 'java'
+apply plugin: 'elasticsearch.rest-resources'
+
+restResources {
+  restApi {
+    includeCore '*'
+    includeXpack '*'
+  }
+  restTests {
+    includeCore '*'
+    includeXpack '*'
+  }
+}
+
+tasks.register('restResourcesZip', Zip).configure {
+  description = 'Build archive containing all REST API specifications and YAML tests'
+
+  destinationDirectory = layout.buildDirectory.dir('distributions')
+  from sourceSets.test.output
+}
+
+tasks.named("assemble").configure { dependsOn 'restResourcesZip' }

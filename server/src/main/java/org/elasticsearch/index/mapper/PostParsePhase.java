@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -18,7 +17,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
@@ -26,16 +24,19 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Executes post parse phases on mappings
@@ -105,7 +106,6 @@ public class PostParsePhase {
         private final BytesReference sourceBytes;
         private final Set<String> calculatedFields;
         private final Set<String> fieldPath = new LinkedHashSet<>();
-        private LeafReaderContext in;
 
         private LazyDocumentReader(ParseContext.Document document, BytesReference sourceBytes, Set<String> calculatedFields) {
             this.document = document;
@@ -113,7 +113,7 @@ public class PostParsePhase {
             this.calculatedFields = calculatedFields;
         }
 
-        private void buildDocValues(String field) throws IOException {
+        private void checkField(String field) throws IOException {
             if (calculatedFields.contains(field)) {
                 // this means that a mapper script is referring to another calculated field;
                 // in which case we need to execute that field first, and then rebuild the
@@ -124,59 +124,71 @@ public class PostParsePhase {
                 executeField(field);
                 calculatedFields.remove(field);
                 fieldPath.remove(field);
-                this.in = null;
             }
-            if (in != null) {
-                return;
-            }
-            MemoryIndex mi = new MemoryIndex();
-            for (IndexableField f : document) {
-                if (f.fieldType().docValuesType() != null) {
-                    mi.addField(f, EMPTY_ANALYZER);
-                }
-            }
-            mi.freeze();
-            this.in = mi.createSearcher().getIndexReader().leaves().get(0);
         }
 
         @Override
         public NumericDocValues getNumericDocValues(String field) throws IOException {
-            buildDocValues(field);
-            return in.reader().getNumericDocValues(field);
+            checkField(field);
+            List<Number> values = document.getFields().stream()
+                .filter(f -> Objects.equals(f.name(), field))
+                .filter(f -> f.fieldType().docValuesType() == DocValuesType.NUMERIC)
+                .map(IndexableField::numericValue)
+                .sorted()
+                .collect(Collectors.toList());
+            return numericDocValues(values);
         }
 
         @Override
         public BinaryDocValues getBinaryDocValues(String field) throws IOException {
-            buildDocValues(field);
-            return in.reader().getBinaryDocValues(field);
+            checkField(field);
+            List<BytesRef> values = document.getFields().stream()
+                .filter(f -> Objects.equals(f.name(), field))
+                .filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY)
+                .map(IndexableField::binaryValue)
+                .sorted()
+                .collect(Collectors.toList());
+            return binaryDocValues(values);
         }
 
         @Override
         public SortedDocValues getSortedDocValues(String field) throws IOException {
-            buildDocValues(field);
-            return in.reader().getSortedDocValues(field);
+            checkField(field);
+            List<BytesRef> values = document.getFields().stream()
+                .filter(f -> Objects.equals(f.name(), field))
+                .filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY)
+                .map(IndexableField::binaryValue)
+                .sorted()
+                .collect(Collectors.toList());
+            return sortedDocValues(values);
         }
 
         @Override
         public SortedNumericDocValues getSortedNumericDocValues(String field) throws IOException {
-            buildDocValues(field);
-            return in.reader().getSortedNumericDocValues(field);
+            checkField(field);
+            List<Number> values = document.getFields().stream()
+                .filter(f -> Objects.equals(f.name(), field))
+                .filter(f -> f.fieldType().docValuesType() == DocValuesType.SORTED_NUMERIC)
+                .map(IndexableField::numericValue)
+                .sorted()
+                .collect(Collectors.toList());
+            return sortedNumericDocValues(values);
         }
 
         @Override
         public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
-            buildDocValues(field);
-            return in.reader().getSortedSetDocValues(field);
+            List<BytesRef> values = document.getFields().stream()
+                .filter(f -> Objects.equals(f.name(), field))
+                .filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY)
+                .map(IndexableField::binaryValue)
+                .sorted()
+                .collect(Collectors.toList());
+            return sortedSetDocValues(values);
         }
 
         @Override
         public FieldInfos getFieldInfos() {
-            try {
-                buildDocValues(null);
-            } catch (IOException e) {
-                // won't actually happen
-            }
-            return in.reader().getFieldInfos();
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -261,10 +273,219 @@ public class PostParsePhase {
         false
     );
 
-    private static final Analyzer EMPTY_ANALYZER = new Analyzer() {
-        @Override
-        protected TokenStreamComponents createComponents(String fieldName) {
-            return new TokenStreamComponents(reader -> {}, null);
+    private static NumericDocValues numericDocValues(List<Number> values) {
+        if (values.size() == 0) {
+            return null;
         }
-    };
+        return new NumericDocValues() {
+            @Override
+            public long longValue() {
+                return values.get(0).longValue();
+            }
+
+            @Override
+            public boolean advanceExact(int target) {
+                return true;
+            }
+
+            @Override
+            public int docID() {
+                return 0;
+            }
+
+            @Override
+            public int nextDoc() {
+                return 0;
+            }
+
+            @Override
+            public int advance(int target) {
+                return 0;
+            }
+
+            @Override
+            public long cost() {
+                return 0;
+            }
+        };
+    }
+
+    private static SortedNumericDocValues sortedNumericDocValues(List<Number> values) {
+        return new SortedNumericDocValues() {
+
+            int i = -1;
+
+            @Override
+            public long nextValue() {
+                i++;
+                return values.get(i).longValue();
+            }
+
+            @Override
+            public int docValueCount() {
+                return values.size();
+            }
+
+            @Override
+            public boolean advanceExact(int target) {
+                return true;
+            }
+
+            @Override
+            public int docID() {
+                return 0;
+            }
+
+            @Override
+            public int nextDoc() {
+                return 0;
+            }
+
+            @Override
+            public int advance(int target) {
+                return 0;
+            }
+
+            @Override
+            public long cost() {
+                return 0;
+            }
+        };
+    }
+
+    private static BinaryDocValues binaryDocValues(List<BytesRef> values) {
+        if (values.size() == 0) {
+            return null;
+        }
+        return new BinaryDocValues() {
+            @Override
+            public BytesRef binaryValue() {
+                return values.get(0);
+            }
+
+            @Override
+            public boolean advanceExact(int target) {
+                return false;
+            }
+
+            @Override
+            public int docID() {
+                return 0;
+            }
+
+            @Override
+            public int nextDoc() {
+                return 0;
+            }
+
+            @Override
+            public int advance(int target) {
+                return 0;
+            }
+
+            @Override
+            public long cost() {
+                return 0;
+            }
+        };
+    }
+
+    private static SortedDocValues sortedDocValues(List<BytesRef> values) {
+        if (values.size() == 0) {
+            return null;
+        }
+        return new SortedDocValues() {
+
+            @Override
+            public int ordValue() {
+                return 0;
+            }
+
+            @Override
+            public BytesRef lookupOrd(int ord) {
+                return values.get(0);
+            }
+
+            @Override
+            public int getValueCount() {
+                return values.size();
+            }
+
+            @Override
+            public boolean advanceExact(int target) {
+                return true;
+            }
+
+            @Override
+            public int docID() {
+                return 0;
+            }
+
+            @Override
+            public int nextDoc() {
+                return 0;
+            }
+
+            @Override
+            public int advance(int target) {
+                return 0;
+            }
+
+            @Override
+            public long cost() {
+                return 0;
+            }
+        };
+    }
+
+    private static SortedSetDocValues sortedSetDocValues(List<BytesRef> values) {
+        if (values.size() == 0) {
+            return null;
+        }
+        return new SortedSetDocValues() {
+
+            int i = -1;
+
+            @Override
+            public long nextOrd() {
+                i++;
+                return i;
+            }
+
+            @Override
+            public BytesRef lookupOrd(long ord) {
+                return values.get((int)ord);
+            }
+
+            @Override
+            public long getValueCount() {
+                return values.size();
+            }
+
+            @Override
+            public boolean advanceExact(int target) {
+                return true;
+            }
+
+            @Override
+            public int docID() {
+                return 0;
+            }
+
+            @Override
+            public int nextDoc() {
+                return 0;
+            }
+
+            @Override
+            public int advance(int target) {
+                return 0;
+            }
+
+            @Override
+            public long cost() {
+                return 0;
+            }
+        };
+    }
 }

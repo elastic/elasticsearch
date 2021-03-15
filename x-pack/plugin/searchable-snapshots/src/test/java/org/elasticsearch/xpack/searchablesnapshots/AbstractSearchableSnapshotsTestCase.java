@@ -163,7 +163,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             cacheSettings.put(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
         }
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment()) {
-            return new FrozenCacheService(nodeEnvironment, Settings.EMPTY, threadPool);
+            return new FrozenCacheService(nodeEnvironment, cacheSettings.build(), threadPool);
         }
     }
 
@@ -182,15 +182,15 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         );
     }
 
-    protected FrozenCacheService createFrozenCacheService(final ByteSizeValue cacheSize, final ByteSizeValue cacheRangeSize)
-        throws IOException {
-        final Settings settings = Settings.builder()
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
-            .put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
-            .build();
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(settings)) {
-            return new FrozenCacheService(nodeEnvironment, settings, threadPool);
-        }
+    protected FrozenCacheService createFrozenCacheService(final ByteSizeValue cacheSize, final ByteSizeValue cacheRangeSize) {
+        return new FrozenCacheService(
+            nodeEnvironment,
+            Settings.builder()
+                .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                .put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
+                .build(),
+            threadPool
+        );
     }
 
     /**

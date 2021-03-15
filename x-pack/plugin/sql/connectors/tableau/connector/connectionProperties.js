@@ -6,6 +6,7 @@
 
     var extraProps = attr[connectionHelper.attributeWarehouse];
     if (extraProps != null && extraProps.trim().length > 0) {
+        // allow `&` and white-space as attribue-value pair delimiters
         var avps = extraProps.trim().split(/[\s&]/);
         for (var i = 0; i < avps.length; i++) {
             var tokens = avps[i].split("=");

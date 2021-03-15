@@ -23,7 +23,8 @@ import org.elasticsearch.xpack.core.repositories.encrypted.EncryptedRepositoryCh
 import org.elasticsearch.xpack.core.repositories.encrypted.EncryptedRepositoryChangePasswordResponse;
 import org.elasticsearch.xpack.core.repositories.encrypted.action.ChangeEncryptedRepositoryPasswordAction;
 
-public final class TransportEncryptedRepositoryChangePasswordAction extends TransportMasterNodeAction<EncryptedRepositoryChangePasswordRequest, EncryptedRepositoryChangePasswordResponse> {
+public final class TransportEncryptedRepositoryChangePasswordAction extends
+        TransportMasterNodeAction<EncryptedRepositoryChangePasswordRequest, EncryptedRepositoryChangePasswordResponse> {
 
     @Inject
     protected TransportEncryptedRepositoryChangePasswordAction(TransportService transportService,

@@ -184,15 +184,28 @@ public class ShrinkAction implements LifecycleAction {
             waitForNoFollowerStepKey);
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);
         UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, cleanupShrinkIndexKey, client, readOnlySettings);
+        // we generate a unique shrink index name but we also retry if the allocation of the shrunk index is not possible, so we want to
+        // delete the "previously generated" shrink index (this is a no-op if it's the first run of the action and he haven't generated a
+        // shrink index name)
         CleanupShrinkIndexStep cleanupShrinkIndexStep = new CleanupShrinkIndexStep(cleanupShrinkIndexKey, generateShrinkIndexNameKey,
             client);
+        // generate a unique shrink index name and store it in the ILM execution state
         GenerateUniqueIndexNameStep generateUniqueIndexNameStep =
             new GenerateUniqueIndexNameStep(generateShrinkIndexNameKey, setSingleNodeKey, SHRUNKEN_INDEX_PREFIX,
                 (generatedIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setShrinkIndexName(generatedIndexName));
+        // choose a node to collocate the source index in preparation for shrink
         SetSingleNodeAllocateStep setSingleNodeStep = new SetSingleNodeAllocateStep(setSingleNodeKey, allocationRoutedKey, client);
+
+        // wait for the source shards to be collocated before attempting to shrink the index. we're waiting until a configured threshold is
+        // breached (controlled by LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD) at which point we rewind to the
+        // "set-single-node-allocation" step to choose another node to host the shrink operation
         ClusterStateWaitUntilThresholdStep checkShrinkReadyStep = new ClusterStateWaitUntilThresholdStep(
             new CheckShrinkReadyStep(allocationRoutedKey, shrinkKey), setSingleNodeKey);
         ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, maxPrimaryShardSize, SHRUNKEN_INDEX_PREFIX);
+
+        // wait until the shrunk index is recovered. we again wait until the configured threshold is breached and if the shrunk index has
+        // not successfully recovered until then, we rewind to the "cleanup-shrink-index" step to delete this unsuccessful shrunk index
+        // and retry the operation by generating a new shrink index name and attempting to shrink again
         ClusterStateWaitUntilThresholdStep allocated = new ClusterStateWaitUntilThresholdStep(
             new ShrunkShardsAllocatedStep(enoughShardsKey, copyMetadataKey, SHRUNKEN_INDEX_PREFIX), cleanupShrinkIndexKey);
         CopyExecutionStateStep copyMetadata = new CopyExecutionStateStep(copyMetadataKey, dataStreamCheckBranchingKey,

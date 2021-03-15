@@ -20,6 +20,7 @@ import java.sql.SQLException;
 import java.sql.SQLType;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TimeZone;
 
 import static java.sql.JDBCType.BIGINT;
 import static java.sql.JDBCType.BOOLEAN;
@@ -669,7 +670,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     // https://www.postgresql.org/docs/9.0/static/infoschema-routines.html
     @Override
     public ResultSet getProcedures(String catalog, String schemaPattern, String procedureNamePattern) throws SQLException {
-        return emptySet(con.cfg, "ROUTINES",
+        return emptySet(con.cfg.timeZone(), "ROUTINES",
                      "PROCEDURE_CAT",
                      "PROCEDURE_SCHEM",
                      "PROCEDURE_NAME",
@@ -684,7 +685,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     @Override
     public ResultSet getProcedureColumns(String catalog, String schemaPattern, String procedureNamePattern, String columnNamePattern)
             throws SQLException {
-        return emptySet(con.cfg, "ROUTINES_COLUMNS",
+        return emptySet(con.cfg.timeZone(), "ROUTINES_COLUMNS",
                      "PROCEDURE_CAT",
                      "PROCEDURE_SCHEM",
                      "PROCEDURE_NAME",
@@ -756,7 +757,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getSchemas() throws SQLException {
-        return emptySet(con.cfg, "SCHEMATA",
+        return emptySet(con.cfg.timeZone(), "SCHEMATA",
                 "TABLE_SCHEM",
                 "TABLE_CATALOG");
     }
@@ -770,14 +771,14 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     public ResultSet getCatalogs() throws SQLException {
         // TABLE_CAT is the first column
         Object[][] data = queryColumn(con, "SYS TABLES CATALOG LIKE '%' LIKE ''", 1);
-        return memorySet(con.cfg, columnInfo("CATALOGS", "TABLE_CAT"), data);
+        return memorySet(con.cfg.timeZone(), columnInfo("CATALOGS", "TABLE_CAT"), data);
     }
 
     @Override
     public ResultSet getTableTypes() throws SQLException {
         // TABLE_TYPE (4)
         Object[][] data = queryColumn(con, "SYS TABLES CATALOG LIKE '' LIKE '' TYPE '%'", 4);
-        return memorySet(con.cfg, columnInfo("TABLE_TYPES", "TABLE_TYPE"), data);
+        return memorySet(con.cfg.timeZone(), columnInfo("TABLE_TYPES", "TABLE_TYPE"), data);
     }
 
 
@@ -794,7 +795,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getColumnPrivileges(String catalog, String schema, String table, String columnNamePattern) throws SQLException {
-        return emptySet(con.cfg, "",
+        return emptySet(con.cfg.timeZone(), "",
                 "TABLE_CAT",
                 "TABLE_SCHEM",
                 "TABLE_NAME",
@@ -807,7 +808,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getTablePrivileges(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
-        return emptySet(con.cfg, "",
+        return emptySet(con.cfg.timeZone(), "",
                 "TABLE_CAT",
                 "TABLE_SCHEM",
                 "TABLE_NAME",
@@ -819,7 +820,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getBestRowIdentifier(String catalog, String schema, String table, int scope, boolean nullable) throws SQLException {
-        return emptySet(con.cfg, "",
+        return emptySet(con.cfg.timeZone(), "",
                 "SCOPE", SMALLINT,
                 "COLUMN_NAME",
                 "DATA_TYPE", INTEGER,
@@ -832,7 +833,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getVersionColumns(String catalog, String schema, String table) throws SQLException {
-        return emptySet(con.cfg, "",
+        return emptySet(con.cfg.timeZone(), "",
                 "SCOPE", SMALLINT,
                 "COLUMN_NAME",
                 "DATA_TYPE", INTEGER,
@@ -845,7 +846,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException {
-        return emptySet(con.cfg, "",
+        return emptySet(con.cfg.timeZone(), "",
                 "TABLE_CAT",
                 "TABLE_SCHEM",
                 "TABLE_NAME",
@@ -856,7 +857,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getImportedKeys(String catalog, String schema, String table) throws SQLException {
-        return emptySet(con.cfg, "",
+        return emptySet(con.cfg.timeZone(), "",
                 "PKTABLE_CAT",
                 "PKTABLE_SCHEM",
                 "PKTABLE_NAME",
@@ -877,7 +878,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getExportedKeys(String catalog, String schema, String table) throws SQLException {
-        return emptySet(con.cfg, "",
+        return emptySet(con.cfg.timeZone(), "",
                 "PKTABLE_CAT",
                 "PKTABLE_SCHEM",
                 "PKTABLE_NAME",
@@ -899,7 +900,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     @Override
     public ResultSet getCrossReference(String parentCatalog, String parentSchema, String parentTable, String foreignCatalog,
             String foreignSchema, String foreignTable) throws SQLException {
-        return emptySet(con.cfg, "",
+        return emptySet(con.cfg.timeZone(), "",
                 "PKTABLE_CAT",
                 "PKTABLE_SCHEM",
                 "PKTABLE_NAME",
@@ -925,7 +926,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getIndexInfo(String catalog, String schema, String table, boolean unique, boolean approximate) throws SQLException {
-        return emptySet(con.cfg, "",
+        return emptySet(con.cfg.timeZone(), "",
                 "TABLE_CAT",
                 "TABLE_SCHEM",
                 "TABLE_NAME",
@@ -1005,7 +1006,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getUDTs(String catalog, String schemaPattern, String typeNamePattern, int[] types) throws SQLException {
-        return emptySet(con.cfg, "",
+        return emptySet(con.cfg.timeZone(), "",
                     "USER_DEFINED_TYPES",
                     "TYPE_CAT",
                     "TYPE_SCHEM",
@@ -1043,7 +1044,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getSuperTypes(String catalog, String schemaPattern, String typeNamePattern) throws SQLException {
-        return emptySet(con.cfg, "",
+        return emptySet(con.cfg.timeZone(), "",
                      "SUPER_TYPES",
                      "TYPE_CAT",
                      "TYPE_SCHEM",
@@ -1056,7 +1057,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getSuperTables(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
-        return emptySet(con.cfg, "",
+        return emptySet(con.cfg.timeZone(), "",
                      "TABLE_CAT",
                      "TABLE_SCHEM",
                      "TABLE_NAME",
@@ -1066,7 +1067,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     @Override
     public ResultSet getAttributes(String catalog, String schemaPattern, String typeNamePattern, String attributeNamePattern)
             throws SQLException {
-        return emptySet(con.cfg, "",
+        return emptySet(con.cfg.timeZone(), "",
                      "ATTRIBUTES",
                      "TYPE_CAT",
                      "TYPE_SCHEM",
@@ -1164,7 +1165,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             data[i][3] = EMPTY;
         }
 
-        return memorySet(con.cfg, columnInfo("",
+        return memorySet(con.cfg.timeZone(), columnInfo("",
                                     "NAME",
                                     "MAX_LEN", INTEGER,
                                     "DEFAULT_VALUE",
@@ -1173,7 +1174,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getFunctions(String catalog, String schemaPattern, String functionNamePattern) throws SQLException {
-        return emptySet(con.cfg, "",
+        return emptySet(con.cfg.timeZone(), "",
                      "FUNCTIONS",
                      "FUNCTION_CAT",
                      "FUNCTION_SCHEM",
@@ -1186,7 +1187,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     @Override
     public ResultSet getFunctionColumns(String catalog, String schemaPattern, String functionNamePattern, String columnNamePattern)
             throws SQLException {
-        return emptySet(con.cfg, "",
+        return emptySet(con.cfg.timeZone(), "",
                      "FUNCTION_COLUMNS",
                      "FUNCTION_CAT",
                      "FUNCTION_SCHEM",
@@ -1209,7 +1210,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     @Override
     public ResultSet getPseudoColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
             throws SQLException {
-        return emptySet(con.cfg, "",
+        return emptySet(con.cfg.timeZone(), "",
                      "PSEUDO_COLUMNS",
                      "TABLE_CAT",
                      "TABLE_SCHEM",
@@ -1279,17 +1280,17 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         return columns;
     }
 
-    private static ResultSet emptySet(JdbcConfiguration cfg, String tableName, Object... cols) throws JdbcSQLException {
-        return new JdbcResultSet(cfg, null, new InMemoryCursor(columnInfo(tableName, cols), null));
+    private static ResultSet emptySet(TimeZone timeZone, String tableName, Object... cols) throws JdbcSQLException {
+        return new JdbcResultSet(timeZone, null, new InMemoryCursor(columnInfo(tableName, cols), null));
     }
 
     // TODO: dead code, remove?
-    private static ResultSet emptySet(JdbcConfiguration cfg, List<JdbcColumnInfo> columns) {
-        return memorySet(cfg, columns, null);
+    private static ResultSet emptySet(TimeZone timezone, List<JdbcColumnInfo> columns) {
+        return memorySet(timezone, columns, null);
     }
 
-    static ResultSet memorySet(JdbcConfiguration cfg, List<JdbcColumnInfo> columns, Object[][] data) {
-        return new JdbcResultSet(cfg, null, new InMemoryCursor(columns, data));
+    static ResultSet memorySet(TimeZone timeZone, List<JdbcColumnInfo> columns, Object[][] data) {
+        return new JdbcResultSet(timeZone, null, new InMemoryCursor(columns, data));
     }
 
     private static class InMemoryCursor implements Cursor {

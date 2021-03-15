@@ -15,23 +15,24 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDatabaseMetaData.columnInfo;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDatabaseMetaData.memorySet;
 
 class JdbcArray implements Array {
 
-    public static final String TABLE_NAME = "ARRAY";
-    public static final String COLUMN_INDEX = "index";
-    public static final String COLUMN_VALUE = "value";
+    static final String TABLE_NAME = "ARRAY";
+    static final String COLUMN_INDEX = "index";
+    static final String COLUMN_VALUE = "value";
 
-    private final JdbcConfiguration cfg;
+    private final TimeZone timeZone;
     private final EsType baseType;
     private final List<?> values;
     private boolean freed = false;
 
-    JdbcArray(JdbcConfiguration cfg, EsType baseType, List<?> values) {
-        this.cfg = cfg;
+    JdbcArray(TimeZone timeZone, EsType baseType, List<?> values) {
+        this.timeZone = timeZone;
         this.baseType = baseType;
         this.values = values;
     }
@@ -102,7 +103,7 @@ class JdbcArray implements Array {
             data[i][1] = vals[i];
         }
         List<JdbcColumnInfo> columns = columnInfo(TABLE_NAME, COLUMN_INDEX, JDBCType.BIGINT, COLUMN_VALUE, baseType);
-        return memorySet(cfg, columns, data);
+        return memorySet(timeZone, columns, data);
     }
 
     @Override

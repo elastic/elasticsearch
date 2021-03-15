@@ -159,7 +159,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
         closeResultSet();
 
         Cursor cursor = con.client.query(sql, params, requestMeta);
-        rs = new JdbcResultSet(cfg, this, cursor);
+        rs = new JdbcResultSet(cfg.timeZone(), this, cursor);
     }
 
     @Override

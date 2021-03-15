@@ -35,7 +35,7 @@ public class JdbcArrayTests extends ESTestCase {
 
     public void testMetaData() throws Exception {
         for (EsType arrayType : ARRAY_TYPES) {
-            Array array = new JdbcArray(jdbcTestConfiguration(), baseType(arrayType), emptyList());
+            Array array = new JdbcArray(jdbcTestConfiguration().timeZone(), baseType(arrayType), emptyList());
 
             assertEquals(baseType(arrayType).getVendorTypeNumber().intValue(), array.getBaseType());
             assertEquals(baseType(arrayType).getName(), array.getBaseTypeName());
@@ -44,7 +44,7 @@ public class JdbcArrayTests extends ESTestCase {
 
     public void testGetArray() throws SQLException {
         List<Long> expected = randomList(1, 10, ESTestCase::randomLong);
-        Array array = new JdbcArray(jdbcTestConfiguration(), baseType(EsType.LONG_ARRAY), expected);
+        Array array = new JdbcArray(jdbcTestConfiguration().timeZone(), baseType(EsType.LONG_ARRAY), expected);
 
         List<?> actual = asList((Object[]) array.getArray());
         assertEquals(expected, actual);
@@ -52,7 +52,7 @@ public class JdbcArrayTests extends ESTestCase {
 
     public void testArraySlicing() throws SQLException {
         List<Integer> values = IntStream.rangeClosed(0, 9).boxed().collect(Collectors.toList());
-        Array array = new JdbcArray(jdbcTestConfiguration(), baseType(EsType.INTEGER_ARRAY), values);
+        Array array = new JdbcArray(jdbcTestConfiguration().timeZone(), baseType(EsType.INTEGER_ARRAY), values);
 
         Object[] empty = (Object[]) array.getArray(11, 2);
         assertEquals(0, empty.length);
@@ -77,7 +77,7 @@ public class JdbcArrayTests extends ESTestCase {
     }
 
     public void testSqlExceptionPastFree() throws SQLException {
-        Array array = new JdbcArray(jdbcTestConfiguration(), baseType(EsType.LONG_ARRAY), emptyList());
+        Array array = new JdbcArray(jdbcTestConfiguration().timeZone(), baseType(EsType.LONG_ARRAY), emptyList());
         array.free();
 
         List<ThrowingRunnable> calls = asList(array::getBaseTypeName, array::getBaseType, array::getArray,
@@ -95,7 +95,7 @@ public class JdbcArrayTests extends ESTestCase {
     }
 
     public void testNonEmptyMapRejected() throws SQLException {
-        Array array = new JdbcArray(jdbcTestConfiguration(), baseType(EsType.LONG_ARRAY), emptyList());
+        Array array = new JdbcArray(jdbcTestConfiguration().timeZone(), baseType(EsType.LONG_ARRAY), emptyList());
         Map<String, Class<?>> map = Map.of("foo", String.class);
 
         List<ThrowingRunnable> calls = asList(() -> array.getArray(map), () -> array.getArray( 1, 2, map),
@@ -110,7 +110,7 @@ public class JdbcArrayTests extends ESTestCase {
 
     public void testArrayGetAsResultSet() throws SQLException {
         List<Integer> expected = randomList(1, 10, ESTestCase::randomInt);
-        Array array = new JdbcArray(jdbcTestConfiguration(), baseType(EsType.INTEGER_ARRAY), expected);
+        Array array = new JdbcArray(jdbcTestConfiguration().timeZone(), baseType(EsType.INTEGER_ARRAY), expected);
 
         ResultSet resultSet = array.getResultSet();
         // meta
@@ -131,7 +131,7 @@ public class JdbcArrayTests extends ESTestCase {
 
     public void testArrayGetAsSlicedResultSet() throws SQLException {
         List<Integer> expected = IntStream.rangeClosed(0, 9).boxed().collect(Collectors.toList());
-        Array array = new JdbcArray(jdbcTestConfiguration(), baseType(EsType.INTEGER_ARRAY), expected);
+        Array array = new JdbcArray(jdbcTestConfiguration().timeZone(), baseType(EsType.INTEGER_ARRAY), expected);
         long start = 4;
         int count = 3;
         ResultSet resultSet = array.getResultSet(start, count);

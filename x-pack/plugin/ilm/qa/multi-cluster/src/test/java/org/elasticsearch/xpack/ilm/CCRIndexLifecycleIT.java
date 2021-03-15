@@ -653,6 +653,20 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                         builder.endObject();
                     }
                     builder.endObject();
+
+                    // Sometimes throw in an extraneous unfollow just to check it doesn't break anything
+                    if (randomBoolean()) {
+                        builder.startObject("cold");
+                        {
+                            builder.startObject("actions");
+                            {
+                                builder.startObject("unfollow");
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
                 }
                 builder.endObject();
             }

@@ -113,9 +113,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.index.store.SearchableSnapshotDirectory.getNonNullFileExt;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
@@ -170,6 +172,49 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     }
                 })
         );
+    }
+
+    public void testFilesStats() throws Exception {
+        testDirectories((directory, snapshotDirectory) -> {
+
+            final Map<String, Long> numFiles = new HashMap<>();
+            final Map<String, Long> totalFiles = new HashMap<>();
+            final Map<String, Long> minSizes = new HashMap<>();
+            final Map<String, Long> maxSizes = new HashMap<>();
+
+            final Predicate<String> ignoredExtensions = fileExtension -> "lock".equals(fileExtension)
+                || "si".equals(fileExtension)
+                || fileExtension.isEmpty();
+
+            for (String fileName : directory.listAll()) {
+                final String extension = getNonNullFileExt(fileName);
+                if (ignoredExtensions.test(extension)) {
+                    continue;
+                }
+
+                // open each file once to force the creation of index input stats
+                try (IndexInput input = snapshotDirectory.openInput(fileName, randomIOContext())) {
+                    numFiles.compute(extension, (ext, num) -> num == null ? 1L : num + 1L);
+                    totalFiles.compute(extension, (ext, total) -> total != null ? total + input.length() : input.length());
+                    minSizes.compute(extension, (ext, min) -> Math.min(input.length(), min != null ? min : Long.MAX_VALUE));
+                    maxSizes.compute(extension, (ext, max) -> Math.max(input.length(), max != null ? max : Long.MIN_VALUE));
+                }
+            }
+
+            for (String fileName : snapshotDirectory.listAll()) {
+                final String extension = getNonNullFileExt(fileName);
+                if (ignoredExtensions.test(extension)) {
+                    continue;
+                }
+
+                final IndexInputStats inputStats = snapshotDirectory.getStats(fileName);
+                assertThat("No index input stats for extension [" + extension + ']', inputStats, notNullValue());
+                assertThat(inputStats.getNumFiles(), equalTo(numFiles.get(extension)));
+                assertThat(inputStats.getTotalSize(), equalTo(totalFiles.get(extension)));
+                assertThat(inputStats.getMinSize(), equalTo(minSizes.get(extension)));
+                assertThat(inputStats.getMaxSize(), equalTo(maxSizes.get(extension)));
+            }
+        });
     }
 
     public void testIndexSearcher() throws Exception {
@@ -632,7 +677,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
     private void testIndexInputs(final CheckedBiConsumer<IndexInput, IndexInput, Exception> consumer) throws Exception {
         testDirectories((directory, snapshotDirectory) -> {
             for (String fileName : randomSubsetOf(Arrays.asList(snapshotDirectory.listAll()))) {
-                final IOContext context = newIOContext(random());
+                final IOContext context = randomIOContext();
                 try (IndexInput indexInput = directory.openInput(fileName, context)) {
                     final List<Closeable> closeables = new ArrayList<>();
                     try {
@@ -659,8 +704,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
 
             final Path shardSnapshotDir = createTempDir();
             for (int i = 0; i < nbRandomFiles; i++) {
-                final String fileName = "file_" + randomAlphaOfLength(10);
-
+                final String fileName = randomAlphaOfLength(5) + randomFileExtension();
                 final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 100_000));
                 final byte[] input = bytes.v2();
                 final String checksum = bytes.v1();
@@ -726,9 +770,10 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     final BlobStoreIndexShardSnapshot.FileInfo fileInfo = randomFrom(randomFiles);
                     final int fileLength = toIntBytes(fileInfo.length());
 
-                    try (IndexInput input = directory.openInput(fileInfo.physicalName(), newIOContext(random()))) {
+                    try (IndexInput input = directory.openInput(fileInfo.physicalName(), randomIOContext())) {
                         assertThat(input.length(), equalTo((long) fileLength));
-                        final int start = between(0, fileLength - 1);
+                        // we can't just read footer as that is not served from cache
+                        final int start = between(0, fileLength - CodecUtil.footerLength() - 1);
                         final int end = between(start + 1, fileLength);
 
                         input.seek(start);

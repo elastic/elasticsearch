@@ -33,7 +33,7 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
     private final OriginalIndices originalIndices;
     private final QueryBuilder indexFilter;
     private final long nowInMillis;
-    private Map<String, Object> runtimeFields;
+    private final Map<String, Object> runtimeFields;
 
     private ShardId shardId;
 
@@ -118,6 +118,12 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeMap(runtimeFields);
+        } else {
+            if (false == runtimeFields.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "Versions before 7.12.0 don't support [runtime_mappings], but trying to send _field_caps request to a node "
+                    + "with version [" + out.getVersion()+ "]");
+            }
         }
     }
 

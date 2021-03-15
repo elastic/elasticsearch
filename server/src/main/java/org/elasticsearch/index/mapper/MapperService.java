@@ -36,7 +36,6 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.Closeable;
@@ -110,8 +109,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction =
             dateFormatter -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
                 mapperRegistry.getRuntimeFieldTypeParsers()::get, indexVersionCreated, searchExecutionContextSupplier, dateFormatter,
-                scriptService, indexAnalyzers, indexSettings, idFieldDataEnabled, mapperRegistry.getDynamicRuntimeFieldsBuilder() != null);
-        this.documentParser = new DocumentParser(xContentRegistry, parserContextFunction, mapperRegistry.getDynamicRuntimeFieldsBuilder());
+                scriptService, indexAnalyzers, indexSettings, idFieldDataEnabled);
+        this.documentParser = new DocumentParser(xContentRegistry, parserContextFunction);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
         this.parserContextSupplier = () -> parserContextFunction.apply(null);
@@ -151,7 +150,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
 
         } else {
-            metadataMappers.putAll(existingMapper.mapping().metadataMappersMap);
+            metadataMappers.putAll(existingMapper.mapping().getMetadataMappersMap());
         }
         return metadataMappers;
     }
@@ -297,7 +296,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason) {
         DocumentMapper newMapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
-        newMapper.root().fixRedundantIncludes();
+        newMapper.mapping().getRoot().fixRedundantIncludes();
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }
@@ -387,7 +386,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedFieldType fieldType(String fullName) {
-        return mappingLookup().fieldTypes().get(fullName);
+        return mappingLookup().fieldTypesLookup().get(fullName);
     }
 
     /**
@@ -411,7 +410,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
         return this.mapper == null ? Collections.emptySet() :
-            this.mapper.mappers().fieldTypes().filter(MappedFieldType::eagerGlobalOrdinals);
+            this.mapper.mappers().fieldTypesLookup().filter(MappedFieldType::eagerGlobalOrdinals);
     }
 
     /**

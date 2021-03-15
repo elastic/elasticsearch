@@ -67,6 +67,7 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -208,6 +209,11 @@ public class AggConstructionContentionBenchmark {
             if (path.startsWith("int")) {
                 return new NumberFieldMapper.NumberFieldType(path, NumberType.INTEGER);
             }
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Collection<MappedFieldType> getFieldTypes() {
             throw new UnsupportedOperationException();
         }
 

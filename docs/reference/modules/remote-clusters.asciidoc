@@ -258,13 +258,16 @@ separately.
   The time to wait for remote connections to be established when the node
   starts. The default is `30s`.
 
-`node.remote_cluster_client`::
+`remote_cluster_client` <<node-roles,role>>::
 
   By default, any node in the cluster can act as a cross-cluster client and
-  connect to remote clusters. The `node.remote_cluster_client` setting can be
-  set to `false` (defaults to `true`) to prevent certain nodes from connecting
-  to remote clusters. Remote cluster requests must be sent to a node that is
-  allowed to act as a cross-cluster client.
+  connect to remote clusters. To prevent a node from connecting to remote
+  clusters, specify the <<node-roles,node.roles>> setting in `elasticsearch.yml`
+  and exclude `remote_cluster_client` from the listed roles. Search requests
+  targeting remote clusters must be sent to a node that is allowed to act as a
+  cross-cluster client. Other features such as {ml} <<general-ml-settings,data
+  feeds>>, <<general-transform-settings,transforms>>, and
+  <<ccr-getting-started,{ccr}>> require the `remote_cluster_client` role.
 
 `cluster.remote.<cluster_alias>.skip_unavailable`::
 

@@ -179,7 +179,7 @@ public final class MappingLookup {
         return unmappedFieldAnalyzer.apply(field);
     }
 
-    public Map<String, PostParseExecutor> getPostParsePhases() {
+    public Map<String, PostParseExecutor> getPostParseExecutors() {
         return postParsePhases;
     }
 

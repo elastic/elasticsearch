@@ -81,13 +81,11 @@ NOTE: Search after requests have optimizations that make them faster when the so
 order is `_shard_doc` and total hits are not tracked. If you want to iterate over all documents regardless of the
 order, this is the most efficient option.
 
-IMPORTANT: If a search after request targets multiple indices and some of its sort field
-has type <<date,`date`>> in one index but <<date_nanos,`date_nanos`>> in other indices,
-then Elasticsearch won't interpret the search after parameter correctly in every target
-index. The <<sort-search-results,sort values>> of a date field by default is a long of
-milliseconds since the epoch while a date_nanos field is a long of nanoseconds.
-In this case, it's crucial to format the sort value of that field with
-a <<mapping-date-format, date format>>.
+IMPORTANT: If the `sort` field is a <<date,`date`>> in some target data streams or indices
+but a <<date_nanos,`date_nanos`>> field in other targets, use the `format`
+parameter to specify a <<mapping-date-format, date format>> for the `sort`
+field. Otherwise, {es} won't interpret the search after parameter correctly in
+each request.
 
 [source,console]
 ----

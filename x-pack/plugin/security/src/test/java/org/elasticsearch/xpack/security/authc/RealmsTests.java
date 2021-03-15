@@ -493,6 +493,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(realm.name(), equalTo("foo"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70378")
     public void testDisabledRealmsAreNotAdded() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());

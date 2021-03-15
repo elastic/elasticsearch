@@ -205,7 +205,7 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
     private static String buildBwcTaskName(String projectName) {
         return "buildBwc"
             + stream(projectName.split("-")).map(i -> i.substring(0, 1).toUpperCase(Locale.ROOT) + i.substring(1))
-            .collect(Collectors.joining());
+                .collect(Collectors.joining());
     }
 
     static void createBuildBwcTask(
@@ -312,6 +312,5 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
         }
     }
 
-    public abstract class BwcTaskThrottle implements BuildService<BuildServiceParameters.None> {
-    }
+    public abstract class BwcTaskThrottle implements BuildService<BuildServiceParameters.None> {}
 }

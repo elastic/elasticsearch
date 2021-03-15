@@ -146,6 +146,7 @@ GET my-index/_doc/1
 ----
 {
   "_index": "my-index",
+  "_type": "_doc",
   "_id": "1",
   "_version": 1,
   "_seq_no": 0,

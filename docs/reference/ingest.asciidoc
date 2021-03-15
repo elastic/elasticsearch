@@ -127,6 +127,7 @@ The API returns transformed documents:
     {
       "doc": {
         "_index": "_index",
+        "_type": "_doc",
         "_id": "_id",
         "_source": {
           "my-long-field": 10,
@@ -141,6 +142,7 @@ The API returns transformed documents:
     {
       "doc": {
         "_index": "_index",
+        "_type": "_doc",
         "_id": "_id",
         "_source": {
           "my-long-field": 10,

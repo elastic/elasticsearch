@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.CacheFileRegion;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Set;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
@@ -41,9 +39,6 @@ public class FrozenCacheServiceTests extends ESTestCase {
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             FrozenCacheService cacheService = new FrozenCacheService(environment, settings, taskQueue.getThreadPool())
         ) {
-            for (Path path : environment.nodeDataPaths()) {
-                Files.createDirectories(path);
-            }
             final CacheKey cacheKey = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
             final CacheFileRegion region0 = cacheService.get(cacheKey, 250, 0);
@@ -89,9 +84,6 @@ public class FrozenCacheServiceTests extends ESTestCase {
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             FrozenCacheService cacheService = new FrozenCacheService(environment, settings, taskQueue.getThreadPool())
         ) {
-            for (Path path : environment.nodeDataPaths()) {
-                Files.createDirectories(path);
-            }
             final CacheKey cacheKey = generateCacheKey();
             assertEquals(2, cacheService.freeRegionCount());
             final CacheFileRegion region0 = cacheService.get(cacheKey, 250, 0);
@@ -128,9 +120,6 @@ public class FrozenCacheServiceTests extends ESTestCase {
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             FrozenCacheService cacheService = new FrozenCacheService(environment, settings, taskQueue.getThreadPool())
         ) {
-            for (Path path : environment.nodeDataPaths()) {
-                Files.createDirectories(path);
-            }
             final CacheKey cacheKey1 = generateCacheKey();
             final CacheKey cacheKey2 = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
@@ -159,9 +148,6 @@ public class FrozenCacheServiceTests extends ESTestCase {
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             FrozenCacheService cacheService = new FrozenCacheService(environment, settings, taskQueue.getThreadPool())
         ) {
-            for (Path path : environment.nodeDataPaths()) {
-                Files.createDirectories(path);
-            }
             final CacheKey cacheKey1 = generateCacheKey();
             final CacheKey cacheKey2 = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());

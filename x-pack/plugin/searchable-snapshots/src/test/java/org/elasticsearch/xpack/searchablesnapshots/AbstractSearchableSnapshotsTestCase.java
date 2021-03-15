@@ -148,7 +148,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         return new FrozenCacheService(nodeEnvironment, Settings.EMPTY, threadPool);
     }
 
-    protected FrozenCacheService randomFrozenCacheService() throws IOException {
+    protected FrozenCacheService randomFrozenCacheService() {
         final Settings.Builder cacheSettings = Settings.builder();
         if (randomBoolean()) {
             cacheSettings.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
@@ -162,9 +162,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         if (randomBoolean()) {
             cacheSettings.put(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
         }
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment()) {
-            return new FrozenCacheService(nodeEnvironment, cacheSettings.build(), threadPool);
-        }
+        return new FrozenCacheService(nodeEnvironment, cacheSettings.build(), threadPool);
     }
 
     /**

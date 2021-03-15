@@ -1,7 +1,7 @@
 [[indices-templates-v1]]
 === Create or update index template API
 ++++
-<titleabbrev>create or update index template (legacy)</titleabbrev>
+<titleabbrev>Create or update index template (legacy)</titleabbrev>
 ++++
 
 IMPORTANT: This documentation is about legacy index templates, 

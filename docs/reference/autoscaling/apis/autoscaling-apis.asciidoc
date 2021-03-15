@@ -17,8 +17,8 @@ You can use the following APIs to perform autoscaling operations.
 * <<autoscaling-get-autoscaling-policy,Get autoscaling policy>>
 
 // top-level
-include::get-autoscaling-capacity.asciidoc[]
 include::put-autoscaling-policy.asciidoc[]
+include::get-autoscaling-capacity.asciidoc[]
 include::delete-autoscaling-policy.asciidoc[]
 include::get-autoscaling-policy.asciidoc[]
 

@@ -25,6 +25,7 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.support.AESKeyUtils;
 import org.junit.Before;
 
 import javax.crypto.SecretKey;

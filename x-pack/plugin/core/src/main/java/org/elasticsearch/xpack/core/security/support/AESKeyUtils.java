@@ -4,9 +4,16 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.repositories.encrypted;
+package org.elasticsearch.xpack.core.security.support;
 
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xpack.core.security.SecurityField;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
@@ -68,10 +75,21 @@ public final class AESKeyUtils {
     }
 
     public static SecretKey generatePasswordBasedKey(SecureString password, byte[] salt) throws GeneralSecurityException {
+        assert Transports.assertNotTransportThread("pbkdf2 hash is slow");
+        assert ThreadPool.assertNotScheduleThread("pbkdf2 hash is slow");
+        assert ClusterApplierService.assertNotClusterStateUpdateThread("pbkdf2 hash is slow");
+        assert MasterService.assertNotMasterUpdateThread("pbkdf2 hash is slow");
         PBEKeySpec keySpec = new PBEKeySpec(password.getChars(), salt, KDF_ITER, KEY_LENGTH_IN_BYTES * Byte.SIZE);
         SecretKeyFactory keyFactory = SecretKeyFactory.getInstance(KDF_ALGO);
         SecretKey secretKey = keyFactory.generateSecret(keySpec);
         SecretKeySpec secret = new SecretKeySpec(secretKey.getEncoded(), "AES");
         return secret;
+    }
+
+    public static ListenableFuture<SecretKey> generatePasswordBasedKey(SecureString password, byte[] salt, ThreadPool threadPool) {
+        final ListenableFuture<SecretKey> listenableFuture = new ListenableFuture<>();
+        threadPool.executor(SecurityField.SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listenableFuture,
+                () -> generatePasswordBasedKey(password, salt)));
+        return listenableFuture;
     }
 }

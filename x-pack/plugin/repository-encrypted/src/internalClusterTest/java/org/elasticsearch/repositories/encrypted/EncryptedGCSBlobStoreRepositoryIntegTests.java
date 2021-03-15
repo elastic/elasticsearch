@@ -82,7 +82,7 @@ public final class EncryptedGCSBlobStoreRepositoryIntegTests extends GoogleCloud
         return Settings.builder()
             .put(super.repositorySettings(repositoryName))
             .put(EncryptedRepositoryPlugin.DELEGATE_TYPE_SETTING.getKey(), "gcs")
-            .put(EncryptedRepositoryPlugin.PASSWORD_NAME_SETTING.getKey(), repositoryName)
+            .put(RepositoryPasswords.PASSWORD_NAME_SETTING.getKey(), repositoryName)
             .build();
     }
 

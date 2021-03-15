@@ -8,6 +8,7 @@
 package org.elasticsearch.repositories.encrypted;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.support.AESKeyUtils;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;

@@ -49,6 +49,7 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.xpack.core.security.support.AESKeyUtils;
 
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -371,7 +372,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                     metadata.name(),
                     "Repository password mismatch. The local node's repository password, from the keystore setting ["
                         + EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(
-                            EncryptedRepositoryPlugin.PASSWORD_NAME_SETTING.get(metadata.settings())
+                            RepositoryPasswords.PASSWORD_NAME_SETTING.get(metadata.settings())
                         ).getKey()
                         + "], is different compared to the elected master node's which started the snapshot operation"
                 );

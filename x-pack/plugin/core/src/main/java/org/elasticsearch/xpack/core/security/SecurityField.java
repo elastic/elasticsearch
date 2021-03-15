@@ -13,6 +13,9 @@ import java.util.Optional;
 
 public final class SecurityField {
 
+    // These should be moved to Security once it's moved to common
+    public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
+
     public static final String NAME4 = XPackField.SECURITY + "4";
     public static final String NIO = XPackField.SECURITY + "-nio";
     public static final Setting<Optional<String>> USER_SETTING =

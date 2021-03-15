@@ -442,10 +442,12 @@ public class ActionModule extends AbstractModule {
                 restWrapper = newRestWrapper;
                 if (restWrapper.getClass().getCanonicalName() == null ||
                     restWrapper.getClass().getCanonicalName().startsWith("org.elasticsearch") == false) {
-                    deprecationLogger.deprecate(DeprecationCategory.SECURITY, "3rd_party_sec_deprecation", "Use of third-party " +
-                        "security plugins is deprecated and will not be possible in 8.0. You can use built-in Elasticsearch features " +
-                        "instead. Read https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
-                        Version.CURRENT.minor + "get-started-enable-security.html for more information");
+                    deprecationLogger.deprecate(DeprecationCategory.SECURITY, "3rd_party_rest_deprecation", "The " +
+                        plugin.getClass().getName() + "plugin installs a custom REST wrapper. This functionality is deprecated and will " +
+                        "not be possible in Elasticsearch 8.0. If this plugin is intended to provide security features for Elasticsearch " +
+                        "then you should switch to using the built-in Elasticsearch features instead. " +
+                        "Read https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
+                        Version.CURRENT.minor + "/get-started-enable-security.html for more information");
                 }
             }
         }

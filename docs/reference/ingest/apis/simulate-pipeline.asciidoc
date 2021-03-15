@@ -108,13 +108,13 @@ Description of the ingest pipeline.
 `processors`::
 +
 --
-(Optional, array of <<ingest-processors,processor objects>>)
+(Optional, array of <<processors,processor objects>>)
 Array of processors used to pre-process documents
 during ingest.
 
 Processors are executed in the order provided.
 
-See <<ingest-processors>> for processor object definitions
+See <<processors>> for processor object definitions
 and a list of built-in processors.
 --
 

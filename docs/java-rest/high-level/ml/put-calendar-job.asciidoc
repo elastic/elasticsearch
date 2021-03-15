@@ -5,7 +5,7 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Create {anomaly-jobs} in calendar API
+=== Add {anomaly-jobs} to calendar API
 
 Adds {anomaly-jobs} jobs to an existing {ml} calendar.
 The API accepts a +{request}+ and responds

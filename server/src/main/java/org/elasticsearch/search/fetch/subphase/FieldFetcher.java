@@ -161,59 +161,62 @@ public class FieldFetcher {
                 documentFields.put(field, new DocumentField(field, parsedValues));
             }
         }
+        collectUnmapped(documentFields, sourceLookup.source(), "", 0);
+        return documentFields;
+    }
+
+    private void collectUnmapped(Map<String, DocumentField> documentFields, Map<String, Object> source, String parentPath, int lastState) {
+        // lookup field patterns containing wildcards
         if (this.unmappedFieldsFetchAutomaton != null) {
-            collectUnmapped(documentFields, sourceLookup.source(), "", 0);
+            for (String key : source.keySet()) {
+                Object value = source.get(key);
+                String currentPath = parentPath + key;
+                if (this.fieldContexts.containsKey(currentPath)) {
+                    continue;
+                }
+                int currentState = step(this.unmappedFieldsFetchAutomaton, key, lastState);
+                if (currentState == -1) {
+                    // current path doesn't match any fields pattern
+                    continue;
+                }
+                if (value instanceof Map) {
+                    // one step deeper into source tree
+                    collectUnmapped(
+                        documentFields,
+                        (Map<String, Object>) value,
+                        currentPath + ".",
+                        step(this.unmappedFieldsFetchAutomaton, ".", currentState)
+                    );
+                } else if (value instanceof List) {
+                    // iterate through list values
+                    collectUnmappedList(documentFields, (List<?>) value, currentPath, currentState);
+                } else {
+                    // we have a leaf value
+                    if (this.unmappedFieldsFetchAutomaton.isAccept(currentState)) {
+                        if (value != null) {
+                            DocumentField currentEntry = documentFields.get(currentPath);
+                            if (currentEntry == null) {
+                                List<Object> list = new ArrayList<>();
+                                list.add(value);
+                                documentFields.put(currentPath, new DocumentField(currentPath, list));
+                            } else {
+                                currentEntry.getValues().add(value);
+                            }
+                        }
+                    }
+                }
+            }
         }
+
+        // lookup concrete fields
         if (this.unmappedConcreteFields != null) {
             for (String path : unmappedConcreteFields) {
                 if (this.fieldContexts.containsKey(path)) {
                     continue; // this is actually a mapped field
                 }
-                List<Object> values = XContentMapValues.extractRawValues(path, sourceLookup.source());
+                List<Object> values = XContentMapValues.extractRawValues(path, source);
                 if (values.isEmpty() == false) {
                     documentFields.put(path, new DocumentField(path, values));
-                }
-            }
-        }
-        return documentFields;
-    }
-
-    private void collectUnmapped(Map<String, DocumentField> documentFields, Map<String, Object> source, String parentPath, int lastState) {
-        for (String key : source.keySet()) {
-            Object value = source.get(key);
-            String currentPath = parentPath + key;
-            if (this.fieldContexts.containsKey(currentPath)) {
-                continue;
-            }
-            int currentState = step(this.unmappedFieldsFetchAutomaton, key, lastState);
-            if (currentState == -1) {
-                // current path doesn't match any fields pattern
-                continue;
-            }
-            if (value instanceof Map) {
-                // one step deeper into source tree
-                collectUnmapped(
-                    documentFields,
-                    (Map<String, Object>) value,
-                    currentPath + ".",
-                    step(this.unmappedFieldsFetchAutomaton, ".", currentState)
-                );
-            } else if (value instanceof List) {
-                // iterate through list values
-                collectUnmappedList(documentFields, (List<?>) value, currentPath, currentState);
-            } else {
-                // we have a leaf value
-                if (this.unmappedFieldsFetchAutomaton.isAccept(currentState)) {
-                    if (value != null) {
-                        DocumentField currentEntry = documentFields.get(currentPath);
-                        if (currentEntry == null) {
-                            List<Object> list = new ArrayList<>();
-                            list.add(value);
-                            documentFields.put(currentPath, new DocumentField(currentPath, list));
-                        } else {
-                            currentEntry.getValues().add(value);
-                        }
-                    }
                 }
             }
         }

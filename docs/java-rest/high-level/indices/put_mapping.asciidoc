@@ -7,6 +7,9 @@
 [id="{upid}-{api}"]
 === Update mapping API
 
+Adds new fields to an existing data stream or index. You can also use the API to
+change the search settings of existing fields.
+
 [id="{upid}-{api}-request"]
 ==== Request
 

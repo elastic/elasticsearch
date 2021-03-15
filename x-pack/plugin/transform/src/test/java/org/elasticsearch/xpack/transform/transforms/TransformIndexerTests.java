@@ -310,10 +310,10 @@ public class TransformIndexerTests extends ESTestCase {
 
         // run indexer a 2nd time
         final CountDownLatch secondRunLatch = indexer.newLatch(1);
-        indexer.start();
         assertEquals(pageSizeAfterFirstReduction, indexer.getPageSize());
         assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
-        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        // when the indexer thread shuts down, it ignores the trigger, we might have to call it again
+        assertBusy(() -> assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis())));
         assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
 
         secondRunLatch.countDown();

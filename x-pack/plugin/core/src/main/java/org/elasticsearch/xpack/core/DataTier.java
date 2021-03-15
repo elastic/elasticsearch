@@ -191,7 +191,11 @@ public class DataTier {
     }
 
     public static boolean isFrozenNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.getRoles().contains(DATA_FROZEN_NODE_ROLE) || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
+        return isFrozenNode(discoveryNode.getRoles());
+    }
+
+    public static boolean isFrozenNode(final Set<DiscoveryNodeRole> roles) {
+        return roles.contains(DATA_FROZEN_NODE_ROLE) || roles.contains(DiscoveryNodeRole.DATA_ROLE);
     }
 
     /**

@@ -34,7 +34,7 @@ public final class JUnit3MethodProvider implements TestMethodProvider {
             Method m = mm.element;
             if (m.getName().startsWith("test")
                 && Modifier.isPublic(m.getModifiers())
-                && !Modifier.isStatic(m.getModifiers())
+                && Modifier.isStatic(m.getModifiers()) == false
                 && m.getParameterTypes().length == 0) {
                 result.add(m);
             }

@@ -97,6 +97,7 @@ Which produces the following result:
     {
       "doc": {
         ...
+        "_type": "_doc",
         "_source": {
           "destination": {
             "ip": "192.168.1.1"

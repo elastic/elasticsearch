@@ -1,8 +1,8 @@
 ---
 "order by sub agg containing join":
   - skip:
-      reason: "It was fixed it 7.12.0"
-      version: " - 7.11.99"
+      reason: "https://github.com/elastic/elasticsearch/issues/66876"
+      version: "7.11.1 - "
   - do:
       indices.create:
           index: test_1
@@ -72,8 +72,8 @@
 ---
 "order by sub agg containing join and nested":
   - skip:
-      reason: "It was fixed it 7.12.0"
-      version: " - 7.11.99"
+      reason: "https://github.com/elastic/elasticsearch/issues/66876"
+      version: "7.11.1 - "
   - do:
       indices.create:
           index: test_1
@@ -152,8 +152,8 @@
 ---
 "order by sub agg containing join and nested and filter":
   - skip:
-      reason: "It was fixed it 7.12.0"
-      version: " - 7.11.99"
+      reason: "https://github.com/elastic/elasticsearch/issues/66876"
+      version: "7.11.1 - "
   - do:
       indices.create:
           index: test_1

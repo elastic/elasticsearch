@@ -799,7 +799,10 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MaxAggregator maxAggregator = createAggregator(maxAggregationBuilder, indexSearcher, fieldType);
         ValueCountAggregator countAggregator = createAggregator(countAggregationBuilder, indexSearcher, fieldType);
 
-        BucketCollector bucketCollector = MultiBucketCollector.wrap(maxAggregator, countAggregator);
+        BucketCollector bucketCollector = MultiBucketCollector.wrap(
+            true,
+            org.elasticsearch.common.collect.List.of(maxAggregator, countAggregator)
+        );
         bucketCollector.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), bucketCollector);
         bucketCollector.postCollection();
@@ -851,7 +854,10 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             ValueCountAggregator countAggregator = createAggregator(countAggregationBuilder, indexSearcher, multiValuesfieldType);
             TermsAggregator termsAggregator = createAggregator(termsAggregationBuilder, indexSearcher, singleValueFieldType);
 
-            BucketCollector bucketCollector = MultiBucketCollector.wrap(maxAggregator, countAggregator, termsAggregator);
+            BucketCollector bucketCollector = MultiBucketCollector.wrap(
+                true,
+                org.elasticsearch.common.collect.List.of(maxAggregator, countAggregator, termsAggregator)
+            );
             bucketCollector.preCollection();
             indexSearcher.search(new MatchAllDocsQuery(), bucketCollector);
             bucketCollector.postCollection();

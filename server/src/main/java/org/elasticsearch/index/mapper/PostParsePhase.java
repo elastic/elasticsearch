@@ -50,14 +50,15 @@ public class PostParsePhase {
      * Given a mapping, collects all {@link PostParseExecutor}s and executes them
      * @param lookup        the MappingLookup to collect executors from
      * @param parseContext  the ParseContext of the current document
-     * @throws IOException
      */
-    public static void executePostParsePhases(MappingLookup lookup, ParseContext parseContext) throws IOException {
+    public static void executePostParsePhases(MappingLookup lookup, ParseContext parseContext) {
         if (lookup.getPostParseExecutors().isEmpty()) {
             return;
         }
         PostParsePhase postParsePhase = new PostParsePhase(lookup, parseContext);
-        postParsePhase.executePostParse();
+        for (OneTimeFieldExecutor executor : postParsePhase.fieldExecutors.values()) {
+            executor.execute();
+        }
     }
 
     private PostParsePhase(MappingLookup mappingLookup, ParseContext pc) {
@@ -67,17 +68,6 @@ public class PostParsePhase {
             mappingLookup.getPostParseExecutors().keySet());
         this.context = new PostParseContext(mappingLookup, pc, reader.getContext());
         mappingLookup.getPostParseExecutors().forEach((k, c) -> fieldExecutors.put(k, new OneTimeFieldExecutor(c)));
-    }
-
-    private void executePostParse() throws IOException {
-        for (OneTimeFieldExecutor ms : fieldExecutors.values()) {
-            ms.execute();
-        }
-    }
-
-    private void executeField(String field) throws IOException {
-        assert fieldExecutors.containsKey(field);
-        fieldExecutors.get(field).execute();
     }
 
     // FieldExecutors can be called both by executePostParse() and from the lazy reader,
@@ -92,7 +82,7 @@ public class PostParsePhase {
             this.executor = executor;
         }
 
-        void execute() throws IOException {
+        void execute() {
             if (executed == false) {
                 executor.execute(context);
                 executed = true;
@@ -113,15 +103,15 @@ public class PostParsePhase {
             this.calculatedFields = calculatedFields;
         }
 
-        private void checkField(String field) throws IOException {
+        private void checkField(String field) {
             if (calculatedFields.contains(field)) {
                 // this means that a mapper script is referring to another calculated field;
-                // in which case we need to execute that field first, and then rebuild the
-                // memory index.  We also check for loops here
+                // in which case we need to execute that field first. We also check for loops here
                 if (fieldPath.add(field) == false) {
                     throw new IllegalStateException("Loop in field resolution detected: " + String.join("->", fieldPath) + "->" + field);
                 }
-                executeField(field);
+                assert fieldExecutors.containsKey(field);
+                fieldExecutors.get(field).execute();
                 calculatedFields.remove(field);
                 fieldPath.remove(field);
             }
@@ -311,6 +301,9 @@ public class PostParsePhase {
     }
 
     private static SortedNumericDocValues sortedNumericDocValues(List<Number> values) {
+        if (values.size() == 0) {
+            return null;
+        }
         return new SortedNumericDocValues() {
 
             int i = -1;

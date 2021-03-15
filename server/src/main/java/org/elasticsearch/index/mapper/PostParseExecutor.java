@@ -8,10 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.io.IOException;
-
 public interface PostParseExecutor {
 
-    void execute(PostParseContext context) throws IOException;
+    void execute(PostParseContext context);
 
 }

@@ -126,7 +126,7 @@ include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-
 [[java-rest-high-x-pack-rollup-put-rollup-job-execution]]
 ==== Execution
 
-The API can be executed through a `RollupClient`
+The API can be called through a `RollupClient`
 instance. Such instance can be retrieved from a `RestHighLevelClient`
 using the `rollup()` method:
 

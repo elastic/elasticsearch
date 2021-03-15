@@ -156,8 +156,9 @@ PUT _index_template/template_1
 
 [source,console]
 ----
-DELETE _index_template/*
-DELETE _component_template/*
+DELETE _index_template/template_1
+DELETE _component_template/runtime_component_template
+DELETE _component_template/component_template1
 ----
 // TEST[continued]
 

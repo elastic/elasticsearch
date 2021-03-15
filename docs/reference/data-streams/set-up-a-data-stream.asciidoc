@@ -129,8 +129,8 @@ image::images/data-streams/create-index-template.png[Create template page]
 [%collapsible]
 .API example
 ====
-Use the <<indices-put-template,put index template API>> to create an index
-template. The template must include a `data_stream` object, indicating
+Use the <<indices-put-template,create or update index template API>> to create
+an index template. The template must include a `data_stream` object, indicating
 it's used for data streams.
 
 [source,console]

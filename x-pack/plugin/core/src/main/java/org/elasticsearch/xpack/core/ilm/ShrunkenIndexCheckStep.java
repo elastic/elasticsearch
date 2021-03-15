@@ -61,7 +61,7 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
         }
 
         LifecycleExecutionState lifecycleState = fromIndexMetadata(idxMeta);
-        String targetIndexName = getShrinkIndexName(idxMeta.getIndex().getName(), lifecycleState, shrunkIndexPrefix);
+        String targetIndexName = getShrinkIndexName(shrunkenIndexSource, lifecycleState, shrunkIndexPrefix);
         boolean isConditionMet = index.getName().equals(targetIndexName) &&
                 clusterState.metadata().index(shrunkenIndexSource) == null;
         if (isConditionMet) {

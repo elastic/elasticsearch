@@ -109,7 +109,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
-    private Map<String, String> dynamicMappingHints = Map.of();
+    private Map<String, String> mappingHints = Map.of();
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -149,7 +149,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             requireAlias = false;
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            dynamicMappingHints = in.readMap(StreamInput::readString, StreamInput::readString);
+            mappingHints = in.readMap(StreamInput::readString, StreamInput::readString);
         }
     }
 
@@ -661,7 +661,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeBoolean(requireAlias);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeMap(dynamicMappingHints, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(mappingHints, StreamOutput::writeString, StreamOutput::writeString);
         }
     }
 
@@ -724,17 +724,17 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Specifies a map of hints from the full path of field names to mapping hints defined in dynamic templates.
      */
-    public IndexRequest setDynamicMappingHints(Map<String, String> dynamicMappingHints) {
-        this.dynamicMappingHints = Objects.requireNonNull(dynamicMappingHints);
+    public IndexRequest setMappingHints(Map<String, String> mappingHints) {
+        this.mappingHints = Objects.requireNonNull(mappingHints);
         return this;
     }
 
     /**
      * Returns a map of hints from the full path (i.e. foo.bar) of field names to mapping hints defined in dynamic templates.
      *
-     * @see #setDynamicMappingHints(Map)
+     * @see #setMappingHints(Map)
      */
-    public Map<String, String> getDynamicMappingHints() {
-        return dynamicMappingHints;
+    public Map<String, String> getMappingHints() {
+        return mappingHints;
     }
 }

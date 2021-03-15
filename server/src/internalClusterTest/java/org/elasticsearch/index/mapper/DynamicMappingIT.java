@@ -198,17 +198,17 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").setMapping(mappings));
         List<IndexRequest> requests = new ArrayList<>();
         requests.add(new IndexRequest("test").id("1").source("location", "41.12,-71.34")
-            .setDynamicMappingHints(Map.of("location", "location")));
+            .setMappingHints(Map.of("location", "location")));
         requests.add(new IndexRequest("test").id("2").source(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("location").field("lat", 41.12).field("lon", -71.34).endObject()
                 .endObject())
-            .setDynamicMappingHints(Map.of("location", "location")));
+            .setMappingHints(Map.of("location", "location")));
         requests.add(new IndexRequest("test").id("3").source("address.location", "41.12,-71.34")
-            .setDynamicMappingHints(Map.of("address.location", "location")));
+            .setMappingHints(Map.of("address.location", "location")));
         requests.add(new IndexRequest("test").id("4").source("location", new double[]{-71.34, 41.12})
-            .setDynamicMappingHints(Map.of("location", "location")));
+            .setMappingHints(Map.of("location", "location")));
         requests.add(new IndexRequest("test").id("5").source("array_of_numbers", new double[]{-71.34, 41.12}));
 
         Randomness.shuffle(requests);
@@ -235,7 +235,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                     .startObject()
                     .field("my_location",  "41.12,-71.34")
                     .endObject())
-                .setDynamicMappingHints(Map.of("my_location", "location"))
+                .setMappingHints(Map.of("my_location", "location"))
         );
         final BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
         assertTrue(bulkItemResponses.hasFailures());

@@ -340,13 +340,13 @@ public class BulkRequestTests extends ESTestCase {
         );
         BulkRequest bulkRequest = new BulkRequest().add(data, null, XContentType.JSON);
         assertThat(bulkRequest.requests, hasSize(5));
-        assertThat(((IndexRequest) bulkRequest.requests.get(0)).getDynamicMappingHints(),
+        assertThat(((IndexRequest) bulkRequest.requests.get(0)).getMappingHints(),
             equalTo(Map.of("baz", "t1", "foo.bar", "t2")));
-        assertThat(((IndexRequest) bulkRequest.requests.get(2)).getDynamicMappingHints(),
+        assertThat(((IndexRequest) bulkRequest.requests.get(2)).getMappingHints(),
             equalTo(Map.of("bar", "t1")));
-        assertThat(((IndexRequest) bulkRequest.requests.get(3)).getDynamicMappingHints(),
+        assertThat(((IndexRequest) bulkRequest.requests.get(3)).getMappingHints(),
             equalTo(Map.of("foo.bar", "xyz")));
-        assertThat(((IndexRequest) bulkRequest.requests.get(4)).getDynamicMappingHints(),
+        assertThat(((IndexRequest) bulkRequest.requests.get(4)).getMappingHints(),
             equalTo(Map.of()));
     }
 

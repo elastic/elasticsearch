@@ -246,7 +246,7 @@ public final class BulkRequestParser {
                                     .version(version).versionType(versionType)
                                     .setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                    .setDynamicMappingHints(mappingHints)
+                                    .setMappingHints(mappingHints)
                                     .setRequireAlias(requireAlias), type);
                         } else {
                             indexRequestConsumer.accept(new IndexRequest(index).id(id).routing(routing)
@@ -261,7 +261,7 @@ public final class BulkRequestParser {
                                 .version(version).versionType(versionType)
                                 .create(true).setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                .setDynamicMappingHints(mappingHints)
+                                .setMappingHints(mappingHints)
                                 .setRequireAlias(requireAlias), type);
                     } else if ("update".equals(action)) {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {

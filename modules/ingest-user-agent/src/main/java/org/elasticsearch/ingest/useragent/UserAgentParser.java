@@ -100,7 +100,7 @@ final class UserAgentParser {
         }
     }
 
-    public static List<Map<String, String>> readParserConfigurations(XContentParser yamlParser) throws IOException {
+    static List<Map<String, String>> readParserConfigurations(XContentParser yamlParser) throws IOException {
         List<Map<String, String>> patternList = new ArrayList<>();
 
         XContentParser.Token token = yamlParser.nextToken();

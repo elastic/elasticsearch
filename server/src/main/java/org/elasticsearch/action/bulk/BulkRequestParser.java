@@ -225,6 +225,10 @@ public final class BulkRequestParser {
                 }
 
                 if ("delete".equals(action)) {
+                    if (mappingHints.isEmpty() == false) {
+                        throw new IllegalArgumentException(
+                            "Delete request in line [" + line + "] does not accept " + MAPPING_HINTS.getPreferredName());
+                    }
                     deleteRequestConsumer.accept(new DeleteRequest(index).id(id).routing(routing)
                             .version(version).versionType(versionType).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm));
                 } else {
@@ -263,6 +267,11 @@ public final class BulkRequestParser {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
                             throw new IllegalArgumentException("Update requests do not support versioning. " +
                                     "Please use `if_seq_no` and `if_primary_term` instead");
+                        }
+                        // TODO: support dynamic mapping hints for update requests
+                        if (mappingHints.isEmpty() == false) {
+                            throw new IllegalArgumentException(
+                                "Update request in line [" + line + "] does not accept " + MAPPING_HINTS.getPreferredName());
                         }
                         UpdateRequest updateRequest = new UpdateRequest().index(index).id(id).routing(routing)
                                 .retryOnConflict(retryOnConflict)

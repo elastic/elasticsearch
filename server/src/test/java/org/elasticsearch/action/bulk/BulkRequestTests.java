@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -319,5 +320,57 @@ public class BulkRequestTests extends ESTestCase {
         bulkRequestWithNewLine.add(bulkActionWithNewLine.getBytes(StandardCharsets.UTF_8), 0, bulkActionWithNewLine.length(), null,
                 XContentType.JSON);
         assertEquals(3, bulkRequestWithNewLine.numberOfActions());
+    }
+
+    public void testMappingHints() throws Exception {
+        BytesArray data = new BytesArray(
+            "{ \"index\":{\"_index\":\"test\",\"mapping_hints\":{\"baz\":\"t1\", \"foo.bar\":\"t2\"}}}\n" +
+            "{ \"field1\" : \"value1\" }\n" +
+
+            "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\" } }\n" +
+
+            "{ \"create\" : {\"_index\":\"test\",\"mapping_hints\":{\"bar\":\"t1\"}}}\n" +
+            "{ \"field1\" : \"value3\" }\n" +
+
+            "{ \"create\" : {\"mapping_hints\":{\"foo.bar\":\"xyz\"}}}\n" +
+            "{ \"field1\" : \"value3\" }\n" +
+
+            "{ \"index\" : {\"mapping_hints\":{}}\n" +
+            "{ \"field1\" : \"value3\" }\n"
+        );
+        BulkRequest bulkRequest = new BulkRequest().add(data, null, XContentType.JSON);
+        assertThat(bulkRequest.requests, hasSize(5));
+        assertThat(((IndexRequest) bulkRequest.requests.get(0)).getDynamicMappingHints(),
+            equalTo(Map.of("baz", "t1", "foo.bar", "t2")));
+        assertThat(((IndexRequest) bulkRequest.requests.get(2)).getDynamicMappingHints(),
+            equalTo(Map.of("bar", "t1")));
+        assertThat(((IndexRequest) bulkRequest.requests.get(3)).getDynamicMappingHints(),
+            equalTo(Map.of("foo.bar", "xyz")));
+        assertThat(((IndexRequest) bulkRequest.requests.get(4)).getDynamicMappingHints(),
+            equalTo(Map.of()));
+    }
+
+    public void testInvalidMappingHint() {
+        BytesArray deleteWithMappingHint = new BytesArray(
+            "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\", \"mapping_hints\":{\"baz\":\"t1\"}} }\n");
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
+            () -> new BulkRequest().add(deleteWithMappingHint, null, XContentType.JSON));
+        assertThat(error.getMessage(), equalTo("Delete request in line [1] does not accept mapping_hints"));
+
+        BytesArray updateWithMappingHint = new BytesArray(
+            "{ \"update\" : {\"mapping_hints\":{\"foo.bar\":\"xyz\"}}}\n" +
+            "{ \"field1\" : \"value3\" }\n");
+        error = expectThrows(IllegalArgumentException.class,
+            () -> new BulkRequest().add(updateWithMappingHint, null, XContentType.JSON));
+        assertThat(error.getMessage(), equalTo("Update request in line [2] does not accept mapping_hints"));
+
+        BytesArray invalidMappingHint = new BytesArray(
+            "{ \"index\":{\"_index\":\"test\",\"mapping_hints\":[]}\n" +
+            "{ \"field1\" : \"value1\" }\n"
+        );
+        error = expectThrows(IllegalArgumentException.class,
+            () -> new BulkRequest().add(invalidMappingHint, null, XContentType.JSON));
+        assertThat(error.getMessage(),
+            equalTo("Malformed action/metadata line [1], expected a simple value for field [mapping_hints] but found [START_ARRAY]"));
     }
 }

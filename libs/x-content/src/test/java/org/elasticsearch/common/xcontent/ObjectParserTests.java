@@ -32,8 +32,10 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ObjectParserTests extends ESTestCase {
 
@@ -1111,5 +1113,32 @@ public class ObjectParserTests extends ESTestCase {
             RestApiVersion.current());
         StructWithOnOrAfterField o2 = StructWithOnOrAfterField.PARSER.parse(futureParser, null);
         assertEquals(1, o2.intField);
+    }
+
+    public static class DoubleFieldDeclaration {
+        static final ObjectParser<DoubleFieldDeclaration, Void> PARSER =
+            new ObjectParser<>("double_field_declaration", DoubleFieldDeclaration::new);
+        static {
+
+            PARSER.declareInt(DoubleFieldDeclaration::setIntField, new ParseField("name"));
+            PARSER.declareInt(DoubleFieldDeclaration::setIntField, new ParseField("name"));
+
+        }
+
+        private int intField;
+
+        private  void setIntField(int intField) {
+            this.intField = intField;
+        }
+    }
+
+    public void testDoubleDeclarationThrowsException() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"name\": 1}");
+
+        ExceptionInInitializerError error = expectThrows(ExceptionInInitializerError.class,
+            () -> DoubleFieldDeclaration.PARSER.parse(parser, null));
+
+        assertThat(error.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(error.getCause().getMessage(), startsWith("Parser already registered for name=[name]"));
     }
 }

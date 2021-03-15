@@ -55,7 +55,7 @@ public final class SharedCacheConfiguration {
     public SharedCacheConfiguration(Settings settings) {
         long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
         this.largeRegionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
-        if (cacheSize > 0) {
+        if (cacheSize > this.largeRegionSize) {
             // TODO: just forcing defaults for conflicting cache- and page sizes seems wrong
             if (largeRegionSize <= SMALL_REGION_SIZE) {
                 throw new IllegalArgumentException("Large region size must be larger than small region size");

@@ -72,7 +72,6 @@ import java.util.concurrent.TimeUnit;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
 import static org.elasticsearch.index.store.cache.TestUtils.randomPopulateAndReads;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING;
@@ -220,7 +219,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
 
     protected static ByteSizeValue randomFrozenCacheRangeSize() {
         return new ByteSizeValue(
-            randomLongBetween(MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes() / 4, MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes() / 4)
+            randomLongBetween(SharedCacheConfiguration.SMALL_REGION_SIZE + 1, MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes() / 4)
         );
     }
 

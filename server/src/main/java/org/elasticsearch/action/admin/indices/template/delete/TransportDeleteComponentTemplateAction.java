@@ -43,6 +43,6 @@ public class TransportDeleteComponentTemplateAction extends AcknowledgedTranspor
     @Override
     protected void masterOperation(final DeleteComponentTemplateAction.Request request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
-        indexTemplateService.removeComponentTemplate(request.name(), request.masterNodeTimeout(), listener);
+        indexTemplateService.removeComponentTemplate(request.names(), request.masterNodeTimeout(), state, listener);
     }
 }

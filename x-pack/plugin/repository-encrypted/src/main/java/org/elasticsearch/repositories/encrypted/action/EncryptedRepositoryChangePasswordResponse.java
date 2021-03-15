@@ -19,22 +19,22 @@ import java.io.IOException;
 
 public final class EncryptedRepositoryChangePasswordResponse extends ActionResponse implements StatusToXContentObject, ToXContentObject {
 
-    private String retiredPasswordName;
+    private boolean completed;
 
     public EncryptedRepositoryChangePasswordResponse(StreamInput in) throws IOException {
         super(in);
-        this.retiredPasswordName = in.readString();
+        this.completed = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(retiredPasswordName);
+        out.writeBoolean(completed);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
-                .field("retired_password_name", retiredPasswordName)
+                .field("completed", completed)
                 .endObject();
     }
 

@@ -21,7 +21,7 @@ public final class EncryptedRepositoryChangePasswordRequest extends Acknowledged
 
     String repositoryName;
     @Nullable String fromPasswordName;
-    String toPasswordName;
+    @Nullable String toPasswordName;
 
     public EncryptedRepositoryChangePasswordRequest() {
         super();
@@ -31,7 +31,7 @@ public final class EncryptedRepositoryChangePasswordRequest extends Acknowledged
         super(in);
         repositoryName = in.readString();
         fromPasswordName = in.readOptionalString();
-        toPasswordName = in.readString();
+        toPasswordName = in.readOptionalString();
     }
 
     /**
@@ -56,7 +56,7 @@ public final class EncryptedRepositoryChangePasswordRequest extends Acknowledged
      *
      * @param fromPasswordName the name of the password from the keystore
      */
-    public EncryptedRepositoryChangePasswordRequest fromPasswordName(String fromPasswordName) {
+    public EncryptedRepositoryChangePasswordRequest fromPasswordName(@Nullable String fromPasswordName) {
         this.fromPasswordName = fromPasswordName;
         return this;
     }
@@ -70,15 +70,16 @@ public final class EncryptedRepositoryChangePasswordRequest extends Acknowledged
      * ({@link org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin#ENCRYPTION_PASSWORD_SETTING}),
      * that will be used to encrypted the blobs that are currently encrypted with the retired password
      * {@link #fromPasswordName}.
+     * It defaults to the repository's current password, if not set.
      *
      * @param toPasswordName the name of the password from the keystore
      */
-    public EncryptedRepositoryChangePasswordRequest toPasswordName(String toPasswordName) {
+    public EncryptedRepositoryChangePasswordRequest toPasswordName(@Nullable String toPasswordName) {
         this.toPasswordName = toPasswordName;
         return this;
     }
 
-    public String toPasswordName() {
+    public @Nullable String toPasswordName() {
         return this.toPasswordName;
     }
 
@@ -88,8 +89,8 @@ public final class EncryptedRepositoryChangePasswordRequest extends Acknowledged
         if (repositoryName == null) {
             validationException = addValidationError("repository name is missing", validationException);
         }
-        if (toPasswordName == null) {
-            validationException = addValidationError("to-password name is missing", validationException);
+        if (toPasswordName == null && fromPasswordName == null) {
+            validationException = addValidationError("either from-password or to-password must be set", validationException);
         }
         return validationException;
     }
@@ -99,6 +100,6 @@ public final class EncryptedRepositoryChangePasswordRequest extends Acknowledged
         super.writeTo(out);
         out.writeString(repositoryName);
         out.writeOptionalString(fromPasswordName);
-        out.writeString(toPasswordName);
+        out.writeOptionalString(toPasswordName);
     }
 }

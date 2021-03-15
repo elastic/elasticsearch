@@ -997,11 +997,6 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void changeRepositoryPassword(VerifyRepositoryRequest request, ActionListener<VerifyRepositoryResponse> listener) {
-            execute(VerifyRepositoryAction.INSTANCE, request, listener);
-        }
-
-        @Override
         public VerifyRepositoryRequestBuilder prepareVerifyRepository(String name) {
             return new VerifyRepositoryRequestBuilder(this, VerifyRepositoryAction.INSTANCE, name);
         }

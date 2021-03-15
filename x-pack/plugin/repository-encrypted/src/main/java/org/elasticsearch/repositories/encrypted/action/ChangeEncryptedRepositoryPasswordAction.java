@@ -8,10 +8,8 @@
 package org.elasticsearch.repositories.encrypted.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class ChangeEncryptedRepositoryPasswordAction extends ActionType<EncryptedRepositoryChangePasswordResponse> {
+public final class ChangeEncryptedRepositoryPasswordAction extends ActionType<EncryptedRepositoryChangePasswordResponse> {
 
     public static final String NAME = "cluster:admin/repository/change_password";
 

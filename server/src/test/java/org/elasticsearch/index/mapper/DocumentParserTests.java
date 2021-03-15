@@ -13,7 +13,6 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -32,7 +31,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -40,13 +38,13 @@ import java.util.Map;
 
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DocumentParserTests extends MapperServiceTestCase {
 
@@ -1068,10 +1066,16 @@ public class DocumentParserTests extends MapperServiceTestCase {
         String field = randomFrom("loc", "foo.loc", "foo.bar.loc");
 
         ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "41.12,-71.34"), null, Map.of(field, "geo_point")));
-        assertThat(getFieldTypes(doc, field), arrayContainingInAnyOrder(LatLonPoint.TYPE, LatLonDocValuesField.TYPE));
+        IndexableField[] fields = doc.rootDoc().getFields(field);
+        assertThat(fields, arrayWithSize(2));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields[1].fieldType(), sameInstance(LatLonPoint.TYPE));
 
         doc = mapper.parse(source("1", b -> b.field(field, new double[]{-71.34, 41.12}), null, Map.of(field, "geo_point")));
-        assertThat(getFieldTypes(doc, field), arrayContainingInAnyOrder(LatLonPoint.TYPE, LatLonDocValuesField.TYPE));
+        fields = doc.rootDoc().getFields(field);
+        assertThat(fields, arrayWithSize(2));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields[1].fieldType(), sameInstance(LatLonPoint.TYPE));
 
         doc = mapper.parse(source("1", b -> {
             b.startObject(field);
@@ -1079,11 +1083,18 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.field("lon", 41.12);
             b.endObject();
         }, null, Map.of(field, "geo_point")));
-        assertThat(getFieldTypes(doc, field), arrayContainingInAnyOrder(LatLonPoint.TYPE, LatLonDocValuesField.TYPE));
+        fields = doc.rootDoc().getFields(field);
+        assertThat(fields, arrayWithSize(2));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields[1].fieldType(), sameInstance(LatLonPoint.TYPE));
 
         doc = mapper.parse(source("1", b -> b.field(field, new String[]{"41.12,-71.34", "43,-72.34"}), null, Map.of(field, "geo_point")));
-        assertThat(getFieldTypes(doc, field), arrayContainingInAnyOrder(
-            LatLonPoint.TYPE, LatLonDocValuesField.TYPE, LatLonPoint.TYPE, LatLonDocValuesField.TYPE));
+        fields = doc.rootDoc().getFields(field);
+        assertThat(fields, arrayWithSize(4));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields[1].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields[2].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[3].fieldType(), sameInstance(LatLonPoint.TYPE));
 
         doc = mapper.parse(source("1", b -> {
             b.startArray(field);
@@ -1098,15 +1109,22 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endObject();
             b.endArray();
         }, null, Map.of(field, "geo_point")));
-        assertThat(getFieldTypes(doc, field), arrayContainingInAnyOrder(
-            LatLonPoint.TYPE, LatLonDocValuesField.TYPE, LatLonPoint.TYPE, LatLonDocValuesField.TYPE));
+        fields = doc.rootDoc().getFields(field);
+        assertThat(fields, arrayWithSize(4));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields[1].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields[2].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[3].fieldType(), sameInstance(LatLonPoint.TYPE));
 
         doc = mapper.parse(source("1", b -> {
             b.startObject("address");
             b.field("home", "43,-72.34");
             b.endObject();
         }, null, Map.of("address.home", "geo_point")));
-        assertThat(getFieldTypes(doc, "address.home"), arrayContainingInAnyOrder(LatLonPoint.TYPE, LatLonDocValuesField.TYPE));
+        fields = doc.rootDoc().getFields("address.home");
+        assertThat(fields, arrayWithSize(2));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields[1].fieldType(), sameInstance(LatLonPoint.TYPE));
     }
 
     public void testTypeHintNotFound() throws Exception {
@@ -1115,12 +1133,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
             {
                 b.startObject();
                 {
-                    b.startObject("keywords");
+                    b.startObject("booleans");
                     {
-                        b.field("match_mapping_hint", "keyword");
+                        b.field("match_mapping_hint", "boolean");
                         b.startObject("mapping");
                         {
-                            b.field("type", "keyword");
+                            b.field("type", "boolean");
+                            b.field("store", false);
+                            b.field("doc_values", false);
                         }
                         b.endObject();
                     }
@@ -1131,11 +1151,13 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endArray();
         }));
         String field = randomFrom("foo", "foo.bar", "foo.bar.baz");
-        ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "hello"), null, Map.of(field, "keyword")));
-        assertThat(getFieldTypes(doc, field), arrayWithSize(2));
+        ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "true"), null, Map.of(field, "boolean")));
+        IndexableField[] fields = doc.rootDoc().getFields(field);
+        assertThat(fields, arrayWithSize(1));
+        assertThat(fields[0].fieldType(), sameInstance(BooleanFieldMapper.Defaults.FIELD_TYPE));
         MapperParsingException error = expectThrows(MapperParsingException.class, () ->
             mapper.parse(source("1", b -> b.field(field, "hello"), null, Map.of(field, "match_hint"))));
-        assertThat(error.getMessage(), containsString("Can't find template for mapping hint [match_hint] of field"));
+        assertThat(error.getMessage(), containsString("Can't find template for mapping hint [match_hint] of field [" + field + "]"));
     }
 
     public void testDynamicDottedFieldNameLongArrayWithExistingParent() throws Exception {
@@ -1824,10 +1846,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo", "1234")));
         assertNull(doc.dynamicMappingsUpdate()); // no update since we reused the existing type
-    }
-
-    static IndexableFieldType[] getFieldTypes(ParsedDocument doc, String name) {
-        return Arrays.stream(doc.rootDoc().getFields(name)).map(IndexableField::fieldType).toArray(IndexableFieldType[]::new);
     }
 
     /**

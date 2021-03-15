@@ -686,7 +686,7 @@ public abstract class ParseContext {
             }
         }
         if (matchHint != null) {
-            throw new MapperParsingException("Can't find template for mapping hint [" + matchHint + "] of field [" + name + "]");
+            throw new MapperParsingException("Can't find template for mapping hint [" + matchHint + "] of field [" + pathAsString + "]");
         }
         return null;
     }

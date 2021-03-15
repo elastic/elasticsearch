@@ -303,7 +303,8 @@ public class MetadataIndexTemplateService {
      * supports simple regex wildcards for removing multiple component templates at a time.
      */
     public void removeComponentTemplate(final String[] names, final TimeValue masterTimeout,
-                                        final ActionListener<AcknowledgedResponse> listener) {
+                                        ClusterState state, final ActionListener<AcknowledgedResponse> listener) {
+        validateNotInUse(state.metadata(), names);
         clusterService.submitStateUpdateTask("remove-component-template [" + String.join(",", names) + "]",
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 

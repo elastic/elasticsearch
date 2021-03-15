@@ -28,7 +28,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotsService;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;

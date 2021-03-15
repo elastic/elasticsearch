@@ -27,7 +27,9 @@ public class ResetFeaturesResponse {
     );
 
     static {
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), ResetFeaturesResponse.ResetFeatureStateStatus::parse, FEATURES);
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            ResetFeaturesResponse.ResetFeatureStateStatus::parse, FEATURES);
     }
 
     public ResetFeaturesResponse(List<ResetFeatureStateStatus> features) {

@@ -387,7 +387,7 @@ public class Realms implements Iterable<Realm> {
                 return;
             }
             deprecationLogger.deprecate(DeprecationCategory.SECURITY, "implicitly_disabled_basic_realms",
-                "Found explicitly disabled basic {}: [{}]. But {} will be enabled because no realm is configured or enabled. " +
+                "Found explicitly disabled basic {}: [{}]. But {} will be enabled because no other realms are configured or enabled. " +
                     "In next major release, explicitly disabled basic realms will remain disabled.",
                 explicitlyDisabledBasicRealms.size() == 1 ? "realm" : "realms",
                 Strings.collectionToDelimitedString(explicitlyDisabledBasicRealms, ","),

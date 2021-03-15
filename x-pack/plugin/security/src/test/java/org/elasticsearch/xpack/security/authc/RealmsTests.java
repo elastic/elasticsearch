@@ -715,7 +715,7 @@ public class RealmsTests extends ESTestCase {
                         "In next major release, basic realms will always be enabled unless explicitly disabled.");
                 } else {
                     assertWarnings("Found explicitly disabled basic realm: [native]. " +
-                        "But it will be enabled because no realm is configured or enabled. " +
+                        "But it will be enabled because no other realms are configured or enabled. " +
                         "In next major release, explicitly disabled basic realms will remain disabled.");
                     assertNotNull(realms.realm(FileRealmSettings.DEFAULT_NAME));
                     assertNotNull(realms.realm(NativeRealmSettings.DEFAULT_NAME));
@@ -727,7 +727,7 @@ public class RealmsTests extends ESTestCase {
                         "In next major release, basic realms will always be enabled unless explicitly disabled.");
                 } else {
                     assertWarnings("Found explicitly disabled basic realm: [file]. " +
-                        "But it will be enabled because no realm is configured or enabled. " +
+                        "But it will be enabled because no other realms are configured or enabled. " +
                         "In next major release, explicitly disabled basic realms will remain disabled.");
                     assertNotNull(realms.realm(FileRealmSettings.DEFAULT_NAME));
                     assertNotNull(realms.realm(NativeRealmSettings.DEFAULT_NAME));
@@ -735,7 +735,7 @@ public class RealmsTests extends ESTestCase {
             } else {
                 if (false == fileRealmEnabled && false == nativeRealmEnabled) {
                     assertWarnings("Found explicitly disabled basic realms: [file,native]. " +
-                        "But they will be enabled because no realm is configured or enabled. " +
+                        "But they will be enabled because no other realms are configured or enabled. " +
                         "In next major release, explicitly disabled basic realms will remain disabled.");
                     assertNotNull(realms.realm(FileRealmSettings.DEFAULT_NAME));
                     assertNotNull(realms.realm(NativeRealmSettings.DEFAULT_NAME));

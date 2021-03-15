@@ -263,7 +263,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                         deprecationIssues.get(0).getDetails());
                 } else {
                     assertEquals("Found explicitly disabled basic realm: [native]. " +
-                            "But it will be enabled because no realm is configured or enabled. " +
+                            "But it will be enabled because no other realms are configured or enabled. " +
                             "In next major release, explicitly disabled basic realms will remain disabled.",
                         deprecationIssues.get(0).getDetails());
                 }
@@ -276,7 +276,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                         deprecationIssues.get(0).getDetails());
                 } else {
                     assertEquals("Found explicitly disabled basic realm: [file]. " +
-                            "But it will be enabled because no realm is configured or enabled. " +
+                            "But it will be enabled because no other realms are configured or enabled. " +
                             "In next major release, explicitly disabled basic realms will remain disabled.",
                         deprecationIssues.get(0).getDetails());
                 }
@@ -284,7 +284,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 if (false == fileRealmEnabled && false == nativeRealmEnabled) {
                     assertCommonImplicitDisabledRealms(deprecationIssues);
                     assertEquals("Found explicitly disabled basic realms: [file,native]. " +
-                            "But they will be enabled because no realm is configured or enabled. " +
+                            "But they will be enabled because no other realms are configured or enabled. " +
                             "In next major release, explicitly disabled basic realms will remain disabled.",
                         deprecationIssues.get(0).getDetails());
                 }

@@ -285,7 +285,6 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
     }
 
     protected static void declareExtendedStatsFields(ObjectParser<? extends ParsedExtendedStats, Void> objectParser) {
-//        declareAggregationFields(objectParser); already called from declareStatsFields(objectParser);
         declareStatsFields(objectParser);
         objectParser.declareField((agg, value) -> agg.sumOfSquares = value, (parser, context) -> parseDouble(parser, 0),
                 new ParseField(Fields.SUM_OF_SQRS), ValueType.DOUBLE_OR_NULL);

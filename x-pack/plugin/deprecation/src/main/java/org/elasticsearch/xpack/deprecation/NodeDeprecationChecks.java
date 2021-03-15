@@ -135,7 +135,7 @@ class NodeDeprecationChecks {
             }
             details = String.format(
                 Locale.ROOT,
-                "Found explicitly disabled basic %s: [%s]. But %s will be enabled because no realm is configured or enabled. " +
+                "Found explicitly disabled basic %s: [%s]. But %s will be enabled because no other realms are configured or enabled. " +
                     "In next major release, explicitly disabled basic realms will remain disabled.",
                 explicitlyDisabledBasicRealms.size() == 1 ? "realm" : "realms",
                 Strings.collectionToDelimitedString(explicitlyDisabledBasicRealms, ","),

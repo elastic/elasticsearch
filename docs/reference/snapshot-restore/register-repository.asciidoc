@@ -7,8 +7,10 @@
 [[snapshots-register-repository-description]]
 // tag::snapshots-register-repository-tag[]
 You must register a snapshot repository before you can perform snapshot and
-restore operations. Use the <<put-snapshot-repo-api,put snapshot repository API>> to register or update a snapshot repository. We recommend creating a new snapshot repository for each
-major version. The valid repository settings depend on the repository type.
+restore operations. Use the <<put-snapshot-repo-api,create or update snapshot
+repository API>> to register or update a snapshot repository. We recommend
+creating a new snapshot repository for each major version. The valid repository
+settings depend on the repository type.
 
 If you register the same snapshot repository with multiple clusters, only
 one cluster should have write access to the repository. All other clusters

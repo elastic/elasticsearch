@@ -5,10 +5,10 @@
 --
 
 [id="{upid}-{api}"]
-=== Put Template API
+=== Create or update index template API
 
 [id="{upid}-{api}-request"]
-==== Put Index Template Request
+==== Request
 
 A +{request}+ specifies the `name` of a template and `patterns`
 which controls whether the template should be applied to the new index.
@@ -120,7 +120,7 @@ include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Put Index Template Response
+==== Response
 
 The returned +{response}+ allows to retrieve information about the
 executed operation as follows:

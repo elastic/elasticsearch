@@ -1,7 +1,7 @@
 [[put-pipeline-api]]
-=== Put pipeline API
+=== Create or update pipeline API
 ++++
-<titleabbrev>Put pipeline</titleabbrev>
+<titleabbrev>Create or update pipeline</titleabbrev>
 ++++
 
 Creates or updates an ingest pipeline.

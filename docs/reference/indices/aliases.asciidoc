@@ -1,12 +1,14 @@
 [[indices-aliases]]
-=== Update index alias API
+=== Bulk index alias API
 ++++
-<titleabbrev>Update index alias</titleabbrev>
+<titleabbrev>Bulk index alias</titleabbrev>
 ++++
 
-Adds or removes index aliases.
+Adds and removes multiple index aliases in a single request. Also deletes
+concrete indices.
 
-include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
+An index alias is a secondary name used to refer to one or more existing
+indices. Most {es} APIs accept an index alias in place of an index.
 
 [source,console]
 ----

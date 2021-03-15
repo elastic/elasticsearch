@@ -43,9 +43,8 @@ Specify what happens when the watch condition is met.
 
 [[watch-definition-example]]
 
-For example, the following snippet shows a
-<<watcher-api-put-watch,put watch>> request that defines a watch that
-looks for log error events:
+For example, the following snippet shows a <<watcher-api-put-watch,create or
+update watch>> request that defines a watch that looks for log error events:
 
 [source,console]
 --------------------------------------------------

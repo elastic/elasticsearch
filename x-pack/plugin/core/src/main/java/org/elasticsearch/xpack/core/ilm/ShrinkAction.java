@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.getShrinkIndexName;
 
 /**
  * A {@link LifecycleAction} which shrinks the index.
@@ -232,15 +233,9 @@ public class ShrinkAction implements LifecycleAction {
             deleteSourceIndexStep);
     }
 
-     static String getShrunkIndexName(Index index, ClusterState state) {
+    static String getShrunkIndexName(Index index, ClusterState state) {
         LifecycleExecutionState lifecycleState = fromIndexMetadata(state.metadata().index(index));
-        String targetIndexName = lifecycleState.getShrinkIndexName();
-        if (targetIndexName == null) {
-            // this is for BWC reasons for polices that are in the middle of executing the shrink action when the update to
-            // generated names happens
-            targetIndexName = SHRUNKEN_INDEX_PREFIX + index.getName();
-        }
-        return targetIndexName;
+        return getShrinkIndexName(index.getName(), lifecycleState, SHRUNKEN_INDEX_PREFIX);
     }
 
     @Override

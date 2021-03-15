@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.getShrinkIndexName;
 import static org.elasticsearch.xpack.core.ilm.SwapAliasesAndDeleteSourceIndexStep.deleteSourceIndexAndTransferAliases;
 
 /**
@@ -43,12 +44,7 @@ public class ShrinkSetAliasStep extends AsyncRetryDuringSnapshotActionStep {
         String indexName = indexMetadata.getIndex().getName();
         // get target shrink index
         LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
-        String targetIndexName = lifecycleState.getShrinkIndexName();
-        if (targetIndexName == null) {
-            // this is for BWC reasons for polices that are in the middle of executing the shrink action when the update to generated
-            // names happens
-            targetIndexName = shrunkIndexPrefix + indexName;
-        }
+        String targetIndexName = getShrinkIndexName(indexName, lifecycleState, shrunkIndexPrefix);
         deleteSourceIndexAndTransferAliases(getClient(), indexMetadata, getMasterTimeout(currentState), targetIndexName, listener);
     }
 

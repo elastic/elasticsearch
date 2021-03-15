@@ -19,6 +19,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.getShrinkIndexName;
+
 /**
  * Shrinks an index, using a prefix prepended to the original index name for the name of the shrunken index.
  */
@@ -64,13 +66,7 @@ public class ShrinkStep extends AsyncActionStep {
                 "] is missing lifecycle date");
         }
 
-        String shrunkenIndexName = lifecycleState.getShrinkIndexName();
-        if (shrunkenIndexName == null) {
-            // this is for BWC reasons for polices that are in the middle of executing the shrink action when the update to generated
-            // names happens
-            shrunkenIndexName = shrunkIndexPrefix + indexMetadata.getIndex().getName();
-        }
-
+        String shrunkenIndexName = getShrinkIndexName(indexMetadata.getIndex().getName(),lifecycleState, shrunkIndexPrefix);
         if (currentState.metadata().index(shrunkenIndexName) != null) {
             logger.warn("skipping [{}] step for index [{}] as part of policy [{}] as the shrunk index [{}] already exists",
                 ShrinkStep.NAME, indexMetadata.getIndex().getName(),

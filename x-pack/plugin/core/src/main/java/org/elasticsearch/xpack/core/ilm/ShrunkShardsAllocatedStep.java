@@ -21,6 +21,8 @@ import org.elasticsearch.index.Index;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.getShrinkIndexName;
+
 /**
  * Checks whether all shards in a shrunken index have been successfully allocated.
  */
@@ -54,12 +56,7 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
         }
 
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
-        String shrunkenIndexName = lifecycleState.getShrinkIndexName();
-        if (shrunkenIndexName == null) {
-            // this is for BWC reasons for polices that are in the middle of executing the shrink action when the update to generated
-            // names happens
-            shrunkenIndexName = shrunkIndexPrefix + index.getName();
-        }
+        String shrunkenIndexName = getShrinkIndexName(indexMetadata.getIndex().getName(), lifecycleState, shrunkIndexPrefix);
 
         // We only want to make progress if all shards of the shrunk index are
         // active

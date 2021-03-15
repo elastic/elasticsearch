@@ -33,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -103,6 +104,7 @@ public class PostParsePhase {
         private final ParseContext.Document document;
         private final BytesReference sourceBytes;
         private final Set<String> calculatedFields;
+        private final Set<String> fieldPath = new LinkedHashSet<>();
         private LeafReaderContext in;
 
         private LazyDocumentReader(ParseContext.Document document, BytesReference sourceBytes, Set<String> calculatedFields) {
@@ -115,9 +117,13 @@ public class PostParsePhase {
             if (calculatedFields.contains(field)) {
                 // this means that a mapper script is referring to another calculated field;
                 // in which case we need to execute that field first, and then rebuild the
-                // memory index
+                // memory index.  We also check for loops here
+                if (fieldPath.add(field) == false) {
+                    throw new IllegalStateException("Loop in field resolution detected: " + String.join("->", fieldPath) + "->" + field);
+                }
                 executeField(field);
                 calculatedFields.remove(field);
+                fieldPath.remove(field);
                 this.in = null;
             }
             if (in != null) {

@@ -28,6 +28,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class CalculatedFieldTests extends MapperServiceTestCase {
 
     @Override
@@ -130,6 +132,20 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
             e.getMessage());
         Throwable original = e.getCause();
         assertEquals("Cannot index data directly into scripted field", original.getMessage());
+    }
+
+    public void testLoopDetection() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("field1").field("type", "long").field("script", "field2_plus_two").endObject();
+            b.startObject("field2").field("type", "long").field("script", "field1_plus_two").endObject();
+        }));
+
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {})));
+        assertEquals("failed to parse", e.getMessage());
+        assertThat(e.getCause().getMessage(), containsString("Loop in field resolution detected"));
+        // Can be either field1->field2->field1 or field2->field1->field2 because
+        // post-phase executor order is not deterministic
+        assertThat(e.getCause().getMessage(), containsString("field1->field2"));
     }
 
     @AwaitsFix(bugUrl = "TODO")

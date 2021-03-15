@@ -237,7 +237,7 @@ public interface ActionListener<Response> {
             public void onResponse(Response response) {
                 try {
                     runnable.run();
-                } catch (Exception e) {
+                } catch (RuntimeException e) {
                     assert false : e;
                     throw e;
                 }
@@ -247,7 +247,7 @@ public interface ActionListener<Response> {
             public void onFailure(Exception e) {
                 try {
                     runnable.run();
-                } catch (Exception ex) {
+                } catch (RuntimeException ex) {
                     ex.addSuppressed(e);
                     assert false : ex;
                     throw ex;

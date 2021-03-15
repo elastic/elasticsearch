@@ -115,11 +115,11 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         try {
             databaseRegistry.get().initialize(resourceWatcherService, ingestService.get());
-            geoIpDownloaderTaskExecutor = new GeoIpDownloaderTaskExecutor(client, new HttpClient(), clusterService, threadPool);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
         if (GEOIP_V2_FEATURE_FLAG_ENABLED) {
+            geoIpDownloaderTaskExecutor = new GeoIpDownloaderTaskExecutor(client, new HttpClient(), clusterService, threadPool);
             return List.of(databaseRegistry.get(), geoIpDownloaderTaskExecutor);
         }
         return List.of(databaseRegistry.get());

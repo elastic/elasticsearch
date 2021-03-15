@@ -12,11 +12,14 @@ import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.services.BuildService;
+import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
@@ -29,6 +32,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Arrays.stream;
+import static org.elasticsearch.gradle.util.GradleUtils.noop;
 
 /**
  * We want to be able to do BWC tests for unreleased versions without relying on and waiting for snapshots.
@@ -39,6 +43,7 @@ import static java.util.Arrays.stream;
  */
 public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
 
+    private static final String BWC_TASK_THROTTLE_SERVICE = "bwcTaskThrottle";
     private ProviderFactory providerFactory;
 
     @Inject
@@ -49,19 +54,26 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        Provider<BwcTaskThrottle> bwcTaskThrottleProvider = project.getGradle()
+            .getSharedServices()
+            .registerIfAbsent(BWC_TASK_THROTTLE_SERVICE, BwcTaskThrottle.class, spec -> spec.getMaxParallelUsages().set(1));
         BuildParams.getBwcVersions()
             .forPreviousUnreleased(
                 (BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
-                    configureBwcProject(project.project(unreleasedVersion.gradleProjectPath), unreleasedVersion);
+                    configureBwcProject(project.project(unreleasedVersion.gradleProjectPath), unreleasedVersion, bwcTaskThrottleProvider);
                 }
             );
     }
 
-    private void configureBwcProject(Project project, BwcVersions.UnreleasedVersionInfo versionInfo) {
+    private void configureBwcProject(
+        Project project,
+        BwcVersions.UnreleasedVersionInfo versionInfo,
+        Provider<BwcTaskThrottle> bwcTaskThrottleProvider
+    ) {
         Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> versionInfo);
         Provider<File> checkoutDir = versionInfoProvider.map(info -> new File(project.getBuildDir(), "bwc/checkout-" + info.branch));
         BwcSetupExtension bwcSetupExtension = project.getExtensions()
-            .create("bwcSetup", BwcSetupExtension.class, project, versionInfoProvider, checkoutDir);
+            .create("bwcSetup", BwcSetupExtension.class, project, versionInfoProvider, bwcTaskThrottleProvider, checkoutDir);
         BwcGitExtension gitExtension = project.getPlugins().apply(InternalBwcGitPlugin.class).getGitExtension();
         Provider<Version> bwcVersion = versionInfoProvider.map(info -> info.version);
         gitExtension.setBwcVersion(versionInfoProvider.map(info -> info.version));
@@ -195,7 +207,7 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
     private static String buildBwcTaskName(String projectName) {
         return "buildBwc"
             + stream(projectName.split("-")).map(i -> i.substring(0, 1).toUpperCase(Locale.ROOT) + i.substring(1))
-                .collect(Collectors.joining());
+            .collect(Collectors.joining());
     }
 
     static void createBuildBwcTask(
@@ -252,7 +264,7 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
         /**
          * can be removed once we don't build 7.10 anymore
          * from source for bwc tests.
-         * */
+         */
         @Deprecated
         final boolean expandedDistDirSupport;
         final DistributionProjectArtifact expectedBuildArtifact;
@@ -286,7 +298,7 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
         /**
          * Newer elasticsearch branches allow building extracted bwc elasticsearch versions
          * from source without the overhead of creating an archive by using assembleExtracted instead of assemble.
-         * */
+         */
         public String getAssembleTaskName() {
             return extractedAssembleSupported ? "extractedAssemble" : "assemble";
         }
@@ -300,5 +312,8 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
             this.distFile = distFile;
             this.expandedDistDir = expandedDistDir;
         }
+    }
+
+    public abstract class BwcTaskThrottle implements BuildService<BuildServiceParameters.None> {
     }
 }

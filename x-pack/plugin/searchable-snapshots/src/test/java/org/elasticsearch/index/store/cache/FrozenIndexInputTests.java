@@ -11,6 +11,7 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
@@ -44,7 +45,8 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
     private static final ShardId SHARD_ID = new ShardId(new Index("_index_name", "_index_id"), 0);
 
     public void testRandomReads() throws IOException {
-        final String fileName = randomAlphaOfLength(5) + randomFileExtension();
+        // Can't test cfs files here since the randomization uses slice names with differing offsets which breaks the frozen cache
+        final String fileName = randomAlphaOfLength(5) + randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
         final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 100_000));
 
         final byte[] fileData = bytes.v2();

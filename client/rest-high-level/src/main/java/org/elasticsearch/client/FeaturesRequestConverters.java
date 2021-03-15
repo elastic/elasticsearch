@@ -26,13 +26,8 @@ public class FeaturesRequestConverters {
         return request;
     }
 
-    // reset features post
     static Request resetFeatures(ResetFeaturesRequest resetFeaturesRequest) {
         String endpoint = "/_features/reset";
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withMasterTimeout(resetFeaturesRequest.masterNodeTimeout());
-        request.addParameters(parameters.asMap());
-        return request;
+        return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 }

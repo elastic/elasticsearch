@@ -22,6 +22,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.Index;
@@ -335,14 +336,11 @@ public class SystemIndices {
             ClusterService clusterService,
             Client client,
             ActionListener<ResetFeatureStateStatus> listener) {
-            List<String> systemIndices = indexDescriptors.stream()
+            Stream<String> systemIndices = indexDescriptors.stream()
                 .map(sid -> sid.getMatchingIndices(clusterService.state().getMetadata()))
-                .flatMap(List::stream)
-                .collect(Collectors.toList());
+                .flatMap(List::stream);
 
-            List<String> associatedIndices = new ArrayList<>(associatedIndexPatterns);
-
-            List<String> allIndices = Stream.concat(systemIndices.stream(), associatedIndices.stream())
+            List<String> allIndices = Stream.concat(systemIndices, associatedIndexPatterns.stream())
                 .collect(Collectors.toList());
 
             if (allIndices.isEmpty()) {
@@ -352,7 +350,7 @@ public class SystemIndices {
             }
 
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
-            deleteIndexRequest.indices(allIndices.toArray(String[]::new));
+            deleteIndexRequest.indices(allIndices.toArray(Strings.EMPTY_ARRAY));
             client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {

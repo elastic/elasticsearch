@@ -19,8 +19,6 @@ import java.io.IOException;
 public class ResetFeatureStateRequest extends ActionRequest {
 
     public ResetFeatureStateRequest() {
-        // TODO[wrb] - We might need to let this request take a list of
-        //  feature state names, but not for the initial implementation
     }
 
     public ResetFeatureStateRequest(StreamInput in) throws IOException {

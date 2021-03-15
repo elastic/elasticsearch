@@ -27,7 +27,7 @@ public class ResetFeaturesResponse {
     );
 
     static {
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), GetFeaturesResponse.SnapshottableFeature::parse, FEATURES);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), ResetFeaturesResponse.ResetFeatureStateStatus::parse, FEATURES);
     }
 
     public ResetFeaturesResponse(List<ResetFeatureStateStatus> features) {
@@ -50,7 +50,7 @@ public class ResetFeaturesResponse {
         private static final ParseField STATUS = new ParseField("status");
 
         private static final ConstructingObjectParser<ResetFeatureStateStatus, Void> PARSER =  new ConstructingObjectParser<>(
-            "feature", true, (a, ctx) -> new ResetFeatureStateStatus((String) a[0], (String) a[1])
+            "features", true, (a, ctx) -> new ResetFeatureStateStatus((String) a[0], (String) a[1])
         );
 
         static {

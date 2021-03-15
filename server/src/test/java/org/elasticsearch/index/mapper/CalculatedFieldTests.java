@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -17,12 +18,15 @@ import org.elasticsearch.runtimefields.mapper.DoubleFieldScript;
 import org.elasticsearch.runtimefields.mapper.LongFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public class CalculatedFieldTests extends MapperServiceTestCase {
 
@@ -36,7 +40,7 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
             b.startObject("message").field("type", "text").endObject();
             b.startObject("message_length");
             b.field("type", "long");
-            b.field("script", "length");
+            b.field("script", "message_length");
             b.endObject();
         }));
 
@@ -52,7 +56,7 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
             b.startObject("long_field").field("type", "long").endObject();
             b.startObject("long_field_plus_two");
             b.field("type", "long");
-            b.field("script", "plus_two");
+            b.field("script", "long_field_plus_two");
             b.endObject();
         }));
 
@@ -65,7 +69,7 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
             b.startObject("double_field").field("type", "double").endObject();
             b.startObject("double_field_plus_two");
             b.field("type", "double");
-            b.field("script", "plus_two_double_field");
+            b.field("script", "double_field_plus_two");
             b.endObject();
         }));
 
@@ -78,12 +82,12 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
             b.startObject("message").field("type", "text").endObject();
             b.startObject("message_length");
             b.field("type", "long");
-            b.field("script", "length");
+            b.field("script", "message_length");
             b.endObject();
         }));
         assertEquals(
             "{\"_doc\":{\"properties\":{\"message\":{\"type\":\"text\"}," +
-                "\"message_length\":{\"type\":\"long\",\"script\":{\"source\":\"length\",\"lang\":\"painless\"}}}}}",
+                "\"message_length\":{\"type\":\"long\",\"script\":{\"source\":\"message_length\",\"lang\":\"painless\"}}}}}",
             Strings.toString(mapper.mapping()));
     }
 
@@ -96,11 +100,11 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
             b.endObject();
             b.startObject("message_length");
             b.field("type", "long");
-            b.field("script", "length");
+            b.field("script", "message_length");
             b.endObject();
             b.startObject("message_length_plus_four");
             b.field("type", "double");
-            b.field("script", "plus_two_message_length_plus_two");
+            b.field("script", "message_length_plus_two_plus_two");
             b.endObject();
         }));
         ParsedDocument doc = mapper.parse(source(b -> b.field("message", "this is a message")));
@@ -135,12 +139,105 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
             b.startObject("runtime-field").field("type", "long").endObject();
             b.endObject();
             b.startObject("properties");
-            b.startObject("index-field").field("type", "long").field("script", "refer_to_runtime").endObject();
+            b.startObject("index-field").field("type", "long").field("script", "refer-to-runtime").endObject();
             b.endObject();
         }));
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source(b -> {})));
         assertEquals("Cannot reference runtime field [runtime-field] in an index-time script", e.getMessage());
+    }
+
+    private static Consumer<TestLongFieldScript> getLongScript(String name) {
+        if ("refer-to-runtime".equals(name)) {
+            return s -> {
+                s.emitValue((long) s.getDoc().get("runtime-field").get(0));
+            };
+        }
+        if (name.endsWith("_length")) {
+            String field = name.substring(0, name.lastIndexOf("_length"));
+            return s -> {
+                for (Object v : s.extractValuesFromSource(field)) {
+                    s.emitValue(Objects.toString(v).length());
+                }
+            };
+        }
+        if (name.endsWith("_plus_two")) {
+            String field = name.substring(0, name.lastIndexOf("_plus_two"));
+            return s -> {
+                long input = (long) s.getDoc().get(field).get(0);
+                s.emitValue(input + 2);
+            };
+        }
+        throw new UnsupportedOperationException("Unknown script [" + name + "]");
+    }
+
+    private static Consumer<TestDoubleFieldScript> getDoubleScript(String name) {
+        if (name.endsWith("_plus_two")) {
+            String field = name.substring(0, name.lastIndexOf("_plus_two"));
+            return s -> {
+                Number input = (Number) s.getDoc().get(field).get(0);
+                s.emitValue(input.doubleValue() + 2);
+            };
+        }
+        throw new UnsupportedOperationException("Unknown script [" + name + "]");
+    }
+
+    private static class TestLongFieldScript extends LongFieldScript {
+
+        final Consumer<TestLongFieldScript> executor;
+
+        TestLongFieldScript(
+            String fieldName,
+            Map<String, Object> params,
+            SearchLookup searchLookup,
+            LeafReaderContext ctx,
+            Consumer<TestLongFieldScript> executor
+        ) {
+            super(fieldName, params, searchLookup, ctx);
+            this.executor = executor;
+        }
+
+        @Override
+        public void execute() {
+            executor.accept(this);
+        }
+
+        public void emitValue(long v) {
+            super.emit(v);
+        }
+
+        public List<Object> extractValuesFromSource(String path) {
+            return super.extractFromSource(path);
+        }
+    }
+
+    private static class TestDoubleFieldScript extends DoubleFieldScript {
+
+        final Consumer<TestDoubleFieldScript> executor;
+
+        TestDoubleFieldScript(
+            String fieldName,
+            Map<String, Object> params,
+            SearchLookup searchLookup,
+            LeafReaderContext ctx,
+            Consumer<TestDoubleFieldScript> executor
+        ) {
+            super(fieldName, params, searchLookup, ctx);
+            this.executor = executor;
+        }
+
+        @Override
+        public void execute() {
+            executor.accept(this);
+        }
+
+        public void emitValue(double v) {
+            super.emit(v);
+        }
+
+        public List<Object> extractValuesFromSource(String path) {
+            return super.extractFromSource(path);
+        }
     }
 
     public static class TestScriptPlugin extends Plugin implements ScriptPlugin {
@@ -162,52 +259,14 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
                     Map<String, String> params
                 ) {
                     if (context.factoryClazz == LongFieldScript.Factory.class) {
-                        switch (code) {
-                            case "length":
-                                return (FactoryType) (LongFieldScript.Factory) (n, p, l) -> ctx -> new LongFieldScript(n, p, l, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        for (Object v : extractFromSource("message")) {
-                                            emit(Objects.toString(v).length());
-                                        }
-                                    }
-                                };
-                            case "plus_two":
-                                return (FactoryType) (LongFieldScript.Factory) (n, p, l) -> ctx -> new LongFieldScript(n, p, l, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        long input = (long) getDoc().get("long_field").get(0);
-                                        emit(input + 2);
-                                    }
-                                };
-                            case "message_length_plus_two":
-                                return (FactoryType) (LongFieldScript.Factory) (n, p, l) -> ctx -> new LongFieldScript(n, p, l, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        long input = (long) getDoc().get("message_length").get(0);
-                                        emit(input + 2);
-                                    }
-                                };
-                            case "refer_to_runtime":
-                                return (FactoryType) (LongFieldScript.Factory) (n, p, l) -> ctx -> new LongFieldScript(n, p, l, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        emit((long) getDoc().get("runtime-field").get(0));
-                                    }
-                                };
-                        }
+                        return (FactoryType) (LongFieldScript.Factory) (n, p, l) -> ctx -> new TestLongFieldScript(
+                            n, p, l, ctx, getLongScript(name)
+                        );
                     }
                     if (context.factoryClazz == DoubleFieldScript.Factory.class) {
-                        if (code.startsWith("plus_two_")) {
-                            String sourceField = code.substring(9);
-                            return (FactoryType) (DoubleFieldScript.Factory) (n, p, l) -> ctx -> new DoubleFieldScript(n, p, l, ctx) {
-                                @Override
-                                public void execute() {
-                                    double input = ((Number) getDoc().get(sourceField).get(0)).doubleValue();
-                                    emit(input + 2);
-                                }
-                            };
-                        }
+                        return (FactoryType) (DoubleFieldScript.Factory) (n, p, l) -> ctx -> new TestDoubleFieldScript(
+                            n, p, l, ctx, getDoubleScript(name)
+                        );
                     }
                     throw new IllegalArgumentException("Unknown factory type " + context.factoryClazz + " for code " + code);
                 }

@@ -17,18 +17,13 @@ For example, you can use the enrich processor to:
 [[how-enrich-works]]
 === How the enrich processor works
 
-An <<ingest,ingest pipeline>> changes documents before they are actually
-indexed. You can think of an ingest pipeline as an assembly line made up of a
-series of workers, called <<ingest-processors,processors>>. Each processor makes
-specific changes, like lowercasing field values, to incoming documents before
-moving on to the next. When all the processors in a pipeline are done, the
-finished document is added to the target index.
+Most processors are self-contained and only change _existing_ data in incoming
+documents.
 
 image::images/ingest/ingest-process.svg[align="center"]
 
-Most processors are self-contained and only change _existing_ data in incoming
-documents. But the enrich processor adds _new_ data to incoming documents
-and requires a few special components:
+The enrich processor adds _new_ data to incoming documents and requires a few
+special components:
 
 image::images/ingest/enrich/enrich-process.svg[align="center"]
 
@@ -193,7 +188,7 @@ added as an array.
 
 See <<enrich-processor>> for a full list of configuration options.
 
-You also can add other <<ingest-processors,processors>> to your ingest pipeline.
+You also can add other <<processors,processors>> to your ingest pipeline.
 
 [[ingest-enrich-docs]]
 ==== Ingest and enrich documents

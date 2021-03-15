@@ -24,7 +24,11 @@ these three items their own field in {es} for faster searches and
 visualizations. You also want to know where the request is coming from.
 
 . In {kib}, open the main menu and click **Stack Management** > **Ingest Node
-  Pipelines**.
+Pipelines**.
++
+[role="screenshot"]
+image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Node Pipelines list view,align="center"]
+
 . Click **Create a pipeline**.
 . Provide a name and description for the pipeline.
 . Add a <<grok-processor,grok processor>> to parse the log message:
@@ -56,6 +60,10 @@ Your form should look similar to this:
 +
 [role="screenshot"]
 image::images/ingest/ingest-pipeline-processor.png[Processors for Ingest Node Pipelines,align="center"]
++
+The four processors will run sequentially: +
+Grok > Date > GeoIP > User agent +
+You can reorder processors using the arrow icons.
 +
 Alternatively, you can click the **Import processors** link and define the
 processors as JSON:
@@ -90,10 +98,6 @@ processors as JSON:
 }
 ----
 // TEST[s/^/PUT _ingest\/pipeline\/my-pipeline\n/]
-+
-The four processors will run sequentially: +
-grok > date > geoip > user_agent +
-You can reorder processors using the arrow icons. 
 
 . To test the pipeline, click **Add documents**.
 

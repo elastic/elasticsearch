@@ -52,8 +52,8 @@ image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Node Pipelines lis
 
 You can also use the <<ingest-apis,ingest APIs>> to create and manage pipelines.
 The following <<put-pipeline-api,create pipeline API>> request creates
-a pipeline containing <<set-processor,`set`>> processors followed by a
-<<lowercase-processor,`lowercase`>> processors. The processors run sequentially
+a pipeline containing two <<set-processor,`set`>> processors followed by a
+<<lowercase-processor,`lowercase`>> processor. The processors run sequentially
 in the order specified.
 
 [source,console]
@@ -89,9 +89,9 @@ PUT _ingest/pipeline/my-pipeline
 === Test a pipeline
 
 Before using a pipeline in production, we recommend you test it using sample
-documents in {kib}'s **Ingest Nodes Pipelines** feature. When creating or
-editing a pipeline, click **Add documents**. In the **Documents** tab, provide
-sample documents and click **Run the pipeline**.
+documents. When creating or editing a pipeline in {kib}, click **Add
+documents**. In the **Documents** tab, provide sample documents and click **Run
+the pipeline**.
 
 [role="screenshot"]
 image::images/ingest/test-a-pipeline.png[Test a pipeline in Kibana,align="center"]
@@ -486,7 +486,7 @@ Each processor supports an optional `if` condition, written as a
 {painless}/painless-guide.html[Painless script]. If provided, the processor only
 runs when the `if` condition is `true`.
 
-IMPORTANT: `if` condition scripts run in the Painless's
+IMPORTANT: `if` condition scripts run in Painless's
 {painless}/painless-ingest-processor-context.html[ingest processor context]. In
 `if` conditions, `ctx` values are read-only.
 
@@ -669,8 +669,8 @@ PUT _ingest/pipeline/one-pipeline-to-rule-them-all
 === Get pipeline usage statistics
 
 Use the <<cluster-nodes-stats,node stats>> API to get global and per-pipeline
-ingest statistics. Use these stats to determine which pipelines run most and
-spend the most time running.
+ingest statistics. Use these stats to determine which pipelines run most
+frequently or spend the most time processing.
 
 [source,console]
 ----

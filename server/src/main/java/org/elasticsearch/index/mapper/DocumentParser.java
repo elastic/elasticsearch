@@ -108,7 +108,7 @@ final class DocumentParser {
             parseObjectOrNested(context, root);
         }
 
-        IndexTimeScriptContext.executePostParsePhases(lookup, context);
+        PostParseContext.executePostParsePhases(lookup, context);
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
             metadataMapper.postParse(context);

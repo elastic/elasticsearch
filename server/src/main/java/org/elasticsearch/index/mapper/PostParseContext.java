@@ -28,7 +28,6 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -40,22 +39,22 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-public class IndexTimeScriptContext {
+public class PostParseContext {
 
     public final SearchLookup searchLookup;
     public final LeafReaderContext leafReaderContext;
     public final ParseContext pc;
-    private final Map<String, MapperScript> mapperScripts = new HashMap<>();
+    private final Map<String, FieldExecutor> fieldExecutors = new HashMap<>();
 
     public static void executePostParsePhases(MappingLookup lookup, ParseContext parseContext) throws IOException {
         if (lookup.getPostParsePhases().isEmpty()) {
             return;
         }
-        IndexTimeScriptContext context = new IndexTimeScriptContext(lookup, parseContext);
+        PostParseContext context = new PostParseContext(lookup, parseContext);
         context.executePostParse();
     }
 
-    private IndexTimeScriptContext(MappingLookup mappingLookup, ParseContext pc) {
+    private PostParseContext(MappingLookup mappingLookup, ParseContext pc) {
         this.searchLookup = new SearchLookup(
             mappingLookup::getFieldType,
             (ft, s) -> ft.fielddataBuilder(pc.indexSettings().getIndex().getName(), s).build(
@@ -68,25 +67,32 @@ public class IndexTimeScriptContext {
             pc.sourceToParse().source(),
             mappingLookup.getPostParsePhases().keySet());
         this.leafReaderContext = reader.getContext();
-        mappingLookup.getPostParsePhases().forEach((k, c) -> mapperScripts.put(k, new MapperScript(c)));
+        mappingLookup.getPostParsePhases().forEach((k, c) -> fieldExecutors.put(k, new FieldExecutor(c)));
     }
 
     private void executePostParse() throws IOException {
-        for (MapperScript ms : mapperScripts.values()) {
-            ms.script.accept(this);
+        for (FieldExecutor ms : fieldExecutors.values()) {
+            ms.execute();
         }
     }
 
-    private void executeFieldScript(String field) throws IOException {
-        assert mapperScripts.containsKey(field);
-        mapperScripts.get(field).script.accept(this);
-        mapperScripts.get(field).script = c -> {};
+    private void executeField(String field) throws IOException {
+        assert fieldExecutors.containsKey(field);
+        fieldExecutors.get(field).execute();
     }
 
-    private static class MapperScript {
-        CheckedConsumer<IndexTimeScriptContext, IOException> script;
-        MapperScript(CheckedConsumer<IndexTimeScriptContext, IOException> script) {
-            this.script = script;
+    private class FieldExecutor {
+        PostParseExecutor executor;
+        boolean executed = false;
+        FieldExecutor(PostParseExecutor executor) {
+            this.executor = executor;
+        }
+
+        void execute() throws IOException {
+            if (executed == false) {
+                executor.execute(PostParseContext.this);
+                executed = true;
+            }
         }
     }
 
@@ -108,7 +114,7 @@ public class IndexTimeScriptContext {
                 // this means that a mapper script is referring to another calculated field;
                 // in which case we need to execute that field first, and then rebuild the
                 // memory index
-                executeFieldScript(field);
+                executeField(field);
                 calculatedFields.remove(field);
                 this.in = null;
             }

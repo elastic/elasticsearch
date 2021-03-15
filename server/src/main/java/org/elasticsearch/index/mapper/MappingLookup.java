@@ -8,12 +8,10 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -57,7 +55,7 @@ public final class MappingLookup {
     private final boolean hasNested;
     private final FieldTypeLookup fieldTypeLookup;
     private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
-    private final Map<String, CheckedConsumer<IndexTimeScriptContext, IOException>> postParsePhases = new HashMap<>();
+    private final Map<String, PostParseExecutor> postParsePhases = new HashMap<>();
     private final DocumentParser documentParser;
     private final Mapping mapping;
     private final IndexSettings indexSettings;
@@ -140,7 +138,7 @@ public final class MappingLookup {
                 throw new MapperParsingException("Field [" + mapper.name() + "] is defined more than once");
             }
             indexAnalyzersMap.putAll(mapper.indexAnalyzers());
-            CheckedConsumer<IndexTimeScriptContext, IOException> postParsePhase = mapper.getPostParsePhase();
+            PostParseExecutor postParsePhase = mapper.getPostParseExecutor();
             if (postParsePhase != null) {
                 postParsePhases.put(mapper.fieldType().name(), postParsePhase);
             }
@@ -181,7 +179,7 @@ public final class MappingLookup {
         return unmappedFieldAnalyzer.apply(field);
     }
 
-    public Map<String, CheckedConsumer<IndexTimeScriptContext, IOException>> getPostParsePhases() {
+    public Map<String, PostParseExecutor> getPostParsePhases() {
         return postParsePhases;
     }
 

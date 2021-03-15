@@ -171,7 +171,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Returns a post-parse executor for this field mapper, or {@code null} if none is defined
      */
-    public CheckedConsumer<IndexTimeScriptContext, IOException> getPostParsePhase() {
+    public PostParseExecutor getPostParseExecutor() {
         return null;
     }
 

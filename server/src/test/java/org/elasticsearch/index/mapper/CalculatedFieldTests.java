@@ -17,7 +17,6 @@ import org.elasticsearch.runtimefields.mapper.DoubleFieldScript;
 import org.elasticsearch.runtimefields.mapper.LongFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -129,7 +128,7 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
         assertEquals("Cannot index data directly into scripted field", original.getMessage());
     }
 
-    @Ignore("This currently doesn't fail properly - should it?")
+    @AwaitsFix(bugUrl = "TODO")
     public void testCannotReferToRuntimeFields() throws IOException {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startObject("runtime");

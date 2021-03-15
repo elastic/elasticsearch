@@ -145,10 +145,18 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
                 assertEquals(testAgg, deserialized);
                 assertEquals(testAgg.hashCode(), deserialized.hashCode());
                 assertNotSame(testAgg, deserialized);
-                // Make sure serialization preserves toXContent.
-                assertEquals(Strings.toString(testAgg), Strings.toString(deserialized));
+                @SuppressWarnings("unchecked") // They are .equal so its safe
+                AB castDeserialized = (AB) deserialized;
+                assertToXContentAfterSerialization(testAgg, castDeserialized);
             }
         }
+    }
+
+    /**
+     * Make sure serialization preserves toXContent.
+     */
+    protected void assertToXContentAfterSerialization(AB original, AB deserialized) throws IOException {
+        assertEquals(Strings.toString(original), Strings.toString(deserialized));
     }
 
     public void testEqualsAndHashcode() throws IOException {

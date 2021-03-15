@@ -31,7 +31,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.SparseFileTracker;
@@ -181,9 +181,8 @@ public class FrozenCacheService implements Releasable {
     private final CacheDecayTask decayTask;
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public FrozenCacheService(Environment environment, ThreadPool threadPool) {
+    public FrozenCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool) {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
-        final Settings settings = environment.settings();
         try {
             sharedBytes = new SharedBytes(new SharedCacheConfiguration(settings), environment);
         } catch (IOException e) {

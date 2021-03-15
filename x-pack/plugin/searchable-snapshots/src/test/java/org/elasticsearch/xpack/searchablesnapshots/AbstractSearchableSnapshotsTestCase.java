@@ -110,7 +110,6 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
         clusterService = ClusterServiceUtils.createClusterService(threadPool, node, CLUSTER_SETTINGS);
         nodeEnvironment = newNodeEnvironment();
-        environment = newEnvironment();
     }
 
     @After
@@ -153,7 +152,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      * @return a new {@link FrozenCacheService} instance configured with default settings
      */
     protected FrozenCacheService defaultFrozenCacheService() {
-        return new FrozenCacheService(environment, threadPool);
+        return new FrozenCacheService(nodeEnvironment, Settings.EMPTY, threadPool);
     }
 
     protected FrozenCacheService randomFrozenCacheService() {
@@ -163,7 +162,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes() * 4))
             .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.getKey(), 0.125f)
             .put(SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE.getKey(), 0.125f);
-        return new FrozenCacheService(newEnvironment(cacheSettings.build()), threadPool);
+        return new FrozenCacheService(nodeEnvironment, cacheSettings.build(), threadPool);
     }
 
     /**
@@ -183,12 +182,11 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
 
     protected FrozenCacheService createFrozenCacheService(final ByteSizeValue cacheSize, final ByteSizeValue cacheRangeSize) {
         return new FrozenCacheService(
-            newEnvironment(
-                Settings.builder()
-                    .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                    .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes()))
-                    .build()
-            ),
+            nodeEnvironment,
+            Settings.builder()
+                .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes()))
+                .build(),
             threadPool
         );
     }

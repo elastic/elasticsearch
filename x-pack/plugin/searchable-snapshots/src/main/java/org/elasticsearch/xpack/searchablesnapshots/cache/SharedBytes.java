@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate;
 
 import java.io.IOException;
@@ -46,7 +47,7 @@ public class SharedBytes extends AbstractRefCounted {
 
     private final Path path;
 
-    SharedBytes(SharedCacheConfiguration sharedCacheConfiguration, Environment environment) throws IOException {
+    SharedBytes(SharedCacheConfiguration sharedCacheConfiguration, NodeEnvironment environment) throws IOException {
         super("shared-bytes");
         this.sharedCacheConfiguration = sharedCacheConfiguration;
         final long fileSize = sharedCacheConfiguration.totalSize();
@@ -80,7 +81,7 @@ public class SharedBytes extends AbstractRefCounted {
             }
         } else {
             this.fileChannel = null;
-            for (Path path : environment.dataFiles()) {
+            for (Path path : environment.nodeDataPaths()) {
                 Files.deleteIfExists(path.resolve(CACHE_FILE_NAME));
             }
         }
@@ -93,9 +94,9 @@ public class SharedBytes extends AbstractRefCounted {
      * @return path for the cache file or {@code null} if none could be found
      */
     @Nullable
-    public static Path findCacheSnapshotCacheFilePath(Environment environment, long fileSize) throws IOException {
+    public static Path findCacheSnapshotCacheFilePath(NodeEnvironment environment, long fileSize) throws IOException {
         Path cacheFile = null;
-        for (Path path : environment.dataFiles()) {
+        for (Path path : environment.nodeDataPaths()) {
             Files.createDirectories(path);
             // TODO: be resilient to this check failing and try next path?
             long usableSpace = Environment.getUsableSpace(path);

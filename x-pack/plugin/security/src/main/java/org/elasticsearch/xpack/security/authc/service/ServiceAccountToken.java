@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.security.authc.support.SecurityTokenType;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.Objects;
 
 /**
  * A decoded credential that may be used to authenticate a {@link ServiceAccount}.
@@ -44,10 +45,6 @@ public class ServiceAccountToken {
         return tokenName;
     }
 
-    public String getQualifiedName() {
-        return getAccountId().asPrincipal() + '/' + tokenName;
-    }
-
     public SecureString getSecret() {
         return secret;
     }
@@ -65,5 +62,20 @@ public class ServiceAccountToken {
             final String base64 = Base64.getEncoder().withoutPadding().encodeToString(out.bytes().toBytesRef().bytes);
             return new SecureString(base64.toCharArray());
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        ServiceAccountToken that = (ServiceAccountToken) o;
+        return accountId.equals(that.accountId) && tokenName.equals(that.tokenName) && secret.equals(that.secret);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(accountId, tokenName, secret);
     }
 }

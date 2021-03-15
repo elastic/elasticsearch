@@ -36,9 +36,9 @@ public class ServiceAccountService {
 
     public static final String REALM_TYPE = "service_account";
     public static final String REALM_NAME = "service_account";
+    public static final Version VERSION_MINIMUM = Version.V_8_0_0;
 
     private static final Logger logger = LogManager.getLogger(ServiceAccountService.class);
-    private static final Version VERSION_MINIMUM = Version.V_8_0_0;
 
     private final ServiceAccountsCredentialStore serviceAccountsCredentialStore;
 
@@ -47,7 +47,7 @@ public class ServiceAccountService {
     }
 
     public static boolean isServiceAccount(Authentication authentication) {
-        return REALM_TYPE.equals(authentication.getAuthenticatedBy().getType());
+        return REALM_TYPE.equals(authentication.getAuthenticatedBy().getType()) && null == authentication.getLookedUpBy();
     }
 
     // {@link org.elasticsearch.xpack.security.authc.TokenService#extractBearerTokenFromHeader extracted} from an HTTP authorization header.
@@ -89,7 +89,7 @@ public class ServiceAccountService {
         final ServiceAccount account = ACCOUNTS.get(token.getAccountId().serviceName());
         if (account == null) {
             logger.debug("the [{}] service account does not exist", token.getAccountId().asPrincipal());
-            listener.onFailure(null);
+            listener.onResponse(null);
             return;
         }
 
@@ -97,7 +97,7 @@ public class ServiceAccountService {
             listener.onResponse(success(account, token, nodeName));
         } else {
             final ParameterizedMessage message = new ParameterizedMessage(
-                "failed to authenticate service account [{}] with token name []",
+                "failed to authenticate service account [{}] with token name [{}]",
                 token.getAccountId().asPrincipal(),
                 token.getTokenName());
             logger.debug(message);

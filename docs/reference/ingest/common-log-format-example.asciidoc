@@ -1,0 +1,196 @@
+[[common-log-format-example]]
+== Example: Parse logs in the Common Log Format
+++++
+<titleabbrev>Example: Parse logs</titleabbrev>
+++++
+
+In this example tutorial, you’ll use an <<ingest,ingest pipeline>> to parse
+server logs in the {wikipedia}/Common_Log_Format[Common Log Format] before
+indexing. Before starting, check the <<ingest-prerequisites,prerequisites>> for
+ingest pipelines.
+
+The logs you want to parse look similar to this:
+
+[source,js]
+----
+212.87.37.154 - - [30/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\"
+200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6)
+AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\"
+----
+// NOTCONSOLE
+
+These logs contain an IP address, timestamp, and user agent. You want to give
+these three items their own field in {es} for faster searches and
+visualizations. You also want to know where the request is coming from.
+
+. In {kib}, open the main menu and click **Stack Management** > **Ingest Node
+Pipelines**.
++
+[role="screenshot"]
+image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Node Pipelines list view,align="center"]
+
+. Click **Create a pipeline**.
+. Provide a name and description for the pipeline.
+. Add a <<grok-processor,grok processor>> to parse the log message:
+
+.. Click **Add a processor** and select the **Grok** processor type.
+.. Set the field input to `message` and enter the following <<grok-basics,grok
+pattern>>:
++
+[source,js]
+----
+%{IPORHOST:client.ip} %{USER:ident} %{USER:auth} \[%{HTTPDATE:@timestamp}\] "%{WORD:verb} %{DATA:request} HTTP/%{NUMBER:httpversion}" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:user_agent}
+----
+// NOTCONSOLE
++
+.. Click **Add** to save the processor.
+
+. Add processors to map the date, IP, and user agent fields. Map the appropriate
+field to each processor type:
++
+--
+* <<date-processor,**Date**>>: `@timestamp`
+* <<geoip-processor,**GeoIP**>>: `client.ip`
+* <<user-agent-processor,**User agent**>>: `user_agent`
+
+In the **Date** processor, specify the date format you want to use:
+`dd/MMM/YYYY:HH:mm:ss Z`.
+--
+Your form should look similar to this:
++
+[role="screenshot"]
+image::images/ingest/ingest-pipeline-processor.png[Processors for Ingest Node Pipelines,align="center"]
++
+The four processors will run sequentially: +
+Grok > Date > GeoIP > User agent +
+You can reorder processors using the arrow icons.
++
+Alternatively, you can click the **Import processors** link and define the
+processors as JSON:
++
+[source,console]
+----
+{
+  "processors": [
+    {
+      "grok": {
+        "field": "message",
+        "patterns": ["%{IPORHOST:client.ip} %{USER:ident} %{USER:auth} \\[%{HTTPDATE:@timestamp}\\] \"%{WORD:verb} %{DATA:request} HTTP/%{NUMBER:httpversion}\" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:user_agent}"]
+      }
+    },
+    {
+      "date": {
+        "field": "@timestamp",
+        "formats": [ "dd/MMM/YYYY:HH:mm:ss Z" ]
+      }
+    },
+    {
+      "geoip": {
+        "field": "client.ip"
+      }
+    },
+    {
+      "user_agent": {
+        "field": "user_agent"
+      }
+    }
+  ]
+}
+----
+// TEST[s/^/PUT _ingest\/pipeline\/my-pipeline\n/]
+
+. To test the pipeline, click **Add documents**.
+
+. In the **Documents** tab, provide a sample document for testing:
++
+[source,js]
+----
+[
+  {
+    "_source": {
+      "message": "212.87.37.154 - - [05/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\" 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\""
+    }
+  }
+]
+----
+// NOTCONSOLE
+
+. Click **Run the pipeline** and verify the pipeline worked as expected.
+
+. If everything looks correct, close the panel, and then click **Create
+pipeline**.
++
+You’re now ready to load the logs data using the <<docs-index_,index API>>.
+
+. Index a document with the pipeline you created.
++
+[source,console]
+----
+PUT my-index/_doc/1?pipeline=my-pipeline
+{
+  "message": "212.87.37.154 - - [05/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\" 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\""
+}
+----
+// TEST[continued]
+
+. To verify, run:
++
+[source,console]
+----
+GET my-index/_doc/1
+----
+// TEST[continued]
+
+////
+[source,console-result]
+----
+{
+  "_index": "my-index",
+  "_id": "1",
+  "_version": 1,
+  "_seq_no": 0,
+  "_primary_term": 1,
+  "found": true,
+  "_source": {
+    "request": "/favicon.ico",
+    "geoip": {
+      "continent_name": "Europe",
+      "region_iso_code": "DE-BE",
+      "city_name": "Berlin",
+      "country_iso_code": "DE",
+      "country_name": "Germany",
+      "region_name": "Land Berlin",
+      "location": {
+        "lon": 13.4978,
+        "lat": 52.411
+      }
+    },
+    "auth": "-",
+    "ident": "-",
+    "verb": "GET",
+    "message": "212.87.37.154 - - [05/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\" 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\"",
+    "referrer": "\"-\"",
+    "@timestamp": "2098-12-29T16:21:15.000Z",
+    "response": 200,
+    "bytes": 3638,
+    "client": {
+      "ip": "212.87.37.154"
+    },
+    "httpversion": "1.1",
+    "user_agent": {
+      "original": "\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\"",
+      "os": {
+        "name": "Mac OS X",
+        "version": "10.11.6",
+        "full": "Mac OS X 10.11.6"
+      },
+      "name": "Chrome",
+      "device": {
+        "name": "Mac"
+      },
+      "version": "52.0.2743.116"
+    }
+  }
+}
+----
+////

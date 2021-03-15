@@ -1203,10 +1203,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
         baseConfig.put("discovery.initial_state_timeout", "0s");
 
-        // TODO: Remove these once https://github.com/elastic/elasticsearch/issues/46091 is fixed
-        baseConfig.put("logger.org.elasticsearch.action.support.master", "DEBUG");
-        baseConfig.put("logger.org.elasticsearch.cluster.coordination", "DEBUG");
-
         HashSet<String> overriden = new HashSet<>(baseConfig.keySet());
         overriden.retainAll(settings.keySet());
         overriden.removeAll(OVERRIDABLE_SETTINGS);

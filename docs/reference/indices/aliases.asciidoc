@@ -4,7 +4,7 @@
 <titleabbrev>Bulk index alias</titleabbrev>
 ++++
 
-Adds and removes multiple index aliases n a single request. Also deletes
+Adds and removes multiple index aliases in a single request. Also deletes
 concrete indices.
 
 An index alias is a secondary name used to refer to one or more existing

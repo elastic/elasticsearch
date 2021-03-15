@@ -4,8 +4,8 @@
 
 experimental::[]
 
-The create or update rollup job API can be used to create a new Rollup job
-in the cluster. The API accepts a `PutRollupJobRequest` object
+Creates a new Rollup job or updates an existing one.
+The API accepts a `PutRollupJobRequest` object
 as a request and returns a `PutRollupJobResponse`.
 
 [[java-rest-high-x-pack-rollup-put-rollup-job-request]]

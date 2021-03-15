@@ -19,15 +19,15 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> The name of the remote cluster alias.
 <2> The name of the leader in the remote cluster.
-<3> The name of the follower index that gets created as part of the API call.
-<4> The number of active shard copies to wait for before the API returns a
+<3> The name of the follower index to create.
+<4> The number of shard copies that must be active before the call returns.
 response, as an `ActiveShardCount`
 <5> The settings overrides for the follower index.
 
 [id="{upid}-{api}-response"]
 ==== Response
 
-The returned +{response}+ indicates if the request was received.
+The +{response}+ indicates if the request was received.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -38,5 +38,4 @@ include-tagged::{doc-tests-file}[{api}-response]
 <3> Whether the follower index started following the leader index.
 
 include::../execution.asciidoc[]
-
 

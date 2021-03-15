@@ -5,14 +5,14 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put {transform} API
+=== Create {transform} API
 
 Creates a new {transform}.
 
 The API accepts a +{request}+ object as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put {transform} request
+==== Create {transform} request
 
 A +{request}+ requires the following argument:
 

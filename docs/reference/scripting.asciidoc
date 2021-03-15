@@ -12,30 +12,6 @@ Additional `lang` plugins are available to run scripts written in other
 languages. You can specify the language of the script anywhere that scripts run.
 
 [discrete]
-[[scripts-and-search-speed]]
-== Scripts and search speed
-
-Scripts can't use {es}'s index structures or related optimizations, which can
-sometimes result in slower search speeds.
-
-If you often use scripts to transform indexed data, you can speed up search by
-making these changes during ingest instead. However, that often means slower
-index speeds.
-
-[discrete]
-[[modules-scripting-using-caching]]
-== Script caching
-
-All scripts are cached by default so that they only need to be recompiled
-when updates occur. By default, scripts do not have a time-based expiration.
-You can change this behavior by using the `script.cache.expire` setting.
-Use the `script.cache.max_size` setting to configure the size of the cache.
-
-NOTE: The size of scripts is limited to 65,535 bytes. Set the value of `script.max_size_in_bytes` to increase that soft limit. If your scripts are
-really large, then consider using a
-<<modules-scripting-engine,native script engine>>.
-
-[discrete]
 [[scripting-available-languages]]
 == Available scripting languages
 

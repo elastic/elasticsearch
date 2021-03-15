@@ -289,19 +289,6 @@ public class RootObjectMapper extends ObjectMapper {
         return runtimeFieldTypes.get(name);
     }
 
-    public DynamicTemplate findTemplate(ContentPath path, String name, String hint, XContentFieldType matchType) {
-        final String pathAsString = path.pathAsText(name);
-        for (DynamicTemplate dynamicTemplate : dynamicTemplates.value()) {
-            if (dynamicTemplate.match(pathAsString, name, hint, matchType)) {
-                return dynamicTemplate;
-            }
-        }
-        if (hint != null) {
-            throw new MapperParsingException("Can't find template for mapping hint [" + hint + "] of field [" + name + "]");
-        }
-        return null;
-    }
-
     @Override
     public RootObjectMapper merge(Mapper mergeWith, MergeReason reason) {
         return (RootObjectMapper) super.merge(mergeWith, reason);

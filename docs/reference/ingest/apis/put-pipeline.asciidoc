@@ -54,20 +54,19 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 ==== {api-response-body-title}
 
 `description`::
-(Required, string)
+(Optional, string)
 Description of the ingest pipeline.
 
 `processors`::
 +
 --
-(Required, array of <<ingest-processors,processor objects>>)
+(Required, array of <<processors,processor objects>>)
 Array of processors used to pre-process documents
 before indexing.
 
 Processors are executed in the order provided.
 
-See <<ingest-processors>> for processor object definitions
-and a list of built-in processors.
+See <<processors>>.
 --
 
 `version`::

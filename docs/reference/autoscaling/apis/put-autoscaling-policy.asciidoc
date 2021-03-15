@@ -39,9 +39,12 @@ DELETE /_autoscaling/policy/name
 [[autoscaling-put-autoscaling-policy-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have
-`manage_autoscaling` cluster privileges. For more information, see
-<<security-privileges>>.
+* If the {es} {security-features} are enabled, you must have the
+`manage_autoscaling` <<privileges-list-cluster,cluster privilege>> to use this
+API.
+
+* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
+users can use this API.
 
 [[autoscaling-put-autoscaling-policy-desc]]
 ==== {api-description-title}

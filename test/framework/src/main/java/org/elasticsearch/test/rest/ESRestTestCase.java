@@ -1417,7 +1417,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "synthetics-mappings":
             case ".snapshot-blob-cache":
             case ".deprecation-indexing-template":
-            case "logstash-index-template":
             case "security-index-template":
                 return true;
             default:

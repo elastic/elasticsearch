@@ -523,8 +523,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT AVG(int) FROM test GROUP BY bool HAVING AVG(int) > 2");
     }
     
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69758")
     public void testGroupByWhereSubselect() {
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool HAVING AVG(int) > 2)");
         accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool) WHERE b = false");
         accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool HAVING AVG(int) > 2) WHERE b = false");
     }
@@ -926,6 +926,24 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testAggsInWhere() {
         assertEquals("1:33: Cannot use WHERE filtering on aggregate function [MAX(int)], use HAVING instead",
             error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));
+        assertEquals("1:33: Cannot use WHERE filtering on aggregate function [MAX(int)], use HAVING instead",
+            error("SELECT MAX(int) FROM test WHERE MAX(int) > 10"));
+        assertEquals("1:80: Cannot use WHERE filtering on aggregate function [AVG(i)], use HAVING instead",
+            error("SELECT bool, i FROM (SELECT bool, MAX(int) as i FROM test GROUP BY bool) WHERE AVG(i) > 10"));
+    }
+    
+    public void testWhereOnAggs() {
+        accept("SELECT bool, MAX(int) as i FROM test GROUP BY bool HAVING MAX(int) > 10");
+        accept("SELECT * FROM (SELECT bool, MAX(int) as i FROM test GROUP BY bool) WHERE i > 10");
+    }
+
+    public void testWhereOnGroupings() {
+        assertEquals("1:74: [int > 2 OR cnt > 1] is part of a condition on top of a GROUP BY that references both a grouping " +
+                "and an aggregate in an unsplittable expression, cannot be translated (yet)",
+            error("SELECT * FROM (SELECT int, count(*) as cnt FROM test GROUP BY int) WHERE int > 2 OR cnt > 1"));
+        assertEquals("1:74: [int * cnt] is part of a condition on top of a GROUP BY that references both a grouping " +
+                "and an aggregate in an unsplittable expression, cannot be translated (yet)",
+            error("SELECT * FROM (SELECT int, count(*) as cnt FROM test GROUP BY int) WHERE int * cnt > 2 AND int > 2 AND cnt > 3"));
     }
 
     public void testHavingInAggs() {

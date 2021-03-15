@@ -2697,8 +2697,49 @@ public class QueryTranslatorTests extends ESTestCase {
         optimizeAndPlan("SELECT g as h FROM (SELECT date AS f, int AS g FROM test) WHERE h IS NOT NULL GROUP BY h ORDER BY h ASC");
     }
     
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69758")
-    public void testFilterAfterGroupBy() {
-        optimizeAndPlan("SELECT j AS k FROM (SELECT i AS j FROM ( SELECT int AS i FROM test) GROUP BY j) WHERE j < 5");
+    public void testFilterOnAggregatesSameAsHaving() {
+        EsQueryExec havingPlan =
+            (EsQueryExec) optimizeAndPlan("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool HAVING AVG(int) > 2)");
+        EsQueryExec filterPlan =
+            (EsQueryExec) optimizeAndPlan("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool) WHERE a > 2");
+        assertEquals(havingPlan.queryContainer().toString(), filterPlan.queryContainer().toString());
+    }
+    
+    public void testFilterOnAggregatesAfterHaving() {
+        EsQueryExec manual = (EsQueryExec) 
+            optimizeAndPlan("SELECT bool as b, AVG(int) as a FROM test GROUP BY bool HAVING AVG(int) > 2 AND AVG(int) < 3");
+        EsQueryExec optimized = (EsQueryExec)
+            optimizeAndPlan("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool HAVING AVG(int) > 2) WHERE a < 3");
+        assertEquals(manual.queryContainer().toString(), optimized.queryContainer().toString());
+    }
+    
+    public void testFilterConditionOnGroupingOnAggregates() {
+        EsQueryExec manuallyPushedDown =
+            (EsQueryExec) optimizeAndPlan("SELECT i, a FROM (SELECT int as i, AVG(float) as a FROM test WHERE int = 1 GROUP BY int)");
+        EsQueryExec optimizerPushedDown =
+            (EsQueryExec) optimizeAndPlan("SELECT i, a FROM (SELECT int as i, AVG(float) as a FROM test GROUP BY int) WHERE i = 1");
+        assertEquals(manuallyPushedDown.queryContainer().toString(), optimizerPushedDown.queryContainer().toString());
+    }
+
+    public void testFilterComplexConditionOnGroupingOnAggregates() {
+        EsQueryExec manuallyPushedDown =
+            (EsQueryExec) optimizeAndPlan("SELECT i, a FROM (SELECT int as i, AVG(float) as a FROM test " +
+                "WHERE ROUND(int::float, -2) = 1 GROUP BY int)");
+        EsQueryExec optimizerPushedDown =
+            (EsQueryExec) optimizeAndPlan("SELECT i, a FROM (SELECT int as i, AVG(float) as a FROM test GROUP BY int) " +
+                "WHERE ROUND(i::float, -2) = 1");
+        assertEquals(manuallyPushedDown.queryContainer().toString(), optimizerPushedDown.queryContainer().toString());
+    }
+    
+    public void testMultiProjectFilterOnAggregate() {
+        EsQueryExec manual = (EsQueryExec) 
+            optimizeAndPlan("SELECT int as l FROM test WHERE int < 5 AND int > 3 GROUP BY int HAVING COUNT(int) > 1");
+        EsQueryExec optimized = (EsQueryExec) optimizeAndPlan("SELECT k as l FROM (SELECT j AS k FROM (SELECT i AS j FROM " +
+            "( SELECT int AS i FROM test) GROUP BY j HAVING COUNT(i) > 1) WHERE j < 5) WHERE k > 3");
+        assertEquals(manual.queryContainer().toString(), optimized.queryContainer().toString());
+    } 
+
+    public void testSubqueryWithAlias() {
+        optimizeAndPlan("SELECT t.int FROM test AS t LIMIT 1");
     }
 }

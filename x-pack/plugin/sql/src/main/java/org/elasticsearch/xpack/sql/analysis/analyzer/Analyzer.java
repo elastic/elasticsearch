@@ -124,7 +124,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 //new ImplicitCasting()
                 );
         Batch finish = new Batch("Finish Analysis",
-                new PruneSubqueryAliases(),
                 new AddMissingEqualsToBoolField(),
                 CleanAliases.INSTANCE
                 );

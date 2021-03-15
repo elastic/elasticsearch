@@ -1063,4 +1063,104 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(1, p.aggregates().size());
         assertEquals(sumAlias, p.aggregates().get(0));
     }
+    
+    //
+    // Filter push-down
+    //
+    public void testFilterOnAggregateBreakupPossible() {
+        FieldAttribute g = getFieldAttribute("g");
+        FieldAttribute a = getFieldAttribute("a");
+        Sum sum = new Sum(EMPTY, a);
+        Alias sumAlias = new Alias(EMPTY, "sum", sum);
+        Alias gAlias = new Alias(EMPTY, "g2", g);
+
+        Aggregate aggregate = new Aggregate(EMPTY, FROM(), asList(g), asList(gAlias, sumAlias));
+        Expression conditionOnGrouping = new Equals(EMPTY, g, literal(2));
+        Expression conditionOnAggregate = new GreaterThan(EMPTY, sum, literal(1), randomZone());
+        Filter filter = new Filter(EMPTY, aggregate, new And(EMPTY, conditionOnGrouping, conditionOnAggregate));
+
+        LogicalPlan optimizedPlan = new Optimizer.PushDownFilters().rule(filter);
+        {
+            assertTrue(optimizedPlan instanceof Filter);
+            Filter filterOnAggregate = (Filter) optimizedPlan;
+            assertEquals(conditionOnAggregate, filterOnAggregate.condition());
+            assertTrue(filterOnAggregate.child() instanceof Aggregate);
+            {
+                Aggregate optimizedAggregate = (Aggregate) filterOnAggregate.child();
+                assertTrue(optimizedAggregate.child() instanceof Filter);
+                {
+                    Filter filterOnGrouping = (Filter) optimizedAggregate.child();
+                    assertEquals(conditionOnGrouping, filterOnGrouping.condition());
+                    assertEquals(FROM(), filterOnGrouping.child());
+                }
+            }
+        }
+    }
+
+    public void testFilterOnAggregateOnlyGrouping() {
+        FieldAttribute g = getFieldAttribute("g");
+        FieldAttribute a = getFieldAttribute("a");
+        Sum sum = new Sum(EMPTY, a);
+        Alias sumAlias = new Alias(EMPTY, "sum", sum);
+
+        Aggregate aggregate = new Aggregate(EMPTY, FROM(), asList(g), asList(g, sumAlias));
+        Expression conditionOnGrouping = new Equals(EMPTY, g, literal(2));
+        Expression conditionOnGrouping2 = new Equals(EMPTY, g, literal(3));
+        And condition = new And(EMPTY, conditionOnGrouping, conditionOnGrouping2);
+        Filter filter = new Filter(EMPTY, aggregate, condition);
+
+        LogicalPlan optimizedPlan = new Optimizer.PushDownFilters().rule(filter);
+        {
+            assertTrue(optimizedPlan instanceof Aggregate);
+            {
+                Aggregate optimizedAggregate = (Aggregate) optimizedPlan;
+                assertTrue(optimizedAggregate.child() instanceof Filter);
+                {
+                    Filter filterOnGrouping = (Filter) optimizedAggregate.child();
+                    assertEquals(condition, filterOnGrouping.condition());
+                    assertEquals(FROM(), filterOnGrouping.child());
+                }
+            }
+        }
+    }
+
+    public void testFilterOnAggregateOnlyAggregates() {
+        FieldAttribute g = getFieldAttribute("g");
+        FieldAttribute a = getFieldAttribute("a");
+        Sum sum = new Sum(EMPTY, a);
+        Alias sumAlias = new Alias(EMPTY, "sum", sum);
+
+        Aggregate aggregate = new Aggregate(EMPTY, FROM(), asList(g), asList(g, sumAlias));
+        Expression conditionOnAgg = new Equals(EMPTY, sum, literal(2));
+        Expression conditionOnAgg2 = new Equals(EMPTY, sum, literal(3));
+        And condition = new And(EMPTY, conditionOnAgg, conditionOnAgg2);
+        Filter filter = new Filter(EMPTY, aggregate, condition);
+
+        LogicalPlan optimizedPlan = new Optimizer.PushDownFilters().rule(filter);
+        assertEquals(filter, optimizedPlan);
+    }
+
+    public void testFilterBreakupNotPossible() {
+        FieldAttribute g = getFieldAttribute("g");
+        FieldAttribute a = getFieldAttribute("a");
+        Sum sum = new Sum(EMPTY, a);
+        Alias sumAlias = new Alias(EMPTY, "sum", sum);
+        Alias gAlias = new Alias(EMPTY, "g2", g);
+
+        Aggregate aggregate = new Aggregate(EMPTY, FROM(), asList(g), asList(gAlias, sumAlias));
+        Expression conditionOnGrouping = new Equals(EMPTY, g, literal(2));
+        Expression conditionOnAggregate = new GreaterThan(EMPTY, sum, literal(1), randomZone());
+        Source conditionSource = Source.synthetic("TEST!!!");
+        Expression condition = randomBoolean() 
+            ? new Or(conditionSource, conditionOnGrouping, conditionOnAggregate)
+            : new GreaterThan(EMPTY, new Greatest(conditionSource, asList(g, sum)), literal(2), randomZone());
+        Filter filter = new Filter(EMPTY, aggregate, condition);
+
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> {
+            LogicalPlan optimizedPlan = new Optimizer.PushDownFilters().rule(filter);
+        });        
+        assertEquals("Found 1 problem\n" + 
+            "line -1:-1: [TEST!!!] is part of a condition on top of a GROUP BY that references both a grouping " +
+            "and an aggregate in an unsplittable expression, cannot be translated (yet)", ex.getMessage());
+    }
 }

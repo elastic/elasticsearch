@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.NumericAggregat
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.PushDownFilters;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
@@ -210,6 +211,7 @@ public final class Verifier {
 
                 checkFilterConditionType(p, localFailures);
                 checkGroupingFunctionInGroupBy(p, localFailures);
+                checkFilterPushDownPossibleIfNeeded(p, localFailures, attributeRefs);
                 checkFilterOnAggs(p, localFailures, attributeRefs);
                 checkFilterOnGrouping(p, localFailures, attributeRefs);
 
@@ -666,23 +668,49 @@ public final class Verifier {
             }
         });
     }
+    
+    private static void checkFilterPushDownPossibleIfNeeded(
+        LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
+        if (p instanceof Filter) {
+            PushDownFilters.verify((Filter) p, localFailures, attributeRefs);
+        }
+    }
 
     private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
         if (p instanceof Filter) {
             Filter filter = (Filter) p;
             LogicalPlan filterChild = filter.child();
+            
+            final Holder<Aggregate> aggregateChild = new Holder<>();
+            
             if (filterChild instanceof Aggregate == false) {
+                // NOT: Filter -> Aggregate = SELECT ... GROUP BY .. HAVING ...
                 filter.condition().forEachDown(Expression.class, e -> {
                     if (Functions.isAggregate(attributeRefs.resolve(e, e))) {
                         if (filterChild instanceof Project) {
+                            // Filter -> Project = SELECT ... FROM ... (without GROUP BY) HAVING agg(field)
                             filter.condition().forEachDown(FieldAttribute.class,
                                 f -> localFailures.add(fail(e, "[{}] field must appear in the GROUP BY clause or in an aggregate function",
                                         Expressions.name(f)))
                             );
                         } else {
-                            localFailures.add(fail(e, "Cannot use WHERE filtering on aggregate function [{}], use HAVING instead",
-                                Expressions.name(e)));
-
+                            // if the aggregate function comes from a ReferenceAttribute to Aggregate output, allow it since it is 
+                            // logically the same as a HAVING
+                            // Pivot's are also translate to aggregations, but we won't allow those just yet
+                            if (aggregateChild.get() == null) {
+                                List<LogicalPlan> aggregateChildren =
+                                    filter.child().collectFirstChildren(c -> c instanceof Aggregate || c instanceof Pivot);
+                                aggregateChild.set(aggregateChildren.isEmpty() 
+                                    ? null 
+                                    : (aggregateChildren.get(0) instanceof Aggregate ? (Aggregate) aggregateChildren.get(0) : null));
+                            }
+                            if (e instanceof NamedExpression == false 
+                                || (aggregateChild.get() != null && aggregateChild.get().aggregates().stream()
+                                    .noneMatch(a -> ((NamedExpression) e).toAttribute().semanticEquals(a.toAttribute())))) {
+                                localFailures.add(fail(e,
+                                    "Cannot use WHERE filtering on aggregate function [{}], use HAVING instead",
+                                    Expressions.name(e)));
+                            }
                         }
                     }
                 });

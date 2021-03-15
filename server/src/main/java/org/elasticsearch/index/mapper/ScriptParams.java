@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -41,6 +42,9 @@ public final class ScriptParams {
                     return null;
                 }
                 Script script = Script.parse(o);
+                if (script.getType() == ScriptType.STORED) {
+                    throw new IllegalArgumentException("stored scripts are not supported on scripted field [" + n + "]");
+                }
                 return compiler.apply(script, c.scriptService());
             },
             initializer

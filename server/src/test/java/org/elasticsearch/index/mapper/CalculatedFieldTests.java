@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class CalculatedFieldTests extends MapperServiceTestCase {
 
@@ -146,6 +147,14 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
         // Can be either field1->field2->field1 or field2->field1->field2 because
         // post-phase executor order is not deterministic
         assertThat(e.getCause().getMessage(), containsString("field1->field2"));
+    }
+
+    public void testStoredScriptsNotPermitted() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "long");
+            b.startObject("script").field("id", "foo").endObject();
+        })));
+        assertThat(e.getMessage(), equalTo("Failed to parse mapping: stored scripts are not supported on scripted field [field]"));
     }
 
     @AwaitsFix(bugUrl = "TODO")

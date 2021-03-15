@@ -76,7 +76,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
-import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -140,7 +139,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         protected void closeInternal() {
             // close us once we are done
-            Store.this.closeInternal();
+            try {
+                Store.this.closeInternal();
+            } catch (IOException e) {
+                logger.warn("exception on closing store", e);
+            }
         }
     };
 
@@ -408,7 +411,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return isClosed.get();
     }
 
-    private void closeInternal() {
+    private void closeInternal() throws IOException {
         // Leverage try-with-resources to close the shard lock for us
         try (Closeable c = shardLock) {
             try {
@@ -416,8 +419,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             } finally {
                 onClose.accept(shardLock);
             }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
     }
 

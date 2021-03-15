@@ -779,7 +779,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             "entries blocking global checkpoint advancement during relocation handoff: " + pendingInSync;
 
         // entries blocking global checkpoint advancement can only exist in primary mode and when not having a relocation handoff
-        assert pendingInSync.isEmpty() || (primaryMode && !handoffInProgress);
+        assert pendingInSync.isEmpty() || (primaryMode && handoffInProgress == false);
 
         // the computed global checkpoint is always up-to-date
         assert primaryMode == false

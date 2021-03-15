@@ -51,11 +51,11 @@ should sort by `_doc`. This especially helps when <<scroll-search-results,scroll
 [discrete]
 === Sort Values
 
-The sort values for each document returned are also returned as part of the response.
-The returned sort values of a <<date,`date`>> or <<date_nanos,`date_nanos`>> field
-can be formatted using a <<mapping-date-format, date format>> configured via the `format`
-parameter. In the example below the returned sort value of the `post_date` field will be
-formatted using the builtin format `strict_date_optional_time_nanos`.
+The search response includes `sort` values for each document. Use the `format`
+parameter to specify a <<built-in-date-formats,date format>> for the `sort`
+values of <<date,`date`>> and <<date_nanos,`date_nanos`>> fields. The following
+search returns `sort` values for the `post_date` field in the
+`strict_date_optional_time_nanos` format.
 
 [source,console]
 --------------------------------------------------

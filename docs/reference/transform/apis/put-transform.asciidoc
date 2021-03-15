@@ -44,18 +44,17 @@ structure (known as a {dataframe}). The ID for each document in the {dataframe}
 is generated from a hash of the entity, so there is a unique row per entity. For 
 more information, see <<transforms>>.
 
-When the {transform} is created, a series of validations occur to
-ensure its success. For example, there is a check for the existence of the
-source indices and a check that the destination index is not part of the source
-index pattern. You can use the `defer_validation` parameter to skip these
-checks.
+When the {transform} is created, a series of validations occur to ensure its 
+success. For example, there is a check for the existence of the source indices 
+and a check that the destination index is not part of the source index pattern. 
+You can use the `defer_validation` parameter to skip these checks.
 
-Deferred validations are always run when the {transform} is started,
-with the exception of privilege checks. When {es} {security-features} are
-enabled, the {transform} remembers which roles the user that created
-it had at the time of creation and uses those same roles. If those roles do not
-have the required privileges on the source and destination indices, the
-{transform} fails when it attempts unauthorized operations.
+Deferred validations are always run when the {transform} is started, with the 
+exception of privilege checks. When {es} {security-features} are enabled, the 
+{transform} remembers which roles the user that created it had at the time of 
+creation and uses those same roles. If those roles do not have the required 
+privileges on the source and destination indices, the {transform} fails when it 
+attempts unauthorized operations.
 
 IMPORTANT: You must use {kib} or this API to create a {transform}. Do not put a
 {transform} directly into any `.transform-internal*` indices using the {es}

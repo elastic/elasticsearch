@@ -676,8 +676,11 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
             () -> authorize(authentication, action, request));
-        assertThat(securityException,
-            throwableWithMessage(containsString("[" + action + "] is unauthorized for user [test user] on indices [")));
+        assertThat(securityException, throwableWithMessage(containsString(
+            "[" + action + "] is unauthorized" +
+                " for user [test user]" +
+                " with roles [non-existent-role]" +
+                " on indices [")));
         assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
 
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(Role.EMPTY.names()));
@@ -715,8 +718,11 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
             () -> authorize(authentication, action, request));
-        assertThat(securityException,
-            throwableWithMessage(containsString("[" + action + "] is unauthorized for user [test user] on indices [")));
+        assertThat(securityException, throwableWithMessage(containsString(
+            "[" + action + "] is unauthorized" +
+                " for user [test user]" +
+                " with roles [no_indices]" +
+                " on indices [")));
         assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
 
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request),
@@ -887,14 +893,16 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testDenialErrorMessagesForSearchAction() throws IOException {
-        RoleDescriptor role = new RoleDescriptor("some_indices_" + randomAlphaOfLengthBetween(3, 6), null, new IndicesPrivileges[]{
+        RoleDescriptor indexRole = new RoleDescriptor("some_indices_" + randomAlphaOfLengthBetween(3, 6), null, new IndicesPrivileges[]{
             IndicesPrivileges.builder().indices("all*").privileges("all").build(),
             IndicesPrivileges.builder().indices("read*").privileges("read").build(),
             IndicesPrivileges.builder().indices("write*").privileges("write").build()
         }, null);
-        User user = new User(randomAlphaOfLengthBetween(6, 8), role.getName());
+        RoleDescriptor emptyRole = new RoleDescriptor("empty_role_" +  randomAlphaOfLengthBetween(1,4), null, null, null);
+        User user = new User(randomAlphaOfLengthBetween(6, 8), indexRole.getName(), emptyRole.getName());
         final Authentication authentication = createAuthentication(user);
-        roleMap.put(role.getName(), role);
+        roleMap.put(indexRole.getName(), indexRole);
+        roleMap.put(emptyRole.getName(), emptyRole);
 
         AuditUtil.getOrGenerateRequestId(threadContext);
 
@@ -902,8 +910,11 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
             () -> authorize(authentication, SearchAction.NAME, request));
-        assertThat(securityException, throwableWithMessage(
-            containsString("[" + SearchAction.NAME + "] is unauthorized for user [" + user.principal() + "] on indices [")));
+        assertThat(securityException, throwableWithMessage(containsString(
+            "[" + SearchAction.NAME + "] is unauthorized" +
+                " for user [" + user.principal() + "]" +
+                " with roles [" + indexRole.getName() + "," + emptyRole.getName() + "]" +
+                " on indices [")));
         assertThat(securityException, throwableWithMessage(containsString("write-3")));
         assertThat(securityException, throwableWithMessage(containsString("other-4")));
         assertThat(securityException, throwableWithMessage(not(containsString("all-1"))));

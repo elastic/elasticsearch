@@ -588,14 +588,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                             try {
                                 adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
                             } catch (ResponseException e) {
-                                logger.debug(new ParameterizedMessage("unable to remove multiple composable index templates {}", names), e);
+                                logger.warn(new ParameterizedMessage("unable to remove multiple composable index templates {}", names), e);
                             }
                         } else {
                             for (String name : names) {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
                                 } catch (ResponseException e) {
-                                    logger.debug(new ParameterizedMessage("unable to remove composable index template {}", name), e);
+                                    logger.warn(new ParameterizedMessage("unable to remove composable index template {}", name), e);
                                 }
                             }
                         }
@@ -617,14 +617,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                             try {
                                 adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
                             } catch (ResponseException e) {
-                                logger.debug(new ParameterizedMessage("unable to remove multiple component templates {}", names), e);
+                                logger.warn(new ParameterizedMessage("unable to remove multiple component templates {}", names), e);
                             }
                         } else {
                             for (String componentTemplate : names) {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
                                 } catch (ResponseException e) {
-                                    logger.debug(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
+                                    logger.warn(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
                                 }
                             }
                         }
@@ -709,7 +709,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static void wipeDataStreams() throws IOException {
         try {
-            if (hasXPack()) {
+            if (hasXPack() && nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_9_0))) {
                 adminClient().performRequest(new Request("DELETE", "_data_stream/*?expand_wildcards=all"));
             }
         } catch (ResponseException e) {
@@ -1409,6 +1409,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             case ".snapshot-blob-cache":
             case ".deprecation-indexing-template":
             case "ilm-history":
+            case "logstash-index-template":
+            case "security-index-template":
                 return true;
             default:
                 return false;

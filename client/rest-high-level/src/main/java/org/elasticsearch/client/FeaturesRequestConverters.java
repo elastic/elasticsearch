@@ -27,7 +27,7 @@ public class FeaturesRequestConverters {
     }
 
     static Request resetFeatures(ResetFeaturesRequest resetFeaturesRequest) {
-        String endpoint = "/_features/reset";
+        String endpoint = "/_features/_reset";
         return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 }

@@ -21,7 +21,6 @@ include-tagged::{doc-tests-file}[{api}-request]
 <2> The name of the leader in the remote cluster.
 <3> The name of the follower index to create.
 <4> The number of shard copies that must be active before the call returns.
-response, as an `ActiveShardCount`
 <5> The settings overrides for the follower index.
 
 [id="{upid}-{api}-response"]
@@ -38,4 +37,3 @@ include-tagged::{doc-tests-file}[{api}-response]
 <3> Whether the follower index started following the leader index.
 
 include::../execution.asciidoc[]
-

@@ -12,7 +12,6 @@ import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
-import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -32,7 +31,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Arrays.stream;
-import static org.elasticsearch.gradle.util.GradleUtils.noop;
 
 /**
  * We want to be able to do BWC tests for unreleased versions without relying on and waiting for snapshots.

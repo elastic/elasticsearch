@@ -103,7 +103,6 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
         clusterService = ClusterServiceUtils.createClusterService(threadPool, node, CLUSTER_SETTINGS);
         nodeEnvironment = newNodeEnvironment();
-        environment = newEnvironment();
     }
 
     @After
@@ -146,7 +145,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      * @return a new {@link FrozenCacheService} instance configured with default settings
      */
     protected FrozenCacheService defaultFrozenCacheService() {
-        return new FrozenCacheService(environment, threadPool);
+        return new FrozenCacheService(nodeEnvironment, Settings.EMPTY, threadPool);
     }
 
     protected FrozenCacheService randomFrozenCacheService() {
@@ -163,7 +162,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         if (randomBoolean()) {
             cacheSettings.put(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
         }
-        return new FrozenCacheService(newEnvironment(cacheSettings.build()), threadPool);
+        return new FrozenCacheService(nodeEnvironment, cacheSettings.build(), threadPool);
     }
 
     /**
@@ -183,12 +182,11 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
 
     protected FrozenCacheService createFrozenCacheService(final ByteSizeValue cacheSize, final ByteSizeValue cacheRangeSize) {
         return new FrozenCacheService(
-            newEnvironment(
-                Settings.builder()
-                    .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                    .put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
-                    .build()
-            ),
+            nodeEnvironment,
+            Settings.builder()
+                .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                .put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
+                .build(),
             threadPool
         );
     }

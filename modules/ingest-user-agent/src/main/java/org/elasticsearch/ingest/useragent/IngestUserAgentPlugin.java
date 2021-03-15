@@ -19,7 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.StandardOpenOption;
-import java.nio.file.Paths;
+import org.elasticsearch.common.io.PathUtils;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -56,7 +56,7 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
         Map<String, UserAgentParser> userAgentParsers = new HashMap<>();
         InputStream deviceTypeRegexStream = IngestUserAgentPlugin.class.getResourceAsStream("/device_type_regexes.yml");
 
-        if (Files.exists(Paths.get(String.valueOf(userAgentConfigDirectory), "/device_type_regexes.yml")) == false) {
+        if (Files.exists(PathUtils.get(String.valueOf(userAgentConfigDirectory), "/device_type_regexes.yml")) == false) {
             deviceTypeRegexStream = null;
         }
 

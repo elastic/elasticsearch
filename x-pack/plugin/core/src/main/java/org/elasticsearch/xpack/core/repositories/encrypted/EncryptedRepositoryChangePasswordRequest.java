@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.repositories.encrypted.action;
+package org.elasticsearch.xpack.core.repositories.encrypted;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -49,10 +49,9 @@ public final class EncryptedRepositoryChangePasswordRequest extends Acknowledged
     }
 
     /**
-     * Sets the name of the password, which is stored inside the node's keystore
-     * ({@link org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin#ENCRYPTION_PASSWORD_SETTING}),
+     * Sets the name of the password, which is stored inside the node's keystore,
      * that will be retired so that no encrypted blobs will be using it hence.
-     * It defaults to the repository's current password, if not set.
+     * If not set, it defaults to the repository's current password.
      *
      * @param fromPasswordName the name of the password from the keystore
      */
@@ -66,11 +65,10 @@ public final class EncryptedRepositoryChangePasswordRequest extends Acknowledged
     }
 
     /**
-     * Sets the name of the password, which is stored inside the node's keystore
-     * ({@link org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin#ENCRYPTION_PASSWORD_SETTING}),
+     * Sets the name of the password, which is stored inside the node's keystore,
      * that will be used to encrypted the blobs that are currently encrypted with the retired password
      * {@link #fromPasswordName}.
-     * It defaults to the repository's current password, if not set.
+     * If not set, it defaults to the repository's current password.
      *
      * @param toPasswordName the name of the password from the keystore
      */

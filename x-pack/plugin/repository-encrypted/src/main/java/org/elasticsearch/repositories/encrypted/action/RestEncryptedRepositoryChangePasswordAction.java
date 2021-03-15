@@ -12,6 +12,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.xpack.core.repositories.encrypted.EncryptedRepositoryChangePasswordRequest;
+import org.elasticsearch.xpack.core.repositories.encrypted.action.ChangeEncryptedRepositoryPasswordAction;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,7 +43,7 @@ public class RestEncryptedRepositoryChangePasswordAction extends BaseRestHandler
             changePasswordRequest.toPasswordName(requestAsMap.get("to_password_name"));
         }
         return channel ->
-                client.execute(ChangeEncryptedRepositoryPasswordAction.INSTANCE, changePasswordRequest,
+                client.admin().cluster().execute(ChangeEncryptedRepositoryPasswordAction.INSTANCE, changePasswordRequest,
                         new RestStatusToXContentListener<>(channel));
     }
 

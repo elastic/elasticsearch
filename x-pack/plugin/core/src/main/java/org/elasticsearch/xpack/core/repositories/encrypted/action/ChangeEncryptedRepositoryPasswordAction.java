@@ -5,9 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.repositories.encrypted.action;
+package org.elasticsearch.xpack.core.repositories.encrypted.action;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.xpack.core.repositories.encrypted.EncryptedRepositoryChangePasswordResponse;
 
 public final class ChangeEncryptedRepositoryPasswordAction extends ActionType<EncryptedRepositoryChangePasswordResponse> {
 

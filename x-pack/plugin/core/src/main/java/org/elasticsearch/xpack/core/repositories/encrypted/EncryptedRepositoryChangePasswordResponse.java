@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.repositories.encrypted.action;
+package org.elasticsearch.xpack.core.repositories.encrypted;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,11 +19,19 @@ import java.io.IOException;
 
 public final class EncryptedRepositoryChangePasswordResponse extends ActionResponse implements StatusToXContentObject, ToXContentObject {
 
-    private boolean completed;
+    private final boolean completed;
 
     public EncryptedRepositoryChangePasswordResponse(StreamInput in) throws IOException {
         super(in);
         this.completed = in.readBoolean();
+    }
+
+    public EncryptedRepositoryChangePasswordResponse(boolean completed) {
+        this.completed = completed;
+    }
+
+    public boolean completed() {
+        return this.completed;
     }
 
     @Override

@@ -11,12 +11,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Build;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -28,6 +36,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.xpack.core.repositories.encrypted.action.ChangeEncryptedRepositoryPasswordAction;
+import org.elasticsearch.repositories.encrypted.action.RestEncryptedRepositoryChangePasswordAction;
+import org.elasticsearch.repositories.encrypted.action.TransportEncryptedRepositoryChangePasswordAction;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.security.GeneralSecurityException;
@@ -201,6 +214,24 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
             delegatedRepository,
             licenseStateSupplier,
             repoPassword
+        );
+    }
+
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return Arrays.asList(
+                new ActionHandler<>(ChangeEncryptedRepositoryPasswordAction.INSTANCE,
+                        TransportEncryptedRepositoryChangePasswordAction.class)
+        );
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
+                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
+                                             IndexNameExpressionResolver indexNameExpressionResolver,
+                                             Supplier<DiscoveryNodes> nodesInCluster) {
+        return Arrays.asList(
+                new RestEncryptedRepositoryChangePasswordAction()
         );
     }
 }

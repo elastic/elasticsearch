@@ -144,6 +144,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
+import org.elasticsearch.xpack.core.repositories.encrypted.action.ChangeEncryptedRepositoryPasswordAction;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
@@ -411,6 +412,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             SubmitAsyncSearchAction.INSTANCE,
             GetAsyncSearchAction.INSTANCE,
             DeleteAsyncResultAction.INSTANCE,
+            // Encrypted Snapshots
+            ChangeEncryptedRepositoryPasswordAction.INSTANCE,
             // Text Structure
             FindStructureAction.INSTANCE
         ));

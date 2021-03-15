@@ -33,6 +33,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState.Metadata;
+import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
@@ -53,7 +54,7 @@ import java.util.Objects;
  * Downloads are verified against MD5 checksum provided by the server
  * Current state of all stored databases is stored in cluster state in persistent task state
  */
-class GeoIpDownloader extends AllocatedPersistentTask {
+public class GeoIpDownloader extends AllocatedPersistentTask {
 
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
 
@@ -233,7 +234,7 @@ class GeoIpDownloader extends AllocatedPersistentTask {
 
     @Override
     public GeoIpDownloaderStats getStatus() {
-        return stats;
+        return isCancelled() || isCompleted() ? null: stats;
     }
 
     private void scheduleNextRun(TimeValue time) {

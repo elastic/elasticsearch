@@ -6,12 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.ingest.geoip;
+package org.elasticsearch.ingest.geoip.stats;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.ingest.geoip.GeoIpDownloader;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;

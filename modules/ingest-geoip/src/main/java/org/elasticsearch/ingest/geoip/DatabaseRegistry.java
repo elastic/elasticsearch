@@ -32,6 +32,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
@@ -44,12 +45,15 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -71,7 +75,7 @@ import java.util.zip.GZIPInputStream;
  *    if there is an old instance of this database then that is closed.
  * 4) Cleanup locally loaded databases that are no longer mentioned in {@link GeoIpTaskState}.
  */
-final class DatabaseRegistry implements Closeable {
+public final class DatabaseRegistry implements Closeable {
 
     private static final Logger LOGGER = LogManager.getLogger(DatabaseRegistry.class);
 
@@ -351,4 +355,15 @@ final class DatabaseRegistry implements Closeable {
         }
     }
 
+    public Set<String> getAvailableDatabases(){
+        return Set.copyOf(databases.keySet());
+    }
+
+    public Set<String> getFilesInTemp(){
+        try {
+            return Files.list(geoipTmpDirectory).map(Path::getFileName).map(Path::toString).collect(Collectors.toSet());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 }

@@ -143,6 +143,13 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         return ByteRange.of(start, end);
     }
 
+    /**
+     * Thread local direct byte buffer to aggregate multiple positional writes to the cache file.
+     */
+    private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
+        () -> ByteBuffer.allocateDirect(COPY_BUFFER_SIZE * 8)
+    );
+
     @Override
     protected void doReadInternal(ByteBuffer b) throws IOException {
         ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
@@ -234,16 +241,29 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                                     .iterator();
                                 long writePosition = channelPos;
                                 long bytesCopied = 0L;
+                                final ByteBuffer buf = writeBuffer.get();
+                                buf.clear();
                                 BytesRef current;
                                 while ((current = iterator.next()) != null) {
-                                    final ByteBuffer byteBuffer = ByteBuffer.wrap(current.bytes, current.offset, current.length);
-                                    while (byteBuffer.remaining() > 0) {
-                                        final long bytesWritten = positionalWrite(channel, writePosition, byteBuffer);
+                                    assert buf.capacity() >= current.length
+                                        : "cached blob chunk should not be larger than write buffer capacity ["
+                                            + buf.capacity()
+                                            + "] but was ["
+                                            + current.length
+                                            + "]";
+                                    if (buf.remaining() < current.length) {
+                                        final long bytesWritten = positionalWrite(channel, writePosition, buf);
                                         bytesCopied += bytesWritten;
                                         writePosition += bytesWritten;
                                         progressUpdater.accept(bytesCopied);
                                     }
+                                    buf.put(current.bytes, current.offset, current.length);
                                 }
+                                final long bytesWritten = positionalWrite(channel, writePosition, buf);
+                                bytesCopied += bytesWritten;
+                                writePosition += bytesWritten;
+                                progressUpdater.accept(bytesCopied);
+
                                 long channelTo = channelPos + len;
                                 assert writePosition == channelTo : writePosition + " vs " + channelTo;
                                 final long endTimeNanos = stats.currentTimeNanos();
@@ -483,7 +503,10 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
 
     private static int positionalWrite(SharedBytes.IO fc, long start, ByteBuffer byteBuffer) throws IOException {
         assert assertCurrentThreadMayWriteCacheFile();
-        return fc.write(byteBuffer, start);
+        byteBuffer.flip();
+        int written = fc.write(byteBuffer, start);
+        byteBuffer.clear();
+        return written;
     }
 
     /**
@@ -612,14 +635,22 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         long bytesCopied = 0L;
         long remaining = length;
         final long startTimeNanos = stats.currentTimeNanos();
+        final ByteBuffer buf = writeBuffer.get();
+        buf.clear();
         try (InputStream input = openInputStreamFromBlobStore(logicalPos + relativePos + compoundFileOffset, length)) {
             while (remaining > 0L) {
                 final int bytesRead = readSafe(input, copyBuffer, relativePos, end, remaining, frozenCacheFile);
-                positionalWrite(fc, fileChannelPos + bytesCopied, ByteBuffer.wrap(copyBuffer, 0, bytesRead));
-                bytesCopied += bytesRead;
+                if (bytesRead > buf.remaining()) {
+                    long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
+                    bytesCopied += bytesWritten;
+                    progressUpdater.accept(bytesCopied);
+                }
+                buf.put(copyBuffer, 0, bytesRead);
                 remaining -= bytesRead;
-                progressUpdater.accept(bytesCopied);
             }
+            long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
+            bytesCopied += bytesWritten;
+            progressUpdater.accept(bytesCopied);
             final long endTimeNanos = stats.currentTimeNanos();
             assert bytesCopied == length;
             stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);

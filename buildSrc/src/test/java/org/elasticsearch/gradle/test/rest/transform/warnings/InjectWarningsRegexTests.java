@@ -18,9 +18,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-public class InjectWarningsTests extends InjectFeatureTests {
+public class InjectWarningsRegexTests extends InjectFeatureTests {
+
+    private static final String WARNINGS_REGEX = "warnings_regex";
     Set<String> addWarnings = Set.of("added warning");
-    private static final String WARNINGS = "warnings";
 
     /**
      * inject warning requires a test name to insert
@@ -50,8 +51,8 @@ public class InjectWarningsTests extends InjectFeatureTests {
         List<ObjectNode> transformedTests = transformTests(tests);
         printTest(testName, transformedTests);
         validateSetupAndTearDown(transformedTests);
-        validateBodyHasWarnings(WARNINGS, "Test warnings", transformedTests, addWarnings);
-        validateBodyHasNoWarnings(WARNINGS, "Test another", transformedTests);
+        validateBodyHasWarnings(WARNINGS_REGEX, "Test warnings", transformedTests, addWarnings);
+        validateBodyHasNoWarnings(WARNINGS_REGEX, "Test another", transformedTests);
     }
 
     /**
@@ -62,22 +63,22 @@ public class InjectWarningsTests extends InjectFeatureTests {
         String testName = "/rest/transform/warnings/with_existing_warnings.yml";
         List<ObjectNode> tests = getTests(testName);
         validateSetupExist(tests);
-        validateBodyHasWarnings(WARNINGS, tests, Set.of("a", "b"));
+        validateBodyHasWarnings(WARNINGS_REGEX, tests, Set.of("c", "d"));
         List<ObjectNode> transformedTests = transformTests(tests);
         printTest(testName, transformedTests);
         validateSetupAndTearDown(transformedTests);
-        validateBodyHasWarnings(WARNINGS, tests, Set.of("a", "b"));
-        validateBodyHasWarnings(WARNINGS, "Test warnings", tests, addWarnings);
+        validateBodyHasWarnings(WARNINGS_REGEX, tests, Set.of("c", "d"));
+        validateBodyHasWarnings(WARNINGS_REGEX, "Test warnings", tests, addWarnings);
     }
 
     @Override
     protected List<String> getKnownFeatures() {
-        return Collections.singletonList(WARNINGS);
+        return Collections.singletonList(WARNINGS_REGEX);
     }
 
     @Override
     protected List<RestTestTransform<?>> getTransformations() {
-        return Collections.singletonList(new InjectWarnings(new ArrayList<>(addWarnings), "Test warnings"));
+        return Collections.singletonList(new InjectWarnings(true, new ArrayList<>(addWarnings), "Test warnings"));
     }
 
     @Override

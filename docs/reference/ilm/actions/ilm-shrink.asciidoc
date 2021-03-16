@@ -105,10 +105,10 @@ These allocation steps can fail for a number of reasons, including:
 * No node has enough disk space to host the source index's shards.
 * {es} cannot reallocate the shrunken index due to conflicting allocation rules.
 
-When one of the allocation steps fails, {ilm-init} waits for the period in
+When one of the allocation steps fails, {ilm-init} waits for the period set in
 <<index-lifecycle-step-wait-time-threshold,`index.lifecycle.step.wait_time_threshold`>>.
-This period lets the cluster resolve any issues causing the allocation failure
-normally. By default, the threshold period is 12 hours. 
+This threshold period lets the cluster resolve any issues causing the allocation
+failure normally. By default, the threshold period is 12 hours. 
 
 If the threshold period passes and {ilm-init} has not yet shrunk the index,
 {ilm-init} attempts to allocate the source index's primary shards to another

@@ -40,14 +40,24 @@ public class ServiceAccountService {
 
     private static final Logger logger = LogManager.getLogger(ServiceAccountService.class);
 
-    private final ServiceAccountsCredentialStore serviceAccountsCredentialStore;
+    private final ServiceAccountsTokenStore serviceAccountsTokenStore;
 
-    public ServiceAccountService(ServiceAccountsCredentialStore serviceAccountsCredentialStore) {
-        this.serviceAccountsCredentialStore = serviceAccountsCredentialStore;
+    public ServiceAccountService(ServiceAccountsTokenStore serviceAccountsTokenStore) {
+        this.serviceAccountsTokenStore = serviceAccountsTokenStore;
     }
 
     public static boolean isServiceAccount(Authentication authentication) {
         return REALM_TYPE.equals(authentication.getAuthenticatedBy().getType()) && null == authentication.getLookedUpBy();
+    }
+
+    public static boolean isServiceAccountPrincipal(String principal) {
+        final ServiceAccountId accountId;
+        try {
+            accountId = ServiceAccountId.fromPrincipal(principal);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        return ElasticServiceAccounts.NAMESPACE.equals(accountId.namespace()) && ACCOUNTS.containsKey(accountId.serviceName());
     }
 
     // {@link org.elasticsearch.xpack.security.authc.TokenService#extractBearerTokenFromHeader extracted} from an HTTP authorization header.
@@ -97,7 +107,7 @@ public class ServiceAccountService {
             return;
         }
 
-        if (serviceAccountsCredentialStore.authenticate(token)) {
+        if (serviceAccountsTokenStore.authenticate(token)) {
             listener.onResponse(success(account, token, nodeName));
         } else {
             final ParameterizedMessage message = new ParameterizedMessage(

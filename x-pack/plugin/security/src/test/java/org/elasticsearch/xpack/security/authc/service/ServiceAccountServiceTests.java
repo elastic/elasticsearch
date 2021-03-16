@@ -37,14 +37,14 @@ import static org.mockito.Mockito.when;
 public class ServiceAccountServiceTests extends ESTestCase {
 
     private ThreadContext threadContext;
-    private ServiceAccountsCredentialStore serviceAccountsCredentialStore;
+    private ServiceAccountsTokenStore serviceAccountsTokenStore;
     private ServiceAccountService serviceAccountService;
 
     @Before
     public void init() {
         threadContext = new ThreadContext(Settings.EMPTY);
-        serviceAccountsCredentialStore = mock(ServiceAccountsCredentialStore.class);
-        serviceAccountService = new ServiceAccountService(serviceAccountsCredentialStore);
+        serviceAccountsTokenStore = mock(ServiceAccountsTokenStore.class);
+        serviceAccountService = new ServiceAccountService(serviceAccountsTokenStore);
     }
 
     public void testIsServiceAccount() {
@@ -146,8 +146,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final ServiceAccountToken token4 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8),
             new SecureString(randomAlphaOfLength(20).toCharArray()));
         final String nodeName = randomAlphaOfLengthBetween(3, 8);
-        when(serviceAccountsCredentialStore.authenticate(token3)).thenReturn(true);
-        when(serviceAccountsCredentialStore.authenticate(token4)).thenReturn(false);
+        when(serviceAccountsTokenStore.authenticate(token3)).thenReturn(true);
+        when(serviceAccountsTokenStore.authenticate(token4)).thenReturn(false);
 
         final PlainActionFuture<Authentication> future3 = new PlainActionFuture<>();
         serviceAccountService.authenticateWithToken(token3, threadContext, nodeName, future3);

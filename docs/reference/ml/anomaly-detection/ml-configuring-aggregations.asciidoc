@@ -149,6 +149,11 @@ detector field information, consider using a `composite` aggregation. It perform
 better than a `date_histogram` with a nested `term` aggregation and also includes
 all the values of the field instead of the top values per bucket.
 
+NOTE: `composite` aggregations may not be as performant as a scrolling or 
+`date_histogram` oriented {dfeed}. `composite` aggregations are optimized
+for queries that are either `match_all` or `range` filters. Other types of
+queries may cause the `composite` aggregation to be ineffecient.
+
 Your {dfeed} can contain multiple aggregations, but only the ones with names
 that match values in the job configuration are fed to the job.
 
@@ -436,7 +441,8 @@ the time of the latest record within a bucket.
 You can optionally specify a terms aggregation, which creates buckets for
 different values of a field.
 
-TIP: Instead of nesting a `term` aggregation, use `composite` aggs.
+TIP: Instead of nesting a `term` aggregation, use `composite` aggs when you
+have many terms and a simple range query.
 
 IMPORTANT: If you use a terms aggregation, by default it returns buckets for
 the top ten terms. Thus if the cardinality of the term is greater than 10, not

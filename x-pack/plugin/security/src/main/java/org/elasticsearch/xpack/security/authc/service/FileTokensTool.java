@@ -85,7 +85,7 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
                 }
                 tokenHashes.put(token.getQualifiedName(), hasher.hash(token.getSecret()));
                 FileServiceAccountsTokenStore.writeFile(serviceTokensFile, tokenHashes);
-                terminal.println("SERVICE_TOKEN " + token.getQualifiedName() + " = " + token.getSecret());
+                terminal.println("SERVICE_TOKEN " + token.getQualifiedName() + " = " + token.asBearerString());
             }
 
             attributesChecker.check(terminal);

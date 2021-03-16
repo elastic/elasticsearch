@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.ml.rest;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -24,15 +24,9 @@ public class RestSetUpgradeModeAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(POST, BASE_PATH + "set_upgrade_mode",
-                POST, PRE_V7_BASE_PATH + "set_upgrade_mode")
+            Route.builder(POST, BASE_PATH + "set_upgrade_mode")
+                .replaces(POST, PRE_V7_BASE_PATH + "set_upgrade_mode", RestApiVersion.V_7).build()
         );
     }
 

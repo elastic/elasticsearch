@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -30,7 +31,6 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -42,18 +42,11 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
-            new ReplacedRoute(
-                GET, Protocol.SQL_QUERY_REST_ENDPOINT,
-                GET, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT),
-            new ReplacedRoute(
-                POST, Protocol.SQL_QUERY_REST_ENDPOINT,
-                POST, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT)));
+            Route.builder(GET, Protocol.SQL_QUERY_REST_ENDPOINT)
+                .replaces(GET, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, RestApiVersion.V_7).build(),
+            Route.builder(POST, Protocol.SQL_QUERY_REST_ENDPOINT)
+                .replaces(POST, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, RestApiVersion.V_7).build()));
     }
 
     @Override

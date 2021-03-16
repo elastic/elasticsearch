@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
@@ -15,20 +16,16 @@ import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
 import java.util.List;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestWatchServiceAction extends WatcherRestHandler {
 
     @Override
     public List<Route> routes() {
-        return emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        return singletonList(new ReplacedRoute(POST, "/_watcher/_start", POST, URI_BASE + "/watcher/_start"));
+        return org.elasticsearch.common.collect.List.of(
+            Route.builder(POST, "/_watcher/_start")
+                .replaces(POST, URI_BASE + "/watcher/_start", RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -45,12 +42,10 @@ public class RestWatchServiceAction extends WatcherRestHandler {
 
         @Override
         public List<Route> routes() {
-            return emptyList();
-        }
-
-        @Override
-        public List<ReplacedRoute> replacedRoutes() {
-            return singletonList(new ReplacedRoute(POST, "/_watcher/_stop", POST, URI_BASE + "/watcher/_stop"));
+            return org.elasticsearch.common.collect.List.of(
+                Route.builder(POST, "/_watcher/_stop")
+                    .replaces(POST, URI_BASE + "/watcher/_stop", RestApiVersion.V_7).build()
+            );
         }
 
         @Override

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.rest.calendar;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -26,15 +27,9 @@ public class RestPutCalendarAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(PUT, BASE_PATH + "calendars/{" + Calendar.ID + "}",
-                PUT, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}")
+            Route.builder(PUT, BASE_PATH + "calendars/{" + Calendar.ID + "}")
+                .replaces(PUT, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}", RestApiVersion.V_7).build()
         );
     }
 

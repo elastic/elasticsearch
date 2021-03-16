@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Request;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -28,17 +28,11 @@ public class RestGetDatafeedStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stats",
-                GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stats"),
-            new ReplacedRoute(GET, BASE_PATH + "datafeeds/_stats",
-                GET, PRE_V7_BASE_PATH + "datafeeds/_stats")
+            Route.builder(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stats")
+                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stats", RestApiVersion.V_7).build(),
+            Route.builder(GET, BASE_PATH + "datafeeds/_stats")
+                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/_stats", RestApiVersion.V_7).build()
         );
     }
 

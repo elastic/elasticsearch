@@ -12,12 +12,12 @@ import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -28,15 +28,13 @@ public class RestUpgradeActionDeprecated extends BaseRestHandler {
         "The _upgrade API is no longer useful and will be removed. Instead, see _reindex API.";
 
     @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
-        return org.elasticsearch.common.collect.List.of(
-            new DeprecatedRoute(POST, "/_upgrade", UPGRADE_API_DEPRECATION_MESSAGE),
-            new DeprecatedRoute(POST, "/{index}/_upgrade", UPGRADE_API_DEPRECATION_MESSAGE));
-    }
-
-    @Override
     public List<Route> routes() {
-        return Collections.emptyList();
+        return org.elasticsearch.common.collect.List.of(
+            Route.builder(POST, "/_upgrade")
+                .deprecated(UPGRADE_API_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/_upgrade")
+                .deprecated(UPGRADE_API_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+        );
     }
 
     @Override

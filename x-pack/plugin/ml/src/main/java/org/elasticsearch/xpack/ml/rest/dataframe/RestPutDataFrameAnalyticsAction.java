@@ -25,7 +25,8 @@ public class RestPutDataFrameAnalyticsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return org.elasticsearch.common.collect.List.of(
-            new Route(PUT, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}"));
+            new Route(PUT, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}")
+        );
     }
 
     @Override

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -34,15 +34,9 @@ public class RestStartDatafeedAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(POST, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_start",
-                POST, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_start")
+            Route.builder(POST, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_start")
+                .replaces(POST, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_start", RestApiVersion.V_7).build()
         );
     }
 

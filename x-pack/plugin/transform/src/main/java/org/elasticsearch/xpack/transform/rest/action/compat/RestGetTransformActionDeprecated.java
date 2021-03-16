@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.rest.action.compat;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -21,8 +22,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 import static org.elasticsearch.xpack.core.transform.TransformField.EXCLUDE_GENERATED;
@@ -30,16 +29,12 @@ import static org.elasticsearch.xpack.core.transform.TransformField.EXCLUDE_GENE
 public class RestGetTransformActionDeprecated extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
-        return unmodifiableList(asList(
-            new DeprecatedRoute(GET, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED,
-                    TransformMessages.REST_DEPRECATED_ENDPOINT),
-            new DeprecatedRoute(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED,
-                    TransformMessages.REST_DEPRECATED_ENDPOINT)));
+        return org.elasticsearch.common.collect.List.of(
+            Route.builder(GET, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED)
+                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_7).build(),
+            Route.builder(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED)
+                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_7).build()
+        );
     }
 
     @Override

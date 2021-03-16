@@ -27,8 +27,7 @@ public class RestAddIndexBlockAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
-            new Route(PUT, "/{index}/_block/{block}"));
+        return Collections.singletonList(new Route(PUT, "/{index}/_block/{block}"));
     }
 
     @Override

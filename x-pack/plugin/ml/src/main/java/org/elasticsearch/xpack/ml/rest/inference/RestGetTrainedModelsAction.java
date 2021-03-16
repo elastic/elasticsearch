@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -44,23 +45,17 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(
-                GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}",
-                GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}"),
-            new ReplacedRoute(
-                GET, BASE_PATH + "trained_models",
-                GET, BASE_PATH + "inference")
+            Route.builder(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
+                .replaces(GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_7).build(),
+            Route.builder(GET, BASE_PATH + "trained_models")
+                .replaces(GET, BASE_PATH + "inference", RestApiVersion.V_7).build()
         );
     }
 
     private static final Map<String, String> DEFAULT_TO_XCONTENT_VALUES =
         Collections.singletonMap(TrainedModelConfig.DECOMPRESS_DEFINITION, Boolean.toString(true));
+
     @Override
     public String getName() {
         return "ml_get_trained_models_action";

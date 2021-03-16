@@ -27,7 +27,6 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -43,6 +42,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
@@ -113,7 +113,7 @@ public class ActionModuleTests extends ESTestCase {
 
                 @Override
                 public List<Route> routes() {
-                    return singletonList(new Route(Method.GET, "/"));
+                    return singletonList(new Route(GET, "/"));
                 }
             }));
         assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
@@ -154,7 +154,7 @@ public class ActionModuleTests extends ESTestCase {
         class FakeHandler implements RestHandler {
             @Override
             public List<Route> routes() {
-                return singletonList(new Route(Method.GET, "/_dummy"));
+                return singletonList(new Route(GET, "/_dummy"));
             }
 
             @Override
@@ -188,7 +188,7 @@ public class ActionModuleTests extends ESTestCase {
 
                     @Override
                     public List<Route> routes() {
-                        return singletonList(new Route(Method.GET, "/_dummy"));
+                        return singletonList(new Route(GET, "/_dummy"));
                     }
                 }));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_dummy] for method: GET"));

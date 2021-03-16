@@ -24,7 +24,8 @@ public class RestDeleteDataFrameAnalyticsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return org.elasticsearch.common.collect.List.of(
-            new Route(DELETE, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}"));
+            new Route(DELETE, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}")
+        );
     }
 
     @Override

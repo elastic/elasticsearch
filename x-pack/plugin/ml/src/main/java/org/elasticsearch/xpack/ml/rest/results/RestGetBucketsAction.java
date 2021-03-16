@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.rest.results;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -30,21 +30,17 @@ public class RestGetBucketsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets/{" + Result.TIMESTAMP+ "}",
-                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets/{" + Result.TIMESTAMP+ "}"),
-            new ReplacedRoute(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets/{" + Result.TIMESTAMP+ "}",
-                POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets/{" + Result.TIMESTAMP+ "}"),
-            new ReplacedRoute(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets",
-                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets"),
-            new ReplacedRoute(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets",
-                POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets")
+            Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets/{" + Result.TIMESTAMP + "}")
+                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets/{" + Result.TIMESTAMP + "}",
+                    RestApiVersion.V_7).build(),
+            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets/{" + Result.TIMESTAMP + "}")
+                .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets/{" + Result.TIMESTAMP + "}",
+                    RestApiVersion.V_7).build(),
+            Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets")
+                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets", RestApiVersion.V_7).build(),
+            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets")
+                .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets", RestApiVersion.V_7).build()
         );
     }
 

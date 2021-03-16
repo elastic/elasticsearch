@@ -38,7 +38,6 @@ public class RestUpgradeJobModelSnapshotAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-
         String jobId = restRequest.param(Job.ID.getPreferredName());
         String snapshotId = restRequest.param(SNAPSHOT_ID.getPreferredName());
         TimeValue timeout = TimeValue.parseTimeValue(

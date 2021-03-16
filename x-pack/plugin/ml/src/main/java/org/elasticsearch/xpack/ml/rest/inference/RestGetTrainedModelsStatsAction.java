@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -28,18 +28,11 @@ public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(
-                GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}/_stats",
-                GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}/_stats"),
-            new ReplacedRoute(
-                GET, BASE_PATH + "trained_models/_stats",
-                GET, BASE_PATH + "inference/_stats")
+            Route.builder(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}/_stats")
+                .replaces(GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}/_stats", RestApiVersion.V_7).build(),
+            Route.builder(GET, BASE_PATH + "trained_models/_stats")
+                .replaces(GET, BASE_PATH + "inference/_stats", RestApiVersion.V_7).build()
         );
     }
 

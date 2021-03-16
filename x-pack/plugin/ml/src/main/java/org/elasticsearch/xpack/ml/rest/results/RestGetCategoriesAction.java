@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.rest.results;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction.Request;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -30,31 +30,23 @@ public class RestGetCategoriesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return org.elasticsearch.common.collect.List.of(
-            new ReplacedRoute(
-                GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}",
-                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}"),
-            new ReplacedRoute(
-                POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}",
-                POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}"),
-            new ReplacedRoute(
-                GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories",
-                GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories"),
-            new ReplacedRoute(
-                POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories",
-                POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories")
+            Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}")
+                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" +Job.ID + "}/results/categories/{" + CATEGORY_ID + "}",
+                    RestApiVersion.V_7).build(),
+            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}")
+                .replaces( POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}",
+                    RestApiVersion.V_7).build(),
+            Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories")
+                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories", RestApiVersion.V_7).build(),
+            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories")
+                .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories", RestApiVersion.V_7).build()
         );
     }
 
     @Override
     public String getName() {
-        return "ml_get_catagories_action";
+        return "ml_get_categories_action";
     }
 
     @Override

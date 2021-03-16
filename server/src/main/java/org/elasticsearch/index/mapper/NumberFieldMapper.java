@@ -1161,7 +1161,7 @@ public class NumberFieldMapper extends FieldMapper {
     protected void parseCreateField(ParseContext context) throws IOException {
 
         if (this.script != null) {
-            throw new IllegalArgumentException("Cannot index data directly into scripted field");
+            throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
         }
 
         XContentParser parser = context.parser();

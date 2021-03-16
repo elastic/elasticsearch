@@ -132,7 +132,7 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
         assertEquals("failed to parse field [message_length] of type [long] in document with id '1'. Preview of field's value: '3'",
             e.getMessage());
         Throwable original = e.getCause();
-        assertEquals("Cannot index data directly into scripted field", original.getMessage());
+        assertEquals("Cannot index data directly into a field with a [script] parameter", original.getMessage());
     }
 
     public void testLoopDetection() throws IOException {

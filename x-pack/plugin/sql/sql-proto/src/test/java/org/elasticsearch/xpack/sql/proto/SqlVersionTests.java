@@ -13,6 +13,7 @@ import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.MAJOR_MULTIPLIER;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.MINOR_MULTIPLIER;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.REVISION_MULTIPLIER;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.V_7_7_0;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.isClientCompatible;
 
 public class SqlVersionTests extends ESTestCase {
@@ -91,14 +92,14 @@ public class SqlVersionTests extends ESTestCase {
 
     public void testVersionCompatibilityClientTooOld() {
         int major = randomIntBetween(9, 99);
-        SqlVersion server = new SqlVersion(major, randomIntBetween(major > 7 ? 0 : 7, 99), randomIntBetween(0, 98));
-        SqlVersion client = new SqlVersion((major - 2), randomIntBetween(0, 98), randomIntBetween(0, 98));
+        SqlVersion server = new SqlVersion(major, randomIntBetween(0, 99), randomIntBetween(0, 99));
+        SqlVersion client = new SqlVersion(major - 2, randomIntBetween(0, 99), randomIntBetween(0, 99));
         assertFalse(isClientCompatible(server, client));
     }
 
     public void testVersionCompatibile() {
-        SqlVersion v770 = new SqlVersion(7, 7, 0);
-        SqlVersion client = new SqlVersion(randomIntBetween(v770.major, 98), randomIntBetween(v770.minor, 92), randomIntBetween(0, 99));
+        SqlVersion client = new SqlVersion(randomIntBetween(V_7_7_0.major, 99 - 1), randomIntBetween(V_7_7_0.minor, 99),
+            randomIntBetween(0, 99));
         int serverMajor = client.major + (randomBoolean() ? 0 : 1);
         int serverMinor = randomIntBetween(client.major == serverMajor ? client.minor : 0, 99);
         int serverRevision = randomIntBetween(client.major == serverMajor && client.minor == serverMinor ? client.revision : 0, 99);

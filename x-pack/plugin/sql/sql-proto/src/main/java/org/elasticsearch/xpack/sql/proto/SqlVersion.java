@@ -164,6 +164,7 @@ public class SqlVersion implements Comparable<SqlVersion>{
     // - it's not on a version newer than server's; and
     // - it's major version is at most one unit behind server's.
     public static boolean isClientCompatible(SqlVersion server, SqlVersion client) {
+        // ES's Version.CURRENT not available (core not a dependency), so it needs to be passed in as a parameter.
         return hasVersionCompatibility(client) && server.compareTo(client) >= 0 && server.major - client.major <= 1;
     }
 

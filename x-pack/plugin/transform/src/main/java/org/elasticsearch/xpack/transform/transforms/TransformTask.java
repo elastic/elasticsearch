@@ -363,10 +363,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         // or has yet to even start one.
         // Either way, this means that we won't get to have onFinish called down stream (or at least won't for some time).
             (indexerState == IndexerState.STARTED && getIndexer().initialRun())) {
-            IndexerState state = getIndexer().stop();
-            if (state == IndexerState.STOPPED) {
-                getIndexer().stopAndSaveState();
-            }
+            getIndexer().stopAndSaveState();
         }
     }
 

@@ -19,8 +19,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -29,6 +27,7 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -59,8 +58,6 @@ public class RestSearchAction extends BaseRestHandler {
     public static final String TOTAL_HITS_AS_INT_PARAM = "rest_total_hits_as_int";
     public static final String TYPED_KEYS_PARAM = "typed_keys";
     private static final Set<String> RESPONSE_PARAMS;
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
 
     static {
         final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM));
@@ -195,17 +192,8 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.from(request.paramAsInt("from", 0));
         }
         if (request.hasParam("size")) {
-            int size = request.paramAsInt("size", -1);
-            if (size != -1) {
-                setSize.accept(size);
-            } else {
-                deprecationLogger.deprecate(
-                    DeprecationCategory.API,
-                    "search-api-size-1",
-                    "Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` parameter "
-                        + "if you don't want to set it explicitely."
-                );
-            }
+            int size = request.paramAsInt("size", SearchService.DEFAULT_SIZE);
+            setSize.accept(size);
         }
 
         if (request.hasParam("explain")) {

@@ -26,7 +26,17 @@ setup:
                    }
                   params:
                     multiplier: 10
-                      # Test fetching many values
+              voltage_times_ten_no_dv:
+                type: long
+                doc_values: false
+                script:
+                  source: |
+                    for (double v : doc['voltage']) {
+                      emit((long)(v * params.multiplier));
+                    }
+                  params:
+                    multiplier: 10
+              # test multiple values
               temperature_digits:
                 type: long
                 script:
@@ -80,11 +90,13 @@ setup:
           sort: timestamp
           fields:
             - voltage_times_ten
+            - voltage_times_ten_no_dv
             - temperature_digits
   - match: {hits.total.value: 6}
   - match: {hits.hits.0.fields.voltage_times_ten: [40] }
   - match: {hits.hits.0.fields.temperature_digits: [0, 2, 2] }
   - match: {hits.hits.0.fields.voltage_times_ten: [40] }
+  - match: {hits.hits.0.fields.voltage_times_ten_no_dv: [40] }
   - match: {hits.hits.1.fields.voltage_times_ten: [42] }
   - match: {hits.hits.2.fields.voltage_times_ten: [56] }
   - match: {hits.hits.3.fields.voltage_times_ten: [51] }

@@ -23,7 +23,7 @@ import java.util.Objects;
  * <ol>
  *   <li>A {@link #getAccountId() service account id}</li>
  *   <li>The {@link #getTokenName() name of the token} to be used</li>
- *   <li>The {@link #getSecret() secreet credential} for that token</li>
+ *   <li>The {@link #getSecret() secret credential} for that token</li>
  * </ol>
  */
 public class ServiceAccountToken {

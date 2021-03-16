@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 public final class DateHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateHistogramAggregator.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateHistogramAggregatorFactory.class);
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(

@@ -50,7 +50,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
         }, (p, c) -> RangeAggregator.Range.PARSER.parse(p, null), RangeAggregator.RANGES_FIELD);
     }
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(AbstractRangeAggregatorFactory.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateRangeAggregationBuilder.class);
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             REGISTRY_KEY,

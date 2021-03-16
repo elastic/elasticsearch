@@ -3,6 +3,11 @@
 
 The following pages have moved or been deleted.
 
+[roles="exclude",id="modules-scripting-stored-scripts"]
+=== Stored scripts
+
+See <<script-stored-scripts,Store and retrieve scripts>>
+
 [role="exclude",id="node.name"]
 === Node name setting
 

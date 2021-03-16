@@ -289,7 +289,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     /**
      * Returns the external format that is specified via {@link #setFormat(String)}
      */
-    String getFormat() {
+    public String getFormat() {
         return format;
     }
 

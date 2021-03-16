@@ -132,6 +132,9 @@ public class FileTokensToolTests extends CommandTestCase {
         assertServiceTokenExists("elastic/fleet/server_42");
         execute("create", pathHomeParameter, "elastic/fleet", "server_43");
         assertServiceTokenExists("elastic/fleet/server_43");
+        final String output = terminal.getOutput();
+        assertThat(output, containsString("SERVICE_TOKEN elastic/fleet/server_42 = "));
+        assertThat(output, containsString("SERVICE_TOKEN elastic/fleet/server_43 = "));
     }
 
     public void testCreateTokenWithInvalidServiceAccount() throws Exception {

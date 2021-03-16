@@ -84,8 +84,9 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
                     throw new UserException(ExitCodes.CODE_ERROR, "Service token [" + token.getQualifiedName() + "] already exists");
                 }
                 tokenHashes.put(token.getQualifiedName(), hasher.hash(token.getSecret()));
+                FileServiceAccountsTokenStore.writeFile(serviceTokensFile, tokenHashes);
+                terminal.println("SERVICE_TOKEN " + token.getQualifiedName() + " = " + token.getSecret());
             }
-            FileServiceAccountsTokenStore.writeFile(serviceTokensFile, tokenHashes);
 
             attributesChecker.check(terminal);
         }

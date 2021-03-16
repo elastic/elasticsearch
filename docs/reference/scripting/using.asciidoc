@@ -237,7 +237,7 @@ To use the stored script in a query, include the script `id` in the `script`
 declaration:
 
 [source,console]
---------------------------------------------------
+----
 GET my-index-000001/_search
 {
   "query": {
@@ -256,7 +256,7 @@ GET my-index-000001/_search
     }
   }
 }
---------------------------------------------------
+----
 // TEST[continued]
 <1> `id` of the stored script
 
@@ -266,6 +266,124 @@ and specify the stored script `id`:
 [source,console]
 ----
 DELETE _scripts/calculate-score
+----
+// TEST[continued]
+
+[discrete]
+[[scripts-update-scripts]]
+=== Update documents with scripts
+You can use the <<docs-update,update API>> to update documents with a specified
+script. The script can update, delete, or skip modifying the document. The
+update API also supports passing a partial document, which is merged into the
+existing document.
+
+First, let's index a simple document:
+
+[source,console]
+----
+PUT my-index-000001/_doc/1
+{
+  "counter" : 1,
+  "tags" : ["red"]
+}
+----
+
+To increment the counter, you can submit an update request with the following
+script:
+
+[source,console]
+----
+POST my-index-000001/_update/1
+{
+  "script" : {
+    "source": "ctx._source.counter += params.count",
+    "lang": "painless",
+    "params" : {
+      "count" : 4
+    }
+  }
+}
+----
+// TEST[continued]
+
+Similarly, you can use an update script to add a tag to the list of tags.
+Because this is just a list, the tag is added even it exists:
+
+[source,console]
+----
+POST my-index-000001/_update/1
+{
+  "script": {
+    "source": "ctx._source.tags.add(params.tag)",
+    "lang": "painless",
+    "params": {
+      "tag": "blue"
+    }
+  }
+}
+----
+// TEST[continued]
+
+You can also remove a tag from the list of tags. The Painless function to
+`remove` a tag takes the array index of the element you want to remove. To
+avoid a possible runtime error, you first need to make sure the tag exists. If
+the list contains duplicates of the tag, this script just removes one
+occurrence.
+
+[source,console]
+----
+POST my-index-000001/_update/1
+{
+  "script": {
+    "source": "if (ctx._source.tags.contains(params.tag)) { ctx._source.tags.remove(ctx._source.tags.indexOf(params.tag)) }",
+    "lang": "painless",
+    "params": {
+      "tag": "blue"
+    }
+  }
+}
+----
+// TEST[continued]
+
+You can also add and remove fields from a document. For example, this script
+adds the field `new_field`:
+
+[source,console]
+----
+POST my-index-000001/_update/1
+{
+  "script" : "ctx._source.new_field = 'value_of_new_field'"
+}
+----
+// TEST[continued]
+
+Conversely, this script removes the field `new_field`:
+
+[source,console]
+----
+POST my-index-000001/_update/1
+{
+  "script" : "ctx._source.remove('new_field')"
+}
+----
+// TEST[continued]
+
+Instead of updating the document, you can also change the operation that is
+executed from within the script. For example, this request deletes the document
+if the `tags` field contains `green`. Otherwise it does nothing (`noop`):
+
+[source,console]
+----
+POST my-index-000001/_update/1
+{
+  "script": {
+    "source": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'none' }",
+    "lang": "painless",
+    "params": {
+      "tag": "green"
+    }
+  }
+}
 ----
 // TEST[continued]
 

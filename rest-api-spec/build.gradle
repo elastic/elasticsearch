@@ -340,6 +340,7 @@ tasks.named("yamlRestCompatTest").configure {
     'search/160_exists_query/Test exists query on _type field',
     'search/171_terms_query_with_types/Terms Query with No.of terms exceeding index.max_terms_count should FAIL',
     'search/20_default_values/Basic search',
+    'search/260_parameter_validation/test size=-1 is deprecated',
     'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception',
     'search/340_type_query/type query',
     'search/40_indices_boost/Indices boost using object',

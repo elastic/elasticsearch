@@ -54,6 +54,7 @@ public final class MappingLookup {
     private final Map<String, ObjectMapper> objectMappers;
     private final boolean hasNested;
     private final FieldTypeLookup fieldTypeLookup;
+    private final FieldTypeLookup indexTimeLookup;
     private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
     private final Map<String, PostParseExecutor> postParsePhases = new HashMap<>();
     private final DocumentParser documentParser;
@@ -154,6 +155,7 @@ public final class MappingLookup {
         }
 
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, mapping.getRoot().runtimeFieldTypes());
+        this.indexTimeLookup = postParsePhases.isEmpty() ? null : new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }
@@ -172,15 +174,19 @@ public final class MappingLookup {
         return fieldTypeLookup;
     }
 
+    PostParsePhase buildPostParsePhase(ParseContext pc) {
+        if (postParsePhases.isEmpty()) {
+            return null;
+        }
+        assert indexTimeLookup != null;
+        return new PostParsePhase(postParsePhases, indexTimeLookup::get, pc);
+    }
+
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unmappedFieldAnalyzer) {
         if (this.indexAnalyzersMap.containsKey(field)) {
             return this.indexAnalyzersMap.get(field);
         }
         return unmappedFieldAnalyzer.apply(field);
-    }
-
-    public Map<String, PostParseExecutor> getPostParseExecutors() {
-        return postParsePhases;
     }
 
     /**

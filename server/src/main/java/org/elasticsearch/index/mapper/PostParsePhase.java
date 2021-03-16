@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -52,22 +53,25 @@ public class PostParsePhase {
      * @param parseContext  the ParseContext of the current document
      */
     public static void executePostParsePhases(MappingLookup lookup, ParseContext parseContext) {
-        if (lookup.getPostParseExecutors().isEmpty()) {
+        PostParsePhase postParsePhase = lookup.buildPostParsePhase(parseContext);
+        if (postParsePhase == null) {
             return;
         }
-        PostParsePhase postParsePhase = new PostParsePhase(lookup, parseContext);
         for (OneTimeFieldExecutor executor : postParsePhase.fieldExecutors.values()) {
             executor.execute();
         }
     }
 
-    private PostParsePhase(MappingLookup mappingLookup, ParseContext pc) {
+    PostParsePhase(
+        Map<String, PostParseExecutor> postParseExecutors,
+        Function<String, MappedFieldType> fieldTypeLookup,
+        ParseContext pc) {
         LazyDocumentReader reader = new LazyDocumentReader(
             pc.rootDoc(),
             pc.sourceToParse().source(),
-            mappingLookup.getPostParseExecutors().keySet());
-        this.context = new PostParseContext(mappingLookup, pc, reader.getContext());
-        mappingLookup.getPostParseExecutors().forEach((k, c) -> fieldExecutors.put(k, new OneTimeFieldExecutor(c)));
+            postParseExecutors.keySet());
+        this.context = new PostParseContext(fieldTypeLookup, pc, reader.getContext());
+        postParseExecutors.forEach((k, c) -> fieldExecutors.put(k, new OneTimeFieldExecutor(c)));
     }
 
     // FieldExecutors can be called both by executePostParse() and from the lazy reader,

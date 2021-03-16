@@ -13,15 +13,17 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.util.function.Function;
+
 public class PostParseContext {
 
     public final SearchLookup searchLookup;
     public final LeafReaderContext leafReaderContext;
     public final ParseContext pc;
 
-    public PostParseContext(MappingLookup mappingLookup, ParseContext pc, LeafReaderContext ctx) {
+    public PostParseContext(Function<String, MappedFieldType> fieldTypeLookup, ParseContext pc, LeafReaderContext ctx) {
         this.searchLookup = new SearchLookup(
-            mappingLookup::getFieldType,
+            fieldTypeLookup,
             (ft, s) -> ft.fielddataBuilder(pc.indexSettings().getIndex().getName(), s).build(
                 new IndexFieldDataCache.None(),
                 new NoneCircuitBreakerService())

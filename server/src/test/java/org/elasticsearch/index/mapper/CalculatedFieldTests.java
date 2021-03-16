@@ -157,7 +157,6 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("Failed to parse mapping: stored scripts are not supported on scripted field [field]"));
     }
 
-    @AwaitsFix(bugUrl = "TODO")
     public void testCannotReferToRuntimeFields() throws IOException {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startObject("runtime");
@@ -168,8 +167,8 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        Exception e = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source(b -> {})));
-        assertEquals("Cannot reference runtime field [runtime-field] in an index-time script", e.getMessage());
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {})));
+        assertEquals("No field found for [runtime-field] in mapping", e.getCause().getMessage());
     }
 
     private static Consumer<TestLongFieldScript> getLongScript(String name) {

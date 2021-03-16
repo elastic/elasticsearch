@@ -50,6 +50,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     private final CompositeAggregationDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;
     private final AggregatedSearchRequestBuilder requestBuilder;
+    private final long interval;
     private boolean hasNext;
     private boolean isCancelled;
 
@@ -65,6 +66,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         this.context = Objects.requireNonNull(dataExtractorContext);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
         this.requestBuilder = Objects.requireNonNull(requestBuilder);
+        this.interval = ExtractorUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
         this.hasNext = true;
     }
 
@@ -82,7 +84,6 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     public void cancel() {
         LOGGER.debug(() -> new ParameterizedMessage("[{}] Data extractor received cancel request", context.jobId));
         isCancelled = true;
-        hasNext = false;
     }
 
     @Override
@@ -107,21 +108,22 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     }
 
     private Aggregations search() {
-        long histogramSearchStartTime = Math.max(
-            0,
-            context.start - ExtractorUtils.getHistogramIntervalMillis(compositeAggregationBuilder)
-        );
+        // Compare to the normal aggregation implementation, this search does not search for the previous bucket's data.
+        // For composite aggs, since it is scrolling, it is not really possible to know the previous pages results in the current page.
+        // Aggregations like derivative cannot work within composite aggs, for now.
+        // Also, it doesn't make sense to have a derivative when grouping by time AND by some other criteria.
+
         LOGGER.trace(
             () -> new ParameterizedMessage(
                 "[{}] Executing composite aggregated search from [{}] to [{}]",
                 context.jobId,
-                histogramSearchStartTime,
+                context.start,
                 context.end
             )
         );
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
             .size(0)
-            .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, histogramSearchStartTime, context.end));
+            .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, context.start, context.end));
 
         if (context.runtimeMappings.isEmpty() == false) {
             searchSourceBuilder.runtimeMappings(context.runtimeMappings);
@@ -166,9 +168,25 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         ));
         aggregationToJsonProcessor.process(aggs);
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        boolean moreToWrite = aggregationToJsonProcessor.writeDocs(Integer.MAX_VALUE, outputStream);
-        while (moreToWrite) {
-            moreToWrite = aggregationToJsonProcessor.writeDocs(Integer.MAX_VALUE, outputStream);
+        final boolean hasAfterKey = afterKey != null && (afterKey.get(context.compositeAggDateHistogramGroupSourceName) instanceof Long);
+        final Long nextBucket = hasAfterKey ? (Long)afterKey.get(context.compositeAggDateHistogramGroupSourceName) + interval : null;
+        boolean cancellable = aggregationToJsonProcessor.writeAllDocsCancellable(
+            timestamp -> {
+                if (isCancelled) {
+                    // If we have not processed a single composite agg page yet and we are cancelled
+                    // We should not process anything
+                    if (hasAfterKey == false) {
+                        return true;
+                    }
+                    // If the current timestamp is part of the next bucket given our current afterKey, the process can be cancelled
+                    // as it has passed into the next date_histogram bucket in the composite aggregation paging
+                    return timestamp >= nextBucket;
+                }
+                return false;
+            }, outputStream);
+        // If the process is canceled and cancelable, then we can indicate that there are no more buckets to process.
+        if (isCancelled && cancellable) {
+            hasNext = false;
         }
         return new ByteArrayInputStream(outputStream.toByteArray());
     }

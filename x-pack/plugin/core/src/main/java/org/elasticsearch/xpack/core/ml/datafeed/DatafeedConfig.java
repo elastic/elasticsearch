@@ -594,8 +594,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         } else {
             AggregationBuilder histogram = ExtractorUtils.getHistogramAggregation(aggProvider.getParsedAggs().getAggregatorFactories());
             if (histogram instanceof CompositeAggregationBuilder) {
-                // TODO we need to come up with a good auto chunking heuristic for composite
-                // Or composite needs to be faster
+                // Allow composite aggs to handle the underlying chunking and searching
                 return ChunkingConfig.newOff();
             }
             long histogramIntervalMillis = ExtractorUtils.getHistogramIntervalMillis(histogram);

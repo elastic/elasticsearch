@@ -86,6 +86,10 @@ public class ChunkingConfig implements ToXContentObject, Writeable {
         return mode != Mode.OFF;
     }
 
+    public boolean isManual() {
+        return mode == Mode.MANUAL;
+    }
+
     Mode getMode() {
         return mode;
     }

@@ -58,22 +58,31 @@ public interface DataExtractorFactory {
                     ScrollDataExtractorFactory.create(client, datafeed, job, xContentRegistry, timingStatsReporter, factoryHandler);
                     return;
                 }
+                if (hasRollup && datafeed.getRuntimeMappings().isEmpty() == false) {
+                    // TODO Rollup V2 will support runtime fields
+                    listener.onFailure(new IllegalArgumentException("The datafeed has runtime_mappings defined, "
+                        + "runtime fields are not supported in rollup searches"));
+                    return;
+                }
                 if (isComposite) {
                     String[] indices = datafeed.getIndices().toArray(new String[0]);
                     IndicesOptions indicesOptions = datafeed.getIndicesOptions();
                     AggregatedSearchRequestBuilder aggregatedSearchRequestBuilder = hasRollup ?
                         RollupDataExtractorFactory.requestBuilder(client, indices, indicesOptions) :
                         AggregationDataExtractorFactory.requestBuilder(client, indices, indicesOptions);
-                    factoryHandler.onResponse(
-                        new CompositeAggregationDataExtractorFactory(
-                            client,
-                            datafeed,
-                            job,
-                            xContentRegistry,
-                            timingStatsReporter,
-                            aggregatedSearchRequestBuilder
-                        )
+                    final DataExtractorFactory dataExtractorFactory = new CompositeAggregationDataExtractorFactory(
+                        client,
+                        datafeed,
+                        job,
+                        xContentRegistry,
+                        timingStatsReporter,
+                        aggregatedSearchRequestBuilder
                     );
+                    if (datafeed.getChunkingConfig().isManual()) {
+                        factoryHandler.onResponse(dataExtractorFactory);
+                    } else {
+                        listener.onResponse(dataExtractorFactory);
+                    }
                     return;
                 }
 

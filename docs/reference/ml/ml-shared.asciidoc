@@ -1,6 +1,7 @@
 tag::aggregations[]
 If set, the {dfeed} performs aggregation searches. Support for aggregations is
-limited. For more information, see
+limited and should be used only with low cardinality data. For more information,
+see
 {ml-docs}/ml-configuring-aggregation.html[Aggregating data for faster performance].
 end::aggregations[]
 
@@ -155,8 +156,7 @@ tag::bucket-span[]
 The size of the interval that the analysis is aggregated into, typically between
 `5m` and `1h`. The default value is `5m`. If the {anomaly-job} uses a {dfeed}
 with {ml-docs}/ml-configuring-aggregation.html[aggregations], this value must be
-divisible by the interval of the `date_histogram` aggregation or the 
-`date_histogram` source in the `composite` aggregation. For more
+divisible by the interval of the date histogram aggregation. For more
 information, see {ml-docs}/ml-buckets.html[Buckets].
 end::bucket-span[]
 
@@ -824,8 +824,7 @@ for longer bucket spans, a sensible fraction of the bucket span. For example:
 `150s`. When `frequency` is shorter than the bucket span, interim results for
 the last (partial) bucket are written then eventually overwritten by the full
 bucket results. If the {dfeed} uses aggregations, this value must be divisible
-by the interval of the `date_histogram` or the `date_histogram` source in the
-`composite` aggregation.
+by the interval of the date histogram aggregation.
 end::frequency[]
 
 tag::frequent-category-count[]
@@ -1130,8 +1129,8 @@ There are three available modes:
 * `auto`: The chunk size is dynamically calculated. This is the default and
 recommended value when the {dfeed} does not use aggregations.
 * `manual`: Chunking is applied according to the specified `time_span`. Use this
-mode when the {dfeed} uses aggregations other than `composite`.
-* `off`: No chunking is applied. Recommended for `composite` aggregations.
+mode when the {dfeed} uses aggregations.
+* `off`: No chunking is applied.
 --
 end::mode[]
 

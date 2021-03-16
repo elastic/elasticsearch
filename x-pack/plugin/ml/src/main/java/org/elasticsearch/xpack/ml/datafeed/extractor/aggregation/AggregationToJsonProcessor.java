@@ -41,6 +41,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -243,7 +244,7 @@ class AggregationToJsonProcessor {
         for (CompositeAggregation.Bucket bucket : agg.getBuckets()) {
             if (checkBucketTime) {
 
-                long bucketTime = getTimeFieldValue(bucket.getAggregations().get(timeField));
+                long bucketTime = toHistogramKeyToEpoch(bucket.getKey().get(compositeAggDateValueSourceName));
                 if (bucketTime < startTime) {
                     LOGGER.debug(() -> new ParameterizedMessage("Skipping bucket at [{}], startTime is [{}]", bucketTime, startTime));
                     continue;
@@ -296,15 +297,13 @@ class AggregationToJsonProcessor {
         }
     }
 
-    private long getTimeFieldValue(Aggregation agg) {
+    private void processTimeField(Aggregation agg) {
         if (agg instanceof Max == false) {
             throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_MISSING_MAX_AGGREGATION_FOR_TIME_FIELD, timeField));
         }
-        return (long) ((Max) agg).value();
-    }
 
-    private void processTimeField(Aggregation agg) {
-        keyValuePairs.put(timeField, getTimeFieldValue(agg));
+        long timestamp = (long) ((Max) agg).value();
+        keyValuePairs.put(timeField, timestamp);
     }
 
     boolean bucketAggContainsRequiredAgg(MultiBucketsAggregation aggregation) {
@@ -454,6 +453,37 @@ class AggregationToJsonProcessor {
         }
 
         return docsByBucketTimestamp.isEmpty() == false;
+    }
+
+    /**
+     * This writes ALL the documents stored within the processor object unless indicated otherwise by the `shouldCancel` predicate
+     *
+     * This returns `true` if it is safe to cancel the overall process as the current `date_histogram` bucket has finished.
+     * @param shouldCancel determines if a given timestamp indicates that the processing stream should be cancelled
+     * @param outputStream where to write the aggregated data
+     * @return true if it is acceptable for the caller to close the process and cancel the stream
+     * @throws IOException if there is a parsing exception
+     */
+    boolean writeAllDocsCancellable(Predicate<Long> shouldCancel, OutputStream outputStream) throws IOException {
+        if (docsByBucketTimestamp.isEmpty()) {
+            return true;
+        }
+
+        try (XContentBuilder jsonBuilder = new XContentBuilder(JsonXContent.jsonXContent, outputStream)) {
+            Iterator<Map.Entry<Long, List<Map<String, Object>>>> iterator = docsByBucketTimestamp.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<Long, List<Map<String, Object>>> entry = iterator.next();
+                if (shouldCancel.test(entry.getKey())) {
+                    return true;
+                }
+                for (Map<String, Object> map : entry.getValue()) {
+                    writeJsonObject(jsonBuilder, map);
+                }
+                iterator.remove();
+            }
+        }
+
+        return false;
     }
 
     private void writeJsonObject(XContentBuilder jsonBuilder, Map<String, Object> record) throws IOException {

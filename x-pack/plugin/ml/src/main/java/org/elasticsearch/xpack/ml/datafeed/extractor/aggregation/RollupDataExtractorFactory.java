@@ -106,13 +106,6 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
                               DatafeedTimingStatsReporter timingStatsReporter,
                               ActionListener<DataExtractorFactory> listener) {
 
-        if (datafeed.getRuntimeMappings().isEmpty() == false) {
-            // TODO Rollup V2 will support runtime fields
-            listener.onFailure(new IllegalArgumentException("The datafeed has runtime_mappings defined, "
-                + "runtime fields are not supported in rollup searches"));
-            return;
-        }
-
         final AggregationBuilder datafeedHistogramAggregation = getHistogramAggregation(
             datafeed.getParsedAggregations(xContentRegistry).getAggregatorFactories());
         if ((datafeedHistogramAggregation instanceof DateHistogramAggregationBuilder) == false) {

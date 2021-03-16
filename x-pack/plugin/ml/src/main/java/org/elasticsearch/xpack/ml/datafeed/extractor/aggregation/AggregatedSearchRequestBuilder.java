@@ -18,7 +18,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
  *
  * Implementations can be found for regular searches and rollup searches.
  */
-@FunctionalInterface
 public interface AggregatedSearchRequestBuilder {
     ActionRequestBuilder<SearchRequest, SearchResponse> build(SearchSourceBuilder searchSourceBuilder);
 }

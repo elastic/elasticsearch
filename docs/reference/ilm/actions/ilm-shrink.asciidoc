@@ -9,9 +9,9 @@ a new index with fewer primary shards. The name of the resulting index is
 `shrink-<random-uuid>-<original-index-name>`. This action corresponds to the
 <<indices-shrink-index,shrink API>>.
 
-After the `shrink` action, any aliases that pointed to the source index point
-to the new shrunken index. If {ilm-init} performs the `shrink` action on a
-backing index for a data stream, the shrunken index replaces source index in the
+After the `shrink` action, any aliases that pointed to the source index point to
+the new shrunken index. If {ilm-init} performs the `shrink` action on a backing
+index for a data stream, the shrunken index replaces the source index in the
 stream. You cannot perform the `shrink` action on a write index.
 
 To use the `shrink` action in the `hot` phase, the `rollover` action *must* be

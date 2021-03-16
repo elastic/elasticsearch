@@ -47,6 +47,7 @@ testClusters.matching { it.name == "integTest"}.configureEach {
     keystorePassword 'keystore-password'
   }
 
+  setting 'xpack.security.enabled', 'false'
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
   setting 'path.repo', "${buildDir}/cluster/shared/repo"

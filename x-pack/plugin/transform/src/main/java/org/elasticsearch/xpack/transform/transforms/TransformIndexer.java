@@ -125,7 +125,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private volatile long lastCheckpointCleanup = 0L;
 
     protected volatile boolean indexerThreadShuttingDown = false;
-    protected volatile boolean saveStateCalledDuringIndexerThreadShutdown = false;
+    protected volatile boolean saveStateRequestedDuringIndexerThreadShutdown = false;
 
     public TransformIndexer(
         ThreadPool threadPool,
@@ -675,7 +675,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // in case the indexer is already shutting down
         if (indexerThreadShuttingDown) {
             context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
-            saveStateCalledDuringIndexerThreadShutdown = true;
+            saveStateRequestedDuringIndexerThreadShutdown = true;
             return false;
         }
 
@@ -740,7 +740,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         IndexerState state = stop();
 
         if (indexerThreadShuttingDown) {
-            saveStateCalledDuringIndexerThreadShutdown = true;
+            saveStateRequestedDuringIndexerThreadShutdown = true;
             // if stop() returned STOPPED we need to persist state, otherwise the indexer does it for us
         } else if (state == IndexerState.STOPPED) {
             doSaveState(IndexerState.STOPPED, getPosition(), () -> {});
@@ -1130,12 +1130,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     private synchronized void startIndexerThreadShutdown() {
         indexerThreadShuttingDown = true;
-        saveStateCalledDuringIndexerThreadShutdown = false;
+        saveStateRequestedDuringIndexerThreadShutdown = false;
     }
 
     private synchronized void finishIndexerThreadShutdown() {
         indexerThreadShuttingDown = false;
-        if (saveStateCalledDuringIndexerThreadShutdown) {
+        if (saveStateRequestedDuringIndexerThreadShutdown) {
             // if stop has been called and set shouldStopAtCheckpoint to true,
             // we should stop if we just finished a checkpoint
             if (context.shouldStopAtCheckpoint() && nextCheckpoint == null) {

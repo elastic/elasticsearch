@@ -224,7 +224,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.NamedRegistry;
-import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
@@ -352,12 +351,10 @@ import org.elasticsearch.rest.action.cat.RestThreadPoolAction;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
-import org.elasticsearch.rest.action.document.RestGetActionV7;
 import org.elasticsearch.rest.action.document.RestGetSourceAction;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.document.RestIndexAction.AutoIdHandler;
 import org.elasticsearch.rest.action.document.RestIndexAction.CreateHandler;
-import org.elasticsearch.rest.action.document.RestIndexActionV7;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.rest.action.document.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.document.RestTermVectorsAction;
@@ -779,14 +776,6 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
-
-        // Rest Compatible API
-        if(RestApiVersion.minimumSupported() == RestApiVersion.V_7){
-            registerHandler.accept(new RestIndexActionV7.CompatibleRestIndexAction());
-            registerHandler.accept(new RestIndexActionV7.CompatibleCreateHandler());
-            registerHandler.accept(new RestIndexActionV7.CompatibleAutoIdHandler(nodesInCluster));
-            registerHandler.accept(new RestGetActionV7());
-        }
 
     }
 

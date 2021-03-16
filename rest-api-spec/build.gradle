@@ -168,8 +168,8 @@ tasks.named("yamlRestCompatTest").configure {
     'get_source/81_missing_with_types/Missing document with ignore',
     'get_source/86_source_missing_with_types/Missing document source with catch',
     'get_source/86_source_missing_with_types/Missing document source with ignore',
-    'index/70_mix_typeless_typeful/Index call that introduces new field mappings',
-    'index/70_mix_typeless_typeful/Index with typeless API on an index that has types',
+    'index/70_mix_typeless_typeful/Index call that introduces new field mappings', // failing due to include_type_name #48632
+    'index/70_mix_typeless_typeful/Index with typeless API on an index that has types', // failing due to include_type_name #48632
     'indices.clone/10_basic/Clone index via API',
     'indices.create/10_basic/Create index with explicit _doc type',
     'indices.create/10_basic/Create index without soft deletes',

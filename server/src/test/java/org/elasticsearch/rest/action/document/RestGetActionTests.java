@@ -23,13 +23,13 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RestGetActionV7Tests extends RestActionTestCase {
+public class RestGetActionTests extends RestActionTestCase {
     final List<String> contentTypeHeader =
         Collections.singletonList("application/vnd.elasticsearch+json;compatible-with="+ RestApiVersion.V_7.major);
 
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestGetActionV7());
+        controller().registerHandler(new RestGetAction());
         verifyingClient.setExecuteVerifier((actionType, request) -> {
             assertThat(request, instanceOf(GetRequest.class));
             return Mockito.mock(GetResponse.class);
@@ -41,7 +41,7 @@ public class RestGetActionV7Tests extends RestActionTestCase {
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
         ).withPath("/some_index/some_type/some_id");
         dispatchRequest(deprecatedRequest.withMethod(RestRequest.Method.GET).build());
-        assertWarnings(RestGetActionV7.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeInPathWithHead() {
@@ -49,6 +49,6 @@ public class RestGetActionV7Tests extends RestActionTestCase {
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
         ).withPath("/some_index/some_type/some_id");
         dispatchRequest(deprecatedRequest.withMethod(RestRequest.Method.HEAD).build());
-        assertWarnings(RestGetActionV7.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

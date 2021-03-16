@@ -40,21 +40,7 @@ or from `artifacts.elastic.co/maven` by adding it to the repositories list:
 </repositories>
 ----
 
-[[compatibility]]
-==== Version compatibility
-
-You will need to choose a driver version that will be supported by your {es} server.
-For server versions prior to v7.7.0, driver's version will have to exactly match that of server's. For server versions
-on or past v7.7.0, driver's version can to be as recent as server's or earlier, but only up to one major version
-older. The driver cannot be on a version more recent than server's.
-
-Examples:
-
-- a v7.6.1 server will only work with a v7.6.1 driver;
-- a v8.1.2 server will work with any driver on v8.1.2 or earlier 8.x version, as well as any 7.x version on or
-newer than v7.7.0;
-- a v9.2.4 server will work with any driver on v9.2.4 or earlier 9.x version, as well as any 8.x version, but won't
-work with any 7.x or earlier driver.
+include::version-compat.asciidoc[leveloffset=+2]
 
 [[jdbc-setup]]
 [discrete]

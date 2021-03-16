@@ -32,12 +32,15 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -104,18 +107,37 @@ final class DatabaseRegistry implements Closeable {
 
     public void initialize(ResourceWatcherService resourceWatcher, IngestService ingestService) throws IOException {
         localDatabases.initialize(resourceWatcher);
-        if (Files.exists(geoipTmpDirectory)) {
-            Files.walk(geoipTmpDirectory)
-                .filter(Files::isRegularFile)
-                .peek(path -> LOGGER.info("deleting stale file [{}]", path))
-                .forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-        } else {
+        Files.walkFileTree(geoipTmpDirectory, new FileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                try {
+                    LOGGER.info("deleting stale file [{}]", file);
+                    Files.deleteIfExists(file);
+                } catch (IOException e) {
+                    LOGGER.warn("can't delete stale file [" + file + "]", e);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFileFailed(Path file, IOException e) {
+                if(e instanceof NoSuchFileException == false) {
+                    LOGGER.warn("can't delete stale file [" + file + "]", e);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) {
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        if (Files.exists(geoipTmpDirectory) == false) {
             Files.createDirectory(geoipTmpDirectory);
         }
         LOGGER.info("initialized database registry, using geoip-databases directory [{}]", geoipTmpDirectory);
@@ -208,6 +230,19 @@ final class DatabaseRegistry implements Closeable {
             return;
         }
 
+        // 2 types of threads:
+        // 1) The thread that checks whether database should be retrieved / updated and creates (^) tmp file (cluster state applied thread)
+        // 2) the thread that downloads the db file, updates the databases map and then removes the tmp file
+        // Thread 2 may have updated the databases map after thread 1 detects that there is no entry (or md5 mismatch) for a database.
+        // If thread 2 then also removes the tmp file before thread 1 attempts to create it then we're about to retrieve the same database
+        // twice. This check is here to avoid this:
+        DatabaseReaderLazyLoader lazyLoader = databases.get(databaseName);
+        if (lazyLoader != null && recordedMd5.equals(lazyLoader.getMd5())) {
+            LOGGER.debug("deleting tmp file because database [{}] has already been updated.", databaseName);
+            Files.delete(databaseTmpGzFile);
+            return;
+        }
+
         final Path databaseTmpFile = Files.createFile(geoipTmpDirectory.resolve(databaseName + ".tmp"));
         LOGGER.info("downloading geoip database [{}] to [{}]", databaseName, databaseTmpGzFile);
         retrieveDatabase(
@@ -228,8 +263,8 @@ final class DatabaseRegistry implements Closeable {
             failure -> {
                 LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to download database [{}]", databaseName), failure);
                 try {
-                    Files.delete(databaseTmpFile);
-                    Files.delete(databaseTmpGzFile);
+                    Files.deleteIfExists(databaseTmpFile);
+                    Files.deleteIfExists(databaseTmpGzFile);
                 } catch (IOException ioe) {
                     ioe.addSuppressed(failure);
                     LOGGER.error("Unable to delete tmp database file after failure", ioe);

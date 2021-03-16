@@ -136,10 +136,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             return false;
         }
 
-        final Map<String, String> nodeAttributes = node.getAttributes();
-
         // transform enabled?
-        if (Boolean.parseBoolean(nodeAttributes.get(Transform.TRANSFORM_ENABLED_NODE_ATTR)) == false) {
+        if (node.getRoles().contains(Transform.TRANSFORM_ROLE) == false) {
             if (explain != null) {
                 explain.put(node.getId(), "not a transform node");
             }

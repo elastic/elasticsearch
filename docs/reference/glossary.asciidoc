@@ -280,7 +280,7 @@ An index alias is a logical name used to reference one or more indices.
 Most {es} APIs accept an index alias in place of an index name.
 // end::index-alias-desc[]
 
-See {ref}/indices-add-alias.html[Add index alias].
+See {ref}/indices-add-alias.html[Create or update index alias API].
 // end::index-alias-def[]
 --
 

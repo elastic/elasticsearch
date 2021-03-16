@@ -16,10 +16,34 @@ basicGroupBy
 SELECT gender FROM (SELECT first_name AS f, last_name, gender FROM test_emp) GROUP BY gender ORDER BY gender ASC;
 basicGroupByAlias
 SELECT g FROM (SELECT first_name AS f, last_name, gender AS g FROM test_emp) GROUP BY g ORDER BY g ASC;
-// @AwaitsFix(bugUrl = "follow-up to https://github.com/elastic/elasticsearch/pull/67216")
-basicGroupByWithFilterByAlias-Ignore
+basicGroupByWithFilterByAlias
 SELECT g FROM (SELECT first_name AS f, last_name, gender AS g FROM test_emp) WHERE g IS NOT NULL GROUP BY g ORDER BY g ASC;
+basicGroupByRealiased
+SELECT g AS h FROM (SELECT first_name AS f, last_name, gender AS g FROM test_emp) GROUP BY g ORDER BY g DESC NULLS last;
+basicGroupByRealiasedTwice
+SELECT g AS h FROM (SELECT first_name AS f, last_name, gender AS g FROM test_emp) GROUP BY h ORDER BY h DESC NULLS last;
+basicOrderByRealiasedField
+SELECT g AS h FROM (SELECT first_name AS f, last_name, gender AS g FROM test_emp) ORDER BY g DESC NULLS first;
 
+groupAndOrderByRealiasedExpression
+SELECT emp_group AS e, min_high_salary AS s
+FROM (
+    SELECT emp_no % 2 AS emp_group, MIN(salary) AS min_high_salary 
+    FROM test_emp
+    WHERE salary > 50000 
+    GROUP BY emp_group
+)
+ORDER BY e DESC;
+
+multiLevelSelectStar
+SELECT * FROM (SELECT * FROM ( SELECT * FROM test_emp ));
+
+multiLevelSelectStarWithAlias
+SELECT * FROM (SELECT * FROM ( SELECT * FROM test_emp ) b) c;
+
+// AwaitsFix: https://github.com/elastic/elasticsearch/issues/69758
+filterAfterGroupBy-Ignore
+SELECT s2 AS s3 FROM (SELECT s AS s2 FROM ( SELECT salary AS s FROM test_emp) GROUP BY s2) WHERE s2 < 5 ORDER BY s3 DESC NULLS last;
 
 countAndComplexCondition
 SELECT COUNT(*) as c FROM (SELECT * FROM test_emp WHERE gender IS NOT NULL) WHERE ABS(salary) > 0 GROUP BY gender ORDER BY gender;

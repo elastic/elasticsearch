@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.99.99"
-      reason: "Flattened fields were moved from xpack to core in 7.12."
+      version: " - 7.12.99"
+      reason: "Flattened fields were moved from xpack to core in 7.13."
 
 ---
 "Test exists query on flattened object field":

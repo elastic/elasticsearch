@@ -16,6 +16,7 @@ import org.gradle.api.file.FileSystemLocation;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -41,6 +42,16 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
         @Optional
         List<String> getKeepStructureFor();
 
+        @Input
+        boolean getFileTreeOutput();
+
+        void setFileTreeOutput(boolean fileTreeOutput);
+
+        @Internal
+        File getTargetDirectory();
+
+        void setTargetDirectory(File targetDirectory);
+
         void setKeepStructureFor(List<String> pattern);
     }
 
@@ -55,13 +66,13 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
         try {
             Logging.getLogger(UnpackTransform.class)
                 .info("Unpacking " + archiveFile.getName() + " using " + getClass().getSimpleName() + ".");
-            unpack(archiveFile, extractedDir);
+            unpack(archiveFile, extractedDir, outputs, getParameters().getFileTreeOutput());
         } catch (IOException e) {
             throw UncheckedException.throwAsUncheckedException(e);
         }
     }
 
-    void unpack(File archiveFile, File targetDir) throws IOException;
+    void unpack(File archiveFile, File targetDir, TransformOutputs outputs, boolean fileTreeOutput) throws IOException;
 
     default Function<String, Path> pathResolver() {
         List<String> keepPatterns = getParameters().getKeepStructureFor();

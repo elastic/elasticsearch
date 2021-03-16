@@ -56,7 +56,7 @@ creation and uses those same roles. If those roles do not have the required
 privileges on the source and destination indices, the {transform} fails when it 
 attempts unauthorized operations.
 
-IMPORTANT: You must use {kib} or this API to create a {transform}. Do not put a
+IMPORTANT: You must use {kib} or this API to create a {transform}. Do not add a
 {transform} directly into any `.transform-internal*` indices using the {es}
 index API. If {es} {security-features} are enabled, do not give users any
 privileges on `.transform-internal*` indices. If you used {transforms} prior to

@@ -54,7 +54,7 @@ field to each processor type:
 * <<user-agent-processor,**User agent**>>: `user_agent`
 
 In the **Date** processor, specify the date format you want to use:
-`dd/MMM/YYYY:HH:mm:ss Z`.
+`dd/MMM/yyyy:HH:mm:ss Z`.
 --
 Your form should look similar to this:
 +
@@ -81,7 +81,7 @@ processors as JSON:
     {
       "date": {
         "field": "@timestamp",
-        "formats": [ "dd/MMM/YYYY:HH:mm:ss Z" ]
+        "formats": [ "dd/MMM/yyyy:HH:mm:ss Z" ]
       }
     },
     {
@@ -170,7 +170,7 @@ GET my-index/_doc/1
     "verb": "GET",
     "message": "212.87.37.154 - - [05/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\" 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\"",
     "referrer": "\"-\"",
-    "@timestamp": "2098-12-29T16:21:15.000Z",
+    "@timestamp": "2099-05-05T16:21:15.000Z",
     "response": 200,
     "bytes": 3638,
     "client": {

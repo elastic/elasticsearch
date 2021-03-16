@@ -48,7 +48,7 @@ PUT my-index-000001/_doc/2
 <2> This document will be rejected because coercion is disabled.
 
 TIP: The `coerce` setting value can be updated on existing fields
-using the <<indices-put-mapping,PUT mapping API>>.
+using the <<indices-put-mapping,update mapping API>>.
 
 [[coerce-setting]]
 ==== Index-level default

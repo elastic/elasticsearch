@@ -38,7 +38,7 @@ public class DeleteComponentTemplateAction extends ActionType<AcknowledgedRespon
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
                 names = in.readStringArray();
             } else {
                 names = new String[] {in.readString()};
@@ -71,7 +71,7 @@ public class DeleteComponentTemplateAction extends ActionType<AcknowledgedRespon
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
                 out.writeStringArray(names);
             } else {
                 out.writeString(names[0]);

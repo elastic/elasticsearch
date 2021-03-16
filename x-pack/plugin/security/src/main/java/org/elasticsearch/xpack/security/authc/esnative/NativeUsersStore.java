@@ -167,17 +167,8 @@ public class NativeUsersStore {
                         .setSize(0)
                         .setTrackTotalHits(true)
                         .request(),
-                    new ActionListener<SearchResponse>() {
-                        @Override
-                        public void onResponse(SearchResponse response) {
-                            listener.onResponse(response.getHits().getTotalHits().value);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, client::search));
+                    listener.<SearchResponse>delegateFailure(
+                            (l, response) -> l.onResponse(response.getHits().getTotalHits().value)), client::search));
         }
     }
 
@@ -278,17 +269,7 @@ public class NativeUsersStore {
                             .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash), Fields.ENABLED.getPreferredName(),
                                     true, Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
                             .setRefreshPolicy(refresh).request(),
-                    new ActionListener<IndexResponse>() {
-                        @Override
-                        public void onResponse(IndexResponse indexResponse) {
-                            clearRealmCache(username, listener, null);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, client::index);
+                    listener.<IndexResponse>delegateFailure((l, indexResponse) -> clearRealmCache(username, l, null)), client::index);
         });
     }
 
@@ -369,18 +350,8 @@ public class NativeUsersStore {
                                     Fields.TYPE.getPreferredName(), USER_DOC_TYPE)
                             .setRefreshPolicy(putUserRequest.getRefreshPolicy())
                             .request(),
-                    new ActionListener<IndexResponse>() {
-                        @Override
-                        public void onResponse(IndexResponse updateResponse) {
-                            clearRealmCache(putUserRequest.username(), listener,
-                                    updateResponse.getResult() == DocWriteResponse.Result.CREATED);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, client::index);
+                    listener.<IndexResponse>delegateFailure((l, updateResponse) -> clearRealmCache(putUserRequest.username(), l,
+                            updateResponse.getResult() == DocWriteResponse.Result.CREATED)), client::index);
         });
     }
 
@@ -443,21 +414,13 @@ public class NativeUsersStore {
                                     Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
                             .setRefreshPolicy(refreshPolicy)
                             .request(),
-                    new ActionListener<UpdateResponse>() {
-                        @Override
-                        public void onResponse(UpdateResponse updateResponse) {
-                            if (clearCache) {
-                                clearRealmCache(username, listener, null);
-                            } else {
-                                listener.onResponse(null);
-                            }
+                    listener.<UpdateResponse>delegateFailure((l, updateResponse) -> {
+                        if (clearCache) {
+                            clearRealmCache(username, l, null);
+                        } else {
+                            l.onResponse(null);
                         }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, client::update);
+                    }), client::update);
         });
     }
 
@@ -474,18 +437,8 @@ public class NativeUsersStore {
                         .request();
                 request.setRefreshPolicy(deleteUserRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-                    new ActionListener<DeleteResponse>() {
-                        @Override
-                        public void onResponse(DeleteResponse deleteResponse) {
-                            clearRealmCache(deleteUserRequest.username(), listener,
-                                deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, client::delete);
+                    listener.<DeleteResponse>delegateFailure((l, deleteResponse) -> clearRealmCache(deleteUserRequest.username(), l,
+                            deleteResponse.getResult() == DocWriteResponse.Result.DELETED)), client::delete);
             });
         }
     }

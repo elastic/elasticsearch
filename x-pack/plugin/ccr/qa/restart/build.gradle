@@ -12,6 +12,7 @@ testClusters {
   'leader-cluster' {
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'false'
   }
 
   'follow-cluster' {

@@ -40,6 +40,7 @@ testClusters {
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'basic'
     jvmArgs '-Xms4g', '-Xmx4g'
+    setting 'xpack.security.enabled', 'false'
   }
   runTask {
     jvmArgs '-Xms8g', '-Xmx8g'

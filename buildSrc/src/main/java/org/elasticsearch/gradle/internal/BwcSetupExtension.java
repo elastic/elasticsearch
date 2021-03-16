@@ -26,7 +26,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.gradle.util.JavaUtil.getJavaHome;
 
@@ -36,18 +35,22 @@ import static org.elasticsearch.gradle.util.JavaUtil.getJavaHome;
  * */
 public class BwcSetupExtension {
 
+    private static final String MINIMUM_COMPILER_VERSION_PATH = "buildSrc/src/main/resources/minimumCompilerVersion";
     private final Project project;
-
     private final Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo;
+    private final Provider<InternalDistributionBwcSetupPlugin.BwcTaskThrottle> bwcTaskThrottleProvider;
+
     private Provider<File> checkoutDir;
 
     public BwcSetupExtension(
         Project project,
         Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo,
+        Provider<InternalDistributionBwcSetupPlugin.BwcTaskThrottle> bwcTaskThrottleProvider,
         Provider<File> checkoutDir
     ) {
         this.project = project;
         this.unreleasedVersionInfo = unreleasedVersionInfo;
+        this.bwcTaskThrottleProvider = bwcTaskThrottleProvider;
         this.checkoutDir = checkoutDir;
     }
 
@@ -57,37 +60,14 @@ public class BwcSetupExtension {
 
     private TaskProvider<LoggedExec> createRunBwcGradleTask(Project project, String name, Action<LoggedExec> configAction) {
         return project.getTasks().register(name, LoggedExec.class, loggedExec -> {
-            // TODO revisit
             loggedExec.dependsOn("checkoutBwcBranch");
+            loggedExec.usesService(bwcTaskThrottleProvider);
             loggedExec.setSpoolOutput(true);
             loggedExec.setWorkingDir(checkoutDir.get());
             loggedExec.doFirst(t -> {
                 // Execution time so that the checkouts are available
-                String javaVersionsString = readFromFile(new File(checkoutDir.get(), ".ci/java-versions.properties"));
-                loggedExec.environment(
-                    "JAVA_HOME",
-                    getJavaHome(
-                        Integer.parseInt(
-                            javaVersionsString.lines()
-                                .filter(l -> l.trim().startsWith("ES_BUILD_JAVA="))
-                                .map(l -> l.replace("ES_BUILD_JAVA=java", "").trim())
-                                .map(l -> l.replace("ES_BUILD_JAVA=openjdk", "").trim())
-                                .collect(Collectors.joining("!!"))
-                        )
-                    )
-                );
-                loggedExec.environment(
-                    "RUNTIME_JAVA_HOME",
-                    getJavaHome(
-                        Integer.parseInt(
-                            javaVersionsString.lines()
-                                .filter(l -> l.trim().startsWith("ES_RUNTIME_JAVA="))
-                                .map(l -> l.replace("ES_RUNTIME_JAVA=java", "").trim())
-                                .map(l -> l.replace("ES_RUNTIME_JAVA=openjdk", "").trim())
-                                .collect(Collectors.joining("!!"))
-                        )
-                    )
-                );
+                String minimumCompilerVersion = readFromFile(new File(checkoutDir.get(), MINIMUM_COMPILER_VERSION_PATH));
+                loggedExec.environment("JAVA_HOME", getJavaHome(Integer.parseInt(minimumCompilerVersion)));
             });
 
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {

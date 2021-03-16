@@ -70,12 +70,6 @@ See also <<ml-df-analytics-apis>>.
 * <<ml-get-record,Get records>>
 
 [discrete]
-[[ml-api-file-structure-endpoint]]
-== File structure
-
-* <<ml-find-file-structure,Find file structure>>
-
-[discrete]
 [[ml-api-ml-info-endpoint]]
 == Info
 

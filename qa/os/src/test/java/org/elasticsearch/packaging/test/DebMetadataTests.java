@@ -42,11 +42,7 @@ public class DebMetadataTests extends PackagingTestCase {
 
         TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(result.stdout).find());
 
-        String oppositePackageName = "elasticsearch";
-        if (distribution().isDefault()) {
-            oppositePackageName += "-oss";
-        }
-
+        String oppositePackageName = "elasticsearch-oss";
         TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: " + oppositePackageName + "$").matcher(result.stdout).find());
     }
 }

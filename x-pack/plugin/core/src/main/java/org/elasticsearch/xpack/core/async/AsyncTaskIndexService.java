@@ -355,18 +355,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 SR response = statusProducerFromTask.apply(asyncTask);
                 sendFinalStatusResponse(request, response, listener);
             } else { // get status response from index
-                getStatusResponseFromIndex(asyncExecutionId, statusProducerFromIndex,
-                    new ActionListener<>() {
-                        @Override
-                        public void onResponse(SR searchStatusResponse) {
-                            sendFinalStatusResponse(request, searchStatusResponse, listener);
-                        }
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }
-                );
+                getStatusResponseFromIndex(asyncExecutionId, statusProducerFromIndex, listener.delegateFailure(
+                        (l, searchStatusResponse) -> sendFinalStatusResponse(request, searchStatusResponse, l)));
             }
         } catch (Exception exc) {
             listener.onFailure(exc);
@@ -459,28 +449,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             return false;
         }
         Authentication origin = AuthenticationContextSerializer.decode(originHeaders.get(AUTHENTICATION_KEY));
-        return ensureAuthenticatedUserIsSame(origin, current);
-    }
-
-    /**
-     * Compares the {@link Authentication} that was used to create the {@link AsyncExecutionId} with the
-     * current authentication.
-     */
-    boolean ensureAuthenticatedUserIsSame(Authentication original, Authentication current) {
-        final boolean samePrincipal = original.getUser().principal().equals(current.getUser().principal());
-        final boolean sameRealmType;
-        if (original.getUser().isRunAs()) {
-            if (current.getUser().isRunAs()) {
-                sameRealmType = original.getLookedUpBy().getType().equals(current.getLookedUpBy().getType());
-            }  else {
-                sameRealmType = original.getLookedUpBy().getType().equals(current.getAuthenticatedBy().getType());
-            }
-        } else if (current.getUser().isRunAs()) {
-            sameRealmType = original.getAuthenticatedBy().getType().equals(current.getLookedUpBy().getType());
-        } else {
-            sameRealmType = original.getAuthenticatedBy().getType().equals(current.getAuthenticatedBy().getType());
-        }
-        return samePrincipal && sameRealmType;
+        return origin.canAccessResourcesOf(current);
     }
 
     /**

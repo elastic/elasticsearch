@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -25,7 +26,6 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -173,7 +173,7 @@ public class IndicesModuleTests extends ESTestCase {
         MapperPlugin plugin = new MapperPlugin() {
             @Override
             public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
-                return Map.of("test", (name, node, parserContext) -> null);
+                return Map.of("test", new RuntimeFieldType.Parser((s, parserContext) -> null));
             }
         };
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
@@ -186,7 +186,7 @@ public class IndicesModuleTests extends ESTestCase {
         MapperPlugin plugin = new MapperPlugin() {
             @Override
             public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
-                return Map.of(KeywordFieldMapper.CONTENT_TYPE, (name, node, parserContext) -> null);
+                return Map.of(KeywordFieldMapper.CONTENT_TYPE, new RuntimeFieldType.Parser((s, parserContext) -> null));
             }
         };
         List<MapperPlugin> plugins = Collections.singletonList(plugin);

@@ -9,7 +9,7 @@ For more information, see <<snapshot-restore>>.
 [discrete]
 [[snapshot-restore-repo-apis]]
 === Snapshot repository management APIs
-* <<put-snapshot-repo-api,Put snapshot repository>>
+* <<put-snapshot-repo-api,Create or snapshot repository>>
 * <<verify-snapshot-repo-api,Verify snapshot repository>>
 * <<get-snapshot-repo-api,Get snapshot repository>>
 * <<delete-snapshot-repo-api,Delete snapshot repository>>
@@ -37,4 +37,4 @@ include::get-snapshot-api.asciidoc[]
 include::get-snapshot-status-api.asciidoc[]
 include::restore-snapshot-api.asciidoc[]
 include::delete-snapshot-api.asciidoc[]
-include::get-snapshottable-features-api.asciidoc[]
+

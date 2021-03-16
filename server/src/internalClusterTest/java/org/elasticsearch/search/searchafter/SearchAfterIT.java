@@ -241,7 +241,7 @@ public class SearchAfterIT extends ESIntegTestCase {
 
         resp = client().prepareSearch("test")
             .addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
-            .addSort(SortBuilders.fieldSort("end_date")) // it's okay as we use the default format, but the output does not format
+            .addSort(SortBuilders.fieldSort("end_date")) // it's okay because end_date has the format "yyyy-MM-dd"
             .searchAfter(new String[]{"21/02/2016", "2024-03-24"})
             .setSize(2)
             .get();

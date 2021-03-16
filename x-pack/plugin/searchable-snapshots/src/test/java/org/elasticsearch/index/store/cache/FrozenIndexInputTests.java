@@ -14,6 +14,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -95,9 +96,9 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         for (Path path : environment.dataFiles()) {
             Files.createDirectories(path);
         }
-
         try (
-            FrozenCacheService cacheService = new FrozenCacheService(environment, threadPool);
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, environment);
+            FrozenCacheService cacheService = new FrozenCacheService(nodeEnvironment, settings, threadPool);
             TestSearchableSnapshotDirectory directory = new TestSearchableSnapshotDirectory(cacheService, tempDir, fileInfo, fileData)
         ) {
             directory.loadSnapshot(createRecoveryState(true), ActionListener.wrap(() -> {}));

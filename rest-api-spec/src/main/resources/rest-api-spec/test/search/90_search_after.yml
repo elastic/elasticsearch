@@ -222,8 +222,8 @@
 ---
 "_shard_doc sort":
   - skip:
-        version: " - 7.99.99"
-        reason: _shard_doc sort was added in 8.0 (TODO adapt version after backport)
+        version: " - 7.11.99"
+        reason: _shard_doc sort was added in 7.12
 
   - do:
       indices.create:

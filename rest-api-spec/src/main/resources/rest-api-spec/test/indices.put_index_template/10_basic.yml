@@ -119,3 +119,81 @@
       indices.put_index_template:
         name: test
         body: {}
+
+---
+"Delete multiple templates":
+  - skip:
+      version: " - 7.99.99"
+      reason: "not yet backported"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [foo] has index patterns [foo-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [foo] will take precedence during new index creation"
+      indices.put_index_template:
+        name: foo
+        body:
+          index_patterns: foo-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+
+  - do:
+      allowed_warnings:
+        - "index template [bar] has index patterns [bar-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [bar] will take precedence during new index creation"
+      indices.put_index_template:
+        name: bar
+        body:
+          index_patterns: bar-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+
+  - do:
+      allowed_warnings:
+        - "index template [baz] has index patterns [baz-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [baz] will take precedence during new index creation"
+      indices.put_index_template:
+        name: baz
+        body:
+          index_patterns: baz-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+
+  - do:
+      indices.get_index_template:
+        name: 'bar'
+  - match: {index_templates.0.name: "bar"}
+
+  - do:
+      indices.get_index_template:
+        name: 'baz'
+  - match: {index_templates.0.name: "baz"}
+
+  - do:
+      indices.get_index_template:
+        name: 'foo'
+  - match: {index_templates.0.name: "foo"}
+
+  - do:
+      indices.delete_index_template:
+        name: foo,bar
+
+  - do:
+      catch: missing
+      indices.get_index_template:
+        name: foo
+
+  - do:
+      catch: missing
+      indices.get_index_template:
+        name: bar
+
+  - do:
+      indices.get_index_template:
+        name: baz
+
+  - match: {index_templates.0.name: baz}

@@ -126,7 +126,8 @@ teardown:
               "username": "api_key_manager"
             }
   - match: { "error.type": "security_exception" }
-  - match: { "error.reason": "action [cluster:admin/xpack/security/api_key/invalidate] is unauthorized for user [api_key_user_1], this action is granted by the cluster privileges [manage_api_key,manage_security,all]" }
+  - match:
+      "error.reason": "action [cluster:admin/xpack/security/api_key/invalidate] is unauthorized for user [api_key_user_1] with roles [user_role], this action is granted by the cluster privileges [manage_api_key,manage_security,all]"
 
   - do:
       headers:
@@ -189,7 +190,8 @@ teardown:
               "realm_name": "default_native"
             }
   - match: { "error.type": "security_exception" }
-  - match: { "error.reason": "action [cluster:admin/xpack/security/api_key/invalidate] is unauthorized for user [api_key_user_1], this action is granted by the cluster privileges [manage_api_key,manage_security,all]" }
+  - match:
+      "error.reason": "action [cluster:admin/xpack/security/api_key/invalidate] is unauthorized for user [api_key_user_1] with roles [user_role], this action is granted by the cluster privileges [manage_api_key,manage_security,all]"
 
   - do:
       headers:

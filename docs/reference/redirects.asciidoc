@@ -1392,3 +1392,49 @@ include::redirects.asciidoc[tag=legacy-rollup-redirect]
 
 include::redirects.asciidoc[tag=legacy-rollup-redirect]
 endif::[]
+
+[role="exclude",id="pipeline"]
+=== Pipeline definition
+
+See <<ingest>>.
+
+[role="exclude",id="accessing-data-in-pipelines"]
+=== Accessing data in pipelines
+
+See <<access-source-fields>>, <<access-metadata-fields>>, and
+<<access-ingest-metadata>>.
+
+[role="exclude",id="ingest-conditionals"]
+=== Conditional execution in pipelines
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="ingest-conditional-nullcheck"]
+=== Handling nested fields in conditionals
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="ingest-conditional-complex"]
+=== Complex conditionals
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="conditionals-with-multiple-pipelines"]
+=== Conditionals with the pipeline processor
+
+See <<conditionally-apply-pipelines>>.
+
+[role="exclude",id="conditionals-with-regex"]
+=== Conditionals with the regular expressions
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="handling-failure-in-pipelines"]
+=== Handling failures in pipelines
+
+See <<handling-pipeline-failures>>.
+
+[role="exclude",id="ingest-processors"]
+=== Ingest processors
+
+See <<processors>>.

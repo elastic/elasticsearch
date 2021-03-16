@@ -80,6 +80,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -153,6 +154,13 @@ public class JobResultsProvider {
     private static final int RECORDS_SIZE_PARAM = 10000;
     public static final int BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE = 20;
     private static final double ESTABLISHED_MEMORY_CV_THRESHOLD = 0.1;
+
+    // filter for quantiles in modelSnapshots to avoid memory overhead
+    private static final FetchSourceContext REMOVE_QUANTILES_FROM_SOURCE = new FetchSourceContext(
+        true,
+        null,
+        new String[] { ModelSnapshot.QUANTILES.getPreferredName() }
+    );
 
     private final Client client;
     private final Settings settings;
@@ -1006,6 +1014,8 @@ public class JobResultsProvider {
     /**
      * Get model snapshots for the job ordered by descending timestamp (newest first).
      *
+     * Note: quantiles are removed from the results.
+     *
      * @param jobId the job id
      * @param from  number of snapshots to from
      * @param size  number of snapshots to retrieve
@@ -1017,6 +1027,8 @@ public class JobResultsProvider {
 
     /**
      * Get model snapshots for the job ordered by descending restore priority.
+     *
+     * Note: quantiles are removed from the results.
      *
      * @param jobId          the job id
      * @param from           number of snapshots to from
@@ -1082,6 +1094,7 @@ public class JobResultsProvider {
         sourceBuilder.from(from);
         sourceBuilder.size(size);
         sourceBuilder.trackTotalHits(true);
+        sourceBuilder.fetchSource(REMOVE_QUANTILES_FROM_SOURCE);
         searchRequest.source(sourceBuilder);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(searchResponse -> {

@@ -85,7 +85,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     /** Set the deferred collectors. */
     @Override
     public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
-        this.collector = MultiBucketCollector.wrap(deferredCollectors);
+        this.collector = MultiBucketCollector.wrap(true, deferredCollectors);
     }
 
     /**

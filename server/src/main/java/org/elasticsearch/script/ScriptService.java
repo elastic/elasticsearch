@@ -105,8 +105,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     final AtomicReference<CacheHolder> cacheHolder = new AtomicReference<>();
 
     public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
-        this.engines = Objects.requireNonNull(engines);
-        this.contexts = Objects.requireNonNull(contexts);
+        this.engines = Collections.unmodifiableMap(Objects.requireNonNull(engines));
+        this.contexts = Collections.unmodifiableMap(Objects.requireNonNull(contexts));
 
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with " +
@@ -246,6 +246,13 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         IOUtils.close(engines.values());
     }
 
+    /**
+     * @return an unmodifiable {@link Map} of available script context names to {@link ScriptContext}s
+     */
+    public Map<String, ScriptContext<?>> getScriptContexts() {
+        return contexts;
+    }
+
     private ScriptEngine getEngine(String lang) {
         ScriptEngine scriptEngine = engines.get(lang);
         if (scriptEngine == null) {
@@ -270,7 +277,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         maxSizeInBytes = newMaxSizeInBytes;
     }
 
-    /*
+    /**
      * Compiles a script using the given context.
      *
      * @return a compiled script which may be used to construct instances of a script for the given context

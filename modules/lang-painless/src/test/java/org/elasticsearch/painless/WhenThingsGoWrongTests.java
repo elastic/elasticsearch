@@ -850,4 +850,17 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
                 exec("def test = ['hostname': 'somehostname']; test?.hostname && params.host.hostname != ''"));
         expectScriptThrows(NullPointerException.class, () -> exec("params?.host?.hostname && params.host?.hostname != ''"));
     }
+
+    public void testDisallowUnreadObjects() {
+        assertNotAStatement("int i = 1; new ArrayList(); return i;", "ArrayList");
+        assertNotAStatement("new Object(); return 1;", "Object");
+        assertNotAStatement("void foo() { new HashMap(); new ArrayList(); } return 1;", "HashMap");
+    }
+
+    private void assertNotAStatement(String script, String objectName) {
+        IllegalArgumentException compileException = expectScriptThrows(IllegalArgumentException.class, false, () -> exec(script));
+        String expected = "not a statement: new object [" + objectName + "] not used";
+        assertTrue("[" + compileException.getMessage() + "] did not contain [" + expected + "]",
+                compileException.getMessage().contains(expected));
+    }
 }

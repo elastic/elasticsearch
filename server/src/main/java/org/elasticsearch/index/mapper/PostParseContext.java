@@ -15,13 +15,21 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.function.Function;
 
+/**
+ * Holds state useful for post-parse document processing
+ */
 public class PostParseContext {
 
+    /** A search lookup over the parsed document */
     public final SearchLookup searchLookup;
+
+    /** A LeafReaderContext for a lucene reader based on the parsed document */
     public final LeafReaderContext leafReaderContext;
+
+    /** The ParseContext used during document parsing */
     public final ParseContext pc;
 
-    public PostParseContext(Function<String, MappedFieldType> fieldTypeLookup, ParseContext pc, LeafReaderContext ctx) {
+    PostParseContext(Function<String, MappedFieldType> fieldTypeLookup, ParseContext pc, LeafReaderContext ctx) {
         this.searchLookup = new SearchLookup(
             fieldTypeLookup,
             (ft, s) -> ft.fielddataBuilder(pc.indexSettings().getIndex().getName(), s).build(

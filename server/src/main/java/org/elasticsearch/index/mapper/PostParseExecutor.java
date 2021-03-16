@@ -8,6 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
+/**
+ * Runs after a document has been parsed
+ */
 public interface PostParseExecutor {
 
     void execute(PostParseContext context);

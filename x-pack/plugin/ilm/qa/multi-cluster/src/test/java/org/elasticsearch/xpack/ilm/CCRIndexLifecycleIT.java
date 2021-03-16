@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.ccr.ESCCRRestTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.Phase;
-import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 
 import java.io.IOException;
@@ -41,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -811,7 +811,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         String[] shrunkenIndexName = new String[1];
         waitUntil(() -> {
             try {
-                Request explainRequest = new Request("GET", ShrinkAction.SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex
+                Request explainRequest = new Request("GET", SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex
                     + "/_ilm/explain");
                 explainRequest.addParameter("only_errors", Boolean.toString(false));
                 explainRequest.addParameter("only_managed", Boolean.toString(false));
@@ -828,7 +828,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     for (Map.Entry<String, Map<String, Object>> indexToExplainMap : indexResponse.entrySet()) {
                         // we don't know the exact name of the shrunken index, but we know it starts with the configured prefix
                         String indexName = indexToExplainMap.getKey();
-                        if (indexName.startsWith(ShrinkAction.SHRUNKEN_INDEX_PREFIX) && indexName.contains(originalIndex)) {
+                        if (indexName.startsWith(SHRUNKEN_INDEX_PREFIX) && indexName.contains(originalIndex)) {
                             explainIndexResponse = indexToExplainMap.getValue();
                             break;
                         }

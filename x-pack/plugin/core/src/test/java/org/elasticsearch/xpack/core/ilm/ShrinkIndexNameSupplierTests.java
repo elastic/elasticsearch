@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.xpack.core.ilm.ShrinkAction.SHRUNKEN_INDEX_PREFIX;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.getShrinkIndexName;
 import static org.hamcrest.Matchers.is;
 
@@ -23,12 +23,12 @@ public class ShrinkIndexNameSupplierTests extends ESTestCase {
             LifecycleExecutionState lifecycleExecutionState =
                 LifecycleExecutionState.builder().setShrinkIndexName(shrinkIndexName).build();
 
-            assertThat(getShrinkIndexName(sourceIndexName, lifecycleExecutionState, SHRUNKEN_INDEX_PREFIX), is(shrinkIndexName));
+            assertThat(getShrinkIndexName(sourceIndexName, lifecycleExecutionState), is(shrinkIndexName));
         }
 
         {
             // if the lifecycle execution state does NOT contain a `shrink_index_name`, `shrink-` will be prefixed to the index name
-            assertThat(getShrinkIndexName(sourceIndexName, LifecycleExecutionState.builder().build(), SHRUNKEN_INDEX_PREFIX),
+            assertThat(getShrinkIndexName(sourceIndexName, LifecycleExecutionState.builder().build()),
                 is(SHRUNKEN_INDEX_PREFIX + sourceIndexName));
         }
     }

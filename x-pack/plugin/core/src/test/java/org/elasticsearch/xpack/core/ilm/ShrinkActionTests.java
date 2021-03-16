@@ -20,11 +20,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
-import static org.elasticsearch.xpack.core.ilm.ShrinkAction.SHRUNKEN_INDEX_PREFIX;
-import static org.elasticsearch.xpack.core.ilm.ShrinkAction.getShrunkIndexName;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -211,7 +207,6 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertTrue(steps.get(8) instanceof ShrinkStep);
         assertThat(steps.get(8).getKey(), equalTo(expectedNinthKey));
         assertThat(steps.get(8).getNextStepKey(), equalTo(expectedTenthKey));
-        assertThat(((ShrinkStep) steps.get(8)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
 
         assertTrue(steps.get(9) instanceof ClusterStateWaitUntilThresholdStep);
         assertThat(steps.get(9).getKey(), equalTo(expectedTenthKey));
@@ -233,12 +228,10 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertTrue(steps.get(12) instanceof ShrinkSetAliasStep);
         assertThat(steps.get(12).getKey(), equalTo(expectedThirteenKey));
         assertThat(steps.get(12).getNextStepKey(), equalTo(expectedFourteenKey));
-        assertThat(((ShrinkSetAliasStep) steps.get(12)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
 
         assertTrue(steps.get(13) instanceof ShrunkenIndexCheckStep);
         assertThat(steps.get(13).getKey(), equalTo(expectedFourteenKey));
         assertThat(steps.get(13).getNextStepKey(), equalTo(nextStepKey));
-        assertThat(((ShrunkenIndexCheckStep) steps.get(13)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
 
         assertTrue(steps.get(14) instanceof ReplaceDataStreamBackingIndexStep);
         assertThat(steps.get(14).getKey(), equalTo(expectedFifteenKey));
@@ -247,43 +240,6 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertTrue(steps.get(15) instanceof DeleteStep);
         assertThat(steps.get(15).getKey(), equalTo(expectedSixteenKey));
         assertThat(steps.get(15).getNextStepKey(), equalTo(expectedFourteenKey));
-    }
-
-    public void testGetShrunkIndexName() {
-        {
-            // if the lifecycle execution state contains a `shrink_index_name`, that one will be returned
-            String shrinkIndexName = "the-shrink-index";
-            IndexMetadata indexMetadata = IndexMetadata.builder("test-index")
-                .settings(
-                    settings(Version.CURRENT)
-                )
-                .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("shrink_index_name", shrinkIndexName))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .build();
-            ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
-
-            assertThat(getShrunkIndexName(indexMetadata.getIndex(), clusterState), is(shrinkIndexName));
-        }
-
-        {
-            // if the lifecycle execution state does NOT contain a `shrink_index_name`, `shrink-` will be prefixed to the index name
-            IndexMetadata indexMetadata = IndexMetadata.builder("test-index")
-                .settings(
-                    settings(Version.CURRENT)
-                )
-                .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of())
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .build();
-            ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
-            assertThat(getShrunkIndexName(indexMetadata.getIndex(), clusterState),
-                is(SHRUNKEN_INDEX_PREFIX + indexMetadata.getIndex().getName()));
-        }
     }
 
     @Override

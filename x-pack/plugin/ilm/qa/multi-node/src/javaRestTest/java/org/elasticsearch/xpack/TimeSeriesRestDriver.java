@@ -51,6 +51,7 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.waitUntil;
 import static org.elasticsearch.test.rest.ESRestTestCase.assertOK;
 import static org.elasticsearch.test.rest.ESRestTestCase.ensureHealth;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -338,7 +339,7 @@ public final class TimeSeriesRestDriver {
         waitUntil(() -> {
             try {
                 // we're including here the case where the original index was already deleted and we have to look for the shrunken index
-                Request explainRequest = new Request("GET", ShrinkAction.SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex
+                Request explainRequest = new Request("GET", SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex
                     + "/_ilm/explain");
                 explainRequest.addParameter("only_errors", Boolean.toString(false));
                 explainRequest.addParameter("only_managed", Boolean.toString(false));
@@ -355,7 +356,7 @@ public final class TimeSeriesRestDriver {
                     for (Map.Entry<String, Map<String, Object>> indexToExplainMap : indexResponse.entrySet()) {
                         // we don't know the exact name of the shrunken index, but we know it starts with the configured prefix
                         String indexName = indexToExplainMap.getKey();
-                        if (indexName.startsWith(ShrinkAction.SHRUNKEN_INDEX_PREFIX) && indexName.contains(originalIndex)) {
+                        if (indexName.startsWith(SHRUNKEN_INDEX_PREFIX) && indexName.contains(originalIndex)) {
                             explainIndexResponse = indexToExplainMap.getValue();
                             break;
                         }

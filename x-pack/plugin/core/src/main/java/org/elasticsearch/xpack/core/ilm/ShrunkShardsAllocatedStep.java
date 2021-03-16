@@ -28,22 +28,16 @@ import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.getShrink
  */
 public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
     public static final String NAME = "shrunk-shards-allocated";
-    private String shrunkIndexPrefix;
 
     private static final Logger logger = LogManager.getLogger(ShrunkShardsAllocatedStep.class);
 
-    public ShrunkShardsAllocatedStep(StepKey key, StepKey nextStepKey, String shrunkenIndexPrefix) {
+    public ShrunkShardsAllocatedStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
-        this.shrunkIndexPrefix = shrunkenIndexPrefix;
     }
 
     @Override
     public boolean isRetryable() {
         return true;
-    }
-
-    String getShrunkIndexPrefix() {
-        return shrunkIndexPrefix;
     }
 
     @Override
@@ -56,7 +50,7 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
         }
 
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
-        String shrunkenIndexName = getShrinkIndexName(indexMetadata.getIndex().getName(), lifecycleState, shrunkIndexPrefix);
+        String shrunkenIndexName = getShrinkIndexName(indexMetadata.getIndex().getName(), lifecycleState);
 
         // We only want to make progress if all shards of the shrunk index are
         // active
@@ -71,23 +65,6 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
         } else {
             return new Result(false, new Info(true, numShrunkIndexShards, allShardsActive));
         }
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), shrunkIndexPrefix);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        ShrunkShardsAllocatedStep other = (ShrunkShardsAllocatedStep) obj;
-        return super.equals(obj) && Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
     }
 
     public static final class Info implements ToXContentObject {

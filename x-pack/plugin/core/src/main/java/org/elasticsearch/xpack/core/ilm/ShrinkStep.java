@@ -31,14 +31,12 @@ public class ShrinkStep extends AsyncActionStep {
 
     private Integer numberOfShards;
     private ByteSizeValue maxPrimaryShardSize;
-    private String shrunkIndexPrefix;
 
     public ShrinkStep(StepKey key, StepKey nextStepKey, Client client, Integer numberOfShards,
-                      ByteSizeValue maxPrimaryShardSize, String shrunkIndexPrefix) {
+                      ByteSizeValue maxPrimaryShardSize) {
         super(key, nextStepKey, client);
         this.numberOfShards = numberOfShards;
         this.maxPrimaryShardSize = maxPrimaryShardSize;
-        this.shrunkIndexPrefix = shrunkIndexPrefix;
     }
 
     @Override
@@ -54,10 +52,6 @@ public class ShrinkStep extends AsyncActionStep {
         return maxPrimaryShardSize;
     }
 
-    String getShrunkIndexPrefix() {
-        return shrunkIndexPrefix;
-    }
-
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
@@ -66,7 +60,7 @@ public class ShrinkStep extends AsyncActionStep {
                 "] is missing lifecycle date");
         }
 
-        String shrunkenIndexName = getShrinkIndexName(indexMetadata.getIndex().getName(),lifecycleState, shrunkIndexPrefix);
+        String shrunkenIndexName = getShrinkIndexName(indexMetadata.getIndex().getName(), lifecycleState);
         if (currentState.metadata().index(shrunkenIndexName) != null) {
             logger.warn("skipping [{}] step for index [{}] as part of policy [{}] as the shrunk index [{}] already exists",
                 ShrinkStep.NAME, indexMetadata.getIndex().getName(),
@@ -103,7 +97,7 @@ public class ShrinkStep extends AsyncActionStep {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), numberOfShards, maxPrimaryShardSize, shrunkIndexPrefix);
+        return Objects.hash(super.hashCode(), numberOfShards, maxPrimaryShardSize);
     }
 
     @Override
@@ -117,8 +111,7 @@ public class ShrinkStep extends AsyncActionStep {
         ShrinkStep other = (ShrinkStep) obj;
         return super.equals(obj) &&
                 Objects.equals(numberOfShards, other.numberOfShards) &&
-                Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize) &&
-                Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
+                Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize);
     }
 
 }

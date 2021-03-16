@@ -48,6 +48,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.waitAndGetShrinkIndexName;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -128,7 +129,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
         String rolloverIndex = DataStream.getDefaultBackingIndexName(dataStream, 2);
-        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + backingIndexName;
+        String shrunkenIndex = SHRUNKEN_INDEX_PREFIX + backingIndexName;
         assertBusy(() -> assertTrue("the rollover action created the rollover index", indexExists(rolloverIndex)));
         assertBusy(() -> assertFalse("the original index was deleted by the shrink action", indexExists(backingIndexName)),
             60, TimeUnit.SECONDS);

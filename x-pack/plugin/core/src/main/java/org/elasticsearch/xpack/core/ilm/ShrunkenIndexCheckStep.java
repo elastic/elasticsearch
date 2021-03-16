@@ -30,20 +30,14 @@ import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.getShrink
 public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
     public static final String NAME = "is-shrunken-index";
     private static final Logger logger = LogManager.getLogger(ShrunkenIndexCheckStep.class);
-    private String shrunkIndexPrefix;
 
-    public ShrunkenIndexCheckStep(StepKey key, StepKey nextStepKey, String shrunkIndexPrefix) {
+    public ShrunkenIndexCheckStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
-        this.shrunkIndexPrefix = shrunkIndexPrefix;
     }
 
     @Override
     public boolean isRetryable() {
         return true;
-    }
-
-    String getShrunkIndexPrefix() {
-        return shrunkIndexPrefix;
     }
 
     @Override
@@ -61,7 +55,7 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
         }
 
         LifecycleExecutionState lifecycleState = fromIndexMetadata(idxMeta);
-        String targetIndexName = getShrinkIndexName(shrunkenIndexSource, lifecycleState, shrunkIndexPrefix);
+        String targetIndexName = getShrinkIndexName(shrunkenIndexSource, lifecycleState);
         boolean isConditionMet = index.getName().equals(targetIndexName) &&
                 clusterState.metadata().index(shrunkenIndexSource) == null;
         if (isConditionMet) {
@@ -69,24 +63,6 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
         } else {
             return new Result(false, new Info(shrunkenIndexSource));
         }
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), shrunkIndexPrefix);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        ShrunkenIndexCheckStep other = (ShrunkenIndexCheckStep) obj;
-        return super.equals(obj) &&
-                Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
     }
 
     public static final class Info implements ToXContentObject {

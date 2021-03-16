@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -32,8 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
-import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.getShrinkIndexName;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 
 /**
  * A {@link LifecycleAction} which shrinks the index.
@@ -42,7 +39,6 @@ public class ShrinkAction implements LifecycleAction {
     private static final Logger logger = LogManager.getLogger(ShrinkAction.class);
 
     public static final String NAME = "shrink";
-    public static final String SHRUNKEN_INDEX_PREFIX = "shrink-";
     public static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
     private static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
     public static final String CONDITIONAL_SKIP_SHRINK_STEP = BranchingStep.NAME + "-check-prerequisites";
@@ -202,15 +198,15 @@ public class ShrinkAction implements LifecycleAction {
         // "set-single-node-allocation" step to choose another node to host the shrink operation
         ClusterStateWaitUntilThresholdStep checkShrinkReadyStep = new ClusterStateWaitUntilThresholdStep(
             new CheckShrinkReadyStep(allocationRoutedKey, shrinkKey), setSingleNodeKey);
-        ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, maxPrimaryShardSize, SHRUNKEN_INDEX_PREFIX);
+        ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, maxPrimaryShardSize);
 
         // wait until the shrunk index is recovered. we again wait until the configured threshold is breached and if the shrunk index has
         // not successfully recovered until then, we rewind to the "cleanup-shrink-index" step to delete this unsuccessful shrunk index
         // and retry the operation by generating a new shrink index name and attempting to shrink again
         ClusterStateWaitUntilThresholdStep allocated = new ClusterStateWaitUntilThresholdStep(
-            new ShrunkShardsAllocatedStep(enoughShardsKey, copyMetadataKey, SHRUNKEN_INDEX_PREFIX), cleanupShrinkIndexKey);
+            new ShrunkShardsAllocatedStep(enoughShardsKey, copyMetadataKey), cleanupShrinkIndexKey);
         CopyExecutionStateStep copyMetadata = new CopyExecutionStateStep(copyMetadataKey, dataStreamCheckBranchingKey,
-            ShrinkAction::getShrunkIndexName, isShrunkIndexKey);
+            ShrinkIndexNameSupplier::getShrinkIndexName, isShrunkIndexKey);
         // by the time we get to this step we have 2 indices, the source and the shrunken one. we now need to choose an index
         // swapping strategy such that the shrunken index takes the place of the source index (which is also deleted).
         // if the source index is part of a data stream it's a matter of replacing it with the shrunken index one in the data stream and
@@ -222,20 +218,15 @@ public class ShrinkAction implements LifecycleAction {
                 assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
                 return indexAbstraction.getParentDataStream() != null;
             });
-        ShrinkSetAliasStep aliasSwapAndDelete = new ShrinkSetAliasStep(aliasKey, isShrunkIndexKey, client, SHRUNKEN_INDEX_PREFIX);
+        ShrinkSetAliasStep aliasSwapAndDelete = new ShrinkSetAliasStep(aliasKey, isShrunkIndexKey, client);
         ReplaceDataStreamBackingIndexStep replaceDataStreamBackingIndex = new ReplaceDataStreamBackingIndexStep(replaceDataStreamIndexKey,
-            deleteIndexKey, ShrinkAction::getShrunkIndexName);
+            deleteIndexKey, ShrinkIndexNameSupplier::getShrinkIndexName);
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, isShrunkIndexKey, client);
-        ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, nextStepKey, SHRUNKEN_INDEX_PREFIX);
+        ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, nextStepKey);
         return Arrays.asList(conditionalSkipShrinkStep, checkNotWriteIndexStep, waitForNoFollowersStep, readOnlyStep,
             cleanupShrinkIndexStep, generateUniqueIndexNameStep, setSingleNodeStep, checkShrinkReadyStep, shrink, allocated,
             copyMetadata, isDataStreamBranchingStep, aliasSwapAndDelete, waitOnShrinkTakeover, replaceDataStreamBackingIndex,
             deleteSourceIndexStep);
-    }
-
-    static String getShrunkIndexName(Index index, ClusterState state) {
-        LifecycleExecutionState lifecycleState = fromIndexMetadata(state.metadata().index(index));
-        return getShrinkIndexName(index.getName(), lifecycleState, SHRUNKEN_INDEX_PREFIX);
     }
 
     @Override

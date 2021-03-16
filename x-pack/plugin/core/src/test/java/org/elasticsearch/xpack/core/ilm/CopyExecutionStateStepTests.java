@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Map;
@@ -29,14 +28,14 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         StepKey nextStepKey = randomStepKey();
         String shrunkIndexPrefix = randomAlphaOfLength(10);
         StepKey targetNextStepKey = randomStepKey();
-        return new CopyExecutionStateStep(stepKey, nextStepKey, (index, state) -> shrunkIndexPrefix + index.getName(), targetNextStepKey);
+        return new CopyExecutionStateStep(stepKey, nextStepKey, (index, state) -> shrunkIndexPrefix + index, targetNextStepKey);
     }
 
     @Override
     protected CopyExecutionStateStep mutateInstance(CopyExecutionStateStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        BiFunction<Index, ClusterState, String> indexNameSupplier = instance.getTargetIndexNameSupplier();
+        BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getTargetIndexNameSupplier();
         StepKey targetNextStepKey = instance.getTargetNextStepKey();
 
         switch (between(0, 2)) {
@@ -47,7 +46,7 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
                 nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
             case 2:
-                indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index.getName();
+                indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
                 break;
             case 3:
                 targetNextStepKey = new StepKey(targetNextStepKey.getPhase(), targetNextStepKey.getAction(),
@@ -77,7 +76,7 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
             .putCustom(ILM_CUSTOM_METADATA_KEY, customMetadata)
             .build();
         IndexMetadata shrunkIndexMetadata =
-            IndexMetadata.builder(step.getTargetIndexNameSupplier().apply(originalIndexMetadata.getIndex(), ClusterState.EMPTY_STATE))
+            IndexMetadata.builder(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
             .settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1,5))
             .numberOfReplicas(randomIntBetween(1,5))
             .build();
@@ -91,8 +90,8 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
 
         LifecycleExecutionState oldIndexData = LifecycleExecutionState.fromIndexMetadata(originalIndexMetadata);
         LifecycleExecutionState newIndexData = LifecycleExecutionState
-            .fromIndexMetadata(newClusterState.metadata().index(step.getTargetIndexNameSupplier().apply(originalIndexMetadata.getIndex(),
-                newClusterState)));
+            .fromIndexMetadata(newClusterState.metadata().index(step.getTargetIndexNameSupplier().apply(indexName,
+                LifecycleExecutionState.builder().build())));
 
         StepKey targetNextStepKey = step.getTargetNextStepKey();
         assertEquals(newIndexData.getLifecycleDate(), oldIndexData.getLifecycleDate());
@@ -122,7 +121,8 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
             () -> step.performAction(originalIndexMetadata.getIndex(), originalClusterState));
 
         assertThat(e.getMessage(), equalTo("unable to copy execution state from [" +
-            indexName + "] to [" + step.getTargetIndexNameSupplier().apply(originalIndexMetadata.getIndex(), originalClusterState) +
+            indexName + "] to [" +
+            step.getTargetIndexNameSupplier().apply(originalIndexMetadata.getIndex().getName(), LifecycleExecutionState.builder().build()) +
             "] as target index does not exist"));
     }
 }

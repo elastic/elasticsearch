@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -114,7 +115,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
             String backingIndexName = DataStream.getDefaultBackingIndexName(index, 1);
             IndexLifecycleExplainResponse indexResp = null;
             for (Map.Entry<String, IndexLifecycleExplainResponse> indexNameAndResp : explain.getIndexResponses().entrySet()) {
-                if (indexNameAndResp.getKey().startsWith(ShrinkAction.SHRUNKEN_INDEX_PREFIX) &&
+                if (indexNameAndResp.getKey().startsWith(SHRUNKEN_INDEX_PREFIX) &&
                     indexNameAndResp.getKey().contains(backingIndexName)) {
                     indexResp = indexNameAndResp.getValue();
                     assertNotNull(indexResp);

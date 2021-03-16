@@ -18,6 +18,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
+
 /**
  * This step replaces a data stream backing index with the target index, as part of the data stream's backing indices.
  * Eg. if data stream `foo-stream` is backed by indices [`foo-stream-000001`, `foo-stream-000002`] and we'd like to replace the first
@@ -37,10 +39,10 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
     public static final String NAME = "replace-datastream-backing-index";
     private static final Logger logger = LogManager.getLogger(ReplaceDataStreamBackingIndexStep.class);
 
-    private final BiFunction<Index, ClusterState, String> targetIndexNameSupplier;
+    private final BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier;
 
     public ReplaceDataStreamBackingIndexStep(StepKey key, StepKey nextStepKey,
-                                             BiFunction<Index, ClusterState, String> targetIndexNameSupplier) {
+                                             BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier) {
         super(key, nextStepKey);
         this.targetIndexNameSupplier = targetIndexNameSupplier;
     }
@@ -50,7 +52,7 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
         return true;
     }
 
-    public BiFunction<Index, ClusterState, String> getTargetIndexNameSupplier() {
+    public BiFunction<String, LifecycleExecutionState, String> getTargetIndexNameSupplier() {
         return targetIndexNameSupplier;
     }
 
@@ -64,7 +66,7 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
         }
 
         String originalIndex = index.getName();
-        String targetIndexName = targetIndexNameSupplier.apply(index, clusterState);
+        String targetIndexName = targetIndexNameSupplier.apply(originalIndex, fromIndexMetadata(originalIndexMetadata));
         String policyName = originalIndexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";

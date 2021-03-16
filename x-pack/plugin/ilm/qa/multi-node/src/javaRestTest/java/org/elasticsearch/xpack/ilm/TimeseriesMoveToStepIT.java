@@ -34,6 +34,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.waitAndGetShrinkIndexName;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -82,7 +83,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
 
     public void testMoveToRolloverStep() throws Exception {
         String originalIndex = index + "-000001";
-        String shrunkenOriginalIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex;
+        String shrunkenOriginalIndex = SHRUNKEN_INDEX_PREFIX + originalIndex;
         String secondIndex = index + "-000002";
 
         createFullPolicy(client(), policy, TimeValue.timeValueHours(10));

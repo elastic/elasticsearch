@@ -31,10 +31,11 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
 
     private static final Logger logger = LogManager.getLogger(CopyExecutionStateStep.class);
 
-    private final BiFunction<Index, ClusterState, String> targetIndexNameSupplier;
+    private final BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier;
     private final StepKey targetNextStepKey;
 
-    public CopyExecutionStateStep(StepKey key, StepKey nextStepKey, BiFunction<Index, ClusterState, String> targetIndexNameSupplier,
+    public CopyExecutionStateStep(StepKey key, StepKey nextStepKey,
+                                  BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier,
                                   StepKey targetNextStepKey) {
         super(key, nextStepKey);
         this.targetIndexNameSupplier = targetIndexNameSupplier;
@@ -46,7 +47,7 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         return true;
     }
 
-    BiFunction<Index, ClusterState, String> getTargetIndexNameSupplier() {
+    BiFunction<String, LifecycleExecutionState, String> getTargetIndexNameSupplier() {
         return targetIndexNameSupplier;
     }
 
@@ -63,7 +64,8 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
             return clusterState;
         }
         // get target index
-        String targetIndexName = targetIndexNameSupplier.apply(index, clusterState);
+        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        String targetIndexName = targetIndexNameSupplier.apply(index.getName(), lifecycleState);
         IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);
 
         if (targetIndexMetadata == null) {
@@ -76,7 +78,6 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         String phase = targetNextStepKey.getPhase();
         String action = targetNextStepKey.getAction();
         String step = targetNextStepKey.getName();
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         long lifecycleDate = lifecycleState.getLifecycleDate();
 
         LifecycleExecutionState.Builder relevantTargetCustomData = LifecycleExecutionState.builder();

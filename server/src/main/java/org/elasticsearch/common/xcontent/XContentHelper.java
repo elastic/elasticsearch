@@ -77,6 +77,12 @@ public class XContentHelper {
 
     /**
      * Converts the given bytes into a map that is optionally ordered.
+     * <p>
+     * Important: This can lose precision on numbers with a decimal point. It
+     * converts numbers like {@code "n": 1234.567} to a {@code double} which
+     * only has 52 bits of precision in the mantissa. This will come up most
+     * frequently when folks write nanosecond precision dates as a decimal
+     * number.
      * @deprecated this method relies on auto-detection of content type. Use {@link #convertToMap(BytesReference, boolean, XContentType)}
      *             instead with the proper {@link XContentType}
      */
@@ -88,6 +94,12 @@ public class XContentHelper {
 
     /**
      * Converts the given bytes into a map that is optionally ordered. The provided {@link XContentType} must be non-null.
+     * <p>
+     * Important: This can lose precision on numbers with a decimal point. It
+     * converts numbers like {@code "n": 1234.567} to a {@code double} which
+     * only has 52 bits of precision in the mantissa. This will come up most
+     * frequently when folks write nanosecond precision dates as a decimal
+     * number.
      */
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType)
         throws ElasticsearchParseException {

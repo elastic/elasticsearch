@@ -72,6 +72,7 @@ Which produces the following result:
     {
       "doc": {
         ...
+        "_type": "_doc",
         "_source": {
           "fingerprint" : "WbSUPW4zY1PBPehh2AA/sSxiRjw=",
           "user" : {

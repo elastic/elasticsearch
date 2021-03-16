@@ -187,10 +187,7 @@ public class Querier {
      * results back to the client.
      */
     @SuppressWarnings("rawtypes")
-    class LocalAggregationSorterListener implements ActionListener<Page> {
-
-        private final ActionListener<Page> listener;
-
+    class LocalAggregationSorterListener extends ActionListener.Delegating<Page, Page> {
         // keep the top N entries.
         private final AggSortingQueue data;
         private final AtomicInteger counter = new AtomicInteger();
@@ -201,7 +198,7 @@ public class Querier {
         private final boolean noLimit;
 
         LocalAggregationSorterListener(ActionListener<Page> listener, List<Tuple<Integer, Comparator>> sortingColumns, int limit) {
-            this.listener = listener;
+            super(listener);
 
             int size = MAXIMUM_SIZE;
             if (limit < 0) {
@@ -266,12 +263,7 @@ public class Querier {
         }
 
         private void sendResponse() {
-            listener.onResponse(ListCursor.of(schema, data.asList(), cfg.pageSize()));
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            listener.onFailure(e);
+            delegate.onResponse(ListCursor.of(schema, data.asList(), cfg.pageSize()));
         }
     }
 
@@ -280,7 +272,7 @@ public class Querier {
      */
     static class ImplicitGroupActionListener extends BaseAggActionListener {
 
-        private static List<? extends Bucket> EMPTY_BUCKET = singletonList(new Bucket() {
+        private static final List<? extends Bucket> EMPTY_BUCKET = singletonList(new Bucket() {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -345,11 +337,10 @@ public class Querier {
                 for (int i = mask.nextSetBit(0); i >= 0; i = mask.nextSetBit(i + 1)) {
                     values[index++] = extractors.get(i).extract(implicitGroup);
                 }
-                listener.onResponse(Page.last(Rows.singleton(schema, values)));
+                delegate.onResponse(Page.last(Rows.singleton(schema, values)));
 
             } else if (buckets.isEmpty()) {
-                listener.onResponse(Page.last(Rows.empty(schema)));
-
+                delegate.onResponse(Page.last(Rows.empty(schema)));
             } else {
                 throw new SqlIllegalArgumentException("Too many groups returned by the implicit group; expected 1, received {}",
                         buckets.size());
@@ -529,9 +520,7 @@ public class Querier {
      * Base listener class providing clean-up and exception handling.
      * Handles both scroll queries (scan/scroll) and regular/composite-aggs queries.
      */
-    abstract static class BaseActionListener implements ActionListener<SearchResponse> {
-
-        final ActionListener<Page> listener;
+    abstract static class BaseActionListener extends ActionListener.Delegating<SearchResponse, Page> {
 
         final Client client;
         final SqlConfiguration cfg;
@@ -539,7 +528,7 @@ public class Querier {
         final Schema schema;
 
         BaseActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output) {
-            this.listener = listener;
+            super(listener);
 
             this.client = client;
             this.cfg = cfg;
@@ -555,7 +544,7 @@ public class Querier {
                 if (CollectionUtils.isEmpty(failure) == false) {
                     cleanup(response, new SqlIllegalArgumentException(failure[0].reason(), failure[0].getCause()));
                 } else {
-                    handleResponse(response, ActionListener.wrap(listener::onResponse, e -> cleanup(response, e)));
+                    handleResponse(response, ActionListener.wrap(delegate::onResponse, e -> cleanup(response, e)));
                 }
             } catch (Exception ex) {
                 cleanup(response, ex);
@@ -569,12 +558,12 @@ public class Querier {
             if (response != null && response.getScrollId() != null) {
                 client.prepareClearScroll().addScrollId(response.getScrollId())
                         // in case of failure, report the initial exception instead of the one resulting from cleaning the scroll
-                        .execute(ActionListener.wrap(r -> listener.onFailure(ex), e -> {
+                        .execute(ActionListener.wrap(r -> delegate.onFailure(ex), e -> {
                             ex.addSuppressed(e);
-                            listener.onFailure(ex);
+                            delegate.onFailure(ex);
                         }));
             } else {
-                listener.onFailure(ex);
+                delegate.onFailure(ex);
             }
         }
 
@@ -585,11 +574,6 @@ public class Querier {
             } else {
                 listener.onResponse(false);
             }
-        }
-
-        @Override
-        public final void onFailure(Exception ex) {
-            listener.onFailure(ex);
         }
     }
 

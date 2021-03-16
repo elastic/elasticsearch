@@ -1,8 +1,8 @@
 [role="xpack"]
 [[watcher-api-put-watch]]
-=== Put watch API
+=== Create or update watch API
 ++++
-<titleabbrev>Put watch</titleabbrev>
+<titleabbrev>Create or update watch</titleabbrev>
 ++++
 
 Either registers a new watch in {watcher} or updates an existing one.
@@ -26,7 +26,7 @@ the `.watches` index and its trigger is immediately registered with the relevant
 trigger engine. Typically for the `schedule` trigger, the scheduler is the
 trigger engine.
 
-IMPORTANT:  You must use {kib} or this API to create a watch. Do not put a watch
+IMPORTANT:  You must use {kib} or this API to create a watch. Do not add a watch
             directly to the `.watches` index using the Elasticsearch index API.
             If {es} {security-features} are enabled, do not give users `write`
             privileges on the `.watches` index.

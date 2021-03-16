@@ -56,7 +56,7 @@ reaches either a `max_primary_shard_size` of 50 gigabytes or a `max_age` of 30 d
 Note that this value is relative to the rollover time, not the index creation time.
 
 You can create the policy through {kib} or with the
-<<ilm-put-lifecycle, put policy>> API.
+<<ilm-put-lifecycle,create or update policy>> API.
 To create the policy from {kib}, open the menu and go to *Stack Management >
 Index Lifecycle Policies*. Click *Create policy*.
 
@@ -116,8 +116,8 @@ Templates* tab, click *Create template*.
 
 image::images/data-streams/create-index-template.png[Create template page]
 
-This wizard invokes the <<indices-put-template,put index template API>> to create
-the index template with the options you specify.
+This wizard invokes the <<indices-put-template,create or update index template
+API>> to create the index template with the options you specify.
 
 .API example
 [%collapsible]

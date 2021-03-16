@@ -62,11 +62,9 @@ If the index name doesn't match the pattern, index creation fails.
 [[index-lifecycle-step-wait-time-threshold]]
 `index.lifecycle.step.wait_time_threshold`::
 (<<indices-update-settings,Dynamic>>, <<time-units,time value>>) 
-Time to wait while retrying a failed allocation step for the {ilm-init}
-<<ilm-shrink,`shrink`>> action. After this period, {ilm-init} re-attempts the
-previous step. Must be greater than `1h` (1 hour). Defaults to `12h` (12 hours).
-+
-See <<ilm-shrink-retry-failed-allocation>>.
+Time to wait for the cluster to resolve allocation issues during an {ilm-init}
+<<ilm-shrink,`shrink`>> action. Must be greater than `1h` (1 hour). Defaults to
+`12h` (12 hours). See <<ilm-shrink-shard-allocation>>.
 
 `index.lifecycle.rollover_alias`::
 (<<indices-update-settings,Dynamic>>, string) 

@@ -92,24 +92,26 @@ PUT _ilm/policy/my_policy
 }
 --------------------------------------------------
 
-[[ilm-shrink-retry-failed-allocation]]
-==== Retrying failed allocation steps
+[[ilm-shrink-shard-allocation]]
+==== Shard allocation for shrink
 
 During a `shrink` action, {ilm-init} allocates the source index's primary shards
 to one node. After shrinking the index, {ilm-init} reallocates the shrunken
-index's shards to the appropriate nodes based on your allocation rules. These
-allocation steps can fail if:
+index's shards to the appropriate nodes based on your allocation rules.
+
+These allocation steps can fail for a number of reasons, including:
 
 * A node is removed during the `shrink` action.
 * No node has enough disk space to host the source index's shards.
 * {es} cannot reallocate the shrunken index due to conflicting allocation rules.
 
-When one of these allocation steps fails, {ilm-init} retries the step for a
-period set in
+When one of the allocation steps fails, {ilm-init} waits for the period in
 <<index-lifecycle-step-wait-time-threshold,`index.lifecycle.step.wait_time_threshold`>>.
-By default, this threshold period is 12 hours. If the threshold period passes
-and {ilm-init} has not yet shrunk the index, {ilm-init} attempts to allocate the
-source index's primary shards to another node. If {ilm-init} shrunk the index
-but could not reallocate the shrunken index's shards during the threshold
-period, {ilm-init} deletes the shrunken index and re-attempts the entire
-`shrink` action.
+This period lets the cluster resolve any issues causing the allocation failure
+normally. By default, the threshold period is 12 hours. 
+
+If the threshold period passes and {ilm-init} has not yet shrunk the index,
+{ilm-init} attempts to allocate the source index's primary shards to another
+node. If {ilm-init} shrunk the index but could not reallocate the shrunken
+index's shards during the threshold period, {ilm-init} deletes the shrunken
+index and re-attempts the entire `shrink` action.

@@ -84,7 +84,8 @@ public class ServiceAccountService {
                 "only [{}] service accounts are supported, but received [{}]",
                 ElasticServiceAccounts.NAMESPACE, token.getAccountId().asPrincipal());
             logger.debug(message);
-            throw new ElasticsearchSecurityException(message.getFormattedMessage());
+            listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage()));
+            return;
         }
 
         final ServiceAccount account = ACCOUNTS.get(token.getAccountId().serviceName());
@@ -92,7 +93,8 @@ public class ServiceAccountService {
             final ParameterizedMessage message = new ParameterizedMessage(
                 "the [{}] service account does not exist", token.getAccountId().asPrincipal());
             logger.debug(message);
-            throw new ElasticsearchSecurityException(message.getFormattedMessage());
+            listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage()));
+            return;
         }
 
         if (serviceAccountsCredentialStore.authenticate(token)) {
@@ -103,7 +105,7 @@ public class ServiceAccountService {
                 token.getAccountId().asPrincipal(),
                 token.getTokenName());
             logger.debug(message);
-            throw new ElasticsearchSecurityException(message.getFormattedMessage());
+            listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage()));
         }
     }
 

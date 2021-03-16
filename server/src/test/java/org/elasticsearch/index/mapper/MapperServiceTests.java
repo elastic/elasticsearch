@@ -39,12 +39,12 @@ public class MapperServiceTests extends MapperServiceTestCase {
     public void testMappingLookup() throws IOException {
         MapperService service = createMapperService(mapping(b -> {}));
         MappingLookup oldLookup = service.mappingLookup();
-        assertThat(oldLookup.fieldTypes().get("cat"), nullValue());
+        assertThat(oldLookup.fieldTypesLookup().get("cat"), nullValue());
 
         merge(service, mapping(b -> b.startObject("cat").field("type", "keyword").endObject()));
         MappingLookup newLookup = service.mappingLookup();
-        assertThat(newLookup.fieldTypes().get("cat"), not(nullValue()));
-        assertThat(oldLookup.fieldTypes().get("cat"), nullValue());
+        assertThat(newLookup.fieldTypesLookup().get("cat"), not(nullValue()));
+        assertThat(oldLookup.fieldTypesLookup().get("cat"), nullValue());
     }
 
     /**

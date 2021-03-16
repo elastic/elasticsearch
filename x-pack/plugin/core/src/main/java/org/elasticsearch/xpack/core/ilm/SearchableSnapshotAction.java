@@ -13,7 +13,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,7 +43,6 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
     public static final ParseField SNAPSHOT_REPOSITORY = new ParseField("snapshot_repository");
     public static final ParseField FORCE_MERGE_INDEX = new ParseField("force_merge_index");
-    public static final ParseField STORAGE = new ParseField("storage");
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
     public static final String CONDITIONAL_SKIP_ACTION_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_SKIP_GENERATE_AND_CLEAN = BranchingStep.NAME + "-check-existing-snapshot";
@@ -53,21 +51,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public static final String PARTIAL_RESTORED_INDEX_PREFIX = "partial-";
 
     private static final ConstructingObjectParser<SearchableSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        a -> {
-            String storageName = (String) a[2];
-            final MountSearchableSnapshotRequest.Storage storageType;
-            if (storageName == null) {
-                storageType = null;
-            } else {
-                storageType = MountSearchableSnapshotRequest.Storage.fromString(storageName);
-            }
-            return new SearchableSnapshotAction((String) a[0], a[1] == null || (boolean) a[1], storageType);
-        });
+        a -> new SearchableSnapshotAction((String) a[0], a[1] == null || (boolean) a[1]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_REPOSITORY);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FORCE_MERGE_INDEX);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), STORAGE);
     }
 
 
@@ -77,21 +65,17 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
     private final String snapshotRepository;
     private final boolean forceMergeIndex;
-    @Nullable
-    private final MountSearchableSnapshotRequest.Storage storageType;
 
-    public SearchableSnapshotAction(String snapshotRepository, boolean forceMergeIndex,
-                                    @Nullable MountSearchableSnapshotRequest.Storage type) {
+    public SearchableSnapshotAction(String snapshotRepository, boolean forceMergeIndex) {
         if (Strings.hasText(snapshotRepository) == false) {
             throw new IllegalArgumentException("the snapshot repository must be specified");
         }
         this.snapshotRepository = snapshotRepository;
         this.forceMergeIndex = forceMergeIndex;
-        this.storageType = type;
     }
 
     public SearchableSnapshotAction(String snapshotRepository) {
-        this(snapshotRepository, true, null);
+        this(snapshotRepository, true);
     }
 
     public SearchableSnapshotAction(StreamInput in) throws IOException {
@@ -101,20 +85,10 @@ public class SearchableSnapshotAction implements LifecycleAction {
         } else {
             this.forceMergeIndex = true;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            this.storageType = in.readOptionalEnum(MountSearchableSnapshotRequest.Storage.class);
-        } else {
-            this.storageType = null;
-        }
     }
 
     boolean isForceMergeIndex() {
         return forceMergeIndex;
-    }
-
-    @Nullable
-    public MountSearchableSnapshotRequest.Storage getStorageType() {
-        return storageType;
     }
 
     public String getSnapshotRepository() {
@@ -290,28 +264,15 @@ public class SearchableSnapshotAction implements LifecycleAction {
      * Resolves the prefix to be used for the mounted index depending on the provided key
      */
     String getRestoredIndexPrefix(StepKey currentKey) {
-        if (storageType == null) {
-            if (currentKey.getPhase().equals(TimeseriesLifecycleType.FROZEN_PHASE)) {
-                return PARTIAL_RESTORED_INDEX_PREFIX;
-            } else {
-                return FULL_RESTORED_INDEX_PREFIX;
-            }
-        }
-        switch (storageType) {
-            case FULL_COPY:
-                return FULL_RESTORED_INDEX_PREFIX;
-            case SHARED_CACHE:
-                return PARTIAL_RESTORED_INDEX_PREFIX;
-            default:
-                throw new IllegalArgumentException("unexpected storage type: " + storageType);
+        if (currentKey.getPhase().equals(TimeseriesLifecycleType.FROZEN_PHASE)) {
+            return PARTIAL_RESTORED_INDEX_PREFIX;
+        } else {
+            return FULL_RESTORED_INDEX_PREFIX;
         }
     }
 
-    // Resolves the storage type from a Nullable to non-Nullable type
+    // Resolves the storage type depending on which phase the index is in
     MountSearchableSnapshotRequest.Storage getConcreteStorageType(StepKey currentKey) {
-        if (storageType != null) {
-            return storageType;
-        }
         if (currentKey.getPhase().equals(TimeseriesLifecycleType.FROZEN_PHASE)) {
             return MountSearchableSnapshotRequest.Storage.SHARED_CACHE;
         } else {
@@ -335,9 +296,6 @@ public class SearchableSnapshotAction implements LifecycleAction {
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(forceMergeIndex);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalEnum(storageType);
-        }
     }
 
     @Override
@@ -345,9 +303,6 @@ public class SearchableSnapshotAction implements LifecycleAction {
         builder.startObject();
         builder.field(SNAPSHOT_REPOSITORY.getPreferredName(), snapshotRepository);
         builder.field(FORCE_MERGE_INDEX.getPreferredName(), forceMergeIndex);
-        if (storageType != null) {
-            builder.field(STORAGE.getPreferredName(), storageType);
-        }
         builder.endObject();
         return builder;
     }
@@ -361,12 +316,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
             return false;
         }
         SearchableSnapshotAction that = (SearchableSnapshotAction) o;
-        return Objects.equals(snapshotRepository, that.snapshotRepository) &&
-            Objects.equals(storageType, that.storageType);
+        return Objects.equals(snapshotRepository, that.snapshotRepository);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotRepository, storageType);
+        return Objects.hash(snapshotRepository);
     }
 }

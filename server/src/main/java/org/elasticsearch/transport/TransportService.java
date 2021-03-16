@@ -279,12 +279,16 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     /**
-     * start accepting incoming requests.
-     * when the transport layer starts up it will block any incoming requests until
-     * this method is called
+     * Start accepting incoming requests.
+     *
+     * The transport service starts before it's ready to accept incoming requests because we need to know the address(es) to which we are
+     * bound, which means we have to actually bind to them and start accepting incoming connections. However until this method is called we
+     * reject any incoming requests, including handshakes, by closing the connection.
      */
     public final void acceptIncomingRequests() {
-        handleIncomingRequests.set(true);
+        final boolean startedWithThisCall = handleIncomingRequests.compareAndSet(false, true);
+        assert startedWithThisCall : "transport service was already accepting incoming requests";
+        logger.debug("now accepting incoming requests");
     }
 
     @Override
@@ -416,28 +420,17 @@ public class TransportService extends AbstractLifecycleComponent
         final DiscoveryNode node = connection.getNode();
         sendRequest(connection, HANDSHAKE_ACTION_NAME, HandshakeRequest.INSTANCE,
             TransportRequestOptions.timeout(handshakeTimeout),
-            new ActionListenerResponseHandler<>(
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(HandshakeResponse response) {
-                        if (clusterNamePredicate.test(response.clusterName) == false) {
-                            listener.onFailure(new IllegalStateException("handshake with [" + node + "] failed: remote cluster name ["
+                new ActionListenerResponseHandler<>(listener.delegateFailure((l, response) -> {
+                    if (clusterNamePredicate.test(response.clusterName) == false) {
+                        l.onFailure(new IllegalStateException("handshake with [" + node + "] failed: remote cluster name ["
                                 + response.clusterName.value() + "] does not match " + clusterNamePredicate));
-                        } else if (response.version.isCompatible(localNode.getVersion()) == false) {
-                            listener.onFailure(new IllegalStateException("handshake with [" + node + "] failed: remote node version ["
+                    } else if (response.version.isCompatible(localNode.getVersion()) == false) {
+                        l.onFailure(new IllegalStateException("handshake with [" + node + "] failed: remote node version ["
                                 + response.version + "] is incompatible with local node version [" + localNode.getVersion() + "]"));
-                        } else {
-                            listener.onResponse(response);
-                        }
+                    } else {
+                        l.onResponse(response);
                     }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                },
-                HandshakeResponse::new, ThreadPool.Names.GENERIC
-            ));
+                }), HandshakeResponse::new, ThreadPool.Names.GENERIC));
     }
 
     public ConnectionManager getConnectionManager() {
@@ -939,7 +932,7 @@ public class TransportService extends AbstractLifecycleComponent
     @Override
     public void onRequestReceived(long requestId, String action) {
         if (handleIncomingRequests.get() == false) {
-            throw new IllegalStateException("transport not ready yet to handle incoming requests");
+            throw new TransportNotReadyException();
         }
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] received request", requestId, action);

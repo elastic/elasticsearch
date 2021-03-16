@@ -121,6 +121,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
+import static org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants.AUDIT_INDEX_PATTERN;
+
 public class Transform extends Plugin implements SystemIndexPlugin, PersistentTaskPlugin {
 
     public static final String NAME = "transform";
@@ -144,12 +146,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-
-    /**
-     * Node attributes for transform, automatically created and retrievable via cluster state.
-     * These attributes should never be set directly, use the node setting counter parts instead.
-     */
-    public static final String TRANSFORM_ENABLED_NODE_ATTR = "transform.node";
 
     /**
      * Setting whether transform (the coordinator task) can run on this node.
@@ -329,23 +325,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public Settings additionalSettings() {
-        String transformEnabledNodeAttribute = "node.attr." + TRANSFORM_ENABLED_NODE_ATTR;
-
-        if (settings.get(transformEnabledNodeAttribute) != null) {
-            throw new IllegalArgumentException(
-                "Directly setting transform node attributes is not permitted, please use the documented node settings instead"
-            );
-        }
-
-        Settings.Builder additionalSettings = Settings.builder();
-
-        additionalSettings.put(transformEnabledNodeAttribute, DiscoveryNode.hasRole(settings, Transform.TRANSFORM_ROLE));
-
-        return additionalSettings.build();
-    }
-
-    @Override
     public Set<DiscoveryNodeRole> getRoles() {
         return Collections.singleton(TRANSFORM_ROLE);
     }
@@ -369,6 +348,10 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    @Override public Collection<String> getAssociatedIndexPatterns() {
+        return List.of(AUDIT_INDEX_PATTERN);
     }
 
     @Override

@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.core.MigrateToDataStreamAction;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestMigrateToDataStreamAction extends BaseRestHandler {
 
     @Override
@@ -25,7 +27,7 @@ public class RestMigrateToDataStreamAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.POST, "/_data_stream/_migrate/{name}"));
+        return List.of(new Route(POST, "/_data_stream/_migrate/{name}"));
     }
 
     @Override

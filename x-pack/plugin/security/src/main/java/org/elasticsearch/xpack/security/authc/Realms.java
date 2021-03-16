@@ -16,6 +16,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
@@ -176,10 +177,16 @@ public class Realms implements Iterable<Realm> {
         Map<String, Set<String>> nameToRealmIdentifier = new HashMap<>();
         Set<String> missingOrderRealmSettingKeys = new TreeSet<>();
         Map<String, Set<String>> orderToRealmOrderSettingKeys = new HashMap<>();
+        Set<String> unconfiguredBasicRealms = new HashSet<>(
+            org.elasticsearch.common.collect.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE));
         for (final Map.Entry<RealmConfig.RealmIdentifier, Settings> entry: realmsSettings.entrySet()) {
             final RealmConfig.RealmIdentifier identifier = entry.getKey();
             if (false == entry.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY)) {
-                missingOrderRealmSettingKeys.add(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING));
+                // If the realm is disabled, it is ok to have no order setting. This is only really useful for file/native realm.
+                // Because settings of other realms can just be entirely removed.
+                if (entry.getValue().getAsBoolean(RealmSettings.ENABLED_SETTING_KEY, true)) {
+                    missingOrderRealmSettingKeys.add(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING));
+                }
             } else {
                 orderToRealmOrderSettingKeys.computeIfAbsent(entry.getValue().get(RealmSettings.ORDER_SETTING_KEY), k -> new TreeSet<>())
                     .add(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING));
@@ -189,6 +196,7 @@ public class Realms implements Iterable<Realm> {
                 throw new IllegalArgumentException("unknown realm type [" + identifier.getType() + "] for realm [" + identifier + "]");
             }
             RealmConfig config = new RealmConfig(identifier, settings, env, threadContext);
+            unconfiguredBasicRealms.remove(identifier.getType());
             if (config.enabled() == false) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("realm [{}] is disabled", identifier);
@@ -218,6 +226,7 @@ public class Realms implements Iterable<Realm> {
             realms.add(realm);
         }
 
+        logDeprecationForImplicitlyDisabledBasicRealms(realms, unconfiguredBasicRealms);
         if (realms.isEmpty() == false) {
             Collections.sort(realms);
         } else {
@@ -369,4 +378,31 @@ public class Realms implements Iterable<Realm> {
         }
     }
 
+    private void logDeprecationForImplicitlyDisabledBasicRealms(List<Realm> realms, Set<String> unconfiguredBasicRealms) {
+        if (realms.isEmpty()) {  // No available realm
+            final List<String> explicitlyDisabledBasicRealms =
+                Sets.difference(org.elasticsearch.common.collect.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE),
+                    unconfiguredBasicRealms).stream().sorted().collect(Collectors.toList());
+            if (explicitlyDisabledBasicRealms.isEmpty()) {
+                return;
+            }
+            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "implicitly_disabled_basic_realms",
+                "Found explicitly disabled basic {}: [{}]. But {} will be enabled because no other realms are configured or enabled. " +
+                    "In next major release, explicitly disabled basic realms will remain disabled.",
+                explicitlyDisabledBasicRealms.size() == 1 ? "realm" : "realms",
+                Strings.collectionToDelimitedString(explicitlyDisabledBasicRealms, ","),
+                explicitlyDisabledBasicRealms.size() == 1 ? "it" : "they");
+        } else { // There are configured and enabled realms
+            if (unconfiguredBasicRealms.isEmpty()) {
+                return;
+            }
+            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "implicitly_disabled_basic_realms",
+                "Found implicitly disabled basic {}: [{}]. {} disabled because there are other explicitly configured realms. " +
+                    "In next major release, basic realms will always be enabled unless explicitly disabled.",
+                unconfiguredBasicRealms.size() == 1 ? "realm" : "realms",
+                Strings.collectionToDelimitedString(unconfiguredBasicRealms, ","),
+                unconfiguredBasicRealms.size() == 1 ? "It is" : "They are"
+            );
+        }
+    }
 }

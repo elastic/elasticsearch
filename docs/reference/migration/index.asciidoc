@@ -28,6 +28,7 @@ For more information about {minor-version},
 see the <<release-highlights>> and <<es-release-notes>>.
 For information about how to upgrade your cluster, see <<setup-upgrade>>.
 
+* <<breaking-changes-7.13,Migrating to 7.13>>
 * <<breaking-changes-7.12,Migrating to 7.12>>
 * <<breaking-changes-7.11,Migrating to 7.11>>
 * <<breaking-changes-7.10,Migrating to 7.10>>
@@ -44,6 +45,7 @@ For information about how to upgrade your cluster, see <<setup-upgrade>>.
 
 --
 
+include::migrate_7_13.asciidoc[]
 include::migrate_7_12.asciidoc[]
 include::migrate_7_11.asciidoc[]
 include::migrate_7_10.asciidoc[]

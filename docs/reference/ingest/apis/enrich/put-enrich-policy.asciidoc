@@ -1,12 +1,12 @@
 [role="xpack"]
 [testenv="basic"]
 [[put-enrich-policy-api]]
-=== Put enrich policy API
+=== Create or update enrich policy API
 ++++
-<titleabbrev>Put enrich policy</titleabbrev>
+<titleabbrev>Create or update enrich policy</titleabbrev>
 ++++
 
-Creates an enrich policy.
+Creates or updates an enrich policy.
 
 ////
 [source,console]
@@ -64,8 +64,8 @@ If you use {es} {security-features}, you must have:
 [[put-enrich-policy-api-desc]]
 ==== {api-description-title}
 
-Use the put enrich policy API
-to create a new <<enrich-policy,enrich policy>>.
+Use the create or update enrich policy API to create a new
+<<enrich-policy,enrich policy>>.
 
 [WARNING]
 ====

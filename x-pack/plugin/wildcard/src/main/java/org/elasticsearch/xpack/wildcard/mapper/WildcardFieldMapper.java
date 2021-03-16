@@ -336,12 +336,12 @@ public class WildcardFieldMapper extends FieldMapper {
                 BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
                 verifyingBuilder.add(new BooleanClause(approxQuery, Occur.MUST));
                 verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
-                return verifyingBuilder.build();
+                return new ConstantScoreQuery(verifyingBuilder.build());
             } else if (numWildcardChars == 0 || numWildcardStrings > 0) {
                 // We have no concrete characters and we're not a pure length query e.g. ???
                 return new DocValuesFieldExistsQuery(name());
             }
-            return verifyingQuery;
+            return new ConstantScoreQuery(verifyingQuery);
 
         }
 

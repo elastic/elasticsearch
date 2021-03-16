@@ -66,8 +66,8 @@ teardown:
 ---
 "Tests searchable snapshots stats":
   - skip:
-      version: " - 7.12.99"
-      reason:  searchable snapshots response format changed in 7.13.0
+      version: " - 7.99.99"
+      reason: adapt after backport
 
   - do:
       catch: missing
@@ -211,6 +211,11 @@ teardown:
   - gte:     { total.0.blob_store_bytes_requested.min: 0 }
   - gte:     { total.0.blob_store_bytes_requested.max: 0 }
 
+  - gte:     { total.0.lucene_bytes_read.count: 0 }
+  - gte:     { total.0.lucene_bytes_read.sum: 0 }
+  - gte:     { total.0.lucene_bytes_read.min: 0 }
+  - gte:     { total.0.lucene_bytes_read.max: 0 }
+
   - gte:     { total.0.current_index_cache_fills: 0 }
 
   - length:  { indices: 1 }
@@ -290,6 +295,11 @@ teardown:
   - gte:     { indices.docs.total.0.blob_store_bytes_requested.sum: 0 }
   - gte:     { indices.docs.total.0.blob_store_bytes_requested.min: 0 }
   - gte:     { indices.docs.total.0.blob_store_bytes_requested.max: 0 }
+
+  - gte:     { indices.docs.total.0.lucene_bytes_read.count: 0 }
+  - gte:     { indices.docs.total.0.lucene_bytes_read.sum: 0 }
+  - gte:     { indices.docs.total.0.lucene_bytes_read.min: 0 }
+  - gte:     { indices.docs.total.0.lucene_bytes_read.max: 0 }
 
   - gte:     { indices.docs.total.0.current_index_cache_fills: 0 }
 
@@ -374,6 +384,11 @@ teardown:
   - gte:     { indices.docs.shards.0.0.files.0.blob_store_bytes_requested.sum: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.blob_store_bytes_requested.min: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.blob_store_bytes_requested.max: 0 }
+
+  - gte:     { indices.docs.shards.0.0.files.0.lucene_bytes_read.count: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.lucene_bytes_read.sum: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.lucene_bytes_read.min: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.lucene_bytes_read.max: 0 }
 
   - gte:     { indices.docs.shards.0.0.files.0.current_index_cache_fills: 0 }
 

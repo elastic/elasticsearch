@@ -49,6 +49,7 @@ testClusters.matching { it.name == "integTest"}.configureEach {
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
+  setting 'xpack.security.enabled', 'false'
   setting 'path.repo', "${buildDir}/cluster/shared/repo"
   Closure configFile = {
     extraConfigFile it, file("src/test/cluster/config/$it")

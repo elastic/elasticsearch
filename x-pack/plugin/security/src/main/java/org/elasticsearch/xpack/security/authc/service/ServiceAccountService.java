@@ -80,17 +80,19 @@ public class ServiceAccountService {
                                       ActionListener<Authentication> listener) {
 
         if (ElasticServiceAccounts.NAMESPACE.equals(token.getAccountId().namespace()) == false) {
-            logger.debug("only [{}] service accounts are supported, but received [{}]",
+            final ParameterizedMessage message = new ParameterizedMessage(
+                "only [{}] service accounts are supported, but received [{}]",
                 ElasticServiceAccounts.NAMESPACE, token.getAccountId().asPrincipal());
-            listener.onResponse(null);
-            return;
+            logger.debug(message);
+            throw new ElasticsearchSecurityException(message.getFormattedMessage());
         }
 
         final ServiceAccount account = ACCOUNTS.get(token.getAccountId().serviceName());
         if (account == null) {
-            logger.debug("the [{}] service account does not exist", token.getAccountId().asPrincipal());
-            listener.onResponse(null);
-            return;
+            final ParameterizedMessage message = new ParameterizedMessage(
+                "the [{}] service account does not exist", token.getAccountId().asPrincipal());
+            logger.debug(message);
+            throw new ElasticsearchSecurityException(message.getFormattedMessage());
         }
 
         if (serviceAccountsCredentialStore.authenticate(token)) {

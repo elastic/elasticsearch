@@ -121,8 +121,11 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final SecureString secret = new SecureString(randomAlphaOfLength(20).toCharArray());
         final ServiceAccountToken token1 = new ServiceAccountToken(accountId1, randomAlphaOfLengthBetween(3, 8), secret);
         final PlainActionFuture<Authentication> future1 = new PlainActionFuture<>();
-        serviceAccountService.authenticateWithToken(token1, threadContext, randomAlphaOfLengthBetween(3, 8), future1);
-        assertNull(future1.get());
+        final ElasticsearchSecurityException e1 = expectThrows(ElasticsearchSecurityException.class,
+            () -> serviceAccountService.authenticateWithToken(token1, threadContext, randomAlphaOfLengthBetween(3, 8), future1));
+        assertThat(e1.getMessage(), containsString(
+            "only [" + ElasticServiceAccounts.NAMESPACE + "] service accounts are supported, " +
+                "but received [" + accountId1.asPrincipal() + "]"));
 
         // Null for unknown elastic service name
         final ServiceAccount.ServiceAccountId accountId2 = new ServiceAccount.ServiceAccountId(
@@ -130,8 +133,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
             randomValueOtherThan("fleet", () -> randomAlphaOfLengthBetween(3, 8)));
         final ServiceAccountToken token2 = new ServiceAccountToken(accountId2, randomAlphaOfLengthBetween(3, 8), secret);
         final PlainActionFuture<Authentication> future2 = new PlainActionFuture<>();
-        serviceAccountService.authenticateWithToken(token2, threadContext, randomAlphaOfLengthBetween(3, 8), future2);
-        assertNull(future2.get());
+        final ElasticsearchSecurityException e2 = expectThrows(ElasticsearchSecurityException.class,
+            () -> serviceAccountService.authenticateWithToken(token2, threadContext, randomAlphaOfLengthBetween(3, 8), future2));
+        assertThat(e2.getMessage(), containsString(
+            "the [" + accountId2.asPrincipal() + "] service account does not exist"));
 
         // Success based on credential store
         final ServiceAccount.ServiceAccountId accountId3 = new ServiceAccount.ServiceAccountId(ElasticServiceAccounts.NAMESPACE, "fleet");
@@ -145,7 +150,6 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final PlainActionFuture<Authentication> future3 = new PlainActionFuture<>();
         serviceAccountService.authenticateWithToken(token3, threadContext, nodeName, future3);
         final Authentication authentication = future3.get();
-        assertNotNull(authentication);
         assertThat(authentication, equalTo(new Authentication(
             new User("elastic/fleet", Strings.EMPTY_ARRAY,
                 "Service account - elastic/fleet", null, Map.of("_elastic_service_account", true),
@@ -156,9 +160,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
         )));
 
         final PlainActionFuture<Authentication> future4 = new PlainActionFuture<>();
-        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+        final ElasticsearchSecurityException e4 = expectThrows(ElasticsearchSecurityException.class,
             () -> serviceAccountService.authenticateWithToken(token4, threadContext, nodeName, future4));
-        assertThat(e.getMessage(), containsString("failed to authenticate service account ["
+        assertThat(e4.getMessage(), containsString("failed to authenticate service account ["
             + token4.getAccountId().asPrincipal() + "] with token name [" + token4.getTokenName() + "]"));
     }
 

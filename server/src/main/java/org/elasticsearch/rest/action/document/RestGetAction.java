@@ -53,7 +53,7 @@ public class RestGetAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if(request.getRestApiVersion() == RestApiVersion.V_7) {
+        if (request.getRestApiVersion() == RestApiVersion.V_7) {
             request.param("type"); // consume and ignore the type
         }
 

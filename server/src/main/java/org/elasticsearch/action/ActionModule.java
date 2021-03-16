@@ -776,7 +776,6 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
-
     }
 
     @Override

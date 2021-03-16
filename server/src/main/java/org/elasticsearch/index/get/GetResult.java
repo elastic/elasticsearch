@@ -284,7 +284,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     }
 
     @Override
-    public XContentBuilder  toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(_INDEX, index);
         if (builder.getRestApiVersion() == RestApiVersion.V_7) {

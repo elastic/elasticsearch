@@ -133,13 +133,13 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         }
 
         final boolean debug = allocation.debugDecision();
-        IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
 
         if (INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(indexMetadata.getSettings()).expandToAllNodes()) {
             return YES_AUTO_EXPAND_ALL;
         }
 
-        int shardCount = indexMetadata.getNumberOfReplicas() + 1; // 1 for primary
+        final int shardCount = indexMetadata.getNumberOfReplicas() + 1; // 1 for primary
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute
             if (node.node().getAttributes().containsKey(awarenessAttribute) == false) {
@@ -147,12 +147,12 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             }
 
             final Set<String> actualAttributeValues = allocation.routingNodes().getAttributeValues(awarenessAttribute);
-            final String currentAttributeValue = node.node().getAttributes().get(awarenessAttribute);
-            assert currentAttributeValue != null : "attribute [" + awarenessAttribute + "] missing on " + node.node();
-            assert actualAttributeValues.contains(currentAttributeValue)
+            final String targetAttributeValue = node.node().getAttributes().get(awarenessAttribute);
+            assert targetAttributeValue != null : "attribute [" + awarenessAttribute + "] missing on " + node.node();
+            assert actualAttributeValues.contains(targetAttributeValue)
                     : "attribute [" + awarenessAttribute + "] on " + node.node() + " is not in " + actualAttributeValues;
 
-            int shardsForCurrentAttributeValue = 0;
+            int shardsForTargetAttributeValue = 0;
             // Will be the count of shards on nodes with attribute `awarenessAttribute` matching the one on `node`.
 
             for (ShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting.shardId())) {
@@ -160,8 +160,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                     // Note: this also counts relocation targets as that will be the new location of the shard.
                     // Relocation sources should not be counted as the shard is moving away
                     final RoutingNode assignedNode = allocation.routingNodes().node(assignedShard.currentNodeId());
-                    if (currentAttributeValue.equals(assignedNode.node().getAttributes().get(awarenessAttribute))) {
-                        shardsForCurrentAttributeValue += 1;
+                    if (targetAttributeValue.equals(assignedNode.node().getAttributes().get(awarenessAttribute))) {
+                        shardsForTargetAttributeValue += 1;
                     }
                 }
             }
@@ -170,11 +170,11 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 if (shardRouting.assignedToNode()) {
                     final RoutingNode currentNode = allocation.routingNodes().node(
                             shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId());
-                    if (currentAttributeValue.equals(currentNode.node().getAttributes().get(awarenessAttribute)) == false) {
-                        shardsForCurrentAttributeValue += 1;
+                    if (targetAttributeValue.equals(currentNode.node().getAttributes().get(awarenessAttribute)) == false) {
+                        shardsForTargetAttributeValue += 1;
                     } // else this shard is already on a node in the same zone as the target node, so moving it doesn't change the count
                 } else {
-                    shardsForCurrentAttributeValue += 1;
+                    shardsForTargetAttributeValue += 1;
                 }
             }
 
@@ -184,7 +184,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                     : Math.toIntExact(Stream.concat(actualAttributeValues.stream(), forcedValues.stream()).distinct().count());
 
             final int maximumShardsPerAttributeValue = (shardCount + valueCount - 1) / valueCount; // ceil(shardCount/valueCount)
-            if (shardsForCurrentAttributeValue > maximumShardsPerAttributeValue) {
+            if (shardsForTargetAttributeValue > maximumShardsPerAttributeValue) {
                 return debug ? debugNoTooManyCopies(
                         shardCount,
                         awarenessAttribute,
@@ -192,7 +192,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                         valueCount,
                         actualAttributeValues.stream().sorted().collect(toList()),
                         forcedValues == null ? null : forcedValues.stream().sorted().collect(toList()),
-                        shardsForCurrentAttributeValue,
+                        shardsForTargetAttributeValue,
                         maximumShardsPerAttributeValue)
                         : Decision.NO;
             }
@@ -208,8 +208,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             int numberOfAttributes,
             List<String> realAttributes,
             List<String> forcedAttributes,
-            int currentNodeCount,
-            int maximumNodeCount) {
+            int actualShardCount,
+            int maximumShardCount) {
         return Decision.single(Decision.Type.NO, NAME,
                 "there are [%d] copies of this shard and [%d] values for attribute [%s] (%s from nodes in the cluster and %s) so there " +
                         "may be at most [%d] copies of this shard allocated to nodes with each value, but (including this copy) there " +
@@ -219,8 +219,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 attributeName,
                 realAttributes,
                 forcedAttributes == null ? "no forced awareness" : forcedAttributes + " from forced awareness",
-                maximumNodeCount,
-                currentNodeCount,
+                maximumShardCount,
+                actualShardCount,
                 attributeName,
                 attributeValue);
     }

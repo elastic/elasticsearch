@@ -706,7 +706,6 @@ public class ConstructingObjectParserTests extends ESTestCase {
         }
         ConstructingObjectParser<DoubleFieldDeclaration, Void> PARSER =
             new ConstructingObjectParser<>("double_field_declaration", a -> new DoubleFieldDeclaration((int)a[0]));
-        //we still need to have something to pass to a constructor. Otherwise use ObjectParser
         PARSER.declareInt(constructorArg(), new ParseField("name"));
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,

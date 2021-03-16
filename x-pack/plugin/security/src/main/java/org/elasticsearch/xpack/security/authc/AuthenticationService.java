@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -88,6 +89,7 @@ public class AuthenticationService {
     private final Cache<String, Realm> lastSuccessfulAuthCache;
     private final AtomicLong numInvalidation = new AtomicLong();
     private final ApiKeyService apiKeyService;
+    private final ServiceAccountService serviceAccountService;
     private final OperatorPrivilegesService operatorPrivilegesService;
     private final boolean runAsEnabled;
     private final boolean isAnonymousUserEnabled;
@@ -96,6 +98,7 @@ public class AuthenticationService {
     public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrailService,
                                  AuthenticationFailureHandler failureHandler, ThreadPool threadPool,
                                  AnonymousUser anonymousUser, TokenService tokenService, ApiKeyService apiKeyService,
+                                 ServiceAccountService serviceAccountService,
                                  OperatorPrivilegesService operatorPrivilegesService) {
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.realms = realms;
@@ -115,6 +118,7 @@ public class AuthenticationService {
             this.lastSuccessfulAuthCache = null;
         }
         this.apiKeyService = apiKeyService;
+        this.serviceAccountService = serviceAccountService;
         this.operatorPrivilegesService = operatorPrivilegesService;
         this.authenticationSerializer = new AuthenticationContextSerializer();
     }

@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
@@ -107,6 +108,7 @@ public class CompositeRolesStore {
     private final AtomicLong numInvalidation = new AtomicLong();
     private final AnonymousUser anonymousUser;
     private final ApiKeyService apiKeyService;
+    private final ServiceAccountService serviceAccountService;
     private final boolean isAnonymousEnabled;
     private final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> builtInRoleProviders;
     private final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> allRoleProviders;
@@ -115,7 +117,8 @@ public class CompositeRolesStore {
                                ReservedRolesStore reservedRolesStore, NativePrivilegeStore privilegeStore,
                                List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders,
                                ThreadContext threadContext, XPackLicenseState licenseState, FieldPermissionsCache fieldPermissionsCache,
-                               ApiKeyService apiKeyService, DocumentSubsetBitsetCache dlsBitsetCache,
+                               ApiKeyService apiKeyService, ServiceAccountService serviceAccountService,
+                               DocumentSubsetBitsetCache dlsBitsetCache,
                                Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer) {
         this.fileRolesStore = Objects.requireNonNull(fileRolesStore);
         this.dlsBitsetCache = Objects.requireNonNull(dlsBitsetCache);
@@ -125,6 +128,7 @@ public class CompositeRolesStore {
         this.licenseState = Objects.requireNonNull(licenseState);
         this.fieldPermissionsCache = Objects.requireNonNull(fieldPermissionsCache);
         this.apiKeyService = Objects.requireNonNull(apiKeyService);
+        this.serviceAccountService = Objects.requireNonNull(serviceAccountService);
         this.effectiveRoleDescriptorsConsumer = Objects.requireNonNull(effectiveRoleDescriptorsConsumer);
         CacheBuilder<RoleKey, Role> builder = CacheBuilder.builder();
         final int cacheSize = CACHE_SIZE_SETTING.get(settings);

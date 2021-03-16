@@ -52,34 +52,16 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
 
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageResponse> listener) {
-        final ActionListener<List<XPackFeatureSet.Usage>> usageActionListener = new ActionListener<>() {
-            @Override
-            public void onResponse(List<Usage> usages) {
-                listener.onResponse(new XPackUsageResponse(usages));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        };
+        final ActionListener<List<XPackFeatureSet.Usage>> usageActionListener =
+                listener.delegateFailure((l, usages) -> l.onResponse(new XPackUsageResponse(usages)));
         final AtomicReferenceArray<Usage> featureSetUsages = new AtomicReferenceArray<>(usageActions.size());
         final AtomicInteger position = new AtomicInteger(0);
-        final BiConsumer<XPackUsageFeatureAction, ActionListener<List<Usage>>> consumer = (featureUsageAction, iteratingListener) -> {
-            client.executeLocally(featureUsageAction, request, new ActionListener<>() {
-                @Override
-                public void onResponse(XPackUsageFeatureResponse usageResponse) {
+        final BiConsumer<XPackUsageFeatureAction, ActionListener<List<Usage>>> consumer = (featureUsageAction, iteratingListener) ->
+                client.executeLocally(featureUsageAction, request, iteratingListener.delegateFailure((l, usageResponse) -> {
                     featureSetUsages.set(position.getAndIncrement(), usageResponse.getUsage());
                     // the value sent back doesn't matter since our predicate keeps iterating
-                    iteratingListener.onResponse(Collections.emptyList());
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    iteratingListener.onFailure(e);
-                }
-            });
-        };
+                    l.onResponse(Collections.emptyList());
+                }));
         IteratingActionListener<List<XPackFeatureSet.Usage>, XPackUsageFeatureAction> iteratingActionListener =
                 new IteratingActionListener<>(usageActionListener, consumer, usageActions,
                         threadPool.getThreadContext(), (ignore) -> {

@@ -99,7 +99,7 @@ During a `shrink` action, {ilm-init} allocates the source index's primary shards
 to one node. After shrinking the index, {ilm-init} reallocates the shrunken
 index's shards to the appropriate nodes based on your allocation rules.
 
-These allocation steps can fail for a number of reasons, including:
+These allocation steps can fail for several reasons, including:
 
 * A node is removed during the `shrink` action.
 * No node has enough disk space to host the source index's shards.

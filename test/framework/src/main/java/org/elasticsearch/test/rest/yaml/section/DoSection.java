@@ -81,6 +81,10 @@ import static org.junit.Assert.fail;
  *
  */
 public class DoSection implements ExecutableSection {
+    private final String SecurityDisabledWarningHeaderPattern = "Elasticsearch built-in security features are not enabled, your cluster may " +
+        "be accessible without authentication. Read https:\\/\\/www\\.elastic\\.co\\/guide\\/en\\/elasticsearch\\/reference" +
+        "\\/(\\d+\\.)(\\d+)(\\.\\d+)?\\/get-started-enable-security\\.html for more information";
+
     public static DoSection parse(XContentParser parser) throws IOException {
         String currentFieldName = null;
         XContentParser.Token token;
@@ -379,6 +383,7 @@ public class DoSection implements ExecutableSection {
                 .map(HeaderWarning::escapeAndEncode)
                 .collect(toCollection(LinkedHashSet::new));
         final Set<Pattern> allowedRegex = new LinkedHashSet<>(allowedWarningHeadersRegex);
+        allowedRegex.add(Pattern.compile(SecurityDisabledWarningHeaderPattern));
         final Set<String> expected = expectedWarningHeaders.stream()
                 .map(HeaderWarning::escapeAndEncode)
                 .collect(toCollection(LinkedHashSet::new));

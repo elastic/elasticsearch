@@ -569,5 +569,4 @@ public class ObjectMapper extends Mapper implements Cloneable {
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
     }
-
 }

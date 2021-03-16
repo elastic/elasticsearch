@@ -51,7 +51,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -106,7 +105,7 @@ public class NumberFieldMapper extends FieldMapper {
                 = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
             this.nullValue = new Parameter<>("null_value", false, () -> null,
                 (n, c, o) -> o == null ? null : type.parse(o, false), m -> toType(m).nullValue).acceptsNull();
-            this.script = ScriptParams.script(
+            this.script = Parameter.scriptParam(
                 type.compiler(name),
                 m -> toType(m).script
             );
@@ -365,8 +364,22 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public BiFunction<Script, ScriptService, MapperScript<Number>> compiler(String fieldName) {
-                return (script, service)
-                    -> new DoubleMapperScript(fieldName, script, service.compile(script, DoubleFieldScript.CONTEXT), script.getParams());
+                return (script, service) -> new MapperScript<>(script) {
+
+                    final DoubleFieldScript.Factory scriptFactory = service.compile(script, DoubleFieldScript.CONTEXT);
+
+                    @Override
+                    public void executeAndEmit(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Number> emitter) {
+                        DoubleFieldScript s = scriptFactory
+                            .newFactory(fieldName, script.getParams(), lookup)
+                            .newInstance(ctx);
+                        s.runForDoc(doc);
+                        double[] vs = s.values();
+                        for (int i = 0; i < s.count(); i++) {
+                            emitter.accept(vs[i]);
+                        }
+                    }
+                };
             }
 
             @Override
@@ -695,8 +708,22 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public BiFunction<Script, ScriptService, MapperScript<Number>> compiler(String fieldName) {
-                return (script, service)
-                    -> new LongMapperScript(fieldName, script, service.compile(script, LongFieldScript.CONTEXT), script.getParams());
+                return (script, service) -> new MapperScript<>(script) {
+
+                    final LongFieldScript.Factory scriptFactory = service.compile(script, LongFieldScript.CONTEXT);
+
+                    @Override
+                    public void executeAndEmit(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Number> emitter) {
+                        LongFieldScript s = scriptFactory
+                            .newFactory(fieldName, script.getParams(), lookup)
+                            .newInstance(ctx);
+                        s.runForDoc(doc);
+                        long[] vs = s.values();
+                        for (int i = 0; i < s.count(); i++) {
+                            emitter.accept(vs[i]);
+                        }
+                    }
+                };
             }
 
             @Override
@@ -1041,7 +1068,6 @@ public class NumberFieldMapper extends FieldMapper {
                     public List<Object> fetchValues(SourceLookup lookup) {
                         List<Object> values = new ArrayList<>();
                         script.executeAndEmit(context.lookup(), ctx, lookup.docId(), values::add);
-                        values.sort(Comparator.comparingLong(a -> (Long) a));
                         return values;
                     }
                 };
@@ -1203,67 +1229,5 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), type, ignoreMalformedByDefault, coerceByDefault).init(this);
-    }
-
-    private static class LongMapperScript extends MapperScript<Number> {
-
-        final LongFieldScript.Factory scriptFactory;
-        final Map<String, Object> scriptParams;
-        final String fieldName;
-
-        private LongMapperScript(
-            String fieldName,
-            Script script,
-            LongFieldScript.Factory scriptFactory,
-            Map<String, Object> scriptParams
-        ) {
-            super(script);
-            this.scriptFactory = scriptFactory;
-            this.scriptParams = scriptParams;
-            this.fieldName = fieldName;
-        }
-
-        @Override
-        public void executeAndEmit(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Number> emitter) {
-            LongFieldScript s = scriptFactory
-                .newFactory(fieldName, scriptParams, lookup)
-                .newInstance(ctx);
-            s.runForDoc(doc);
-            long[] vs = s.values();
-            for (int i = 0; i < s.count(); i++) {
-                emitter.accept(vs[i]);
-            }
-        }
-    }
-
-    private static class DoubleMapperScript extends MapperScript<Number> {
-
-        final DoubleFieldScript.Factory scriptFactory;
-        final Map<String, Object> scriptParams;
-        final String fieldName;
-
-        private DoubleMapperScript(
-            String fieldName,
-            Script script,
-            DoubleFieldScript.Factory scriptFactory,
-            Map<String, Object> scriptParams
-        ) {
-            super(script);
-            this.scriptFactory = scriptFactory;
-            this.scriptParams = scriptParams;
-            this.fieldName = fieldName;
-        }
-
-        @Override
-        public void executeAndEmit(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Number> emitter) {
-            DoubleFieldScript s = scriptFactory
-                .newFactory(fieldName, scriptParams, lookup)
-                .newInstance(ctx);
-            s.runForDoc(doc);
-            double[] vs = s.values();
-            for (int i = 0; i < s.count(); i++) {
-                emitter.accept(vs[i]);
-            }
-        }
     }
 }

@@ -24,6 +24,9 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -828,6 +831,35 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         public static Parameter<Boolean> docValuesParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
             return Parameter.boolParam("doc_values", false, initializer, defaultValue);
+        }
+
+        /**
+         * Defines a script parameter
+         * @param compiler      a function that produces a compiled script, given a {@link Script} and {@link ScriptService}
+         * @param initializer   retrieves the equivalent parameter from an existing FieldMapper for use in merges
+         * @param <T>           the type of the compiled script
+         * @return a script parameter
+         */
+        public static <T> FieldMapper.Parameter<MapperScript<T>> scriptParam(
+            BiFunction<Script, ScriptService, MapperScript<T>> compiler,
+            Function<FieldMapper, MapperScript<T>>initializer
+        ) {
+            return new FieldMapper.Parameter<>(
+                "script",
+                false,
+                () -> null,
+                (n, c, o) -> {
+                    if (o == null) {
+                        return null;
+                    }
+                    Script script = Script.parse(o);
+                    if (script.getType() == ScriptType.STORED) {
+                        throw new IllegalArgumentException("stored scripts are not supported on scripted field [" + n + "]");
+                    }
+                    return compiler.apply(script, c.scriptService());
+                },
+                initializer
+            ).acceptsNull();
         }
 
     }

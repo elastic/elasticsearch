@@ -1,5 +1,5 @@
-[role="xpack"]
 [testenv="platinum"]
+[discrete]
 = Version compatibility
 
 You will need to choose a driver version that will be supported by your {es} server.

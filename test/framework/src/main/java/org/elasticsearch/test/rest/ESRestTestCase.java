@@ -613,7 +613,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                             .collect(Collectors.toList());
                         // Ideally we would want to check the version of the elected master node and
                         // send the delete request directly to that node.
-                        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_8_0_0))) {
+                        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_13_0))) {
                             try {
                                 adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
                             } catch (ResponseException e) {

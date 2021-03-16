@@ -100,7 +100,7 @@ teardown:
 "Tests searchable snapshots usage stats with full_copy and shared_cache indices":
   - skip:
       version: " - 7.99.99"
-      reason:  storage flag introduced in 8.0.0
+      reason:  "extra full_copy and shared_cache fields introduced in 8.0.0"
 
   - do:
       xpack.usage: {}
@@ -108,6 +108,8 @@ teardown:
   - match: { searchable_snapshots.available: true }
   - match: { searchable_snapshots.enabled: true }
   - match: { searchable_snapshots.indices_count: 0 }
+  - match: { searchable_snapshots.full_copy_indices_count: 0 }
+  - match: { searchable_snapshots.shared_cache_indices_count: 0 }
 
   - do:
       searchable_snapshots.mount:

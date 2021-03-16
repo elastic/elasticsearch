@@ -155,6 +155,7 @@ public class InternalVectorTile extends InternalAggregation {
                     polygons.setVersion(2);
                     polygons.setName(AbstractVectorTileAggregator.POLYGON_LAYER);
                     polygons.setExtent(AbstractVectorTileAggregator.POLYGON_EXTENT);
+                    polygons.addKeys(AbstractVectorTileAggregator.ID_TAG);
                 }
                 mergeLayer(polygons, internalVectorTile.polygons);
             }
@@ -164,6 +165,7 @@ public class InternalVectorTile extends InternalAggregation {
                     lines.setVersion(2);
                     lines.setName(AbstractVectorTileAggregator.LINE_LAYER);
                     lines.setExtent(AbstractVectorTileAggregator.LINE_EXTENT);
+                    lines.addKeys(AbstractVectorTileAggregator.ID_TAG);
                 }
                 mergeLayer(lines, internalVectorTile.lines);
             }
@@ -180,6 +182,8 @@ public class InternalVectorTile extends InternalAggregation {
     }
 
     private void mergeLayer(VectorTile.Tile.Layer.Builder layerBuilder, VectorTile.Tile.Layer layer) {
+        layerBuilder.addAllKeys(layer.getKeysList());
+        layerBuilder.addAllValues(layer.getValuesList());
         for(int i = 0; i < layer.getFeaturesCount(); i++) {
             layerBuilder.addFeatures(layer.getFeatures(i));
         }

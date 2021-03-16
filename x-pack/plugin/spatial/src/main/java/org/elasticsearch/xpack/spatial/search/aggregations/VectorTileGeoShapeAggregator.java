@@ -8,13 +8,10 @@
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -30,9 +27,9 @@ import org.elasticsearch.xpack.spatial.vectortile.FeatureFactory;
 import org.elasticsearch.xpack.spatial.vectortile.PointFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Aggregator over a geo shape field. It skips shapes where bounding box is smaller
@@ -41,10 +38,8 @@ import java.util.Map;
 public class VectorTileGeoShapeAggregator extends AbstractVectorTileAggregator {
 
     private final String fieldName;
-    private final double latPolygonPrecision;
-    private final double lonPolygonPrecision;
-    private final double latLinePrecision;
-    private final double lonLinePrecision;
+    private final double latPointPrecision;
+    private final double lonPointPrecision;
     private final MappedFieldType sourceField;
     private final GeometryParser parser = new GeometryParser(true, false, false);
 
@@ -63,11 +58,8 @@ public class VectorTileGeoShapeAggregator extends AbstractVectorTileAggregator {
         this.fieldName = valuesSourceConfig.fieldType().name();
         Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
         // TODO: Reason the logic for when we should skip a complex geometry
-        this.latPolygonPrecision = 5 * (rectangle.getMaxLat() - rectangle.getMinLat()) / POLYGON_EXTENT;
-        this.lonPolygonPrecision = 5 * (rectangle.getMaxLon() - rectangle.getMinLon()) / POLYGON_EXTENT;
-        this.latLinePrecision = 5 * (rectangle.getMaxLat() - rectangle.getMinLat()) / LINE_EXTENT;
-        this.lonLinePrecision = 5 * (rectangle.getMaxLon() - rectangle.getMinLon()) / LINE_EXTENT;
-
+        this.latPointPrecision = 2 * (rectangle.getMaxLat() - rectangle.getMinLat()) / POINT_EXTENT;
+        this.lonPointPrecision = 2 * (rectangle.getMaxLon() - rectangle.getMinLon()) / POINT_EXTENT;
     }
 
     @Override
@@ -75,63 +67,67 @@ public class VectorTileGeoShapeAggregator extends AbstractVectorTileAggregator {
         final GeoShapeValues values = ((GeoShapeValuesSource) valuesSource).geoShapeValues(ctx);
         final FeatureFactory featureFactory = new FeatureFactory(z, x, y, POLYGON_EXTENT);
         final PointFactory pointFactory = new PointFactory();
-        final List<Object> fieldVisitorCollector = new ArrayList<>();
-        final SingleFieldsVisitor visitor = new SingleFieldsVisitor(sourceField, fieldVisitorCollector);
+        final CustomFieldsVisitor visitor = new CustomFieldsVisitor(Set.of(), true);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (values.advanceExact(doc)) {
                     GeoShapeValues.GeoShapeValue shapeValue = values.value();
                         switch (shapeValue.dimensionalShapeType()) {
-                            case POINT:
-                                List<Point> points = pointFactory.getPoints(getGeometry(ctx, doc, fieldVisitorCollector, visitor));
-                                for(Point point : points) {
-                                    addPoint(point.getLat(), point.getLon());
+                            case POINT: {
+                                visitor.reset();
+                                ctx.reader().document(doc, visitor);
+                                final SourceLookup lookup = new SourceLookup();
+                                lookup.setSource(visitor.source());
+                                final Object pointObject = lookup.get(fieldName);
+                                if (pointObject != null) {
+                                    final List<Point> points = pointFactory.getPoints(parser.parseGeometry(pointObject));
+                                    for (Point point : points) {
+                                        addPoint(point.getLat(), point.getLon());
+                                    }
                                 }
                                 break;
-                            case LINE:
-                                if (skipLine(shapeValue)) {
+                            }
+                            case LINE: {
+                                if (skip(shapeValue)) {
                                     addPoint(shapeValue.lat(), shapeValue.lon());
                                 } else {
-                                    addLineFeatures(featureFactory.getFeatures(getGeometry(ctx, doc, fieldVisitorCollector, visitor)));
+                                    visitor.reset();
+                                    ctx.reader().document(doc, visitor);
+                                    final SourceLookup lookup = new SourceLookup();
+                                    lookup.setSource(visitor.source());
+                                    final Object lines = lookup.get(fieldName);
+                                    if (lines != null) {
+                                        addLineFeatures(visitor.id(),
+                                            featureFactory.getFeatures(parser.parseGeometry(lines)));
+                                    }
                                 }
                                 break;
-                            case POLYGON:
-                                if (skipPolygon(shapeValue)) {
+                            }
+                            case POLYGON: {
+                                if (skip(shapeValue)) {
                                     addPoint(shapeValue.lat(), shapeValue.lon());
                                 } else {
-                                    addPolygonFeatures(featureFactory.getFeatures(getGeometry(ctx, doc, fieldVisitorCollector, visitor)));
+                                    visitor.reset();
+                                    ctx.reader().document(doc, visitor);
+                                    final SourceLookup lookup = new SourceLookup();
+                                    lookup.setSource(visitor.source());
+                                    final Object polygons = lookup.get(fieldName);
+                                    if (polygons != null) {
+                                        addPolygonFeatures(visitor.id(), featureFactory.getFeatures(parser.parseGeometry(polygons)));
+                                    }
                                 }
                                 break;
+                            }
                         }
                 }
             }
         };
     }
 
-    private boolean skipPolygon(GeoShapeValues.GeoShapeValue shapeValue) {
+    private boolean skip(GeoShapeValues.GeoShapeValue shapeValue) {
         final double width = shapeValue.boundingBox().maxX() - shapeValue.boundingBox().minX();
         final double height = shapeValue.boundingBox().maxY() - shapeValue.boundingBox().minY();
-        return width <= this.lonPolygonPrecision && height <= this.latPolygonPrecision;
+        return width <= this.lonPointPrecision && height <= this.latPointPrecision;
     }
-
-    private boolean skipLine(GeoShapeValues.GeoShapeValue shapeValue) {
-        final double width = shapeValue.boundingBox().maxX() - shapeValue.boundingBox().minX();
-        final double height = shapeValue.boundingBox().maxY() - shapeValue.boundingBox().minY();
-        return width <= this.lonLinePrecision && height <= this.latLinePrecision;
-    }
-
-    private Geometry getGeometry(LeafReaderContext ctx,
-                                  int doc,
-                                  List<Object> fieldVisitorCollector,
-                                  SingleFieldsVisitor visitor) throws IOException {
-        // TODO: Incomplete as we should vbe calling prepareForIndexing.
-        // Already pretty slow, can we add this info to the doc value?
-        fieldVisitorCollector.clear();
-        ctx.reader().document(doc, visitor);
-        final SourceLookup lookup = new SourceLookup();
-        lookup.setSource(new BytesArray((BytesRef) fieldVisitorCollector.get(0)));
-        return parser.parseGeometry(lookup.get(fieldName));
-    }
-
 }

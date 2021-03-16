@@ -13,8 +13,11 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.query.GeoShapeQueryBuilder;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -45,7 +48,31 @@ public class RestVectorTileAction extends BaseRestHandler {
         final int z = Integer.parseInt(restRequest.param("z"));
         final int x = Integer.parseInt(restRequest.param("x"));
         final int y = Integer.parseInt(restRequest.param("y"));
-        final SearchRequestBuilder builder = searchBuilder(client, index.split(","), field, z, x, y);
+
+        QueryBuilder queryBuilder = null;
+        if (restRequest.hasContent()) {
+            try (XContentParser parser = restRequest.contentParser()) {
+                XContentParser.Token token = parser.nextToken();
+                if (token != XContentParser.Token.START_OBJECT) {
+                    throw new IllegalArgumentException("Invalid content format");
+                }
+                String currentFieldName;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                        if (currentFieldName == "query") {
+                            queryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
+                        } else {
+                            throw new IllegalArgumentException("Unsupported field " + currentFieldName);
+                        }
+                    } else {
+                       throw new IllegalArgumentException("Invalid content format");
+                    }
+                }
+            }
+        }
+
+        final SearchRequestBuilder builder = searchBuilder(client, index.split(","), field, z, x, y, queryBuilder);
         // TODO: how do we handle cancellations?
         return channel -> builder.execute( new RestResponseListener<>(channel) {
 
@@ -59,9 +86,15 @@ public class RestVectorTileAction extends BaseRestHandler {
         });
     }
 
-    public static SearchRequestBuilder searchBuilder(Client client, String[] index, String field, int z, int x, int y) throws IOException {
+    public static SearchRequestBuilder searchBuilder(Client client, String[] index, String field, int z, int x, int y, QueryBuilder queryBuilder) throws IOException {
         final Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
-        final GeoShapeQueryBuilder qBuilder = QueryBuilders.geoShapeQuery(field, rectangle);
+        QueryBuilder qBuilder = QueryBuilders.geoShapeQuery(field, rectangle);
+        if (queryBuilder != null) {
+            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+            boolQueryBuilder.filter(queryBuilder);
+            boolQueryBuilder.filter(qBuilder);
+            qBuilder = boolQueryBuilder;
+        }
         final VectorTileAggregationBuilder aBuilder = new VectorTileAggregationBuilder(field).field(field).z(z).x(x).y(y);
         return client.prepareSearch(index).setQuery(qBuilder).addAggregation(aBuilder).setSize(0);
     }

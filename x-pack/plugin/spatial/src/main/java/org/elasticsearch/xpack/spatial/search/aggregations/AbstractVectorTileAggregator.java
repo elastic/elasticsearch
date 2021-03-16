@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.xpack.spatial.vectortile.VectorTileUtils;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,16 +38,21 @@ public abstract class AbstractVectorTileAggregator extends MetricsAggregator {
     protected static final int POLYGON_EXTENT = 4096;
     protected static final String POLYGON_LAYER = "POLYGON";
 
+    protected static final String ID_TAG = "id";
+
     protected final ValuesSource valuesSource;
     protected final int x;
     protected final int y;
     protected final int z;
     private VectorTile.Tile.Layer.Builder polygonLayerBuilder;
+    private int numPolygons;
     private VectorTile.Tile.Layer.Builder lineLayerBuilder;
+    private int numLines;
     private LongArray clusters;
     private final double pointXScale;
     private final double pointYScale;
     protected final Rectangle rectangle;
+    final VectorTile.Tile.Value.Builder valueBuilder = VectorTile.Tile.Value.newBuilder();
 
     public AbstractVectorTileAggregator(
         String name,
@@ -66,7 +72,6 @@ public abstract class AbstractVectorTileAggregator extends MetricsAggregator {
         this.rectangle = VectorTileUtils.getTileBounds(z, x, y);
         this.pointXScale = 1d / ((rectangle.getMaxLon() - rectangle.getMinLon()) / (double) POINT_EXTENT);
         this.pointYScale = -1d / ((rectangle.getMaxLat() - rectangle.getMinLat()) / (double) POINT_EXTENT);
-
     }
 
     @Override
@@ -86,27 +91,41 @@ public abstract class AbstractVectorTileAggregator extends MetricsAggregator {
         }
     }
 
-    protected void addLineFeatures(List<VectorTile.Tile.Feature> features) {
+    protected void addLineFeatures(String id, List<VectorTile.Tile.Feature> features) {
         for (VectorTile.Tile.Feature feature : features) {
             if (lineLayerBuilder == null) {
                 lineLayerBuilder = VectorTile.Tile.Layer.newBuilder();
                 lineLayerBuilder.setVersion(2);
                 lineLayerBuilder.setName(LINE_LAYER);
                 lineLayerBuilder.setExtent(LINE_EXTENT);
+                lineLayerBuilder.addKeys(ID_TAG);
             }
-            lineLayerBuilder.addFeatures(feature);
+            valueBuilder.clear();
+            valueBuilder.setStringValue(id);
+            lineLayerBuilder.addValues(valueBuilder);
+            VectorTile.Tile.Feature.Builder builder = feature.toBuilder();
+            builder.addTags(0);
+            builder.addTags(numLines++);
+            lineLayerBuilder.addFeatures(builder);
         }
     }
 
-    protected void addPolygonFeatures(List<VectorTile.Tile.Feature> features) {
+    protected void addPolygonFeatures(String id, List<VectorTile.Tile.Feature> features) {
         for (VectorTile.Tile.Feature feature : features) {
             if (polygonLayerBuilder == null) {
                 polygonLayerBuilder = VectorTile.Tile.Layer.newBuilder();
                 polygonLayerBuilder.setVersion(2);
                 polygonLayerBuilder.setName(POLYGON_LAYER);
                 polygonLayerBuilder.setExtent(POLYGON_EXTENT);
+                polygonLayerBuilder.addKeys(ID_TAG);
             }
-            polygonLayerBuilder.addFeatures(feature);
+            valueBuilder.clear();
+            valueBuilder.setStringValue(id);
+            polygonLayerBuilder.addValues(valueBuilder);
+            VectorTile.Tile.Feature.Builder builder = feature.toBuilder();
+            builder.addTags(0);
+            builder.addTags(numPolygons++);
+            polygonLayerBuilder.addFeatures(builder);
         }
     }
 

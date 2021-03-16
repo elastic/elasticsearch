@@ -3097,8 +3097,9 @@ public class IndexShardTests extends IndexShardTestCase {
 
         try {
             closeShards(corruptedShard);
-        } catch (RuntimeException e) {
+        } catch (AssertionError e) {
             // Ignored because corrupted shard can throw various exceptions on close
+            assertThat(e.getCause(), either(instanceOf(RuntimeException.class)).or(instanceOf(CorruptIndexException.class)));
         }
     }
 

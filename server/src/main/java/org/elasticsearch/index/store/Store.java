@@ -139,11 +139,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         protected void closeInternal() {
             // close us once we are done
-            try {
-                Store.this.closeInternal();
-            } catch (IOException e) {
-                logger.warn("exception on closing store", e);
-            }
+            Store.this.closeInternal();
         }
     };
 
@@ -411,7 +407,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return isClosed.get();
     }
 
-    private void closeInternal() throws IOException {
+    private void closeInternal() {
         // Leverage try-with-resources to close the shard lock for us
         try (Closeable c = shardLock) {
             try {
@@ -419,6 +415,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             } finally {
                 onClose.accept(shardLock);
             }
+        } catch (IOException e) {
+            assert false : e;
+            logger.warn("exception on closing store", e);
         }
     }
 

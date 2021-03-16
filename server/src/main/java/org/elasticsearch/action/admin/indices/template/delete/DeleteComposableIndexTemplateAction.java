@@ -38,7 +38,7 @@ public class DeleteComposableIndexTemplateAction extends ActionType<Acknowledged
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
                 names = in.readStringArray();
             } else {
                 names = new String[] {in.readString()};
@@ -56,13 +56,13 @@ public class DeleteComposableIndexTemplateAction extends ActionType<Acknowledged
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (Arrays.stream(names).anyMatch(Strings::hasLength) == false) {
-                validationException = addValidationError("name is missing", validationException);
+                validationException = addValidationError("no template names specified", validationException);
             }
             return validationException;
         }
 
         /**
-         * The index template name to delete.
+         * The index template names to delete.
          */
         public String[] names() {
             return names;
@@ -71,7 +71,7 @@ public class DeleteComposableIndexTemplateAction extends ActionType<Acknowledged
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
                 out.writeStringArray(names);
             } else {
                 out.writeString(names[0]);

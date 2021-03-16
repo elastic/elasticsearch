@@ -133,7 +133,7 @@ The following mapping parameters are accepted:
     The maximum allowed depth of the flattened object field, in terms of nested
     inner objects. If a flattened object field exceeds this limit, then an
     error will be thrown. Defaults to `20`. Note that `depth_limit` can be
-    updated dynamically through the <<indices-put-mapping, put mapping>> API.
+    updated dynamically through the <<indices-put-mapping, update mapping>> API.
 
 <<doc-values,`doc_values`>>::
 

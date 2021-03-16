@@ -3095,12 +3095,14 @@ public class IndexShardTests extends IndexShardTestCase {
         Files.walkFileTree(indexPath, corruptedVisitor);
         assertThat("store has to be marked as corrupted", corruptedMarkerCount.get(), equalTo(1));
 
+        // Close the directory under the shard first because it's probably a MockDirectoryWrapper which throws exceptions when corrupt
         try {
-            closeShards(corruptedShard);
-        } catch (AssertionError e) {
-            // Ignored because corrupted shard can throw various exceptions on close
-            assertThat(e.getCause(), either(instanceOf(RuntimeException.class)).or(instanceOf(CorruptIndexException.class)));
+            ((FilterDirectory) corruptedShard.store().directory()).getDelegate().close();
+        } catch (CorruptIndexException | RuntimeException e) {
+            // ignored
         }
+
+        closeShards(corruptedShard);
     }
 
     public void testShardDoesNotStartIfCorruptedMarkerIsPresent() throws Exception {

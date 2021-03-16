@@ -102,7 +102,7 @@ allocation steps can fail if:
 
 * A node is removed during the `shrink` action.
 * No node has enough disk space to host the source index's shards.
-* {es} cannot allocate the shrunken index due to conflicting allocation rules.
+* {es} cannot reallocate the shrunken index due to conflicting allocation rules.
 
 When one of these allocation steps fails, {ilm-init} retries the step for a
 period set in

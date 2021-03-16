@@ -68,7 +68,7 @@ public class InjectWarnings extends FeatureInjector implements RestTestTransform
     }
 
     @Override
-    @Internal
+    @Input
     public String getSkipFeatureName() {
         return isRegex ? "warnings_regex" : "warnings";
     }

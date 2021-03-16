@@ -62,7 +62,7 @@ public class InjectAllowedWarnings extends FeatureInjector implements RestTestTr
     }
 
     @Override
-    @Internal
+    @Input
     public String getSkipFeatureName() {
         return isRegex ? "allowed_warnings_regex" : "allowed_warnings";
     }

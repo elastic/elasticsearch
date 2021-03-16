@@ -64,7 +64,7 @@ public class SearchableSnapshotFeatureSetUsage extends XPackFeatureSet.Usage {
     protected void innerXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         super.innerXContent(builder, params);
         builder.field("indices_count", numberOfSearchableSnapshotIndices);
-        builder.field("fully_copy_indices_count", numberOfFullCopySearchableSnapshotIndices);
+        builder.field("full_copy_indices_count", numberOfFullCopySearchableSnapshotIndices);
         builder.field("shared_cache_indices_count", numberOfSharedCacheSearchableSnapshotIndices);
     }
 
@@ -81,20 +81,25 @@ public class SearchableSnapshotFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SearchableSnapshotFeatureSetUsage that = (SearchableSnapshotFeatureSetUsage) o;
-        return numberOfSearchableSnapshotIndices == that.numberOfSearchableSnapshotIndices &&
-            numberOfFullCopySearchableSnapshotIndices == that.numberOfFullCopySearchableSnapshotIndices &&
-            numberOfSharedCacheSearchableSnapshotIndices == that.numberOfSharedCacheSearchableSnapshotIndices;
-    }
-
-    @Override
     public int hashCode() {
-        return Objects.hash(numberOfSearchableSnapshotIndices, numberOfFullCopySearchableSnapshotIndices,
+        return Objects.hash(available, enabled, numberOfSearchableSnapshotIndices, numberOfFullCopySearchableSnapshotIndices,
             numberOfSharedCacheSearchableSnapshotIndices);
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        SearchableSnapshotFeatureSetUsage other = (SearchableSnapshotFeatureSetUsage) obj;
+        return available == other.available &&
+            enabled == other.enabled &&
+            numberOfSearchableSnapshotIndices == other.numberOfSearchableSnapshotIndices &&
+            numberOfFullCopySearchableSnapshotIndices == other.numberOfFullCopySearchableSnapshotIndices &&
+            numberOfSharedCacheSearchableSnapshotIndices == other.numberOfSharedCacheSearchableSnapshotIndices;
+    }
 
 }

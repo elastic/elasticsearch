@@ -88,6 +88,9 @@
                 },
                 "start_date" : {
                     "type" : "date"
+                },
+                "location" : {
+                    "type" : "geo_point"
                 }
             }
         }

@@ -37,9 +37,6 @@ import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
@@ -67,6 +64,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndices;
@@ -76,6 +74,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -133,26 +132,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
     public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
-
-    public static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
-
-    public static final Setting<ByteSizeValue> SHARED_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
-        SHARED_CACHE_SETTINGS_PREFIX + "range_size",
-        ByteSizeValue.ofMb(16),                                 // default
-        Setting.Property.NodeScope
-    );
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
-        SHARED_CACHE_SETTINGS_PREFIX + "region_size",
-        SHARED_CACHE_RANGE_SIZE_SETTING,
-        Setting.Property.NodeScope
-    );
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(
-        SHARED_CACHE_SETTINGS_PREFIX + "size",
-        ByteSizeValue.ZERO,
-        Setting.Property.NodeScope
-    );
-
-    public static final String CACHE_FILE_NAME = "shared_snapshot_cache";
 
     public static final String NO_FEATURE_STATES_VALUE = "none";
 
@@ -255,6 +234,44 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             return;
         }
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
+
+        // We should only use the feature states logic if we're sure we'll be able to finish the snapshot without a lower-version
+        // node taking over and causing problems. Therefore, if we're in a mixed cluster with versions that don't know how to handle
+        // feature states, skip all feature states logic, and if `feature_states` is explicitly configured, throw an exception.
+        final List<String> requestedStates = Arrays.asList(request.featureStates());
+        final Version initialMinNodeVersion = clusterService.state().nodes().getMinNodeVersion();
+        final Set<String> featureStatesSet;
+        if (initialMinNodeVersion.onOrAfter(FEATURE_STATES_VERSION)) {
+            if (request.includeGlobalState() || requestedStates.isEmpty() == false) {
+                if (request.includeGlobalState() && requestedStates.isEmpty()) {
+                    // If we're including global state and feature states aren't specified, include all of them
+                    featureStatesSet = systemIndexDescriptorMap.keySet();
+                } else if (requestedStates.size() == 1 && NO_FEATURE_STATES_VALUE.equalsIgnoreCase(requestedStates.get(0))) {
+                    // If there's exactly one value and it's "none", include no states
+                    featureStatesSet = Collections.emptySet();
+                } else {
+                    // Otherwise, check for "none" then use the list of requested states
+                    if (requestedStates.contains(NO_FEATURE_STATES_VALUE)) {
+                        listener.onFailure(new IllegalArgumentException("the feature_states value [" +
+                                SnapshotsService.NO_FEATURE_STATES_VALUE + "] indicates that no feature states should be snapshotted, " +
+                                "but other feature states were requested: " + requestedStates));
+                        return;
+                    }
+                    featureStatesSet = new HashSet<>(requestedStates);
+                    featureStatesSet.retainAll(systemIndexDescriptorMap.keySet());
+                }
+            } else {
+                featureStatesSet = Collections.emptySet();
+            }
+        } else if (requestedStates.isEmpty() == false) {
+            listener.onFailure(new SnapshotException(snapshot, "feature_states can only be used when all nodes in cluster are version ["
+                    + FEATURE_STATES_VERSION + "] or higher, but at least one node in this cluster is on version ["
+                    + initialMinNodeVersion + "]"));
+            return;
+        } else {
+            featureStatesSet = Collections.emptySet();
+        }
+
         final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
@@ -274,57 +291,32 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // Store newSnapshot here to be processed in clusterStateProcessed
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
 
-                List<SnapshotFeatureInfo> featureStates = Collections.emptyList();
-                final List<String> requestedStates = Arrays.asList(request.featureStates());
-
-                // We should only use the feature states logic if we're sure we'll be able to finish the snapshot without a lower-version
-                // node taking over and causing problems. Therefore, if we're in a mixed cluster with versions that don't know how to handle
-                // feature states, skip all feature states logic, and if `feature_states` is explicitly configured, throw an exception.
-                if (currentState.nodes().getMinNodeVersion().onOrAfter(FEATURE_STATES_VERSION)) {
-                    if (request.includeGlobalState() || requestedStates.isEmpty() == false) {
-                        final Set<String> featureStatesSet;
-                        if (request.includeGlobalState() && requestedStates.isEmpty()) {
-                            // If we're including global state and feature states aren't specified, include all of them
-                            featureStatesSet = new HashSet<>(systemIndexDescriptorMap.keySet());
-                        } else if (requestedStates.size() == 1 && NO_FEATURE_STATES_VALUE.equalsIgnoreCase(requestedStates.get(0))) {
-                            // If there's exactly one value and it's "none", include no states
-                            featureStatesSet = Collections.emptySet();
-                        } else {
-                            // Otherwise, check for "none" then use the list of requested states
-                            if (requestedStates.contains(NO_FEATURE_STATES_VALUE)) {
-                                throw new IllegalArgumentException("the feature_states value [" + SnapshotsService.NO_FEATURE_STATES_VALUE +
-                                    "] indicates that no feature states should be snapshotted, but other feature states were requested: " +
-                                    requestedStates);
-                            }
-                            featureStatesSet = new HashSet<>(requestedStates);
-                        }
-
-                        featureStates = systemIndexDescriptorMap.keySet().stream()
-                            .filter(feature -> featureStatesSet.contains(feature))
-                            .map(feature -> new SnapshotFeatureInfo(feature, resolveFeatureIndexNames(currentState, feature)))
+                final List<SnapshotFeatureInfo> featureStates;
+                // if we have any feature states in the snapshot, we add their required indices to the snapshot indices if they haven't
+                // been requested by the request directly
+                if (featureStatesSet.isEmpty()) {
+                    featureStates = Collections.emptyList();
+                } else {
+                    final Set<String> indexNames = new HashSet<>(indices);
+                    featureStates = featureStatesSet.stream()
+                            .map(feature -> new SnapshotFeatureInfo(feature,
+                                    systemIndexDescriptorMap.get(feature).getIndexDescriptors().stream()
+                                            .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
+                                            .collect(Collectors.toList())))
                             .filter(featureInfo -> featureInfo.getIndices().isEmpty() == false) // Omit any empty featureStates
                             .collect(Collectors.toList());
-                        final Stream<String> featureStateIndices = featureStates.stream().flatMap(feature -> feature.getIndices().stream());
-
-                        final Stream<String> associatedIndices = systemIndexDescriptorMap.keySet().stream()
-                            .filter(feature -> featureStatesSet.contains(feature))
-                            .flatMap(feature -> resolveAssociatedIndices(currentState, feature).stream());
-
-                        // Add all resolved indices from the feature states to the list of indices
-                        indices = Stream.of(indices.stream(), featureStateIndices, associatedIndices)
-                            .flatMap(s -> s)
-                            .distinct()
-                            .collect(Collectors.toList());
+                    for (SnapshotFeatureInfo featureState : featureStates) {
+                        indexNames.addAll(featureState.getIndices());
                     }
-                } else if (requestedStates.isEmpty() == false) {
-                    throw new SnapshotException(
-                        new Snapshot(repositoryName, snapshotId),
-                        "feature_states can only be used when all nodes in cluster are version ["
-                            + FEATURE_STATES_VERSION
-                            + "] or higher, but at least one node in this cluster is on version ["
-                            + currentState.nodes().getMinNodeVersion()
-                            + "]"
-                    );
+
+                    // Add all resolved indices from the feature states to the list of indices
+                    for (String feature : featureStatesSet) {
+                        for (String pattern : systemIndexDescriptorMap.get(feature).getAssociatedIndexPatterns()) {
+                            Collections.addAll(indexNames, indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(
+                                    currentState, LENIENT_EXPAND_OPEN_CLOSED_HIDDEN, pattern));
+                        }
+                    }
+                    indices = List.copyOf(indexNames);
                 }
 
                 final List<String> dataStreams =
@@ -375,29 +367,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
-    }
-
-    private List<String> resolveFeatureIndexNames(ClusterState currentState, String featureName) {
-        if (systemIndexDescriptorMap.containsKey(featureName) == false) {
-            throw new IllegalArgumentException("requested snapshot of feature state for unknown feature [" + featureName + "]");
-        }
-
-        final SystemIndices.Feature feature = systemIndexDescriptorMap.get(featureName);
-        return feature.getIndexDescriptors().stream()
-            .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
-            .collect(Collectors.toList());
-    }
-
-    private List<String> resolveAssociatedIndices(ClusterState currentState, String featureName) {
-        if (systemIndexDescriptorMap.containsKey(featureName) == false) {
-            throw new IllegalArgumentException("requested associated indices for feature state for unknown feature [" + featureName + "]");
-        }
-
-        final SystemIndices.Feature feature = systemIndexDescriptorMap.get(featureName);
-        return feature.getAssociatedIndexPatterns().stream()
-            .flatMap(pattern -> Arrays.stream(indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(currentState,
-                LENIENT_EXPAND_OPEN_CLOSED_HIDDEN, pattern)))
-            .collect(Collectors.toList());
     }
 
     private static void ensureSnapshotNameNotRunning(List<SnapshotsInProgress.Entry> runningSnapshots, String repositoryName,
@@ -792,8 +761,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         break;
                     }
                 }
-                if (missingIndex == false) {
-                    dataStreams.put(dataStreamName, dataStream);
+                final DataStream reconciled = missingIndex ? dataStream.snapshot(indicesInSnapshot) : dataStream;
+                if (reconciled != null) {
+                    dataStreams.put(dataStreamName, reconciled);
                 }
             }
         }

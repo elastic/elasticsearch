@@ -1117,11 +1117,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     from(parser.intValue());
                 } else if (SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    size = parser.intValue();
+                    size(parser.intValue());
                 } else if (TIMEOUT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     timeout = TimeValue.parseTimeValue(parser.text(), null, TIMEOUT_FIELD.getPreferredName());
                 } else if (TERMINATE_AFTER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    terminateAfter = parser.intValue();
+                    terminateAfter(parser.intValue());
                 } else if (MIN_SCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     minScore = parser.floatValue();
                 } else if (VERSION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -1135,9 +1135,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (TRACK_TOTAL_HITS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_BOOLEAN ||
                         (token == XContentParser.Token.VALUE_STRING && Booleans.isBoolean(parser.text()))) {
-                        trackTotalHitsUpTo = parser.booleanValue() ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED;
+                        trackTotalHits(parser.booleanValue());
                     } else {
-                        trackTotalHitsUpTo = parser.intValue();
+                        trackTotalHitsUpTo(parser.intValue());
                     }
                 } else if (_SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fetchSourceContext = FetchSourceContext.fromXContent(parser);

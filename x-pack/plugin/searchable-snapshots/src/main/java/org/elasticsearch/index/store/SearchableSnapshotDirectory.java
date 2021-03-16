@@ -34,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -59,6 +60,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.FrozenCacheFile;
@@ -86,12 +88,13 @@ import java.util.function.Supplier;
 
 import static org.apache.lucene.store.BufferedIndexInput.bufferSize;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
@@ -136,6 +139,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final AtomicBoolean closed;
     private final boolean partial;
     private final FrozenCacheService frozenCacheService;
+    private final ByteSizeValue blobStoreCacheMaxLength;
 
     // volatile fields are updated once under `this` lock, all together, iff loaded is not true.
     private volatile BlobStoreIndexShardSnapshot snapshot;
@@ -179,6 +183,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.excludedFileTypes = new HashSet<>(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.get(indexSettings));
         this.uncachedChunkSize = SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes();
         this.blobStoreCachePath = String.join("/", snapshotId.getUUID(), indexId.getId(), String.valueOf(shardId.id()));
+        this.blobStoreCacheMaxLength = SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING.get(indexSettings);
         this.threadPool = threadPool;
         this.loaded = false;
         this.frozenCacheService = frozenCacheService;
@@ -355,8 +360,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
     }
 
-    protected IndexInputStats createIndexInputStats(final int numFiles, final long totalSize) {
-        return new IndexInputStats(numFiles, totalSize, statsCurrentTimeNanosSupplier);
+    protected IndexInputStats createIndexInputStats(long numFiles, long totalSize, long minSize, long maxSize) {
+        return new IndexInputStats(numFiles, totalSize, minSize, maxSize, statsCurrentTimeNanosSupplier);
     }
 
     public CacheKey createCacheKey(String fileName) {
@@ -390,17 +395,18 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         final String ext = getNonNullFileExt(name);
         final IndexInputStats inputStats = stats.computeIfAbsent(ext, n -> {
-            // get all fileInfo with same extension
-            final Tuple<Integer, Long> fileExtCompoundStats = files().stream()
-                .filter(fi -> ext.equals(getNonNullFileExt(fi.physicalName())))
-                .map(fi -> Tuple.tuple(1, fi.length()))
-                .reduce((t1, t2) -> Tuple.tuple(t1.v1() + t2.v1(), t1.v2() + t2.v2()))
-                .get();
-            return createIndexInputStats(fileExtCompoundStats.v1(), fileExtCompoundStats.v2());
+            final IndexInputStats.Counter counter = new IndexInputStats.Counter();
+            for (BlobStoreIndexShardSnapshot.FileInfo file : files()) {
+                if (ext.equals(getNonNullFileExt(file.physicalName()))) {
+                    counter.add(file.length());
+                }
+            }
+            return createIndexInputStats(counter.count(), counter.total(), counter.min(), counter.max());
         });
         if (useCache && isExcludedFromCache(name) == false) {
             if (partial) {
                 return new FrozenIndexInput(
+                    name,
                     this,
                     fileInfo,
                     context,
@@ -410,6 +416,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 );
             } else {
                 return new CachedBlobContainerIndexInput(
+                    name,
                     this,
                     fileInfo,
                     context,
@@ -420,7 +427,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             }
         } else {
             return new DirectBlobContainerIndexInput(
-                blobContainer(),
+                name,
+                this,
                 fileInfo,
                 context,
                 inputStats,
@@ -679,10 +687,19 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return null;
     }
 
-    public CachedBlob getCachedBlob(String name, long offset, int length) {
-        final CachedBlob cachedBlob = blobStoreCacheService.get(repository, name, blobStoreCachePath, offset);
-        assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || cachedBlob.from() <= offset;
-        assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || offset + length <= cachedBlob.to();
+    public ByteRange getBlobCacheByteRange(String fileName, long fileLength) {
+        return blobStoreCacheService.computeBlobCacheByteRange(fileName, fileLength, blobStoreCacheMaxLength);
+    }
+
+    public CachedBlob getCachedBlob(String name, ByteRange range) {
+        final CachedBlob cachedBlob = blobStoreCacheService.get(repository, name, blobStoreCachePath, range.start());
+        if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
+            return cachedBlob;
+        } else if (cachedBlob.from() != range.start() || cachedBlob.to() != range.end()) {
+            // expected range in cache might differ with the returned cached blob; this can happen if the range to put in cache is changed
+            // between versions or through the index setting. In this case we assume it is a cache miss to force the blob to be cached again
+            return CachedBlob.CACHE_MISS;
+        }
         return cachedBlob;
     }
 

@@ -236,6 +236,11 @@ public final class Verifier {
                 checkArrayFunctionUsedInWhereOrOrderByOrAggregate(p, localFailures);
                 checkArrayFunctionArguments(p, localFailures);
 
+                // restricted array usage
+                checkForRestrictedFunctionInsideFunction(p, Array.class, localFailures);
+                checkArrayFunctionUsedInWhereOrOrderByOrAggregate(p, localFailures);
+                checkArrayFunctionArguments(p, localFailures);
+
                 // everything checks out
                 // mark the plan as analyzed
                 if (localFailures.isEmpty()) {
@@ -329,10 +334,11 @@ public final class Verifier {
                 Map<Expression, Node<?>> missing = new LinkedHashMap<>();
 
                 o.order().forEach(oe -> {
-                    Expression e = oe.child();
+                    final Expression e = oe.child();
+                    final Expression resolvedE = attributeRefs.resolve(e, e);
 
                     // aggregates are allowed
-                    if (Functions.isAggregate(attributeRefs.getOrDefault(e, e))) {
+                    if (Functions.isAggregate(resolvedE)) {
                         return;
                     }
 
@@ -353,8 +359,12 @@ public final class Verifier {
                     // e.g.: if "GROUP BY f2(f1(field))" you can "ORDER BY f4(f3(f2(f1(field))))"
                     //
                     // Also, make sure to compare attributes directly
-                    if (e.anyMatch(expression -> Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
-                        g -> expression.semanticEquals(expression instanceof Attribute ? Expressions.attribute(g) : g)))) {
+                    if (resolvedE.anyMatch(expression -> Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
+                        g -> {
+                            Expression resolvedG = attributeRefs.resolve(g, g);
+                            resolvedG = expression instanceof Attribute ? Expressions.attribute(resolvedG) : resolvedG;
+                            return expression.semanticEquals(resolvedG);
+                        }))) {
                         return;
                     }
 
@@ -419,7 +429,7 @@ public final class Verifier {
 
         // resolve FunctionAttribute to backing functions
         if (e instanceof ReferenceAttribute) {
-            e = attributeRefs.get(e);
+            e = attributeRefs.resolve(e);
         }
 
         // scalar functions can be a binary tree
@@ -497,7 +507,7 @@ public final class Verifier {
 
         expressions.forEach(e -> e.forEachDown(c -> {
             if (c instanceof ReferenceAttribute) {
-                c = attributeRefs.getOrDefault(c, c);
+                c = attributeRefs.resolve(c, c);
             }
             if (c instanceof Function) {
                 localFailures.add(fail(c, "No functions allowed (yet); encountered [{}]", c.sourceText()));
@@ -592,7 +602,7 @@ public final class Verifier {
 
         // resolve FunctionAttribute to backing functions
         if (e instanceof ReferenceAttribute) {
-            e = attributeRefs.get(e);
+            e = attributeRefs.resolve(e);
         }
 
         // scalar functions can be a binary tree
@@ -681,7 +691,7 @@ public final class Verifier {
             LogicalPlan filterChild = filter.child();
             if (filterChild instanceof Aggregate == false) {
                 filter.condition().forEachDown(Expression.class, e -> {
-                    if (Functions.isAggregate(attributeRefs.getOrDefault(e, e))) {
+                    if (Functions.isAggregate(attributeRefs.resolve(e, e))) {
                         if (filterChild instanceof Project) {
                             filter.condition().forEachDown(FieldAttribute.class,
                                 f -> localFailures.add(fail(e, "[{}] field must appear in the GROUP BY clause or in an aggregate function",
@@ -703,7 +713,7 @@ public final class Verifier {
         if (p instanceof Filter) {
             Filter filter = (Filter) p;
             filter.condition().forEachDown(Expression.class, e -> {
-                if (Functions.isGrouping(attributeRefs.getOrDefault(e, e))) {
+                if (Functions.isGrouping(attributeRefs.resolve(e, e))) {
                     localFailures
                         .add(fail(e, "Cannot filter on grouping function [{}], use its argument instead", Expressions.name(e)));
                 }
@@ -732,7 +742,7 @@ public final class Verifier {
             }
         };
         Consumer<Expression> checkForNested = e ->
-            attributeRefs.getOrDefault(e, e).forEachUp(FieldAttribute.class, matchNested);
+            attributeRefs.resolve(e, e).forEachUp(FieldAttribute.class, matchNested);
         Consumer<ScalarFunction> checkForNestedInFunction = f -> f.arguments().forEach(
             arg -> arg.forEachUp(FieldAttribute.class, matchNested));
 
@@ -754,7 +764,7 @@ public final class Verifier {
 
         // check in where (scalars not allowed)
         p.forEachDown(Filter.class, f -> f.condition().forEachUp(e ->
-            attributeRefs.getOrDefault(e, e).forEachUp(ScalarFunction.class, sf -> {
+            attributeRefs.resolve(e, e).forEachUp(ScalarFunction.class, sf -> {
                 if (sf instanceof BinaryComparison == false &&
                     sf instanceof IsNull == false &&
                     sf instanceof IsNotNull == false &&
@@ -773,7 +783,7 @@ public final class Verifier {
 
         // check in order by (scalars not allowed)
         p.forEachDown(OrderBy.class, ob -> ob.order().forEach(o -> o.forEachUp(e ->
-            attributeRefs.getOrDefault(e, e).forEachUp(ScalarFunction.class, checkForNestedInFunction)
+            attributeRefs.resolve(e, e).forEachUp(ScalarFunction.class, checkForNestedInFunction)
         )));
         if (nested.isEmpty() == false) {
             localFailures.add(

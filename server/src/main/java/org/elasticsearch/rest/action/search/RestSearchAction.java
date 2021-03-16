@@ -27,6 +27,7 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -190,8 +191,8 @@ public class RestSearchAction extends BaseRestHandler {
         if (request.hasParam("from")) {
             searchSourceBuilder.from(request.paramAsInt("from", 0));
         }
-        int size = request.paramAsInt("size", -1);
-        if (size != -1) {
+        if (request.hasParam("size")) {
+            int size = request.paramAsInt("size", SearchService.DEFAULT_SIZE);
             setSize.accept(size);
         }
 
@@ -208,13 +209,8 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.timeout(request.paramAsTime("timeout", null));
         }
         if (request.hasParam("terminate_after")) {
-            int terminateAfter = request.paramAsInt("terminate_after",
-                    SearchContext.DEFAULT_TERMINATE_AFTER);
-            if (terminateAfter < 0) {
-                throw new IllegalArgumentException("terminateAfter must be > 0");
-            } else if (terminateAfter > 0) {
-                searchSourceBuilder.terminateAfter(terminateAfter);
-            }
+            int terminateAfter = request.paramAsInt("terminate_after", SearchContext.DEFAULT_TERMINATE_AFTER);
+            searchSourceBuilder.terminateAfter(terminateAfter);
         }
 
         StoredFieldsContext storedFieldsContext =

@@ -43,7 +43,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getSnapshotState;
@@ -53,10 +52,6 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.waitAndGetShrinkIndexName;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ShrinkActionIT extends ESRestTestCase {
@@ -341,78 +336,6 @@ public class ShrinkActionIT extends ESRestTestCase {
             assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
         });
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
-    }
-
-    public void testWaitInShrunkShardsAllocatedExceedsThreshold() throws Exception {
-        int numShards = 4;
-        int expectedFinalShards = 1;
-        createIndexWithSettings(client(), index, alias, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1s")
-        );
-
-        createPolicy(client(), policy, null, new Phase("warm", TimeValue.ZERO,
-            Map.of(MigrateAction.NAME, new MigrateAction(false), ShrinkAction.NAME,
-                new ShrinkAction(numShards + randomIntBetween(1, numShards), null))), null, null, null
-        );
-        updatePolicy(client(), index, policy);
-
-        // ILM will retry the shrink step because the number of shards to shrink to is gt the current number of shards
-        assertBusy(() -> {
-            Map<String, Object> explainIndex = explainIndex(client(), index);
-            Integer retryCount = (Integer) explainIndex.get(FAILED_STEP_RETRY_COUNT_FIELD);
-            assertThat(retryCount, notNullValue());
-            assertThat(retryCount, greaterThanOrEqualTo(1));
-        }, 30, TimeUnit.SECONDS);
-
-        String firstAttemptShrinkIndexName = waitAndGetShrinkIndexName(client(), index);
-
-        // we're manually shrinking the index but configuring a very high number of replicas and waiting for all active shards
-        // this will make ths shrunk index unable to allocate successfully, so ILM will wait in the `shrunk-shards-allocated` step
-        Request shrinkIndexRequest = new Request("POST", index + "/_shrink/" + firstAttemptShrinkIndexName);
-        shrinkIndexRequest.setEntity(new StringEntity(
-            "{\"settings\": {\n" +
-                "      \"" + SETTING_NUMBER_OF_SHARDS + "\": 1,\n" +
-                "      \"" + SETTING_NUMBER_OF_REPLICAS + "\": 349,\n" +
-                "      \"index.write.wait_for_active_shards\": \"all\",\n" +
-                "      \"" + LifecycleSettings.LIFECYCLE_NAME + "\": \"" + policy + "\",\n" +
-                "      \"" + IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id" + "\": null\n" +
-                "   \n}\n" +
-                "\n}", ContentType.APPLICATION_JSON));
-        client().performRequest(shrinkIndexRequest);
-
-        // wait until the threshold is passed and a new shrink index name is generated
-        assertBusy(() -> {
-            Map<String, Object> explainIndexResponse = explainIndex(client(), index);
-            String secondCycleShrinkIndexName = (String) explainIndexResponse.get(SHRINK_INDEX_NAME);
-            assertThat(secondCycleShrinkIndexName, notNullValue());
-            // ILM generated another shrink index name
-            assertThat(secondCycleShrinkIndexName, not(equalTo(firstAttemptShrinkIndexName)));
-        }, 60, TimeUnit.SECONDS);
-
-        // the index we first attempted to shrink to must be deleted as we went back to the `cleanup-shrink-index` step
-        assertThat(indexExists(firstAttemptShrinkIndexName), is(false));
-
-        // ILM will again stop in the `shrink` step as the number of target shards in the shrink action is still configured to a
-        // number higher than the index's current number of shards
-        assertBusy(() -> {
-            Map<String, Object> explainIndex = explainIndex(client(), index);
-            Integer retryCount = (Integer) explainIndex.get(FAILED_STEP_RETRY_COUNT_FIELD);
-            assertThat(retryCount, notNullValue());
-            assertThat(retryCount, greaterThanOrEqualTo(1));
-        }, 30, TimeUnit.SECONDS);
-
-        // update policy to be correct and allow the index to shrink successfully
-        createPolicy(client(), policy, null, new Phase("warm", TimeValue.ZERO,
-                Map.of(MigrateAction.NAME, new MigrateAction(false), ShrinkAction.NAME, new ShrinkAction(expectedFinalShards, null))),
-            null, null, null);
-        updatePolicy(client(), index, policy);
-
-        // assert corrected policy is picked up and index is shrunken
-        String shrunkenIndex = waitAndGetShrinkIndexName(client(), index);
-        assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
     }
 
     @Nullable

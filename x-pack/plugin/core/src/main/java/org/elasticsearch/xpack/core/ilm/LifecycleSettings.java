@@ -11,6 +11,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 
+import static org.elasticsearch.common.settings.Setting.timeSetting;
+
 /**
  * Class encapsulating settings related to Index Lifecycle Management X-Pack Plugin
  */
@@ -33,7 +35,7 @@ public class LifecycleSettings {
     // already mounted as a searchable snapshot. Those ILM actions will check if the index has this setting name configured.
     public static final String SNAPSHOT_INDEX_NAME = "index.store.snapshot.index_name";
 
-    public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = Setting.timeSetting(LIFECYCLE_POLL_INTERVAL,
+    public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = timeSetting(LIFECYCLE_POLL_INTERVAL,
         TimeValue.timeValueMinutes(10), TimeValue.timeValueSeconds(1), Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<String> LIFECYCLE_NAME_SETTING = Setting.simpleString(LIFECYCLE_NAME,
         Setting.Property.Dynamic, Setting.Property.IndexScope);
@@ -52,7 +54,7 @@ public class LifecycleSettings {
     // elapsed ILM will likely stop waiting and go to the next step.
     // Also see {@link org.elasticsearch.xpack.core.ilm.ClusterStateWaitUntilThresholdStep}
     public static final Setting<TimeValue> LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING =
-        Setting.positiveTimeSetting(LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, TimeValue.timeValueHours(12), Setting.Property.Dynamic,
+        timeSetting(LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, TimeValue.timeValueHours(12), TimeValue.timeValueHours(1), Setting.Property.Dynamic,
             Setting.Property.IndexScope);
 
 
@@ -72,7 +74,7 @@ public class LifecycleSettings {
                 SLM_RETENTION_SCHEDULE + "]", e);
         }
     }, Setting.Property.Dynamic, Setting.Property.NodeScope);
-    public static final Setting<TimeValue> SLM_RETENTION_DURATION_SETTING = Setting.timeSetting(SLM_RETENTION_DURATION,
+    public static final Setting<TimeValue> SLM_RETENTION_DURATION_SETTING = timeSetting(SLM_RETENTION_DURATION,
         TimeValue.timeValueHours(1), TimeValue.timeValueMillis(500), Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<TimeValue> SLM_MINIMUM_INTERVAL_SETTING =
         Setting.positiveTimeSetting(SLM_MINIMUM_INTERVAL, TimeValue.timeValueMinutes(15), Setting.Property.Dynamic,

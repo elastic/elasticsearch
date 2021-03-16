@@ -162,7 +162,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                 .settings(
                     settings(Version.CURRENT)
                         .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "false")
-                        .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1s")
+                        .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1h")
                 )
                 .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
                 .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(1234L)))
@@ -185,7 +185,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
             assertThat(info.getMessage(),
                 equalTo("[" + currentStepKey.getName() + "] lifecycle step, as part of [" + currentStepKey.getAction() + "] " +
-                    "action, for index [follower-index] executed for more than [1s]. Abandoning execution and moving to the next " +
+                    "action, for index [follower-index] executed for more than [1h]. Abandoning execution and moving to the next " +
                     "fallback step [" + nextKeyOnThresholdBreach + "]"));
 
             // the next step must change to the provided one when the threshold is breached

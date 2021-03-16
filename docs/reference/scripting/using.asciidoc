@@ -21,7 +21,7 @@ source, and add parameters that are passed into the script:
 
 `source`, `id`::
 
-    The script itself, which you specify as `source` for an inline script or `id` for a stored script. Use the `_scripts` endpoint to retrieve a stored script. For example, you can create or delete a stored script by calling  `POST _scripts/{id}` and `DELETE _scripts/{id}`.
+    The script itself, which you specify as `source` for an inline script or `id` for a stored script. Use the `_scripts` endpoint to retrieve a stored script. For example, you can create or delete a <<script-stored-scripts,stored script>> by calling `POST _scripts/{id}` and `DELETE _scripts/{id}`.
 
 `params`::
 
@@ -259,6 +259,15 @@ GET my-index-000001/_search
 --------------------------------------------------
 // TEST[continued]
 <1> `id` of the stored script
+
+To delete a stored script, submit a delete request to the `_scripts` endpoint
+and specify the stored script `id`:
+
+[source,console]
+----
+DELETE _scripts/calculate-score
+----
+// TEST[continued]
 
 [discrete]
 [[script-whats-next]]

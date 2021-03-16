@@ -475,16 +475,6 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
                 }
             }
             return true;
-        }, request.getCloseTimeout(), new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(Boolean result) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        }, request.getCloseTimeout(), listener.delegateFailure((l, r) -> l.onResponse(response)));
     }
 }

@@ -50,16 +50,6 @@ public class TransportDeleteUserAction extends HandledTransportAction<DeleteUser
             return;
         }
 
-        usersStore.deleteUser(request, new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(Boolean found) {
-                listener.onResponse(new DeleteUserResponse(found));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        usersStore.deleteUser(request, listener.delegateFailure((l, found) -> l.onResponse(new DeleteUserResponse(found))));
     }
 }

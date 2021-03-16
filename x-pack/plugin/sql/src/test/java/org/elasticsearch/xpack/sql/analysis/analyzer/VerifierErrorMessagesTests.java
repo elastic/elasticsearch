@@ -1153,7 +1153,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
         // We get only one message back because the messages are grouped by the node that caused the issue
         assertEquals("1:50: geo shapes cannot be used for filtering",
-            error("SELECT MAX(ST_X(geo_shape)) FROM test WHERE ST_Y(geo_shape) > 10 GROUP BY ST_GEOMETRYTYPE(geo_shape) ORDER BY ST_ASWKT(geo_shape)"));
+            error("SELECT MAX(ST_X(geo_shape)) FROM test WHERE ST_Y(geo_shape) > 10 " +
+                "GROUP BY ST_GEOMETRYTYPE(geo_shape) ORDER BY ST_ASWKT(geo_shape)"));
     }
 
     public void testGeoShapeInGroupBy() {

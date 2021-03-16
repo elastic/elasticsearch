@@ -1115,30 +1115,23 @@ public class ObjectParserTests extends ESTestCase {
         assertEquals(1, o2.intField);
     }
 
-    public static class DoubleFieldDeclaration {
-        static final ObjectParser<DoubleFieldDeclaration, Void> PARSER =
-            new ObjectParser<>("double_field_declaration", DoubleFieldDeclaration::new);
-        static {
-
-            PARSER.declareInt(DoubleFieldDeclaration::setIntField, new ParseField("name"));
-            PARSER.declareInt(DoubleFieldDeclaration::setIntField, new ParseField("name"));
-
-        }
-
-        private int intField;
-
-        private  void setIntField(int intField) {
-            this.intField = intField;
-        }
-    }
-
     public void testDoubleDeclarationThrowsException() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"name\": 1}");
+        class DoubleFieldDeclaration {
+            private int intField;
 
-        ExceptionInInitializerError error = expectThrows(ExceptionInInitializerError.class,
-            () -> DoubleFieldDeclaration.PARSER.parse(parser, null));
+            private  void setIntField(int intField) {
+                this.intField = intField;
+            }
+        }
 
-        assertThat(error.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(error.getCause().getMessage(), startsWith("Parser already registered for name=[name]"));
+        ObjectParser<DoubleFieldDeclaration, Void> PARSER =
+            new ObjectParser<>("double_field_declaration", DoubleFieldDeclaration::new);
+        PARSER.declareInt(DoubleFieldDeclaration::setIntField, new ParseField("name"));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> PARSER.declareInt(DoubleFieldDeclaration::setIntField, new ParseField("name")));
+
+        assertThat(exception, instanceOf(IllegalArgumentException.class));
+        assertThat(exception.getMessage(), startsWith("Parser already registered for name=[name]"));
     }
 }

@@ -627,7 +627,6 @@ public class ConstructingObjectParserTests extends ESTestCase {
             assertEquals(1, o.intField);
             assertWarnings(false, "[struct_with_compatible_fields][1:14] " +
                 "Deprecated field [old_name] used, expected [new_name] instead");
-
         }
     }
 

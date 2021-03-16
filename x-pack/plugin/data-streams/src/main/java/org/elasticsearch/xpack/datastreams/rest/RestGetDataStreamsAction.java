@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.core.action.GetDataStreamAction;
 
 import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 public class RestGetDataStreamsAction extends BaseRestHandler {
 
     @Override
@@ -25,7 +27,7 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "/_data_stream"), new Route(RestRequest.Method.GET, "/_data_stream/{name}"));
+        return List.of(new Route(GET, "/_data_stream"), new Route(GET, "/_data_stream/{name}"));
     }
 
     @Override

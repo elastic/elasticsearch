@@ -82,10 +82,10 @@ order is `_shard_doc` and total hits are not tracked. If you want to iterate ove
 order, this is the most efficient option.
 
 IMPORTANT: If the `sort` field is a <<date,`date`>> in some target data streams or indices
-but a <<date_nanos,`date_nanos`>> field in other targets, use the `format`
-parameter to specify a <<mapping-date-format, date format>> for the `sort`
-field. Otherwise, {es} won't interpret the search after parameter correctly in
-each request.
+but a <<date_nanos,`date_nanos`>> field in other targets, use the `numeric_type` parameter
+to convert the values to a single resolution and the `format` parameter to specify a
+<<mapping-date-format, date format>> for the `sort` field. Otherwise, {es} won't interpret
+the search after parameter correctly in each request.
 
 [source,console]
 ----
@@ -102,7 +102,7 @@ GET /_search
 	    "keep_alive": "1m"
   },
   "sort": [ <2>
-    {"@timestamp": {"order": "asc", "format": "strict_date_optional_time_nanos"}}
+    {"@timestamp": {"order": "asc", "format": "strict_date_optional_time_nanos", "numeric_type" : "date_nanos" }}
   ]
 }
 ----

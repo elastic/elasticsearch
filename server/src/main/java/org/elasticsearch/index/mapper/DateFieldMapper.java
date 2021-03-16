@@ -288,14 +288,12 @@ public final class DateFieldMapper extends FieldMapper {
 
     public static final TypeParser MILLIS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
-        DateFormatter formatter = c.getDateFormatter() != null ? c.getDateFormatter() : DEFAULT_DATE_TIME_FORMATTER;
-        return new Builder(n, Resolution.MILLISECONDS, formatter, ignoreMalformedByDefault, c.indexVersionCreated());
+        return new Builder(n, Resolution.MILLISECONDS, c.getDateFormatter(), ignoreMalformedByDefault, c.indexVersionCreated());
     });
 
     public static final TypeParser NANOS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
-        DateFormatter formatter = c.getDateFormatter() != null ? c.getDateFormatter() : DEFAULT_DATE_TIME_NANOS_FORMATTER;
-        return new Builder(n, Resolution.NANOSECONDS, formatter, ignoreMalformedByDefault, c.indexVersionCreated());
+        return new Builder(n, Resolution.NANOSECONDS, c.getDateFormatter(), ignoreMalformedByDefault, c.indexVersionCreated());
     });
 
     public static final class DateFieldType extends MappedFieldType {

@@ -144,7 +144,6 @@ public class Querier {
 
     public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
             String... indices) {
-        source.trackTotalHits(true);
         source.timeout(timeout);
 
         SearchRequest searchRequest = new SearchRequest(SWITCH_TO_FIELDS_API_VERSION);

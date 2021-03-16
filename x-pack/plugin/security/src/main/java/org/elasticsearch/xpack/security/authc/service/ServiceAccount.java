@@ -41,7 +41,12 @@ public interface ServiceAccount {
         public ServiceAccountId(String namespace, String serviceName) {
             this.namespace = namespace;
             this.serviceName = serviceName;
-            validate();
+            if (Strings.isBlank(this.namespace)) {
+                throw new IllegalArgumentException("the namespace of a service account ID must not be empty");
+            }
+            if (Strings.isBlank(this.serviceName)) {
+                throw new IllegalArgumentException("the service-name of a service account ID must not be empty");
+            }
         }
 
         public ServiceAccountId(StreamInput in) throws IOException {
@@ -64,15 +69,6 @@ public interface ServiceAccount {
 
         public String asPrincipal() {
             return namespace + "/" + serviceName;
-        }
-
-        private void validate() {
-            if (Strings.isBlank(namespace)) {
-                throw new IllegalArgumentException("the namespace of a service account ID must not be empty");
-            }
-            if (Strings.isBlank(serviceName)) {
-                throw new IllegalArgumentException("the service-name of a service account ID must not be empty");
-            }
         }
 
         @Override

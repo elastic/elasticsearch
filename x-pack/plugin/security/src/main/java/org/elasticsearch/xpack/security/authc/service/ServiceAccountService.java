@@ -108,7 +108,7 @@ public class ServiceAccountService {
     }
 
     public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
-        assert isServiceAccount(authentication) : "authentication is not for service account";
+        assert isServiceAccount(authentication) : "authentication is not for service account: " + authentication;
 
         final ServiceAccountId accountId = ServiceAccountId.fromPrincipal(authentication.getUser().principal());
         final ServiceAccount account = ACCOUNTS.get(accountId.serviceName());

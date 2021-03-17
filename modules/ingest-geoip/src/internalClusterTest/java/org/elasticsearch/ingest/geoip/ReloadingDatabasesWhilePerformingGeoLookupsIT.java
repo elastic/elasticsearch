@@ -168,7 +168,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         LocalDatabases localDatabases = new LocalDatabases(geoIpModulesDir, geoIpConfigDir, cache);
         DatabaseRegistry databaseRegistry =
             new DatabaseRegistry(geoIpTmpDir, mock(Client.class), cache, localDatabases, Runnable::run);
-        databaseRegistry.initialize(mock(ResourceWatcherService.class), mock(IngestService.class));
+        databaseRegistry.initialize("nodeId", mock(ResourceWatcherService.class), mock(IngestService.class));
         return databaseRegistry;
     }
 

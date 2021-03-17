@@ -1922,15 +1922,16 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             org.elasticsearch.common.collect.Map.of(
                 "ml",
                 new Feature(
+                    "ml",
                     "ml indices",
                     org.elasticsearch.common.collect.List.of(
                         new SystemIndexDescriptor(".ml-meta", "ml meta"), new SystemIndexDescriptor(".ml-stuff", "other ml"))
                 ),
                 "watcher",
-                new Feature("watcher indices",
+                new Feature("watcher", "watcher indices",
                     org.elasticsearch.common.collect.List.of(new SystemIndexDescriptor(".watches", "watches index"))),
                 "stack-component",
-                new Feature("stack component",
+                new Feature("stack-component", "stack component",
                     org.elasticsearch.common.collect.List.of(
                         new SystemIndexDescriptor(
                             ".external-sys-idx",
@@ -2324,12 +2325,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("some-other-index").state(State.OPEN));
         SystemIndices systemIndices = new SystemIndices(
             org.elasticsearch.common.collect.Map.of("ml",
-                new Feature("ml indices",
+                new Feature("ml", "ml indices",
                     org.elasticsearch.common.collect.List.of(
                         new SystemIndexDescriptor(".ml-meta", "ml meta"), new SystemIndexDescriptor(".ml-stuff", "other ml"))
                 ),
                 "watcher",
-                new Feature("watcher indices",
+                new Feature("watcher", "watcher indices",
                     org.elasticsearch.common.collect.List.of(new SystemIndexDescriptor(".watches", "watches index")))
             )
         );

@@ -248,6 +248,7 @@ public class TransportBulkActionTests extends ESTestCase {
             new Index(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
         SystemIndices systemIndices = new SystemIndices(
             Map.of("plugin", new SystemIndices.Feature(
+                "plugin",
                 "test feature",
                 org.elasticsearch.common.collect.List.of(new SystemIndexDescriptor(".test", "")))
             ));

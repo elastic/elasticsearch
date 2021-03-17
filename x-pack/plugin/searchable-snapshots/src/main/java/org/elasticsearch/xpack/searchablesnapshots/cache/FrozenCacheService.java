@@ -331,6 +331,7 @@ public class FrozenCacheService implements Releasable {
 
     public void onClose(CacheFileRegion chunk) {
         assert regionOwners[chunk.sharedPageIndex].compareAndSet(chunk, null);
+        assert chunk.isEvicted();
         freeRegions.add(chunk.sharedPageIndex);
     }
 

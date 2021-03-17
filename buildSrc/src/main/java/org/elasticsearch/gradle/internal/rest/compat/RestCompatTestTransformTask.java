@@ -149,6 +149,15 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     /**
+     * Adds one or more regex warnings to the given test
+     * @param testName the test name to add the regex warning
+     * @param warningsRegex the regex warning(s) to add
+     */
+    public void addWarningRegex(String testName, String... warningsRegex) {
+        transformations.add(new InjectWarnings(true, Arrays.asList(warningsRegex), testName));
+    }
+
+    /**
      * Removes one or more warnings
      * @param warnings the warning(s) to remove
      */
@@ -162,6 +171,14 @@ public class RestCompatTestTransformTask extends DefaultTask {
      */
     public void addAllowedWarning(String... allowedWarnings) {
         transformations.add(new InjectAllowedWarnings(Arrays.asList(allowedWarnings)));
+    }
+
+    /**
+     * Adds one or more allowed regular expression warnings
+     * @param allowedWarningsRegex the regex warning(s) to add
+     */
+    public void addAllowedWarningRegex(String... allowedWarningsRegex) {
+        transformations.add(new InjectAllowedWarnings(true, Arrays.asList(allowedWarningsRegex)));
     }
 
     @OutputDirectory

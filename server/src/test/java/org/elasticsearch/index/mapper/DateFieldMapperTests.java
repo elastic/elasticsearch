@@ -319,6 +319,17 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, 1589578382123L));
     }
 
+    public void testFormatPreserveNanos() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "date_nanos"))
+        );
+        DateFieldMapper.DateFieldType ft = (DateFieldMapper.DateFieldType) mapperService.fieldType("field");
+        assertEquals(ft.dateTimeFormatter, DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER);
+        DocValueFormat format = ft.docValueFormat(null, null);
+        String date = "2020-05-15T21:33:02.123456789Z";
+        assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
+    }
+
     public void testFetchDocValuesNanos() throws IOException {
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "date_nanos").field("format", "strict_date_time||epoch_millis"))
@@ -494,7 +505,7 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     private String randomIs8601Nanos(long maxMillis) {
-        String date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomLongBetween(0, maxMillis));
+        String date = DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER.formatMillis(randomLongBetween(0, maxMillis));
         date = date.substring(0, date.length() - 1);  // Strip off trailing "Z"
         return date + String.format(Locale.ROOT, "%06d", between(0, 999999)) + "Z";  // Add nanos and the "Z"
     }

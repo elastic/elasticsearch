@@ -150,7 +150,7 @@ public class SparseFileTracker {
         if (length < subRange.end()) {
             throw new IllegalArgumentException("invalid range to listen to [" + subRange + ", length=" + length + "]");
         }
-        if (subRange.length() > 0 && subRange.isSubRangeOf(range) == false) {
+        if (subRange.isSubRangeOf(range) == false) {
             throw new IllegalArgumentException(
                 "unable to listen to range [start="
                     + subRange.start()
@@ -233,18 +233,14 @@ public class SparseFileTracker {
             assert pendingRanges.stream().allMatch(Range::isPending) : pendingRanges;
             assert pendingRanges.size() != 1 || gaps.size() <= 1 : gaps;
 
-            if (subRange.length() > 0) {
-                // Pending ranges that needs to be filled before executing the listener
-                requiredRanges = range.equals(subRange)
-                    ? pendingRanges
-                    : pendingRanges.stream()
-                        .filter(pendingRange -> pendingRange.start < subRange.end())
-                        .filter(pendingRange -> subRange.start() < pendingRange.end)
-                        .sorted(Comparator.comparingLong(r -> r.start))
-                        .collect(Collectors.toList());
-            } else {
-                requiredRanges = Collections.emptyList();
-            }
+            // Pending ranges that needs to be filled before executing the listener
+            requiredRanges = range.equals(subRange)
+                ? pendingRanges
+                : pendingRanges.stream()
+                    .filter(pendingRange -> pendingRange.start < subRange.end())
+                    .filter(pendingRange -> subRange.start() < pendingRange.end)
+                    .sorted(Comparator.comparingLong(r -> r.start))
+                    .collect(Collectors.toList());
         }
 
         // NB we work with ranges outside the mutex here, but only to interact with their completion listeners which are `final` so

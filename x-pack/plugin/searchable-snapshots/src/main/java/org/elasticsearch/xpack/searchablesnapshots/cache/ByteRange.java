@@ -69,15 +69,15 @@ public final class ByteRange implements Comparable<ByteRange> {
         return start < other.end && end > other.start;
     }
 
-    public ByteRange overlap(ByteRange other) {
+    /**
+     * Computes the overlap of the given range with this range in coordinates relative to the start of this range.
+     *
+     * @param other other range
+     * @return relative overlap
+     */
+    public ByteRange relativeOverlap(ByteRange other) {
         assert hasOverlap(other) : "no overlap between [" + this + "] and [" + other + "]";
-        if (contains(other.start, other.end)) {
-            return other;
-        }
-        if (other.contains(start, end)) {
-            return this;
-        }
-        return of(Math.max(start, other.start()), Math.min(end, other.end()));
+        return ByteRange.of(Math.max(start, other.start()) - start, Math.min(end, other.end()) - start);
     }
 
     public boolean contains(long start, long end) {

@@ -116,8 +116,8 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     // cluster state so it can be applied and we will
                     // wait for the next trigger to evaluate the
                     // condition again
-                    logger.trace("[{}] waiting for cluster state step condition ({}) [{}], next: [{}]",
-                        index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(), nextStepKey);
+                    logger.trace("[{}] waiting for cluster state step condition ({}) [{}]",
+                        index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey());
                     ClusterStateWaitStep.Result result;
                     try {
                         result = ((ClusterStateWaitStep) currentStep).isConditionMet(index, state);

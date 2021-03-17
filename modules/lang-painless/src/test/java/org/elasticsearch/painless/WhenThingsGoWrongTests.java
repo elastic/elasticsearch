@@ -853,7 +853,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testDisallowUnreadObjects() {
         assertNotAStatement("int i = 1; new ArrayList(); return i;", "ArrayList");
-        assertNotAStatement("new Object(); return 1;", "Object");
+        assertNotAStatement("new HashSet(); return 1;", "HashSet");
         assertNotAStatement("void foo() { new HashMap(); new ArrayList(); } return 1;", "HashMap");
     }
 

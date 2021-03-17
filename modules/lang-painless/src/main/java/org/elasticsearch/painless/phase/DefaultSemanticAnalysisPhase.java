@@ -1644,7 +1644,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
      */
     @Override
     public void visitNewObj(ENewObj userNewObjNode, SemanticScope semanticScope) {
-        if (semanticScope.getCondition(userNewObjNode, Read.class) == false) {
+        if (semanticScope.getCondition(userNewObjNode, Read.class) == false &&
+            semanticScope.getCondition(userNewObjNode, Write.class) == false) {
             throw new IllegalArgumentException("not a statement: new object [" + userNewObjNode.getCanonicalTypeName() + "] not used");
         }
 

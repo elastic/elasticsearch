@@ -201,7 +201,7 @@ import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountsCredentialStore.CompositeServiceAccountsCredentialStore;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountsTokenStore.CompositeServiceAccountsTokenStore;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -492,7 +492,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         components.add(apiKeyService);
 
         final ServiceAccountService serviceAccountService =
-            new ServiceAccountService(new CompositeServiceAccountsCredentialStore(List.of()));
+            new ServiceAccountService(new CompositeServiceAccountsTokenStore(List.of()));
 
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
             privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService,

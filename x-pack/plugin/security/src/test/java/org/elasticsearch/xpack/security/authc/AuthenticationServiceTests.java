@@ -89,7 +89,7 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticator;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountsCredentialStore.CompositeServiceAccountsCredentialStore;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountsTokenStore.CompositeServiceAccountsTokenStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -263,7 +263,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                                           mock(CacheInvalidatorRegistry.class), threadPool);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
             clusterService);
-        serviceAccountService = new ServiceAccountService(new CompositeServiceAccountsCredentialStore(List.of()));
+        serviceAccountService = new ServiceAccountService(new CompositeServiceAccountsTokenStore(List.of()));
 
         operatorPrivilegesService = mock(OperatorPrivileges.OperatorPrivilegesService.class);
         service = new AuthenticationService(settings, realms, auditTrailService,

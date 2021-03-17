@@ -97,12 +97,12 @@ public class AutomatonQueryOnBinaryDv extends Query {
           }
         AutomatonQueryOnBinaryDv other = (AutomatonQueryOnBinaryDv) obj;
         return Objects.equals(field, other.field)  && Objects.equals(matchPattern, other.matchPattern)
-            && Objects.equals(automaton, other.automaton);
+            && Objects.equals(new ByteRunAutomaton(automaton), new ByteRunAutomaton(other.automaton));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, matchPattern, automaton);
+        return Objects.hash(field, matchPattern, new ByteRunAutomaton(automaton));
     }
 
 }

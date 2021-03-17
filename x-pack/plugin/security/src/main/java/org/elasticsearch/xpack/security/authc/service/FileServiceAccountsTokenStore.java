@@ -98,7 +98,7 @@ public class FileServiceAccountsTokenStore implements ServiceAccountsTokenStore 
 
     static Map<String, char[]> parseFile(Path path, @Nullable Logger logger) throws IOException {
         final Logger thisLogger = logger == null ? NoOpLogger.INSTANCE : logger;
-        thisLogger.trace("reading service tokens file [{}]...", path.toAbsolutePath());
+        thisLogger.trace("reading service_tokens file [{}]...", path.toAbsolutePath());
         if (Files.exists(path) == false) {
             thisLogger.trace("file [{}] does not exist", path.toAbsolutePath());
             return Map.of();
@@ -108,7 +108,7 @@ public class FileServiceAccountsTokenStore implements ServiceAccountsTokenStore 
             line = line.trim();
             final int colon = line.indexOf(':');
             if (colon == -1) {
-                thisLogger.warn("invalid format at line #{} of service tokens file [{}] - missing ':' character - ", lineNumber, path);
+                thisLogger.warn("invalid format at line #{} of service_tokens file [{}] - missing ':' character - ", lineNumber, path);
                 throw new IllegalStateException("Missing ':' character at line #" + lineNumber);
             }
             final String key = line.substring(0, colon);

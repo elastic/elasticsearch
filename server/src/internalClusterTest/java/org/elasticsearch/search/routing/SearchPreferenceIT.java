@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.preference;
+package org.elasticsearch.search.routing;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -30,6 +30,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -232,6 +233,28 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete("test2"));
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
+    }
+
+    public void testSimpleAdaptiveReplicaSelection() {
+        client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 1))
+            .get();
+        ensureGreen();
+
+        client().prepareIndex("test").setSource("field1", "value1").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        String firstNodeId = searchResponse.getHits().getAt(0).getShard().getNodeId();
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        String secondNodeId = searchResponse.getHits().getAt(0).getShard().getNodeId();
+
+        assertNotEquals(firstNodeId, secondNodeId);
     }
 
     private static void assertSearchesSpecificNode(String index, String customPreference, String nodeId) {

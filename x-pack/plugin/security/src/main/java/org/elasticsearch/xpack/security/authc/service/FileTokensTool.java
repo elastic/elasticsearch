@@ -26,9 +26,9 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAcco
 import org.elasticsearch.xpack.security.support.FileAttributesChecker;
 
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 public class FileTokensTool extends LoggingAwareMultiCommand {
 
@@ -77,7 +77,7 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
             final Path serviceTokensFile = FileServiceAccountsTokenStore.resolveFile(env);
 
             FileAttributesChecker attributesChecker = new FileAttributesChecker(serviceTokensFile);
-            final Map<String, char[]> tokenHashes = new HashMap<>(FileServiceAccountsTokenStore.parseFile(serviceTokensFile, null));
+            final Map<String, char[]> tokenHashes = new TreeMap<>(FileServiceAccountsTokenStore.parseFile(serviceTokensFile, null));
 
             try (SecureString tokenString = UUIDs.randomBase64UUIDSecureString()) {
                 final ServiceAccountToken token =

@@ -18,7 +18,6 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -59,10 +58,10 @@ public class ServiceAccountService {
         return ACCOUNTS.keySet();
     }
 
-    // {@link org.elasticsearch.xpack.security.authc.TokenService#extractBearerTokenFromHeader extracted} from an HTTP authorization header.
     /**
      * Parses a token object from the content of a {@link ServiceAccountToken#asBearerString()} bearer string}.
      * This bearer string would typically be
+     * {@link org.elasticsearch.xpack.security.authc.TokenService#extractBearerTokenFromHeader extracted} from an HTTP authorization header.
      *
      * <p>
      * <strong>This method does not validate the credential, it simply parses it.</strong>
@@ -85,37 +84,49 @@ public class ServiceAccountService {
         }
     }
 
-    public void authenticateWithToken(ServiceAccountToken token, ThreadContext threadContext, String nodeName,
-                                      ActionListener<Authentication> listener) {
+    public void tryAuthenticateBearerToken(SecureString bearerToken, String nodeName, ActionListener<Authentication> listener) {
+        final ServiceAccountToken serviceAccountToken = ServiceAccountService.tryParseToken(bearerToken);
+        if (serviceAccountToken == null) {
+            // This should be the only situation where a null is returned to mean the authentication should continue.
+            // For all other situations, it should be either onResponse(authentication) for success or onFailure for any error.
+            listener.onResponse(null);
+        } else {
+            authenticateToken(serviceAccountToken, nodeName, listener);
+        }
+    }
 
-        if (ElasticServiceAccounts.NAMESPACE.equals(token.getAccountId().namespace()) == false) {
+    public void authenticateToken(ServiceAccountToken serviceAccountToken, String nodeName, ActionListener<Authentication> listener) {
+
+        if (ElasticServiceAccounts.NAMESPACE.equals(serviceAccountToken.getAccountId().namespace()) == false) {
             final ParameterizedMessage message = new ParameterizedMessage(
                 "only [{}] service accounts are supported, but received [{}]",
-                ElasticServiceAccounts.NAMESPACE, token.getAccountId().asPrincipal());
+                ElasticServiceAccounts.NAMESPACE, serviceAccountToken.getAccountId().asPrincipal());
             logger.debug(message);
             listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage()));
             return;
         }
 
-        final ServiceAccount account = ACCOUNTS.get(token.getAccountId().asPrincipal());
+        final ServiceAccount account = ACCOUNTS.get(serviceAccountToken.getAccountId().asPrincipal());
         if (account == null) {
             final ParameterizedMessage message = new ParameterizedMessage(
-                "the [{}] service account does not exist", token.getAccountId().asPrincipal());
+                "the [{}] service account does not exist", serviceAccountToken.getAccountId().asPrincipal());
             logger.debug(message);
             listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage()));
             return;
         }
 
-        if (serviceAccountsTokenStore.authenticate(token)) {
-            listener.onResponse(success(account, token, nodeName));
-        } else {
-            final ParameterizedMessage message = new ParameterizedMessage(
-                "failed to authenticate service account [{}] with token name [{}]",
-                token.getAccountId().asPrincipal(),
-                token.getTokenName());
-            logger.debug(message);
-            listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage()));
-        }
+        serviceAccountsTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(success -> {
+            if (success) {
+                listener.onResponse(createAuthentication(account, serviceAccountToken, nodeName));
+            } else {
+                final ParameterizedMessage message = new ParameterizedMessage(
+                    "failed to authenticate service account [{}] with token name [{}]",
+                    serviceAccountToken.getAccountId().asPrincipal(),
+                    serviceAccountToken.getTokenName());
+                logger.debug(message);
+                listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage()));
+            }
+        }, listener::onFailure));
     }
 
     public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
@@ -132,7 +143,7 @@ public class ServiceAccountService {
         listener.onResponse(account.roleDescriptor());
     }
 
-    private Authentication success(ServiceAccount account, ServiceAccountToken token, String nodeName) {
+    private Authentication createAuthentication(ServiceAccount account, ServiceAccountToken token, String nodeName) {
         final User user = account.asUser();
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(REALM_NAME, REALM_TYPE, nodeName);
         return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,

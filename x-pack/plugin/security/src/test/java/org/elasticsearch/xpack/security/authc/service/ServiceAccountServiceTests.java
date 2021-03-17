@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -32,8 +33,10 @@ import java.util.concurrent.ExecutionException;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ServiceAccountServiceTests extends ESTestCase {
 
@@ -126,7 +129,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final SecureString secret = new SecureString(randomAlphaOfLength(20).toCharArray());
         final ServiceAccountToken token1 = new ServiceAccountToken(accountId1, randomAlphaOfLengthBetween(3, 8), secret);
         final PlainActionFuture<Authentication> future1 = new PlainActionFuture<>();
-        serviceAccountService.authenticateWithToken(token1, threadContext, randomAlphaOfLengthBetween(3, 8), future1);
+        serviceAccountService.authenticateToken(token1, randomAlphaOfLengthBetween(3, 8), future1);
         final ExecutionException e1 = expectThrows(ExecutionException.class, future1::get);
         assertThat(e1.getCause().getClass(), is(ElasticsearchSecurityException.class));
         assertThat(e1.getMessage(), containsString(
@@ -139,7 +142,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             randomValueOtherThan("fleet", () -> randomAlphaOfLengthBetween(3, 8)));
         final ServiceAccountToken token2 = new ServiceAccountToken(accountId2, randomAlphaOfLengthBetween(3, 8), secret);
         final PlainActionFuture<Authentication> future2 = new PlainActionFuture<>();
-        serviceAccountService.authenticateWithToken(token2, threadContext, randomAlphaOfLengthBetween(3, 8), future2);
+        serviceAccountService.authenticateToken(token2, randomAlphaOfLengthBetween(3, 8), future2);
         final ExecutionException e2 = expectThrows(ExecutionException.class, future2::get);
         assertThat(e2.getCause().getClass(), is(ElasticsearchSecurityException.class));
         assertThat(e2.getMessage(), containsString(
@@ -151,11 +154,22 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final ServiceAccountToken token4 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8),
             new SecureString(randomAlphaOfLength(20).toCharArray()));
         final String nodeName = randomAlphaOfLengthBetween(3, 8);
-        when(serviceAccountsTokenStore.authenticate(token3)).thenReturn(true);
-        when(serviceAccountsTokenStore.authenticate(token4)).thenReturn(false);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
+            listener.onResponse(true);
+            return null;
+        }).when(serviceAccountsTokenStore).authenticate(eq(token3), any());
+
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
+            listener.onResponse(false);
+            return null;
+        }).when(serviceAccountsTokenStore).authenticate(eq(token4), any());
 
         final PlainActionFuture<Authentication> future3 = new PlainActionFuture<>();
-        serviceAccountService.authenticateWithToken(token3, threadContext, nodeName, future3);
+        serviceAccountService.authenticateToken(token3, nodeName, future3);
         final Authentication authentication = future3.get();
         assertThat(authentication, equalTo(new Authentication(
             new User("elastic/fleet", Strings.EMPTY_ARRAY,
@@ -167,7 +181,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         )));
 
         final PlainActionFuture<Authentication> future4 = new PlainActionFuture<>();
-        serviceAccountService.authenticateWithToken(token4, threadContext, nodeName, future4);
+        serviceAccountService.authenticateToken(token4, nodeName, future4);
         final ExecutionException e4 = expectThrows(ExecutionException.class, future4::get);
         assertThat(e4.getCause().getClass(), is(ElasticsearchSecurityException.class));
         assertThat(e4.getMessage(), containsString("failed to authenticate service account ["

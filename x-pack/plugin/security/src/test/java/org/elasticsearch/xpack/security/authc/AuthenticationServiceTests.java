@@ -263,7 +263,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                                           mock(CacheInvalidatorRegistry.class), threadPool);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
             clusterService);
-        serviceAccountService = new ServiceAccountService(new CompositeServiceAccountsTokenStore(List.of()));
+        serviceAccountService = new ServiceAccountService(new CompositeServiceAccountsTokenStore(List.of(), threadContext));
 
         operatorPrivilegesService = mock(OperatorPrivileges.OperatorPrivilegesService.class);
         service = new AuthenticationService(settings, realms, auditTrailService,

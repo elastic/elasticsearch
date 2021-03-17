@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -333,25 +335,40 @@ public class AuthenticationService {
                         logger.trace("Found existing authentication [{}] in request [{}]", authentication, request);
                         listener.onResponse(authentication);
                     } else {
-                        tokenService.getAndValidateToken(threadContext, ActionListener.wrap(userToken -> {
-                            if (userToken != null) {
-                                writeAuthToContext(userToken.getAuthentication());
-                            } else {
-                                checkForApiKey();
-                            }
-                        }, e -> {
-                            logger.debug(new ParameterizedMessage("Failed to validate token authentication for request [{}]", request), e);
-                            if (e instanceof ElasticsearchSecurityException &&
-                                tokenService.isExpiredTokenException((ElasticsearchSecurityException) e) == false) {
-                                // intentionally ignore the returned exception; we call this primarily
-                                // for the auditing as we already have a purpose built exception
-                                request.tamperedRequest();
-                            }
-                            listener.onFailure(e);
-                        }));
+                        checkForBearerToken();
                     }
                 });
             }
+        }
+
+        private void checkForBearerToken() {
+            final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(threadContext);
+            serviceAccountService.tryAuthenticateBearerToken(bearerToken, nodeName, ActionListener.wrap(authentication -> {
+                if (authentication != null) {
+                    this.authenticatedBy = authentication.getAuthenticatedBy();
+                    writeAuthToContext(authentication);
+                } else {
+                    tokenService.tryAuthenticateToken(bearerToken, ActionListener.wrap(userToken -> {
+                        if (userToken != null) {
+                            writeAuthToContext(userToken.getAuthentication());
+                        } else {
+                            checkForApiKey();
+                        }
+                    }, e -> {
+                        logger.debug(new ParameterizedMessage("Failed to validate token authentication for request [{}]", request), e);
+                        if (e instanceof ElasticsearchSecurityException
+                            && false == tokenService.isExpiredTokenException((ElasticsearchSecurityException) e)) {
+                            // intentionally ignore the returned exception; we call this primarily
+                            // for the auditing as we already have a purpose built exception
+                            request.tamperedRequest();
+                        }
+                        listener.onFailure(e);
+                    }));
+                }
+            }, e -> {
+                logger.debug("Failed to validate service account token for request [{}]", request);
+                listener.onFailure(request.exceptionProcessingRequest(e, null));
+            }));
         }
 
         private void checkForApiKey() {

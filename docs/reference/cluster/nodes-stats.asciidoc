@@ -1879,6 +1879,16 @@ Current number of open HTTP connections for the node.
 `total_opened`::
 (integer)
 Total number of HTTP connections opened for the node.
+
+`clients`::
+(object)
+Information on current and recently-closed HTTP connections.
++
+.Properties of `clients`
+[%collapsible%open]
+======
+
+
 ======
 
 [[cluster-nodes-stats-api-response-body-breakers]]

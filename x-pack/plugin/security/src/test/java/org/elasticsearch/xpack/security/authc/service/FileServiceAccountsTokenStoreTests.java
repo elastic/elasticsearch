@@ -179,9 +179,6 @@ public class FileServiceAccountsTokenStoreTests extends ESTestCase {
             assertBusy(() -> assertEquals("Waited too long for the updated file to be picked up", 0, latch.getCount()),
                 5, TimeUnit.SECONDS);
             assertThat(store.getTokenHashes().get(qualifiedTokenName), equalTo(newTokenHash));
-
-        } catch (InterruptedException e) {
-            e.printStackTrace();
         }
     }
 }

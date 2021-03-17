@@ -4,42 +4,44 @@
 
 beta::[]
 
-{anomaly-detect-cap} alerts run scheduled checks on an {anomaly-job} or a group 
-of jobs to detect anomalies with certain conditions. If an anomaly meets the 
-rules you defined, the associated action is triggered. For example, you can 
-create a rule to check an {anomaly-job} every fifteen minutes for critical 
-anomalies and to notify you in an email. This page helps you to configure an 
-{anomaly-detect} alert. To learn more about alerting in the {stack}, refer to 
+{anomaly-detect-cap} alerting runs scheduled checks on an {anomaly-job} or a 
+group of jobs to detect anomalies with certain conditions. If an anomaly meets 
+the rules you defined, an alert is created and the associated action is 
+triggered. For example, you can create a rule to check an {anomaly-job} every 
+fifteen minutes for critical anomalies and to notify you in an email. This page 
+helps you to configure {anomaly-detect} alerting. To learn more about alerting 
+in the {stack}, refer to 
 {kibana-ref}/alerting-getting-started.html#alerting-getting-started[Alerting and Actions].
 
 
-[[creating-anomaly-alerts]]
-== Creating an alert
+[[creating-anomaly-alert-rules]]
+== Creating rules
 
-You can create {anomaly-detect} alerts in the {anomaly-job} wizard after you 
-start the job, from the job list, or under **{stack-manage-app} > {alerts-ui}**. 
-On the *Create rule* window, select *{anomaly-detect-cap} alert* under the 
-{ml-cap} section, then give a name to the rule and optionally provide tags.
+You can create {anomaly-detect} alerting rules in the {anomaly-job} wizard after 
+you start the job, from the job list, or under **{stack-manage-app} > 
+{alerts-ui}**. On the *Create rule* window, select *{anomaly-detect-cap} alert* 
+under the {ml-cap} section, then give a name to the rule and optionally provide 
+tags.
 
 Specify the time interval for the rule to check detected anomalies. It is 
 recommended to select an interval that is close to the bucket span of the 
 associated job. You can also select a notification option by using the _Notify_ 
-selector. An alert instance remains active as long as anomalies are found for a 
+selector. An alert remains active as long as anomalies are found for a 
 particular {anomaly-job} during the check interval. When there is no anomaly 
 found in the next interval, the `Recovered` action group is invoked and the 
-status of the alert instance changes to `OK`. For more details, refer to the 
+status of the alert changes to `OK`. For more details, refer to the 
 documentation of 
 {kibana-ref}/defining-alerts.html#defining-alerts-general-details[general alert details].
   
 [role="screenshot"]
 image::images/ml-anomaly-alert-type.jpg["Creating a rule for an anomaly detection alert"]
   
-Select the {anomaly-job} or the group of {anomaly-jobs} that is checked by the 
-rule. If you assign additional jobs to the group, the new jobs are automatically 
-checked the next time when the conditions are checked.
+Select the {anomaly-job} or the group of {anomaly-jobs} that is checked against 
+the rule. If you assign additional jobs to the group, the new jobs are 
+automatically checked the next time when the conditions are checked.
 
-You can select the result type of the {anomaly-job} that the rule checks. In 
-particular, you can create rules based on bucket, record, or influencer 
+You can select the result type of the {anomaly-job} that is checked against the 
+rule. In particular, you can create rules based on bucket, record, or influencer 
 results.
 
 [role="screenshot"]
@@ -48,7 +50,7 @@ image::images/ml-anomaly-alert-severity.jpg["Selecting result type, severity, an
 For each rule, you can configure the `anomaly_score` that triggers the action. 
 The `anomaly_score` indicates the significance of a given anomaly compared to 
 previous anomalies. The default severity threshold is 75 which means every 
-anomaly with an `anomaly_score` of 75 or higher triggers the action.
+anomaly with an `anomaly_score` of 75 or higher triggers the associated action.
 
 You can select whether you want to include interim results. Interim results are 
 created by the {anomaly-job} before a bucket is finalized. These results might 
@@ -59,8 +61,8 @@ processed buckets, do not include interim results.
 
 You can also test the configured conditions against your existing data and check 
 the sample results by providing a valid interval for your data. The generated 
-preview contains the number of potentially created alert instances during the 
-relative time range you defined.
+preview contains the number of potentially created alerts during the relative 
+time range you defined.
 
 
 [[defining-actions]]
@@ -87,7 +89,7 @@ After you save the configurations, the rule appears in the *{alerts-ui}* list
 where you can check its status and see the overview of its configuration 
 information.
 
-The name of an alert instance is always the same as the job ID of the associated 
+The name of an alert is always the same as the job ID of the associated 
 {anomaly-job} that triggered it. You can mute the notifications for a particular 
-{anomaly-job} on the page of the rule that lists the individual alert instances. 
-You can open it via *{alerts-ui}* by selecting the rule name.
+{anomaly-job} on the page of the rule that lists the individual alerts. You can 
+open it via *{alerts-ui}* by selecting the rule name.

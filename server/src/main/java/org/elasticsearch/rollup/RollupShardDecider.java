@@ -10,7 +10,7 @@ package org.elasticsearch.rollup;
 
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchService;
@@ -29,10 +29,10 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROLLUP_SOURCE_UUID;
 public class RollupShardDecider {
 
     static final Set<String> SUPPORTED_AGGS = Set.of(
@@ -58,40 +58,42 @@ public class RollupShardDecider {
                                                           IndexMetadata requestIndexMetadata,
                                                           SortedMap<String, IndexAbstraction> indexLookup) throws IOException {
         IndexAbstraction originalIndex = indexLookup.get(requestIndexMetadata.getIndex().getName());
-        String sourceIndex = requestIndexMetadata.getIndex().getName(); // TODO: change to requestIndexMetadata.getIndex().getUUID()
-        Map<String, String> indexRollupMetadata = requestIndexMetadata.getCustomData(RollupIndexMetadata.TYPE);
+
+        String sourceIndexUuid = requestIndexMetadata.getSettings().get(INDEX_ROLLUP_SOURCE_UUID.getKey(),
+            requestIndexMetadata.getIndex().getUUID());
 
         // Index must be member of a data stream and rollup metadata must exist in the index metadata
-        if (originalIndex.getParentDataStream() == null || indexRollupMetadata == null) {
-            return new SearchService.CanMatchResponse(true, null, sourceIndex, null);
+        if (originalIndex.getParentDataStream() == null || INDEX_ROLLUP_SOURCE_UUID.exists(requestIndexMetadata.getSettings()) == false) {
+            return new SearchService.CanMatchResponse(true, null, sourceIndexUuid, null);
         }
 
-        // A rollup index is being searched
+        // A rollup index is being searched in a data stream
         if (validateRollupConditions(request, context, requestIndexMetadata) == false) {
-            return new SearchService.CanMatchResponse(false, null, sourceIndex, null);
+            return new SearchService.CanMatchResponse(false, null, sourceIndexUuid, null);
         }
+
+        MappingMetadata indexMapping = requestIndexMetadata.mapping();
+        indexMapping.getSourceAsMap();
 
         final AggregatorFactories.Builder aggregations = request.source() != null ? request.source().aggregations() : null;
-        final String rollupConfigSource = indexRollupMetadata.get(RollupIndexMetadata.ROLLUP_META_FIELD);
-        sourceIndex = indexRollupMetadata.get(RollupIndexMetadata.SOURCE_INDEX_NAME_META_FIELD);
-        RollupIndexMetadata rollupIndexMetadata = RollupIndexMetadata.parseMetadataXContent(rollupConfigSource);
-
         DateHistogramAggregationBuilder source = getDateHistogramAggregationBuilder(aggregations);
+
         ZoneId sourceTimeZone = ZoneOffset.UTC; // Default timezone is UTC
         if (source != null && source.timeZone() != null) {
             sourceTimeZone = ZoneId.of(source.timeZone().toString(), ZoneId.SHORT_IDS);
         }
         DateHistogramInterval sourceInterval = source != null ? source.getCalendarInterval() : null;
         // Incompatible timezone => skip this rollup index
-        if (canMatchTimezone(sourceTimeZone, rollupIndexMetadata.getDateTimezone().zoneId()) == false
-            || canMatchCalendarInterval(sourceInterval, rollupIndexMetadata.getDateInterval()) == false) {
-            return new SearchService.CanMatchResponse(false, null);
-        }
-        // Assign index priority to match the rollup interval. Higher intervals have higher priority
-        // Index priority be evaluated at the coordinator node to select the optimal shard
-        long priority = rollupIndexMetadata.getDateInterval().estimateMillis();
+//        if (canMatchTimezone(sourceTimeZone, rollupIndexMetadata.getDateTimezone().zoneId()) == false
+//            || canMatchCalendarInterval(sourceInterval, rollupIndexMetadata.getDateInterval()) == false) {
+//            return new SearchService.CanMatchResponse(false, null);
+//        }
+//        // Assign index priority to match the rollup interval. Higher intervals have higher priority
+//        // Index priority be evaluated at the coordinator node to select the optimal shard
+//        long priority = rollupIndexMetadata.getDateInterval().estimateMillis();
+        long priority = 0;
 
-        return new SearchService.CanMatchResponse(true, null, sourceIndex, priority);
+        return new SearchService.CanMatchResponse(true, null, sourceIndexUuid, priority);
     }
 
     /**

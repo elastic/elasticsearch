@@ -186,7 +186,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
             }
         }
 
-        request.setNodes(executorNodes.toArray(new String[executorNodes.size()]));
+        request.setNodes(executorNodes.toArray(new String[0]));
 
         // wait for started and stopping datafeeds
         // Map datafeedId -> datafeed task Id.

@@ -25,7 +25,6 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 /**
  * Query that runs an Automaton across all binary doc values.
@@ -35,19 +34,17 @@ public class AutomatonQueryOnBinaryDv extends Query {
 
     private final String field;
     private final String matchPattern;
-    private final Supplier<Automaton> automatonSupplier;
+    private final Automaton automaton;
 
-    public AutomatonQueryOnBinaryDv(String field, String matchPattern, Supplier<Automaton> automatonSupplier) {
+    public AutomatonQueryOnBinaryDv(String field, String matchPattern, Automaton automaton) {
         this.field = field;
         this.matchPattern = matchPattern;
-        this.automatonSupplier = automatonSupplier;
+        this.automaton = automaton;
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-
-
-        ByteRunAutomaton bytesMatcher = new ByteRunAutomaton(automatonSupplier.get());
+        ByteRunAutomaton bytesMatcher = new ByteRunAutomaton(automaton);
 
         return new ConstantScoreWeight(this, boost) {
 
@@ -99,12 +96,13 @@ public class AutomatonQueryOnBinaryDv extends Query {
             return false;
           }
         AutomatonQueryOnBinaryDv other = (AutomatonQueryOnBinaryDv) obj;
-        return Objects.equals(field, other.field)  && Objects.equals(matchPattern, other.matchPattern);
+        return Objects.equals(field, other.field)  && Objects.equals(matchPattern, other.matchPattern)
+            && Objects.equals(automaton, other.automaton);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, matchPattern);
+        return Objects.hash(field, matchPattern, automaton);
     }
 
 }

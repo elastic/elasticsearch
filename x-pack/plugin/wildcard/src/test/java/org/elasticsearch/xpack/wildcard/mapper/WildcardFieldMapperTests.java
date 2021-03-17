@@ -19,8 +19,6 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
-import org.apache.lucene.queryparser.xml.builders.BooleanQueryBuilder;
-import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -59,7 +57,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -71,7 +68,6 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -120,138 +116,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         keywordFieldType = kwBuilder.build(new ContentPath(0));
         super.setUp();
     }
-    
-    
-    // TODO - remove this. Was trying to get to bottom of suspected Lucene bug by recreating 
-    // the problem encountered with PR https://github.com/elastic/elasticsearch/pull/70452#issue-593845984
-    // So far this code did not reproduce the issue seen in testSearchResultsVersusKeywordField with seed
-    // -Dtests.seed=722EAA9077BDA6AE - need to dig more.
-    public void testConstantScoreWeirdness() throws IOException {
-        Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
-        iwc.setMergePolicy(newTieredMergePolicy(random()));
-        RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
-
-        String []docContents = {"WOODCUTTER HENRY KISSINGER",
-            "WISDOM J. EHRLICHMAN",
-            "WINDSTONE REAGAN RESIDENCE, CALIFORNIA",
-            "WHEELS UP PRESIDENTIAL AIRCRAFT HAS TAKEN OFF",
-            "WHEELS DOWN PRESIDENTIAL AIRCRAFT HAS LANDED ",
-            "WHALEBOAT RON ZIEGLER",
-            "WELCOME J.R. HALDEMAN",
-            "WAREHOUSE SHERATON CENTER, NEW YORK",
-            "VOLUNTEER LYNDON JOHNSON",
-            "VOLCANO LBJ RANCH, TEXAS",
-            "VICTORIA LADYBIRD JOHNSON",
-            "UNKNOWN",
-            "UNICORN PRINCE CHARLES",
-            "TUNER MARVIN BUSH",
-            "TUMBLER GEORGE BUSH, JR.",
-            "TRIPPER J. BUSH",
-            "TREASURE SHIP AIR FORCE TWO",
-            "TRAPLINE NEIL BUSH",
-            "TRANQUILITY BARBARA BUSH",
-            "TRAIL BREAKER VICE PRESIDENT'S OFFICIAL LIMO",
-            "TRACKER VICE PRESIDENT'S FOLLOW VEHICLE",
-            "TRACER VICE PRESIDENT'S LEAD VEHICLE",
-            "TOWER ANDREWS AIR FORCE BASE, MARYLAND",
-            "TOOL ROOM VICE PRESIDENT'S OFFICE",
-            "TIMBERWOLF GEORGE BUSH",
-            "TILLER DOROTHY BUSH",
-            "THUNDER JESSE JACKSON",
-            "SWORDFISH PHILLIP CRANE",
-            "SUPERVISOR DAN QUAYLE",
-            "SUNSHINE MARILYN QUAYLE",
-            "SUNDANCE ETHEL KENNEDY",
-            "SUNBURN TED KENNEDY",
-            "SUGARFOOT ",
-            "STUTTER ",
-            "STRAWBERRY ROSEMARY WOODS",
-            "STORM KING NIXON RESIDENCE, NEW JERSEY",
-            "STORE ROOM TRUMAN LIBRARY, MISSOURI",
-            "STARLIGHT PAT NIXON",
-            "STARDUST JOHN ANDERSON",
-            "STARBURST JOHN ANDERSON",
-            "STAIRCASE FIRST FAMILY DETAIL OFFICER",
-            "STAGECOACH PRESIDENT'S LIMOUSINE",
-            "SPRINGTIME MAMIE EISENHOWER",
-            "SPECTATOR ",
-            "SOFTPACK A SHOTGUN",
-            "SNOWSTORM GEORGE BUSH",
-            "SNOWBANK BARBARA BUSH",
-            "SNAPSHOT HOWARD BAKER",
-            "SMELTER ",
-            "SKYMASTER ANDREWS AIR FORCE BASE COMMAND POST",
-            "SIGNATURE PRESS HELICOPTER",
-            "SHOTGUN NEW YORK CITY COMMAND POST",
-            "SHEEPSKIN GEORGE BUSH",
-            "SHADOW ",
-            "SEARCHLIGHT RICHARD NIXON"};
-        
-        for (String docContent:docContents)
-        {
-            Document doc = new Document();
-            ParseContext.Document parseDoc = new ParseContext.Document();
-            
-            // Add keyword fields too
-    //        doc.add(new StringField(KEYWORD_FIELD_NAME, docContent, Field.Store.YES));
-            
-            String[] parts = docContent.split(" ");
-            for (String part : parts) {
-                doc.add(new StringField(KEYWORD_FIELD_NAME, WildcardFieldMapper.TOKEN_START_OR_END_CHAR+part, Field.Store.YES));        
-            }
-            
-            
-            CustomBinaryDocValuesField dvField = new CustomBinaryDocValuesField(WILDCARD_FIELD_NAME, docContent.getBytes(StandardCharsets.UTF_8));
-            parseDoc.addWithKey(WILDCARD_FIELD_NAME, dvField);
-            
-            
-    //        addFields(parseDoc, doc, docContent);
-            indexDoc(parseDoc, doc, iw);
-        }
-        iw.forceMerge(1);
-        DirectoryReader reader = iw.getReader();
-        IndexSearcher searcher = newSearcher(reader);
-        iw.close();
-
-        for (String docContent:docContents) {
-                String[] parts = docContent.split(" ");
-        
-                BooleanQuery.Builder approxQueryBuilder = new BooleanQuery.Builder();
-                for (String part : parts) {
-                    approxQueryBuilder.add(new BooleanClause(new TermQuery(new Term(KEYWORD_FIELD_NAME, WildcardFieldMapper.TOKEN_START_OR_END_CHAR+part)), Occur.MUST));
-                }
-        //        approxQueryBuilder.add(new BooleanClause(new TermQuery(new Term(KEYWORD_FIELD_NAME, "york")), Occur.MUST));
-        
-                
-                Query approxQuery = approxQueryBuilder.build();
-                Term wildcardTerm = new Term(WILDCARD_FIELD_NAME, docContent.replaceAll(" ", "*"));
-                
-                Supplier<Automaton> deferredAutomatonSupplier = () -> {
-        
-                        return WildcardQuery.toAutomaton(wildcardTerm);
-                };
-                AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(wildcardTerm.field(), wildcardTerm.text(), deferredAutomatonSupplier);
-                
-                
-        //        Query verifyingQuery = new AutomatonQuery(wildcardTerm, WildcardQuery.toAutomaton(wildcardTerm));
-        
-                BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
-                verifyingBuilder.add(new BooleanClause(approxQuery, Occur.MUST));
-                verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
-                Query q = verifyingBuilder.build();
-                q = new ConstantScoreQuery(q);
-        
-        //        Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("*a*", null, null);
-//                TopDocs wildcardFieldTopDocs = searcher.search(q, 10, Sort.INDEXORDER);
-                TopDocs wildcardFieldTopDocs = searcher.search(q, 10, Sort.RELEVANCE);
-                System.err.println(docContent);
-                assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(1L));
-        }
-        reader.close();
-        dir.close();
-    }    
-    
 
     public void testTooBigKeywordField() throws IOException {
         Directory dir = newDirectory();
@@ -486,9 +350,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
             }
             TopDocs kwTopDocs = searcher.search(keywordFieldQuery, values.size() + 1, Sort.RELEVANCE);
-            // TODO - why does this line below produce zero results after I introduced a ConstantScoreQuery wrapper for wildcard queries?
-            // TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, values.size() + 1, Sort.RELEVANCE);
-            TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, values.size() + 1);
+            TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, values.size() + 1, Sort.RELEVANCE);
             assertThat(keywordFieldQuery + "\n" + wildcardFieldQuery,
                 wildcardFieldTopDocs.totalHits.value, equalTo(kwTopDocs.totalHits.value));
 
@@ -702,6 +564,23 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             );
         }
 
+    }
+    
+    public void testQueryCachingEquality() throws IOException, ParseException {
+        String pattern = "A*b*B?a";
+        // Case sensitivity matters when it comes to caching
+        Automaton caseSensitiveAutomaton = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term("field", pattern), Integer.MAX_VALUE);
+        Automaton caseInSensitiveAutomaton = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term("field", pattern), Integer.MAX_VALUE);
+        AutomatonQueryOnBinaryDv csQ = new AutomatonQueryOnBinaryDv("field", pattern, caseSensitiveAutomaton);
+        AutomatonQueryOnBinaryDv ciQ = new AutomatonQueryOnBinaryDv("field", pattern, caseInSensitiveAutomaton);
+        assertNotEquals(csQ, ciQ);
+        assertNotEquals(csQ.hashCode(), ciQ.hashCode());
+        
+        // Same query should be equal
+        Automaton caseSensitiveAutomaton2 = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term("field", pattern), Integer.MAX_VALUE);
+        AutomatonQueryOnBinaryDv csQ2 = new AutomatonQueryOnBinaryDv("field", pattern, caseSensitiveAutomaton2);
+        assertNotEquals(csQ, csQ2);
+        assertNotEquals(csQ.hashCode(), csQ2.hashCode());
     }
 
     @Override

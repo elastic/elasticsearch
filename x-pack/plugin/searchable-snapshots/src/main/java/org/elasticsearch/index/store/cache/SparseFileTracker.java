@@ -167,7 +167,7 @@ public class SparseFileTracker {
         }
 
         final ActionListener<Void> wrappedListener = wrapWithAssertions(listener);
-        List<Range> requiredRanges = Collections.emptyList();
+        final List<Range> requiredRanges;
 
         final List<Gap> gaps = new ArrayList<>();
         synchronized (mutex) {
@@ -242,6 +242,8 @@ public class SparseFileTracker {
                         .filter(pendingRange -> subRange.start() < pendingRange.end)
                         .sorted(Comparator.comparingLong(r -> r.start))
                         .collect(Collectors.toList());
+            } else {
+                requiredRanges = Collections.emptyList();
             }
         }
 

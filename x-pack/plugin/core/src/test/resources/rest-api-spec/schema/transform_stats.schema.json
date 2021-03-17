@@ -26,7 +26,8 @@
         "stopping",
         "indexing",
         "failed",
-        "aborting"
+        "aborting",
+        "waiting"
       ],
       "description": "The transform state"
     },

@@ -569,15 +569,24 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void testQueryCachingEquality() throws IOException, ParseException {
         String pattern = "A*b*B?a";
         // Case sensitivity matters when it comes to caching
-        Automaton caseSensitiveAutomaton = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term("field", pattern), Integer.MAX_VALUE);
-        Automaton caseInSensitiveAutomaton = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term("field", pattern), Integer.MAX_VALUE);
+        Automaton caseSensitiveAutomaton = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(
+            new Term("field", pattern),
+            Integer.MAX_VALUE
+        );
+        Automaton caseInSensitiveAutomaton = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(
+            new Term("field", pattern),
+            Integer.MAX_VALUE
+        );
         AutomatonQueryOnBinaryDv csQ = new AutomatonQueryOnBinaryDv("field", pattern, caseSensitiveAutomaton);
         AutomatonQueryOnBinaryDv ciQ = new AutomatonQueryOnBinaryDv("field", pattern, caseInSensitiveAutomaton);
         assertNotEquals(csQ, ciQ);
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
-        
+
         // Same query should be equal
-        Automaton caseSensitiveAutomaton2 = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term("field", pattern), Integer.MAX_VALUE);
+        Automaton caseSensitiveAutomaton2 = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(
+            new Term("field", pattern),
+            Integer.MAX_VALUE
+        );
         AutomatonQueryOnBinaryDv csQ2 = new AutomatonQueryOnBinaryDv("field", pattern, caseSensitiveAutomaton2);
         assertNotEquals(csQ, csQ2);
         assertNotEquals(csQ.hashCode(), csQ2.hashCode());

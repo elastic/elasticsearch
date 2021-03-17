@@ -337,7 +337,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 // We have no concrete characters and we're not a pure length query e.g. ???
                 return new DocValuesFieldExistsQuery(name());
             }
-            return new ConstantScoreQuery(verifyingQuery);
+            return verifyingQuery;
 
         }
 

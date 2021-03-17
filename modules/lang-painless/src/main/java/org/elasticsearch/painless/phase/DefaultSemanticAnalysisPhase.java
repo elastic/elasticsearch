@@ -1644,11 +1644,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
      */
     @Override
     public void visitNewObj(ENewObj userNewObjNode, SemanticScope semanticScope) {
-        if (semanticScope.getCondition(userNewObjNode, Read.class) == false &&
-            semanticScope.getCondition(userNewObjNode, Write.class) == false) {
-            throw new IllegalArgumentException("not a statement: new object [" + userNewObjNode.getCanonicalTypeName() + "] not used");
-        }
-
         String canonicalTypeName =  userNewObjNode.getCanonicalTypeName();
         List<AExpression> userArgumentNodes = userNewObjNode.getArgumentNodes();
         int userArgumentsSize = userArgumentNodes.size();
@@ -1657,6 +1652,12 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             throw userNewObjNode.createError(new IllegalArgumentException(
                     "invalid assignment cannot assign a value to new object with constructor " +
                             "[" + canonicalTypeName + "/" + userArgumentsSize + "]"));
+        }
+
+        if (semanticScope.getCondition(userNewObjNode, Read.class) == false) {
+            throw userNewObjNode.createError(new IllegalArgumentException(
+                    "not a statement: new object with constructor " +
+                            "[" + canonicalTypeName + "/" + userArgumentsSize + "] not used"));
         }
 
         ScriptScope scriptScope = semanticScope.getScriptScope();

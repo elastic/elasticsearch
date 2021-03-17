@@ -852,15 +852,14 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     }
 
     public void testDisallowUnreadObjects() {
-        assertNotAStatement("int i = 1; new ArrayList(); return i;", "ArrayList");
-        assertNotAStatement("new HashSet(); return 1;", "HashSet");
-        assertNotAStatement("void foo() { new HashMap(); new ArrayList(); } return 1;", "HashMap");
+        IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class,
+                () -> exec("int i = 1; new ArrayList(1); return i;"));
+        assertEquals(iae.getMessage(), "not a statement: new object with constructor [ArrayList/1] not used");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new HashSet(); return 1;"));
+        assertEquals(iae.getMessage(), "not a statement: new object with constructor [HashSet/0] not used");
+        iae = expectScriptThrows(IllegalArgumentException.class,
+                () -> exec("void foo() { new HashMap(); new ArrayList(); } return 1;"));
+        assertEquals(iae.getMessage(), "not a statement: new object with constructor [HashMap/0] not used");
     }
 
-    private void assertNotAStatement(String script, String objectName) {
-        IllegalArgumentException compileException = expectScriptThrows(IllegalArgumentException.class, false, () -> exec(script));
-        String expected = "not a statement: new object [" + objectName + "] not used";
-        assertTrue("[" + compileException.getMessage() + "] did not contain [" + expected + "]",
-                compileException.getMessage().contains(expected));
-    }
 }

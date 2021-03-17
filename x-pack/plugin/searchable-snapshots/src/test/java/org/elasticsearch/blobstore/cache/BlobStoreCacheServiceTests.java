@@ -17,116 +17,47 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class BlobStoreCacheServiceTests extends ESTestCase {
 
-    public void testGetWhenServiceNotStarted() {
-        BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient(), SNAPSHOT_BLOB_CACHE_INDEX, () -> 0L);
-        blobCacheService.start();
+    private TestThreadPool threadPool;
+    private Client mockClient;
 
-        PlainActionFuture<CachedBlob> future = PlainActionFuture.newFuture();
-        blobCacheService.getAsync("_repository", "_file", "/path", 0L, future);
-        assertThat(future.actionGet(), equalTo(CachedBlob.CACHE_MISS));
-
-        blobCacheService.stop();
-
-        future = PlainActionFuture.newFuture();
-        blobCacheService.getAsync("_repository", "_file", "/path", 0L, future);
-        assertThat(future.actionGet(), equalTo(CachedBlob.CACHE_NOT_READY));
+    @Before
+    public void createThreadPool() {
+        mockClient = mock(Client.class);
+        threadPool = new TestThreadPool(getClass().getSimpleName());
+        when(mockClient.threadPool()).thenReturn(threadPool);
     }
 
-    public void testPutWhenServiceNotStarted() {
-        BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient(), SNAPSHOT_BLOB_CACHE_INDEX, () -> 0L);
-        blobCacheService.start();
-
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        blobCacheService.putAsync("_repository", "_file", "/path", 0L, BytesArray.EMPTY, future);
-        assertThat(future.actionGet(), nullValue());
-
-        blobCacheService.stop();
-
-        future = PlainActionFuture.newFuture();
-        blobCacheService.putAsync("_repository", "_file", "/path", 0L, BytesArray.EMPTY, future);
-        IllegalStateException exception = expectThrows(IllegalStateException.class, future::actionGet);
-        assertThat(exception.getMessage(), containsString("Blob cache service is closed"));
-    }
-
-    public void testConcurrentPutWhenServiceIsStopping() throws Exception {
-        BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient(), SNAPSHOT_BLOB_CACHE_INDEX, () -> 0L);
-        blobCacheService.start();
-
-        final Thread[] threads = new Thread[randomIntBetween(1, 10)];
-        final CountDownLatch start = new CountDownLatch(1);
-        final CountDownLatch end = new CountDownLatch(threads.length);
-
-        for (int i = 0; i < threads.length; i++) {
-            final int threadId = i;
-            if (threadId < threads.length - 1) {
-                threads[threadId] = new Thread(() -> {
-                    try {
-                        start.await();
-                        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-                        blobCacheService.putAsync("_repository", String.valueOf(threadId), "/path", 0L, BytesArray.EMPTY, future);
-                        future.actionGet();
-                    } catch (IllegalStateException e) {
-                        assertThat(e.getMessage(), containsString("Blob cache service is closed"));
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    } finally {
-                        end.countDown();
-                    }
-                });
-            } else {
-                threads[threadId] = new Thread(() -> {
-                    try {
-                        start.await();
-                        blobCacheService.stop();
-                        assertThat(blobCacheService.lifecycleState(), equalTo(Lifecycle.State.STOPPED));
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    } finally {
-                        end.countDown();
-                    }
-                });
-            }
-            threads[threadId].start();
-        }
-        start.countDown();
-        end.await();
-
-        assertThat(blobCacheService.lifecycleState(), equalTo(Lifecycle.State.STOPPED));
+    @After
+    public void shutdownThreadPool() {
+        threadPool.shutdown();
     }
 
     @SuppressWarnings("unchecked")
-    private Client mockClient() {
-        final ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-
-        final Client client = mock(Client.class);
-        when(client.threadPool()).thenReturn(threadPool);
-
+    public void testGetWhenServiceNotStarted() {
         doAnswer(invocation -> {
             final GetRequest request = (GetRequest) invocation.getArguments()[1];
             final ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocation.getArguments()[2];
@@ -146,8 +77,24 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
                 )
             );
             return null;
-        }).when(client).execute(eq(GetAction.INSTANCE), any(GetRequest.class), any(ActionListener.class));
+        }).when(mockClient).execute(eq(GetAction.INSTANCE), any(GetRequest.class), any(ActionListener.class));
 
+        BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX, () -> 0L);
+        blobCacheService.start();
+
+        PlainActionFuture<CachedBlob> future = PlainActionFuture.newFuture();
+        blobCacheService.getAsync("_repository", "_file", "/path", 0L, future);
+        assertThat(future.actionGet(), equalTo(CachedBlob.CACHE_MISS));
+
+        blobCacheService.stop();
+
+        future = PlainActionFuture.newFuture();
+        blobCacheService.getAsync("_repository", "_file", "/path", 0L, future);
+        assertThat(future.actionGet(), equalTo(CachedBlob.CACHE_NOT_READY));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutWhenServiceNotStarted() {
         doAnswer(invocation -> {
             final IndexRequest request = (IndexRequest) invocation.getArguments()[1];
             final ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocation.getArguments()[2];
@@ -162,7 +109,67 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
                 )
             );
             return null;
-        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
-        return client;
+        }).when(mockClient).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
+
+        BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX, () -> 0L);
+        blobCacheService.start();
+
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        blobCacheService.putAsync("_repository", "_file", "/path", 0L, BytesArray.EMPTY, future);
+        assertThat(future.actionGet(), nullValue());
+
+        blobCacheService.stop();
+
+        future = PlainActionFuture.newFuture();
+        blobCacheService.putAsync("_repository", "_file", "/path", 0L, BytesArray.EMPTY, future);
+        IllegalStateException exception = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(exception.getMessage(), containsString("Blob cache service is closed"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testWaitForInFlightCacheFillsToComplete() throws Exception {
+        final int nbThreads = randomIntBetween(1, 5);
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        doAnswer(invocation -> {
+            final IndexRequest request = (IndexRequest) invocation.getArguments()[1];
+            final ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocation.getArguments()[2];
+            latch.await();
+            Thread.sleep(randomLongBetween(100L, 3000L));
+            listener.onResponse(
+                new IndexResponse(
+                    new ShardId(request.index(), "_uuid", 0),
+                    request.id(),
+                    UNASSIGNED_SEQ_NO,
+                    UNASSIGNED_PRIMARY_TERM,
+                    request.version(),
+                    true
+                )
+            );
+            return null;
+        }).when(mockClient).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
+
+        final BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX, () -> 0L);
+        blobCacheService.start();
+
+        assertThat(blobCacheService.getInFlightCacheFills(), equalTo(0));
+
+        final List<PlainActionFuture<Void>> futures = new ArrayList<>(nbThreads);
+        for (int i = 0; i < nbThreads; i++) {
+            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            threadPool.generic().execute(() -> {
+                blobCacheService.putAsync("_repository", randomAlphaOfLength(3), "/path", 0L, BytesArray.EMPTY, future);
+            });
+            futures.add(future);
+        }
+
+        assertBusy(() -> assertThat(blobCacheService.getInFlightCacheFills(), equalTo(nbThreads)));
+        assertFalse(blobCacheService.waitForInFlightCacheFillsToComplete(0L, TimeUnit.SECONDS));
+        assertTrue(futures.stream().noneMatch(Future::isDone));
+
+        latch.countDown();
+
+        assertTrue(blobCacheService.waitForInFlightCacheFillsToComplete(30L, TimeUnit.SECONDS));
+        assertTrue(futures.stream().allMatch(Future::isDone));
     }
 }

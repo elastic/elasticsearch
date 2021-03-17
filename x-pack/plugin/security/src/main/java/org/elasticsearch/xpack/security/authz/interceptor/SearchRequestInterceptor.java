@@ -18,9 +18,6 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 
 import java.util.SortedMap;
 
-/**
- * If field level security is enabled this interceptor disables the request cache for search and shardSearch requests.
- */
 public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
     public SearchRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState) {

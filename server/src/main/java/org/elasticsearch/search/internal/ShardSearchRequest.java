@@ -276,7 +276,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         // may get surprising result, e.g. no dls/fls is applicable to the remote node, but
         // the search result is limited because the cacheModifier makes it match a limited
         // result in the cache.
-        if (asKey && out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (asKey) {
             out.writeOptionalBytesReference(cacheModifier);
         }
     }

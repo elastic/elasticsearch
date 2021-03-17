@@ -14,8 +14,6 @@ See also <<release-highlights>> and <<es-release-notes>>.
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
-//tag::notable-breaking-changes[]
-
 [discrete]
 [[breaking-changes-7.12]]
 === Breaking changes
@@ -31,6 +29,8 @@ Significant changes in behavior are deprecated in a minor release and
 the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
+
+//tag::notable-breaking-changes[]
 
 [discrete]
 [[breaking_712_engine_changes]]

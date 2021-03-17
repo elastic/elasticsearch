@@ -12,18 +12,18 @@ import java.util.List;
 /**
  * The interface should be implemented by credential stores of different backends.
  */
-public interface ServiceAccountsCredentialStore {
+public interface ServiceAccountsTokenStore {
 
     /**
      * Verify the given token for encapsulated service account and credential
      */
     boolean authenticate(ServiceAccountToken token);
 
-    final class CompositeServiceAccountsCredentialStore implements ServiceAccountsCredentialStore {
+    final class CompositeServiceAccountsTokenStore implements ServiceAccountsTokenStore {
 
-        private final List<ServiceAccountsCredentialStore> stores;
+        private final List<ServiceAccountsTokenStore> stores;
 
-        public CompositeServiceAccountsCredentialStore(List<ServiceAccountsCredentialStore> stores) {
+        public CompositeServiceAccountsTokenStore(List<ServiceAccountsTokenStore> stores) {
             this.stores = stores;
         }
 

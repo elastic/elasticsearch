@@ -1321,11 +1321,12 @@ For open jobs only, the elapsed time for which the job has been open.
 end::open-time[]
 
 tag::out-of-order-timestamp-count[]
-The number of input documents that are out of time sequence and outside
-of the latency window. This information is applicable only when you provide data
-to the {anomaly-job} by using the <<ml-post-data,post data API>>. These out of
-order documents are  discarded, since jobs require time series data to be in
-ascending chronological order.
+The number of input documents that have a timestamp chronologically
+preceding the start of the current anomaly detection bucket offset by 
+the latency window. This information is applicable only when you provide 
+data to the {anomaly-job} by using the <<ml-post-data,post data API>>. 
+These out of order documents are discarded, since jobs require time 
+series data to be in ascending chronological order.
 end::out-of-order-timestamp-count[]
 
 tag::outlier-fraction[]

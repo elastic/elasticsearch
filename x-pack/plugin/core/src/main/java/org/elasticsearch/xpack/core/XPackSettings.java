@@ -162,6 +162,7 @@ public class XPackSettings {
             }
         }, Property.NodeScope);
 
+    // TODO: This setting of hashing algorithm can share code with the one for password when pbkdf2_stretch is the default for both
     public static final Setting<String> SERVICE_TOKEN_HASHING_ALGORITHM = new Setting<>(
         new Setting.SimpleKey("xpack.security.authc.service_token_hashing.algorithm"),
         (s) -> "PBKDF2_STRETCH",

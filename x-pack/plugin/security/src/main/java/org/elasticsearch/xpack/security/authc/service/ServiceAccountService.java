@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.security.authc.support.SecurityTokenType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.security.authc.service.ElasticServiceAccounts.ACCOUNTS;
@@ -51,13 +52,11 @@ public class ServiceAccountService {
     }
 
     public static boolean isServiceAccountPrincipal(String principal) {
-        final ServiceAccountId accountId;
-        try {
-            accountId = ServiceAccountId.fromPrincipal(principal);
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
-        return ElasticServiceAccounts.NAMESPACE.equals(accountId.namespace()) && ACCOUNTS.containsKey(accountId.serviceName());
+        return ACCOUNTS.containsKey(principal);
+    }
+
+    public static Collection<String> getServiceAccountPrincipals() {
+        return ACCOUNTS.keySet();
     }
 
     // {@link org.elasticsearch.xpack.security.authc.TokenService#extractBearerTokenFromHeader extracted} from an HTTP authorization header.
@@ -98,7 +97,7 @@ public class ServiceAccountService {
             return;
         }
 
-        final ServiceAccount account = ACCOUNTS.get(token.getAccountId().serviceName());
+        final ServiceAccount account = ACCOUNTS.get(token.getAccountId().asPrincipal());
         if (account == null) {
             final ParameterizedMessage message = new ParameterizedMessage(
                 "the [{}] service account does not exist", token.getAccountId().asPrincipal());
@@ -122,11 +121,11 @@ public class ServiceAccountService {
     public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
         assert isServiceAccount(authentication) : "authentication is not for service account: " + authentication;
 
-        final ServiceAccountId accountId = ServiceAccountId.fromPrincipal(authentication.getUser().principal());
-        final ServiceAccount account = ACCOUNTS.get(accountId.serviceName());
+        final String principal = authentication.getUser().principal();
+        final ServiceAccount account = ACCOUNTS.get(principal);
         if (account == null) {
             listener.onFailure(new ElasticsearchSecurityException(
-                "cannot load role for service account [" + accountId.asPrincipal() + "] - no such service account"
+                "cannot load role for service account [" + principal + "] - no such service account"
             ));
             return;
         }

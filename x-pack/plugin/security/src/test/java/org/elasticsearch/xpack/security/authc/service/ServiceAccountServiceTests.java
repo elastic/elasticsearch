@@ -26,6 +26,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.containsString;
@@ -67,6 +68,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
         } else {
             assertThat(ServiceAccountService.isServiceAccount(authentication), is(false));
         }
+    }
+
+    public void testGetServiceAccountPrincipals() {
+        assertThat(ServiceAccountService.getServiceAccountPrincipals(), equalTo(Set.of("elastic/fleet")));
     }
 
     public void testTryParseToken() throws IOException {

@@ -14,6 +14,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAcco
 import org.elasticsearch.xpack.security.support.FileAttributesChecker;
 
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,7 +71,8 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
             final String principal = tuple.v1();
             final String tokenName = tuple.v2();
             if (false == ServiceAccountService.isServiceAccountPrincipal(principal)) {
-                throw new UserException(ExitCodes.NO_USER, "Unknown service account principal: [" + principal + "]");
+                throw new UserException(ExitCodes.NO_USER, "Unknown service account principal: [" + principal + "]. Must be one of ["
+                    + Strings.collectionToDelimitedString(ServiceAccountService.getServiceAccountPrincipals(), ",") + "]");
             }
             final Hasher hasher = Hasher.resolve(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(env.settings()));
             final Path serviceTokensFile = FileServiceAccountsTokenStore.resolveFile(env);
@@ -125,7 +128,7 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
 
         @Override
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-
+            throw new UnsupportedOperationException("list command not implemented yet");
         }
     }
 }

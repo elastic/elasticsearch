@@ -142,7 +142,8 @@ public class FileTokensToolTests extends CommandTestCase {
             () -> execute("create", pathHomeParameter,
                 randomFrom("elastic/foo", "foo/fleet", randomAlphaOfLengthBetween(6, 16)),
                 randomAlphaOfLengthBetween(3, 8)));
-        assertThat(e.getMessage(), containsString("Unknown service account principal"));
+        assertThat(e.getMessage(), containsString("Unknown service account principal: "));
+        assertThat(e.getMessage(), containsString("Must be one of "));
     }
 
     private void assertServiceTokenExists(String key) throws IOException {

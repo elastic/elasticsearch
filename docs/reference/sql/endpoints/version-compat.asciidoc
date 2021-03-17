@@ -1,17 +1,43 @@
-[testenv="platinum"]
-[discrete]
-= Version compatibility
+Your driver must be compatible with your {es} server version.
 
-You will need to choose a driver version that will be supported by your {es} server.
-For server versions prior to v7.7.0, driver's version will have to exactly match that of server's. For server versions
-on or past v7.7.0, driver's version can to be as recent as server's or earlier, but only up to one major version
-older. The driver can't be on a version more recent than server's.
+IMPORTANT: The driver version cannot be newer than the {es} server version.
+For example, {version} drivers are not compatible with 7.10.0 servers.
 
-Examples:
+[options="header",cols="<1,<1,<1"]
+|====
+| {es} server version
+| Compatible driver versions
+| Examples
 
-- a v7.6.1 server will only work with a v7.6.1 driver;
-- a v8.1.2 server will work with any driver on v8.1.2 or earlier 8.x version, as well as any 7.x version on or
-newer than v7.7.0;
-- a v9.2.4 server will work with any driver on v9.2.4 or earlier 9.x version, as well as any 8.x version, but won't
-work with any 7.x or earlier driver.
+| 7.7.1–{version}
+a| 
+* The same version.
+* Any earlier version from the server's major version. If the server's major
+version is 7.x, only 7.7.0 and later driver versions are compatible.
+* Any version from the previous major version. If the previous major version was
+7.x, only 7.7.0 and later driver versions are compatible.
+|
+// Hide this content on 7.x branches
+ifeval::[ "{major-version}" != "7.x" ]
+
+// Hide 8.1.0 example on 8.0 branch
+ifeval::[ "{minor-version}" != "8.0" ]
+An 8.1.0 server is compatible with 8.1.0 and earlier 8.x drivers. An 8.1.0
+server is also compatible with 7.7.0 and later 7.x drivers.
+endif::[]
+
+// Only display 8.0.0 example on 8.0 branch
+ifeval::[ "{minor-version}" == "8.0" ]
+An 8.0.0 server is compatible with 8.0.0 drivers. An 8.0.0 server is also
+compatible with 7.7.0 and later 7.x drivers.
+endif::[]
+endif::[]
+
+A 7.10.0 server is compatible with 7.7.0-7.10.0 drivers.
+
+| 7.7.0 and earlier versions
+a|
+* The same version.
+| A 7.6.1 server is only compatible with 7.6.1 drivers.
+|====
 

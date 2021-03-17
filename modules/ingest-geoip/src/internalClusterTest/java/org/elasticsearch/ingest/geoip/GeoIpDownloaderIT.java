@@ -41,6 +41,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -148,7 +149,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69972")
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
         // setup:
@@ -233,12 +233,23 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         Settings.Builder settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
-        final List<Path> geoipTmpDirs = StreamSupport.stream(internalCluster().getInstances(Environment.class).spliterator(), false)
+        final Set<String> ids = StreamSupport.stream(clusterService().state().nodes().getDataNodes().values().spliterator(), false)
+            .map(c -> c.value.getId())
+            .collect(Collectors.toSet());
+        final List<Path> geoipTmpDirs = StreamSupport.stream(internalCluster().getDataNodeInstances(Environment.class).spliterator(), false)
             .map(env -> {
                 Path geoipTmpDir = env.tmpFile().resolve("geoip-databases");
                 assertThat(Files.exists(geoipTmpDir), is(true));
                 return geoipTmpDir;
-            }).collect(Collectors.toList());
+            }).flatMap(path -> {
+                try {
+                    return Files.list(path);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }).filter(path -> ids.contains(path.getFileName().toString()))
+            .collect(Collectors.toList());
+        assertThat(geoipTmpDirs.size(), equalTo(internalCluster().numDataNodes()));
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {

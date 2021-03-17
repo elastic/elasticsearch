@@ -208,7 +208,7 @@ public class JobResultsProvider {
                 .add(resultDocSearch)
                 .add(quantilesDocSearch);
 
-        ActionListener<MultiSearchResponse> searchResponseActionListener = new ActionListener<>() {
+        ActionListener<MultiSearchResponse> searchResponseActionListener = new ActionListener.Delegating<>(listener) {
             @Override
             public void onResponse(MultiSearchResponse response) {
                 List<SearchHit> searchHits = new ArrayList<>();
@@ -230,14 +230,14 @@ public class JobResultsProvider {
                                 }
                             }
                         }
-                        listener.onFailure(e);
+                        delegate.onFailure(e);
                         return;
                     }
                     searchHits.addAll(Arrays.asList(itemResponse.getResponse().getHits().getHits()));
                 }
 
                 if (searchHits.isEmpty()) {
-                    listener.onResponse(true);
+                    delegate.onResponse(true);
                 } else {
                     int quantileDocCount = 0;
                     int categorizerStateDocCount = 0;
@@ -257,16 +257,11 @@ public class JobResultsProvider {
                     LOGGER.warn("{} result, {} quantile state and {} categorizer state documents exist for a prior job with Id [{}]",
                             resultDocCount, quantileDocCount, categorizerStateDocCount, job.getId());
 
-                    listener.onFailure(ExceptionsHelper.conflictStatusException(
+                    delegate.onFailure(ExceptionsHelper.conflictStatusException(
                                     "[" + resultDocCount + "] result and [" + (quantileDocCount + categorizerStateDocCount) +
                             "] state documents exist for a prior job with Id [" + job.getId() + "]. " +
                                             "Please create the job with a different Id"));
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
             }
         };
 
@@ -410,17 +405,9 @@ public class JobResultsProvider {
             createTermFieldsMapping(termFieldsMapping, termFields);
             final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName)
                     .setSource(termFieldsMapping).request();
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, new ActionListener<AcknowledgedResponse>() {
-                @Override
-                public void onResponse(AcknowledgedResponse putMappingResponse) {
-                    listener.onResponse(putMappingResponse.isAcknowledged());
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            }, client.admin().indices()::putMapping);
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
+                    listener.<AcknowledgedResponse>delegateFailure((l, putMappingResponse) ->
+                            l.onResponse(putMappingResponse.isAcknowledged())), client.admin().indices()::putMapping);
         } catch (IOException e) {
             listener.onFailure(e);
         }

@@ -64,7 +64,8 @@ public final class DateFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "date";
     public static final String DATE_NANOS_CONTENT_TYPE = "date_nanos";
     public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
-    public static final DateFormatter DEFAULT_DATE_TIME_NANOS_FORMATTER = DateFormatter.forPattern("strict_date_optional_time_nanos||epoch_millis");
+    public static final DateFormatter DEFAULT_DATE_TIME_NANOS_FORMATTER =
+        DateFormatter.forPattern("strict_date_optional_time_nanos||epoch_millis");
     private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
     public enum Resolution {

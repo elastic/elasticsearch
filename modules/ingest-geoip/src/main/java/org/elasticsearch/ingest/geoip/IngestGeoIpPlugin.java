@@ -99,7 +99,8 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
                                                IndexNameExpressionResolver indexNameExpressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         try {
-            databaseRegistry.get().initialize(resourceWatcherService, ingestService.get());
+            String nodeId = nodeEnvironment.nodeId();
+            databaseRegistry.get().initialize(nodeId, resourceWatcherService, ingestService.get());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

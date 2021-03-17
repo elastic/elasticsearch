@@ -10,7 +10,7 @@ The `index_options` parameter is intended for use with <<text,`text`>> fields
 only. Avoid using `index_options` with other field data types.
 ====
 
-The parameter accepts one of the following values. Each value contains
+The parameter accepts one of the following values. Each value retrieves
 information from the previous listed values. For example, `freqs` contains
 `docs`; `positions` contains both `freqs` and `docs`.
 

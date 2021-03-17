@@ -40,7 +40,11 @@ or from `artifacts.elastic.co/maven` by adding it to the repositories list:
 </repositories>
 ----
 
-include::version-compat.asciidoc[leveloffset=+2]
+[[jdbc-compatibility]]
+[discrete]
+=== Version compatibility
+
+include::version-compat.asciidoc[]
 
 [[jdbc-setup]]
 [discrete]

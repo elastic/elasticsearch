@@ -139,7 +139,7 @@ public class MlJobIT extends ESRestTestCase {
     }
 
     private Response createFarequoteJob(String jobId) throws IOException {
-        return putJob(jobId,                   "{\n"
+        return putJob(jobId, "{\n"
             + "    \"description\":\"Analysis of response time by airline\",\n"
             + "    \"analysis_config\" : {\n"
             + "        \"bucket_span\": \"3600s\",\n"

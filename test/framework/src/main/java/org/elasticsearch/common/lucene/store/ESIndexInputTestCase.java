@@ -20,9 +20,8 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Test harness for verifying {@link IndexInput} implementations.
@@ -49,10 +48,6 @@ public class ESIndexInputTestCase extends ESTestCase {
      * {@code indexInput.getFilePointer()} may contain anything. The final value of {@code indexInput.getFilePointer()} is {@code length}.
      */
     protected byte[] randomReadAndSlice(IndexInput indexInput, int length) throws IOException {
-        return randomReadAndSlice(indexInput,length, new HashSet<>());
-    }
-
-    private byte[] randomReadAndSlice(IndexInput indexInput, int length, Set<String> usedSliceNames) throws IOException {
         int readPos = (int) indexInput.getFilePointer();
         byte[] output = new byte[length];
         while (readPos < length) {
@@ -79,8 +74,8 @@ public class ESIndexInputTestCase extends ESTestCase {
                     // Read using slice
                     len = randomIntBetween(1, length - readPos);
                     final String sliceExtension = randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
-                    IndexInput slice = indexInput.slice(randomUniqueSliceName(usedSliceNames) + sliceExtension, readPos, len);
-                    temp = randomReadAndSlice(slice, len, usedSliceNames);
+                    IndexInput slice = indexInput.slice(randomUniqueSliceName() + sliceExtension, readPos, len);
+                    temp = randomReadAndSlice(slice, len);
                     // assert that position in the original input didn't change
                     assertEquals(readPos, indexInput.getFilePointer());
                     System.arraycopy(temp, 0, output, readPos, len);
@@ -96,7 +91,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                     indexInput.seek(readPos);
                     assertEquals(readPos, indexInput.getFilePointer());
                     final int bytesToRead = 1;
-                    temp = randomReadAndSlice(indexInput, readPos + bytesToRead, usedSliceNames);
+                    temp = randomReadAndSlice(indexInput, readPos + bytesToRead);
                     System.arraycopy(temp, readPos, output, readPos, bytesToRead);
                     readPos = lastReadPos;
                     indexInput.seek(readPos);
@@ -129,13 +124,12 @@ public class ESIndexInputTestCase extends ESTestCase {
                                 } else {
                                     final int sliceEnd = between(readEnd, length);
                                     final String sliceExtension = randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
-                                    clone = indexInput.slice(
-                                            "slice" + randomUniqueSliceName(usedSliceNames) + sliceExtension, 0L, sliceEnd);
+                                    clone = indexInput.slice("slice" + randomUniqueSliceName() + sliceExtension, 0L, sliceEnd);
                                 }
                                 startLatch.countDown();
                                 startLatch.await();
                                 clone.seek(readStart);
-                                final byte[] cloneResult = randomReadAndSlice(clone, readEnd, usedSliceNames);
+                                final byte[] cloneResult = randomReadAndSlice(clone, readEnd);
                                 if (randomBoolean()) {
                                     clone.close();
                                 }
@@ -170,8 +164,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                     try {
                         startLatch.countDown();
                         startLatch.await();
-                        ActionListener.completeWith(mainThreadResultFuture,
-                                () -> randomReadAndSlice(indexInput, mainThreadReadEnd, usedSliceNames));
+                        ActionListener.completeWith(mainThreadResultFuture, () -> randomReadAndSlice(indexInput, mainThreadReadEnd));
                         System.arraycopy(mainThreadResultFuture.actionGet(), readPos, output, readPos, mainThreadReadEnd - readPos);
                         readPos = mainThreadReadEnd;
                         finishLatch.await();
@@ -189,14 +182,12 @@ public class ESIndexInputTestCase extends ESTestCase {
     }
 
 
-    private static String randomUniqueSliceName(Set<String> usedSliceNames) {
-        final String sliceName;
-        // this is called concurrently by randomReadAndSlice so we synchronize on the set of already used values
-        synchronized (usedSliceNames) {
-            sliceName = randomValueOtherThanMany(usedSliceNames::contains, () -> randomAlphaOfLength(10));
-            assertTrue(usedSliceNames.add(sliceName));
-        }
-        return sliceName;
+    private static final AtomicLong uniqueIdGenerator = new AtomicLong();
+
+    // generate unique slice names for slicing index inputs because using the same slice name together with different slice sizes
+    // is not supported for .cfs files and thus we have to avoid slice name collisions
+    private static String randomUniqueSliceName() {
+        return randomAlphaOfLength(10) + uniqueIdGenerator.incrementAndGet();
     }
 
     protected static String randomFileExtension() {

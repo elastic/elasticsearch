@@ -8,138 +8,146 @@
 
 package org.elasticsearch.painless.action;
 
+import org.antlr.v4.runtime.ANTLRInputStream;
+import org.antlr.v4.runtime.Token;
 import org.elasticsearch.painless.ScriptTestCase;
-import org.elasticsearch.painless.action.PainlessSuggest.Suggestion;
+import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
+import org.elasticsearch.painless.antlr.EnhancedSuggestLexer;
+import org.elasticsearch.painless.antlr.SuggestLexer;
 
 import java.util.List;
 
 public class SuggestTests extends ScriptTestCase {
 
-    private static void compareSuggestions(List<Suggestion> actual, String... values) {
-        assertEquals(values.length % 2, 0);
-        assertEquals(actual.size(), values.length / 2);
+    private List<? extends Token> getSuggestTokens(String source) {
+        ANTLRInputStream stream = new ANTLRInputStream(source);
+        SuggestLexer lexer = new EnhancedSuggestLexer(stream, scriptEngine.getContextsToLookups().get(PainlessTestScript.CONTEXT));
+        lexer.removeErrorListeners();
+        return lexer.getAllTokens();
+    }
 
-        for (int i = 0; i < values.length; ++i) {
-            assertTrue(actual.contains(new Suggestion(values[i], values[++i])));
+    private void compareTokens(List<? extends Token> tokens, String... expected) {
+        assertEquals(expected.length % 2, 0);
+        assertEquals(tokens.size(), expected.length / 2);
+
+        int index = 0;
+        for (Token token : tokens) {
+            assertEquals(SuggestLexer.VOCABULARY.getDisplayName(token.getType()), expected[index++]);
+            assertEquals(token.getText(), expected[index++]);
         }
     }
 
-    public void testVariables() {
-        compareSuggestions(
-                suggest("List test; tes"),
-                Suggestion.VARIABLE, "test"
+    public void testSuggestLexer() {
+        compareTokens(
+                getSuggestTokens("test"),
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test"
         );
 
-        compareSuggestions(suggest("List test0, test1; int teaser; te"),
-                Suggestion.VARIABLE, "test0",
-                Suggestion.VARIABLE, "test1",
-                Suggestion.VARIABLE, "teaser"
+        compareTokens(
+                getSuggestTokens("int test;"),
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "int",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";"
         );
 
-        compareSuggestions(
-                suggest("List test0, test1; if (condition) { int teaser; } return te"),
-                Suggestion.VARIABLE, "test0",
-                Suggestion.VARIABLE, "test1"
+        compareTokens(
+                getSuggestTokens("ArrayList test;"),
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "ArrayList",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";"
         );
 
-        compareSuggestions(
-                suggest("List test0, test1; if (condition) { int teaser; return te"),
-                Suggestion.VARIABLE, "test0",
-                Suggestion.VARIABLE, "test1",
-                Suggestion.VARIABLE, "teaser"
+        compareTokens(
+                getSuggestTokens("def test;"),
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "def",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";"
         );
 
-        compareSuggestions(
-                suggest("List test0, test1; if (condition) { int teaser; } else return te"),
-                Suggestion.VARIABLE, "test0",
-                Suggestion.VARIABLE, "test1"
+        compareTokens(
+                getSuggestTokens("int[] test;"),
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ATYPE), "int[]",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";"
         );
 
-        compareSuggestions(
-                suggest("List test0, test1; if (condition) if (condition) { int teaser; } else return te"),
-                Suggestion.VARIABLE, "test0",
-                Suggestion.VARIABLE, "test1"
-        );
-    }
-
-    public void testMethods() {
-        compareSuggestions(
-                suggest("GeoPoint test; test."),
-                Suggestion.METHOD, "getLat/0",
-                Suggestion.METHOD, "getLon/0",
-                Suggestion.METHOD, "hashCode/0",
-                Suggestion.METHOD, "equals/1",
-                Suggestion.METHOD, "toString/0"
+        compareTokens(
+                getSuggestTokens("ArrayList[] test;"),
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ATYPE), "ArrayList[]",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";"
         );
 
-        compareSuggestions(
-                suggest("List list; list.add"),
-                Suggestion.METHOD, "add/1",
-                Suggestion.METHOD, "add/2",
-                Suggestion.METHOD, "addAll/1",
-                Suggestion.METHOD, "addAll/2"
+        compareTokens(
+                getSuggestTokens("def[] test;"),
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ATYPE), "def[]",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";"
         );
 
-        compareSuggestions(
-                suggest("Math.ma"),
-                Suggestion.METHOD, "max/2"
+        compareTokens(
+                getSuggestTokens("List test = new ArrayList(); test."),
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "List",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ASSIGN), "=",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.NEW), "new",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "ArrayList",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP), "(",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RP), ")",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.DOT), "."
         );
 
-        compareSuggestions(
-                suggest("int value = Math.max(2.0, 2.0), Math.min(va"),
-                Suggestion.VARIABLE, "value"
-        );
-    }
-
-    public void testFields() {
-        compareSuggestions(
-                suggest("Math.P"),
-                Suggestion.FIELD, "PI"
-        );
-    }
-
-    public void testFunctions() {
-        compareSuggestions(
-                suggest("para"),
-                Suggestion.VARIABLE, "params"
+        compareTokens(
+                getSuggestTokens("List test = new ArrayList(); test.add"),
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "List",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ASSIGN), "=",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.NEW), "new",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "ArrayList",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP), "(",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RP), ")",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.DOT), ".",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.DOTID), "add"
         );
 
-        compareSuggestions(
-                suggest("int testF() {} int testY(blah) {} test"),
-                Suggestion.USER, "testF/0",
-                Suggestion.USER, "testY/0"
+        compareTokens(
+                getSuggestTokens("List test = new ArrayList(); test.add("),
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "List",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ASSIGN), "=",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.NEW), "new",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "ArrayList",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP), "(",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RP), ")",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.DOT), ".",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.DOTID), "add",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP), "("
         );
 
-        compareSuggestions(
-                suggest("int testF() {} int testY(blah) {} test"),
-                Suggestion.USER, "testF/0",
-                Suggestion.USER, "testY/0"
-        );
-
-        compareSuggestions(
-                suggest("int testF() {} int testY(blah) {} testY().toS"),
-                Suggestion.METHOD, "toString/0"
-        );
-
-        compareSuggestions(
-                suggest("int testF() {} int testY(List x) {return blah blah} test"),
-                Suggestion.USER, "testF/0",
-                Suggestion.USER, "testY/1"
-        );
-
-        compareSuggestions(
-                suggest("int testF() {} int testY(blah) {trash trash} testY().toS"),
-                Suggestion.METHOD, "toString/0"
-        );
-
-        compareSuggestions(
-                suggest("int testF(int para) {par"),
-                Suggestion.VARIABLE, "para"
-        );
-
-        compareSuggestions(
-                suggest("int testF(int para) {int par = para; return par} par"),
-                Suggestion.VARIABLE, "params"
+        compareTokens(
+                getSuggestTokens("def test(int param) {return param;} test(2);"),
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "def",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP), "(",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.TYPE), "int",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "param",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RP), ")",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LBRACK), "{",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RETURN), "return",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "param",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RBRACK), "}",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.ID), "test",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.LP), "(",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.INTEGER), "2",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.RP), ")",
+                SuggestLexer.VOCABULARY.getDisplayName(SuggestLexer.SEMICOLON), ";"
         );
     }
 }

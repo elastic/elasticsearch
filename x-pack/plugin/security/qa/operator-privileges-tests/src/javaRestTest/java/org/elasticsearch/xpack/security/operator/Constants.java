@@ -63,7 +63,6 @@ public class Constants {
         "cluster:admin/script_language/get",
         "cluster:admin/scripts/painless/context",
         "cluster:admin/scripts/painless/execute",
-        "cluster:admin/scripts/painless/suggestions",
         "cluster:admin/settings/update",
         "cluster:admin/slm/delete",
         "cluster:admin/slm/execute",

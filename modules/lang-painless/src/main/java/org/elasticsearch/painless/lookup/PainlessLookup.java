@@ -71,10 +71,6 @@ public final class PainlessLookup {
         return PainlessLookupUtility.canonicalTypeNameToType(canonicalTypeName, canonicalClassNamesToClasses);
     }
 
-    public Set<String> getCanonicalClassNames() {
-        return canonicalClassNamesToClasses.keySet();
-    }
-
     public Set<Class<?>> getClasses() {
         return classesToPainlessClasses.keySet();
     }

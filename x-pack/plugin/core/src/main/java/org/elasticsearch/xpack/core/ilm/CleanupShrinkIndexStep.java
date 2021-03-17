@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -22,6 +24,7 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndex
  */
 public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
     public static final String NAME = "cleanup-shrink-index";
+    private static final Logger logger = LogManager.getLogger(CleanupShrinkIndexStep.class);
 
     public CleanupShrinkIndexStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
@@ -34,6 +37,20 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
 
     @Override
     void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, Listener listener) {
+        final String shrunkenIndexSource = IndexMetadata.INDEX_RESIZE_SOURCE_NAME.get(indexMetadata.getSettings());
+        if (Strings.isNullOrEmpty(shrunkenIndexSource) == false) {
+            // the current managed index is a shrunk index
+            if (currentClusterState.metadata().index(shrunkenIndexSource) == null) {
+                // if the source index does not exist, we'll skip deleting the
+                // (managed) shrunk index as that will cause data loss
+                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+                logger.warn("managed index [{}] as part of policy [{}] is a shrunk index and the source index [{}] does not exist " +
+                    "anymore. will skip the [{}] step", indexMetadata.getIndex().getName(), policyName, shrunkenIndexSource, NAME);
+                listener.onResponse(true);
+                return;
+            }
+        }
+
         LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
         final String shrinkIndexName = lifecycleState.getShrinkIndexName();
         // if the shrink index was not generated there is nothing to delete so we move on

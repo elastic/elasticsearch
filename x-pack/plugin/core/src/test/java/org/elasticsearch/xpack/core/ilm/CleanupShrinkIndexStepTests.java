@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
+import static org.elasticsearch.xpack.core.ilm.GenerateUniqueIndexNameStep.generateValidIndexName;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 
@@ -87,7 +88,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
     public void testPerformAction() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
-        String shrinkIndexName = GenerateUniqueIndexNameStep.generateValidIndexName("shrink-", indexName);
+        String shrinkIndexName = generateValidIndexName("shrink-", indexName);
         Map<String, String> ilmCustom = Map.of("shrink_index_name", shrinkIndexName);
 
         IndexMetadata.Builder indexMetadataBuilder =
@@ -113,6 +114,41 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
         }
     }
 
+    public void testDeleteSkippedIfManagedIndexIsShrunkAndSourceDoesntExist() throws Exception {
+        String sourceIndex = randomAlphaOfLength(10);
+        String policyName = "test-ilm-policy";
+        String shrinkIndexName = generateValidIndexName("shrink-", sourceIndex);
+        Map<String, String> ilmCustom = Map.of("shrink_index_name", shrinkIndexName);
+
+        IndexMetadata.Builder shrunkIndexMetadataBuilder = IndexMetadata.builder(shrinkIndexName)
+            .settings(
+                settings(Version.CURRENT)
+                    .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+                    .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex)
+            )
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+        IndexMetadata shrunkIndexMetadata = shrunkIndexMetadataBuilder.build();
+
+        ClusterState clusterState =
+            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(shrunkIndexMetadata, true).build()).build();
+
+        try (NoOpClient client = getFailingIfCalledClient()) {
+            CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
+            step.performAction(shrunkIndexMetadata, clusterState, null, new AsyncActionStep.Listener() {
+                @Override
+                public void onResponse(boolean complete) {
+                    assertThat(complete, is(true));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+
+                }
+            });
+        }
+    }
+
     private NoOpClient getDeleteIndexRequestAssertingClient(String shrinkIndexName) {
         return new NoOpClient(getTestName()) {
             @Override
@@ -122,6 +158,18 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
                 assertThat(action.name(), is(DeleteIndexAction.NAME));
                 assertTrue(request instanceof DeleteIndexRequest);
                 assertThat(((DeleteIndexRequest) request).indices(), arrayContaining(shrinkIndexName));
+            }
+        };
+    }
+
+    private NoOpClient getFailingIfCalledClient() {
+        return new NoOpClient(getTestName()) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
+                                                                                                      Request request,
+                                                                                                      ActionListener<Response> listener) {
+                throw new IllegalStateException("not expecting client to be called, but received request [" + request + "] for action ["
+                    + action + "]");
             }
         };
     }

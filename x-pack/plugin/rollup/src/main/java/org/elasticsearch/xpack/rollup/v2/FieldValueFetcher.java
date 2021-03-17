@@ -11,9 +11,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -48,6 +51,7 @@ class FieldValueFetcher {
 
     FormattedDocValues getLeaf(LeafReaderContext context) {
         final FormattedDocValues delegate = fieldData.load(context).getFormattedValues(DocValueFormat.RAW);
+
         return new FormattedDocValues() {
             @Override
             public boolean advanceExact(int docId) throws IOException {
@@ -86,9 +90,17 @@ class FieldValueFetcher {
             MappedFieldType fieldType = context.getFieldType(field);
             if (fieldType == null) {
                 throw new IllegalArgumentException("Unknown field: [" + field + "]");
+            } else if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType) {
+                AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType =
+                    (AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType) fieldType;
+                for (NumberFieldMapper.NumberFieldType metricSubField : aggMetricFieldType.getMetricFields()) {
+                    IndexFieldData<?> fieldData = context.getForField(metricSubField);
+                    fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field)));
+                }
+            } else {
+                IndexFieldData<?> fieldData = context.getForField(fieldType);
+                fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field)));
             }
-            IndexFieldData<?> fieldData = context.getForField(fieldType);
-            fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field)));
         }
         return Collections.unmodifiableList(fetchers);
     }

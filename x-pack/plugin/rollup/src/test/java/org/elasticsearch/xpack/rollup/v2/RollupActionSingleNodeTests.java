@@ -321,6 +321,29 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertRollupIndex(config, oldIndexName, rollupIndexName + "-2");
     }
 
+    public void testRollupOfRollup() throws Exception {
+        String rollupOfRollupIndex = "rollup2-" + rollupIndex;
+        RollupActionDateHistogramGroupConfig monthlyDateHistogramGroupConfig =
+            new RollupActionDateHistogramGroupConfig.FixedInterval("date_1", new DateHistogramInterval("30d"), "UTC");
+        RollupActionDateHistogramGroupConfig dailyDateHistogramGroupConfig =
+            new RollupActionDateHistogramGroupConfig.FixedInterval("date_1", new DateHistogramInterval("1d"), "UTC");
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
+            .field("date_1", randomDateForInterval(dailyDateHistogramGroupConfig.getInterval()))
+            .field("numeric_1", randomInt())
+            .endObject();
+        RollupActionConfig monthlyConfig = new RollupActionConfig(
+            new RollupActionGroupConfig(monthlyDateHistogramGroupConfig, null, null),
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max"))));
+        RollupActionConfig dailyConfig = new RollupActionConfig(
+            new RollupActionGroupConfig(monthlyDateHistogramGroupConfig, null, null),
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max"))));
+        bulkIndex(sourceSupplier);
+        rollup(index, rollupIndex, dailyConfig);
+        assertRollupIndex(dailyConfig, index, rollupIndex);
+        rollup(rollupIndex, rollupOfRollupIndex, dailyConfig);
+        assertRollupIndex(monthlyConfig, index, rollupOfRollupIndex);
+    }
+
     private RollupActionDateHistogramGroupConfig randomRollupActionDateHistogramGroupConfig(String field) {
         RollupActionDateHistogramGroupConfig randomConfig = ConfigTestHelpers.randomRollupActionDateHistogramGroupConfig(random());
         if (randomConfig instanceof RollupActionDateHistogramGroupConfig.FixedInterval) {

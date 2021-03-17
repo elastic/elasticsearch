@@ -270,6 +270,10 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             metricFields.put(m, subfield);
         }
 
+        public Collection<NumberFieldMapper.NumberFieldType> getMetricFields() {
+            return metricFields.values();
+        }
+
         public void setDefaultMetric(Metric defaultMetric) {
             this.defaultMetric = defaultMetric;
         }

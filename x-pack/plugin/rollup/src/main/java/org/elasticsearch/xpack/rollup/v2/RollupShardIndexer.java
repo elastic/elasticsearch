@@ -50,6 +50,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.bucket.DocCountProvider;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
@@ -96,6 +97,7 @@ class RollupShardIndexer {
 
     private final List<FieldValueFetcher> groupFieldFetchers;
     private final List<FieldValueFetcher> metricsFieldFetchers;
+    private final DocCountProvider docCountProvider;
 
     private final CompressingOfflineSorter sorter;
 
@@ -172,6 +174,8 @@ class RollupShardIndexer {
             } else {
                 this.metricsFieldFetchers = Collections.emptyList();
             }
+
+            this.docCountProvider = new DocCountProvider();
 
             this.sorter = new CompressingOfflineSorter(dir, "rollup-", keyComparator(), ramBufferSizeMB);
             toClose = null;
@@ -311,6 +315,10 @@ class RollupShardIndexer {
                             producer.reset();
                         }
                     }
+
+                    // read doc count
+                    docCount += in.readVInt();
+
                     for (FieldMetricsProducer field : fieldsMetrics) {
                         int size = in.readVInt();
                         for (int i = 0; i < size; i++) {
@@ -320,7 +328,7 @@ class RollupShardIndexer {
                             }
                         }
                     }
-                    ++ docCount;
+
                     lastKey = key;
                 }
                 next = it.next();
@@ -434,6 +442,7 @@ class RollupShardIndexer {
         public LeafCollector getLeafCollector(LeafReaderContext context) {
             final List<FormattedDocValues> groupFieldLeaves = leafFetchers(context, groupFieldFetchers);
             final List<FormattedDocValues> metricsFieldLeaves = leafFetchers(context, metricsFieldFetchers);
+
             return new LeafCollector() {
                 @Override
                 public void setScorer(Scorable scorer) {
@@ -472,11 +481,16 @@ class RollupShardIndexer {
                         }
                         valueBytes = out.bytes().toBytesRef();
                     }
+
+                    docCountProvider.setLeafReaderContext(context);
+                    final int docCount = docCountProvider.getDocCount(docID);
+
                     for (List<Object> groupFields : cartesianProduct(combinationKeys)) {
                         try (BytesStreamOutput out = new BytesStreamOutput()) {
                             BytesRef keyBytes = encodeKey(timestamp, groupFields);
                             out.writeInt(keyBytes.length);
                             out.writeBytes(keyBytes.bytes, keyBytes.offset, keyBytes.length);
+                            out.writeVInt(docCount);
                             out.writeBytes(valueBytes.bytes, valueBytes.offset, valueBytes.length);
                             externalSorter.add(out.bytes().toBytesRef());
                         }

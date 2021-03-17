@@ -7,6 +7,8 @@ setup:
               properties:
                 numeric_group: { type: integer }
                 tag: { type: keyword }
+          settings:
+              routing.rebalance.enable: none
 
   - do:
       index:

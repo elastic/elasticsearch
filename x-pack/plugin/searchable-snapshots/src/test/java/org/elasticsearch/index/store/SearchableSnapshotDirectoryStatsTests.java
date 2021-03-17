@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -35,7 +36,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 
@@ -542,7 +543,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean())
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
-                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
+                .put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
@@ -558,7 +559,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             Settings.builder()
                 .put(SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.getKey(), uncachedChunkSize)
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), false)
-                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
+                .put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
@@ -574,7 +575,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
-                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
+                .put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
@@ -591,7 +592,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
-                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
+                .put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
@@ -604,8 +605,14 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
     ) throws Exception {
 
+        final String fileName;
+        if (SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.get(indexSettings)) {
+            fileName = randomAlphaOfLength(10) + randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
+        } else {
+            fileName = randomAlphaOfLength(10) + randomFileExtension();
+        }
+
         final byte[] fileContent = randomByteArrayOfLength(randomIntBetween(10, MAX_FILE_LENGTH));
-        final String fileName = randomAlphaOfLength(10) + randomFileExtension();
         final SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
         final IndexId indexId = new IndexId("_name", "_uuid");
         final ShardId shardId = new ShardId("_name", "_uuid", 0);
@@ -648,11 +655,11 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 frozenCacheService
             ) {
                 @Override
-                protected IndexInputStats createIndexInputStats(final int numFiles, final long totalSize) {
+                protected IndexInputStats createIndexInputStats(long numFiles, long totalSize, long minSize, long maxSize) {
                     if (seekingThreshold == null) {
-                        return super.createIndexInputStats(numFiles, totalSize);
+                        return super.createIndexInputStats(numFiles, totalSize, minSize, maxSize);
                     }
-                    return new IndexInputStats(numFiles, totalSize, seekingThreshold, statsCurrentTimeNanos);
+                    return new IndexInputStats(numFiles, totalSize, minSize, maxSize, seekingThreshold, statsCurrentTimeNanos);
                 }
             }
         ) {

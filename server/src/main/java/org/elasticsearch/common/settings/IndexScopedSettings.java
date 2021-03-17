@@ -70,6 +70,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexMetadata.INDEX_DATA_PATH_SETTING,
             IndexMetadata.INDEX_HIDDEN_SETTING,
             IndexMetadata.INDEX_FORMAT_SETTING,
+            IndexMetadata.INDEX_ROLLUP_SOURCE_NAME,
+            IndexMetadata.INDEX_ROLLUP_SOURCE_UUID,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,

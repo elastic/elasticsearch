@@ -182,9 +182,8 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         }
 
         record[TIME_FIELD_OUT_INDEX] = Long.toString(epochMs / MS_IN_SECOND);
-        long latestBucketFloor = alignToFloor(latestEpochMs, bucketSpanMs);
+        final long latestBucketFloor = alignToFloor(latestEpochMs, bucketSpanMs);
 
-        // Records have epoch seconds timestamp so compare for out of order in seconds
         // We care only about records that are older than the current bucket according to our latest timestamp
         // The native side handles random order within the same bucket without issue
         if (epochMs / MS_IN_SECOND < latestBucketFloor / MS_IN_SECOND - latencySeconds) {
@@ -203,7 +202,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         latestEpochMsThisUpload = latestEpochMs;
 
         autodetectProcess.writeRecord(record);
-        dataCountsReporter.reportRecordWritten(numberOfFieldsRead, epochMs);
+        dataCountsReporter.reportRecordWritten(numberOfFieldsRead, epochMs, latestEpochMs);
 
         return true;
     }

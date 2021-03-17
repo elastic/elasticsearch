@@ -10,13 +10,11 @@ package org.elasticsearch.common;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentLocation;
 
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -26,16 +24,20 @@ import java.util.function.Supplier;
 public class ParseField {
     private final String name;
     private final String[] deprecatedNames;
-    private final Set<RestApiVersion> restApiVersions = new HashSet<>(2);
-    private String allReplacedWith = null;
+    private final Function<RestApiVersion, Boolean> forRestApiVersion;
+    private final String allReplacedWith;
+    private boolean fullyDeprecated;
+
     private final String[] allNames;
-    private boolean fullyDeprecated = false;
 
     private static final String[] EMPTY = new String[0];
 
 
-    private ParseField(String name, Collection<RestApiVersion> restApiVersions, String[] deprecatedNames) {
+    private ParseField(String name, Function<RestApiVersion, Boolean> forRestApiVersion, String[] deprecatedNames,
+                       boolean fullyDeprecated, String allReplacedWith) {
         this.name = name;
+        this.fullyDeprecated = fullyDeprecated;
+        this.allReplacedWith = allReplacedWith;
         if (deprecatedNames == null || deprecatedNames.length == 0) {
             this.deprecatedNames = EMPTY;
         } else {
@@ -43,7 +45,7 @@ public class ParseField {
             Collections.addAll(set, deprecatedNames);
             this.deprecatedNames = set.toArray(new String[set.size()]);
         }
-        this.restApiVersions.addAll(restApiVersions);
+        this.forRestApiVersion = forRestApiVersion;
 
         Set<String> allNames = new HashSet<>();
         allNames.add(name);
@@ -59,7 +61,8 @@ public class ParseField {
      *                        accepted when strict matching is used.
      */
     public ParseField(String name, String... deprecatedNames) {
-        this(name, List.of(RestApiVersion.current(), RestApiVersion.minimumSupported()) ,deprecatedNames);
+        this(name, RestApiVersion.onOrAfter(RestApiVersion.minimumSupported()) ,deprecatedNames,
+            false, null);
     }
 
     /**
@@ -85,23 +88,24 @@ public class ParseField {
      *         but with the specified deprecated names
      */
     public ParseField withDeprecation(String... deprecatedNames) {
-        return new ParseField(this.name, deprecatedNames);
+        return new ParseField(this.name, this.forRestApiVersion, deprecatedNames, this.fullyDeprecated, this.allReplacedWith);
     }
 
 
     /**
-     * Creates a new field with current name and deprecatedNames, but overrides restApiVersions
-     * @param restApiVersions rest api versions which specifies when a lookup will be allowed
+     * Creates a new field with current name and deprecatedNames, but overrides forRestApiVersion
+     * @param forRestApiVersion - a boolean function indicating for what version a deprecated name is available
      */
-    public ParseField withRestApiVersions(RestApiVersion... restApiVersions) {
-        return new ParseField(this.name, Arrays.asList(restApiVersions), this.deprecatedNames);
+    public ParseField forRestApiVersion(Function<RestApiVersion, Boolean> forRestApiVersion) {
+        return new ParseField(this.name, forRestApiVersion, this.deprecatedNames,
+            this.fullyDeprecated, this.allReplacedWith);
     }
 
     /**
-     * @return rest api versions under which a lookup will be allowed
+     * @return a function indicating for which RestApiVersion a deprecated name is declared for
      */
-    public Set<RestApiVersion> getRestApiVersions() {
-        return restApiVersions;
+    public Function<RestApiVersion, Boolean> getForRestApiVersion() {
+        return forRestApiVersion;
     }
 
     /**
@@ -109,18 +113,16 @@ public class ParseField {
      * with {@code allReplacedWith}.
      */
     public ParseField withAllDeprecated(String allReplacedWith) {
-        ParseField parseField = this.withDeprecation(getAllNamesIncludedDeprecated());
-        parseField.allReplacedWith = allReplacedWith;
-        return parseField;
+        return new ParseField(this.name, this.forRestApiVersion, getAllNamesIncludedDeprecated(),
+            this.fullyDeprecated, allReplacedWith);
     }
 
     /**
      * Return a new ParseField where all field names are deprecated with no replacement
      */
     public ParseField withAllDeprecated() {
-        ParseField parseField = this.withDeprecation(getAllNamesIncludedDeprecated());
-        parseField.fullyDeprecated = true;
-        return parseField;
+        return new ParseField(this.name, this.forRestApiVersion, getAllNamesIncludedDeprecated(),
+            true, this.allReplacedWith);
     }
 
     /**
@@ -154,17 +156,20 @@ public class ParseField {
         if (fullyDeprecated == false && allReplacedWith == null && fieldName.equals(name)) {
             return true;
         }
+        boolean isCompatibleDeprecation = RestApiVersion.minimumSupported().matches(forRestApiVersion) &&
+            RestApiVersion.current().matches(forRestApiVersion) == false;
+
         // Now try to match against one of the deprecated names. Note that if
         // the parse field is entirely deprecated (allReplacedWith != null) all
         // fields will be in the deprecatedNames array
         for (String depName : deprecatedNames) {
             if (fieldName.equals(depName)) {
                 if (fullyDeprecated) {
-                    deprecationHandler.usedDeprecatedField(parserName, location, fieldName);
+                    deprecationHandler.logRemovedField(parserName, location, fieldName, isCompatibleDeprecation);
                 } else if (allReplacedWith == null) {
-                    deprecationHandler.usedDeprecatedName(parserName, location, fieldName, name);
+                    deprecationHandler.logRenamedField(parserName, location, fieldName, name, isCompatibleDeprecation);
                 } else {
-                    deprecationHandler.usedDeprecatedField(parserName, location, fieldName, allReplacedWith);
+                    deprecationHandler.logReplacedField(parserName, location, fieldName, allReplacedWith, isCompatibleDeprecation);
                 }
                 return true;
             }

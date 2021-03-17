@@ -38,7 +38,7 @@ public class RestCatJobsAction extends AbstractCatAction {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "_cat/ml/anomaly_detectors/{" + Job.ID.getPreferredName() + "}"),
+            new Route(GET, "_cat/ml/anomaly_detectors/{" + Job.ID + "}"),
             new Route(GET, "_cat/ml/anomaly_detectors"));
     }
 
@@ -55,7 +55,7 @@ public class RestCatJobsAction extends AbstractCatAction {
         }
         Request request = new Request(jobId);
         if (restRequest.hasParam(Request.ALLOW_NO_JOBS)) {
-            LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, () -> null, Request.ALLOW_NO_JOBS, Request.ALLOW_NO_MATCH);
+            LoggingDeprecationHandler.INSTANCE.logRenamedField(null, () -> null, Request.ALLOW_NO_JOBS, Request.ALLOW_NO_MATCH);
         }
         request.setAllowNoMatch(
             restRequest.paramAsBoolean(

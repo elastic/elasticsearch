@@ -171,10 +171,12 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsOutOfOrderWithinBucketSpan() throws Exception {
-        AnalysisConfig.Builder builder =
-            new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));
-        builder.setBucketSpan(TimeValue.timeValueSeconds(10));
-        analysisConfig = builder.build();
+        analysisConfig = new AnalysisConfig.Builder(
+            Collections.singletonList(
+                new Detector.Builder("metric", "value").build()
+            ))
+            .setBucketSpan(TimeValue.timeValueSeconds(10))
+            .build();
 
         StringBuilder input = new StringBuilder();
         input.append("{\"time\":\"4\", \"metric\":\"foo\", \"value\":\"4.0\"}");
@@ -206,10 +208,13 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsWithinLatencySomeOutOfOrder() throws Exception {
-        AnalysisConfig.Builder builder =
-                new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));
-        builder.setBucketSpan(TimeValue.timeValueSeconds(1)).setLatency(TimeValue.timeValueSeconds(2));
-        analysisConfig = builder.build();
+        analysisConfig = new AnalysisConfig.Builder(
+            Collections.singletonList(
+                new Detector.Builder("metric", "value").build()
+            ))
+            .setLatency(TimeValue.timeValueSeconds(2))
+            .setBucketSpan(TimeValue.timeValueSeconds(1)).setLatency(TimeValue.timeValueSeconds(2))
+            .build();
 
         StringBuilder input = new StringBuilder();
         input.append("{\"time\":\"4\", \"metric\":\"foo\", \"value\":\"4.0\"}");
@@ -363,10 +368,10 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         assertWrittenRecordsEqualTo(expectedRecords);
 
         verify(dataCountsReporter, times(1)).reportMissingFields(1L);
-        verify(dataCountsReporter, times(1)).reportRecordWritten(2, 1000);
-        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 2000);
-        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 3000);
-        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 4000);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(2, 1000, 1000);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 2000, 2000);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 3000, 3000);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 4000, 4000);
         verify(dataCountsReporter, times(1)).reportDateParseError(0);
         verify(dataCountsReporter).finishReporting();
     }

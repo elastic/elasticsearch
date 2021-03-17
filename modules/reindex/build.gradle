@@ -163,16 +163,11 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
 
 tasks.named("yamlRestCompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
-    'reindex/20_validation/reindex without source gives useful error message', /* type in exception message */
-    'reindex/85_scripting/Reindex all docs with one doc deletion', /*type in a request*/
-    'delete_by_query/10_basic/Limit by size',
+    /*type related failures */
+    'reindex/20_validation/reindex without source gives useful error message',
+    'reindex/85_scripting/Reindex all docs with one doc deletion',
     'delete_by_query/10_basic/Response for version conflict (seq no powered)',
-    'delete_by_query/20_validation/both max_docs and size fails',
-    'delete_by_query/20_validation/invalid size fails',
-    'update_by_query/10_basic/Limit by size',
     'update_by_query/10_basic/Response for version conflict (seq no powered)',
-    'update_by_query/20_validation/inconsistent max_docs and size fails',
-    'update_by_query/20_validation/invalid size fails',
     'update_by_query/20_validation/update_by_query without source gives useful error message'
   ].join(',')
 }

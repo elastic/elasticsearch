@@ -111,6 +111,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -337,18 +338,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void executeDfsPhase(ShardSearchRequest request, boolean keepStatesInContext,
                                 SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
         final IndexShard shard = getShard(request);
-        rewriteAndFetchShardRequest(shard, request, new ActionListener<ShardSearchRequest>() {
-            @Override
-            public void onResponse(ShardSearchRequest rewritten) {
-                // fork the execution in the search thread pool
-                runAsync(getExecutor(shard), () -> executeDfsPhase(request, task, keepStatesInContext), listener);
-            }
-
-            @Override
-            public void onFailure(Exception exc) {
-                listener.onFailure(exc);
-            }
-        });
+        rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, rewritten) -> {
+            // fork the execution in the search thread pool
+            runAsync(getExecutor(shard), () -> executeDfsPhase(request, task, keepStatesInContext), l);
+        }));
     }
 
     private DfsSearchResult executeDfsPhase(ShardSearchRequest request,
@@ -384,34 +377,26 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
-        rewriteAndFetchShardRequest(shard, request, new ActionListener<ShardSearchRequest>() {
-            @Override
-            public void onResponse(ShardSearchRequest orig) {
-                // check if we can shortcut the query phase entirely.
-                if (orig.canReturnNullResponseIfMatchNoDocs()) {
-                    assert orig.scroll() == null;
-                    final CanMatchResponse canMatchResp;
-                    try {
-                        ShardSearchRequest clone = new ShardSearchRequest(orig);
-                        canMatchResp = canMatch(clone, false);
-                    } catch (Exception exc) {
-                        listener.onFailure(exc);
-                        return;
-                    }
-                    if (canMatchResp.canMatch == false) {
-                        listener.onResponse(QuerySearchResult.nullInstance());
-                        return;
-                    }
+        rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, orig) -> {
+            // check if we can shortcut the query phase entirely.
+            if (orig.canReturnNullResponseIfMatchNoDocs()) {
+                assert orig.scroll() == null;
+                final CanMatchResponse canMatchResp;
+                try {
+                    ShardSearchRequest clone = new ShardSearchRequest(orig);
+                    canMatchResp = canMatch(clone, false);
+                } catch (Exception exc) {
+                    l.onFailure(exc);
+                    return;
                 }
-                // fork the execution in the search thread pool
-                runAsync(getExecutor(shard), () -> executeQueryPhase(orig, task, keepStatesInContext), listener);
+                if (canMatchResp.canMatch == false) {
+                    l.onResponse(QuerySearchResult.nullInstance());
+                    return;
+                }
             }
-
-            @Override
-            public void onFailure(Exception exc) {
-                listener.onFailure(exc);
-            }
-        });
+            // fork the execution in the search thread pool
+            runAsync(getExecutor(shard), () -> executeQueryPhase(orig, task, keepStatesInContext), l);
+        }));
     }
 
     private IndexShard getShard(ShardSearchRequest request) {
@@ -612,6 +597,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
+    protected void checkCancelled(SearchShardTask task) {
+        // check cancellation as early as possible, as it avoids opening up a Lucene reader on FrozenEngine
+        if (task.isCancelled()) {
+            logger.trace("task cancelled [id: {}, action: {}]", task.getId(), task.getAction());
+            throw new TaskCancelledException("cancelled");
+        }
+    }
+
     private ReaderContext findReaderContext(ShardSearchContextId id, TransportRequest request) throws SearchContextMissingException {
         if (id.getSessionId().isEmpty()) {
             throw new IllegalArgumentException("Session id must be specified");
@@ -739,10 +732,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         });
     }
 
-    final SearchContext createContext(ReaderContext readerContext,
-                                      ShardSearchRequest request,
-                                      SearchShardTask task,
-                                      boolean includeAggregations) throws IOException {
+    protected SearchContext createContext(ReaderContext readerContext,
+                                          ShardSearchRequest request,
+                                          SearchShardTask task,
+                                          boolean includeAggregations) throws IOException {
+        checkCancelled(task);
         final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout);
         try {
             if (request.scroll() != null) {

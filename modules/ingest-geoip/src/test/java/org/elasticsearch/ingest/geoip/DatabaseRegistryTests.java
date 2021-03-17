@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -58,6 +59,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -112,7 +114,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         LocalDatabases localDatabases = new LocalDatabases(geoIpDir, geoIpConfigDir, cache);
         geoIpTmpDir = createTempDir();
         databaseRegistry = new DatabaseRegistry(geoIpTmpDir, client, cache, localDatabases, Runnable::run);
-        databaseRegistry.initialize(resourceWatcherService, mock(IngestService.class));
+        databaseRegistry.initialize("nodeId", resourceWatcherService, mock(IngestService.class));
     }
 
     @After
@@ -122,10 +124,10 @@ public class DatabaseRegistryTests extends ESTestCase {
     }
 
     public void testCheckDatabases() throws Exception {
+        String md5 = mockSearches("GeoIP2-City.mmdb", 5, 14);
         String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;
         PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
-        task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb",
-            new GeoIpTaskState.Metadata(0L, 5, 14, "8a76ac17c58d8f3f2e15e3f1ec37d473"))));
+        task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(0L, 5, 14, md5))));
         PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
@@ -136,22 +138,20 @@ public class DatabaseRegistryTests extends ESTestCase {
             .routingTable(createIndexRoutingTable())
             .build();
 
-        mockSearches("GeoIP2-City.mmdb", 5, 14);
-
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), notNullValue());
         verify(client, times(10)).search(any());
-        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), hasSize(1));
         }
     }
 
     public void testCheckDatabases_dontCheckDatabaseOnNonIngestNode() throws Exception {
+        String md5 = mockSearches("GeoIP2-City.mmdb", 0, 9);
         String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;
         PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
-        task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb",
-            new GeoIpTaskState.Metadata(0L, 0, 9, "8a76ac17c58d8f3f2e15e3f1ec37d473"))));
+        task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(0L, 0, 9, md5))));
         PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
@@ -163,21 +163,19 @@ public class DatabaseRegistryTests extends ESTestCase {
             .routingTable(createIndexRoutingTable())
             .build();
 
-        mockSearches("GeoIP2-City.mmdb", 0, 9);
-
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         verify(client, never()).search(any());
-        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
         }
     }
 
     public void testCheckDatabases_dontCheckDatabaseWhenNoDatabasesIndex() throws Exception {
+        String md5 = mockSearches("GeoIP2-City.mmdb", 0, 9);
         String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;
         PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
-        task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb",
-            new GeoIpTaskState.Metadata(0L, 0, 9, "8a76ac17c58d8f3f2e15e3f1ec37d473"))));
+        task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(0L, 0, 9, md5))));
         PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
@@ -187,12 +185,10 @@ public class DatabaseRegistryTests extends ESTestCase {
                 .localNodeId("_id1"))
             .build();
 
-        mockSearches("GeoIP2-City.mmdb", 0, 9);
-
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         verify(client, never()).search(any());
-        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
         }
     }
@@ -213,15 +209,14 @@ public class DatabaseRegistryTests extends ESTestCase {
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         verify(client, never()).search(any());
-        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
         }
     }
 
     public void testRetrieveDatabase() throws Exception {
-        String md5 = "7a39822e85d3eeb863657b7865597a7a";
+        String md5 = mockSearches("_name", 0, 29);
         GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(-1, 0, 29, md5);
-        mockSearches("_name", 0, 29);
 
         @SuppressWarnings("unchecked")
         CheckedConsumer<byte[], IOException> chunkConsumer = mock(CheckedConsumer.class);
@@ -237,9 +232,9 @@ public class DatabaseRegistryTests extends ESTestCase {
     }
 
     public void testRetrieveDatabaseCorruption() throws Exception {
-        String md5 = "different";
-        GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(-1, 0, 9, md5);
-        mockSearches("_name", 0, 9);
+        String md5 = mockSearches("_name", 0, 9);
+        String incorrectMd5 = "different";
+        GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(-1, 0, 9, incorrectMd5);
 
         @SuppressWarnings("unchecked")
         CheckedConsumer<byte[], IOException> chunkConsumer = mock(CheckedConsumer.class);
@@ -247,18 +242,18 @@ public class DatabaseRegistryTests extends ESTestCase {
         CheckedRunnable<Exception> completedHandler = mock(CheckedRunnable.class);
         @SuppressWarnings("unchecked")
         Consumer<Exception> failureHandler = mock(Consumer.class);
-        databaseRegistry.retrieveDatabase("_name", md5, metadata, chunkConsumer, completedHandler, failureHandler);
+        databaseRegistry.retrieveDatabase("_name", incorrectMd5, metadata, chunkConsumer, completedHandler, failureHandler);
         ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
         verify(failureHandler, times(1)).accept(exceptionCaptor.capture());
         assertThat(exceptionCaptor.getAllValues().size(), equalTo(1));
         assertThat(exceptionCaptor.getAllValues().get(0).getMessage(), equalTo("expected md5 hash [different], " +
-            "but got md5 hash [7a39822e85d3eeb863657b7865597a7a]"));
+            "but got md5 hash [" + md5 + "]"));
         verify(chunkConsumer, times(10)).accept(any());
         verify(completedHandler, times(0)).run();
         verify(client, times(10)).search(any());
     }
 
-    private void mockSearches(String databaseName, int firstChunk, int lastChunk) throws IOException {
+    private String mockSearches(String databaseName, int firstChunk, int lastChunk) throws IOException {
         String dummyContent = "test: " + databaseName;
         List<byte[]> data = gzip(dummyContent, lastChunk - firstChunk + 1);
         assertThat(gunzip(data), equalTo(dummyContent));
@@ -286,6 +281,10 @@ public class DatabaseRegistryTests extends ESTestCase {
             expectedSearchRequest.source().query(new TermQueryBuilder("_id", id));
             when(client.search(eq(expectedSearchRequest))).thenReturn(actionFuture);
         }
+
+        MessageDigest md = MessageDigests.md5();
+        data.forEach(md::update);
+        return MessageDigests.toHexString(md.digest());
     }
 
     private static RoutingTable createIndexRoutingTable() {

@@ -42,7 +42,6 @@ import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -104,7 +103,6 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
         clusterService = ClusterServiceUtils.createClusterService(threadPool, node, CLUSTER_SETTINGS);
         nodeEnvironment = newNodeEnvironment();
-        environment = newEnvironment();
     }
 
     @After
@@ -147,24 +145,24 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      * @return a new {@link FrozenCacheService} instance configured with default settings
      */
     protected FrozenCacheService defaultFrozenCacheService() {
-        return new FrozenCacheService(environment, threadPool);
+        return new FrozenCacheService(nodeEnvironment, Settings.EMPTY, threadPool);
     }
 
     protected FrozenCacheService randomFrozenCacheService() {
         final Settings.Builder cacheSettings = Settings.builder();
         if (randomBoolean()) {
-            cacheSettings.put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
+            cacheSettings.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
         }
         if (randomBoolean()) {
-            cacheSettings.put(SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), randomFrozenCacheSize());
+            cacheSettings.put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), randomFrozenCacheSize());
         }
         if (randomBoolean()) {
-            cacheSettings.put(SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
+            cacheSettings.put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
         }
         if (randomBoolean()) {
             cacheSettings.put(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
         }
-        return new FrozenCacheService(newEnvironment(cacheSettings.build()), threadPool);
+        return new FrozenCacheService(nodeEnvironment, cacheSettings.build(), threadPool);
     }
 
     /**
@@ -184,12 +182,11 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
 
     protected FrozenCacheService createFrozenCacheService(final ByteSizeValue cacheSize, final ByteSizeValue cacheRangeSize) {
         return new FrozenCacheService(
-            newEnvironment(
-                Settings.builder()
-                    .put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                    .put(SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
-                    .build()
-            ),
+            nodeEnvironment,
+            Settings.builder()
+                .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                .put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
+                .build(),
             threadPool
         );
     }
@@ -333,37 +330,6 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             checksum = Store.digestToString(CodecUtil.checksumEntireFile(input));
         }
         return Tuple.tuple(checksum, out.toArrayCopy());
-    }
-
-    public static String randomFileExtension() {
-        return randomFrom(
-            ".cfe",
-            ".cfs",
-            ".dii",
-            ".dim",
-            ".doc",
-            ".dvd",
-            ".dvm",
-            ".fdt",
-            ".fdx",
-            ".fdm",
-            ".fnm",
-            ".kdd",
-            ".kdi",
-            ".kdm",
-            ".liv",
-            ".nvd",
-            ".nvm",
-            ".pay",
-            ".pos",
-            ".tim",
-            ".tip",
-            ".tmd",
-            ".tvd",
-            ".tvx",
-            ".vec",
-            ".vem"
-        );
     }
 
     /**

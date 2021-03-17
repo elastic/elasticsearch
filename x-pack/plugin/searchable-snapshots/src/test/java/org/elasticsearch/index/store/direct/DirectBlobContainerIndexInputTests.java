@@ -28,7 +28,6 @@ import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
-import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomFileExtension;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 import static org.hamcrest.Matchers.allOf;
@@ -129,10 +128,11 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
         when(directory.blobContainer()).thenReturn(blobContainer);
 
         final DirectBlobContainerIndexInput indexInput = new DirectBlobContainerIndexInput(
+            fileName,
             directory,
             fileInfo,
             randomIOContext(),
-            new IndexInputStats(1, 0L, () -> 0L),
+            new IndexInputStats(1L, fileInfo.length(), fileInfo.length(), fileInfo.length(), () -> 0L),
             minimumReadSize,
             randomBoolean() ? BufferedIndexInput.BUFFER_SIZE : between(BufferedIndexInput.MIN_BUFFER_SIZE, BufferedIndexInput.BUFFER_SIZE)
         );

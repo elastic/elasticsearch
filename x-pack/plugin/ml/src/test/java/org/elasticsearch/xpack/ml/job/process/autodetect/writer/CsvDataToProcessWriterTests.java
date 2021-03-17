@@ -192,16 +192,18 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
 
         verify(dataCountsReporter, times(2)).reportOutOfOrderRecord(2);
         verify(dataCountsReporter, times(2)).reportLatestTimeIncrementalStats(anyLong());
-        verify(dataCountsReporter, never()).reportRecordWritten(anyLong(), anyLong());
+        verify(dataCountsReporter, never()).reportRecordWritten(anyLong(), anyLong(), anyLong());
         verify(dataCountsReporter).finishReporting();
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsWithinLatencySomeOutOfOrder() throws IOException {
-        AnalysisConfig.Builder builder =
-                new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));
-        builder.setLatency(TimeValue.timeValueSeconds(2));
-        builder.setBucketSpan(TimeValue.timeValueSeconds(1));
-        analysisConfig = builder.build();
+        analysisConfig = new AnalysisConfig.Builder(
+            Collections.singletonList(
+                new Detector.Builder("metric", "value").build()
+            ))
+            .setLatency(TimeValue.timeValueSeconds(2))
+            .setBucketSpan(TimeValue.timeValueSeconds(1))
+            .build();
 
         StringBuilder input = new StringBuilder();
         input.append("time,metric,value\n");
@@ -232,10 +234,12 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsOutOfOrderWithinBucketSpan() throws Exception {
-        AnalysisConfig.Builder builder =
-            new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));
-        builder.setBucketSpan(TimeValue.timeValueSeconds(10));
-        analysisConfig = builder.build();
+        analysisConfig = new AnalysisConfig.Builder(
+            Collections.singletonList(
+                new Detector.Builder("metric", "value").build()
+            ))
+            .setBucketSpan(TimeValue.timeValueSeconds(10))
+            .build();
 
         StringBuilder input = new StringBuilder();
         input.append("time,metric,value\n");
@@ -299,10 +303,10 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         assertWrittenRecordsEqualTo(expectedRecords);
 
         verify(dataCountsReporter, times(2)).reportMissingField();
-        verify(dataCountsReporter, times(1)).reportRecordWritten(2, 1000);
-        verify(dataCountsReporter, times(1)).reportRecordWritten(2, 2000);
-        verify(dataCountsReporter, times(1)).reportRecordWritten(2, 3000);
-        verify(dataCountsReporter, times(1)).reportRecordWritten(2, 4000);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(2, 1000, 1000);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(2, 2000, 2000);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(2, 3000, 3000);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(2, 4000, 4000);
         verify(dataCountsReporter, times(1)).reportDateParseError(2);
         verify(dataCountsReporter).finishReporting();
     }

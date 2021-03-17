@@ -193,16 +193,6 @@ public abstract class BaseRestHandler implements RestHandler {
         }
 
         @Override
-        public List<DeprecatedRoute> deprecatedRoutes() {
-            return delegate.deprecatedRoutes();
-        }
-
-        @Override
-        public List<ReplacedRoute> replacedRoutes() {
-            return delegate.replacedRoutes();
-        }
-
-        @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
             return delegate.prepareRequest(request, client);
         }

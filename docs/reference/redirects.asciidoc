@@ -1356,3 +1356,85 @@ instead.
 === `fielddata` mapping parameter
 
 See <<fielddata-mapping-param>>.
+
+ifdef::permanently-unreleased-branch[]
+[role="exclude",id="rollup-overview"]
+=== {rollup-cap} overview
+
+// tag::legacy-rollup-redirect[]
+Legacy rollups are deprecated and will be replaced by <<xpack-rollup,new rollup
+functionality>> introduced in Elasticsearch 7.x. For legacy rollup API
+documentation, see <<legacy-rollup-apis>>.
+// end::legacy-rollup-redirect[]
+
+[role="exclude",id="rollup-getting-started"]
+=== Getting started with {rollups}
+
+include::redirects.asciidoc[tag=legacy-rollup-redirect]
+
+[role="exclude",id="rollup-api-quickref"]
+=== {rollup-cap} API quick reference
+
+include::redirects.asciidoc[tag=legacy-rollup-redirect]
+
+[role="exclude",id="rollup-understanding-groups"]
+=== Understanding rollup groups
+
+include::redirects.asciidoc[tag=legacy-rollup-redirect]
+
+[role="exclude",id="rollup-agg-limitations"]
+=== {rollup-cap} aggregation limitations
+
+include::redirects.asciidoc[tag=legacy-rollup-redirect]
+
+[role="exclude",id="rollup-search-limitations"]
+=== {rollup-cap} search limitations
+
+include::redirects.asciidoc[tag=legacy-rollup-redirect]
+endif::[]
+
+[role="exclude",id="pipeline"]
+=== Pipeline definition
+
+See <<ingest>>.
+
+[role="exclude",id="accessing-data-in-pipelines"]
+=== Accessing data in pipelines
+
+See <<access-source-fields>>, <<access-metadata-fields>>, and
+<<access-ingest-metadata>>.
+
+[role="exclude",id="ingest-conditionals"]
+=== Conditional execution in pipelines
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="ingest-conditional-nullcheck"]
+=== Handling nested fields in conditionals
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="ingest-conditional-complex"]
+=== Complex conditionals
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="conditionals-with-multiple-pipelines"]
+=== Conditionals with the pipeline processor
+
+See <<conditionally-apply-pipelines>>.
+
+[role="exclude",id="conditionals-with-regex"]
+=== Conditionals with the regular expressions
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="handling-failure-in-pipelines"]
+=== Handling failures in pipelines
+
+See <<handling-pipeline-failures>>.
+
+[role="exclude",id="ingest-processors"]
+=== Ingest processors
+
+See <<processors>>.

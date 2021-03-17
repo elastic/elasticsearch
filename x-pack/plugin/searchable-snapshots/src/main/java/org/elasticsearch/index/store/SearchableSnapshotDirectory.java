@@ -94,7 +94,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
@@ -360,8 +360,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
     }
 
-    protected IndexInputStats createIndexInputStats(final int numFiles, final long totalSize) {
-        return new IndexInputStats(numFiles, totalSize, statsCurrentTimeNanosSupplier);
+    protected IndexInputStats createIndexInputStats(long numFiles, long totalSize, long minSize, long maxSize) {
+        return new IndexInputStats(numFiles, totalSize, minSize, maxSize, statsCurrentTimeNanosSupplier);
     }
 
     public CacheKey createCacheKey(String fileName) {
@@ -395,17 +395,18 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         final String ext = getNonNullFileExt(name);
         final IndexInputStats inputStats = stats.computeIfAbsent(ext, n -> {
-            // get all fileInfo with same extension
-            final Tuple<Integer, Long> fileExtCompoundStats = files().stream()
-                .filter(fi -> ext.equals(getNonNullFileExt(fi.physicalName())))
-                .map(fi -> Tuple.tuple(1, fi.length()))
-                .reduce((t1, t2) -> Tuple.tuple(t1.v1() + t2.v1(), t1.v2() + t2.v2()))
-                .get();
-            return createIndexInputStats(fileExtCompoundStats.v1(), fileExtCompoundStats.v2());
+            final IndexInputStats.Counter counter = new IndexInputStats.Counter();
+            for (BlobStoreIndexShardSnapshot.FileInfo file : files()) {
+                if (ext.equals(getNonNullFileExt(file.physicalName()))) {
+                    counter.add(file.length());
+                }
+            }
+            return createIndexInputStats(counter.count(), counter.total(), counter.min(), counter.max());
         });
         if (useCache && isExcludedFromCache(name) == false) {
             if (partial) {
                 return new FrozenIndexInput(
+                    name,
                     this,
                     fileInfo,
                     context,
@@ -415,6 +416,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 );
             } else {
                 return new CachedBlobContainerIndexInput(
+                    name,
                     this,
                     fileInfo,
                     context,
@@ -424,7 +426,15 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 );
             }
         } else {
-            return new DirectBlobContainerIndexInput(this, fileInfo, context, inputStats, getUncachedChunkSize(), bufferSize(context));
+            return new DirectBlobContainerIndexInput(
+                name,
+                this,
+                fileInfo,
+                context,
+                inputStats,
+                getUncachedChunkSize(),
+                bufferSize(context)
+            );
         }
     }
 

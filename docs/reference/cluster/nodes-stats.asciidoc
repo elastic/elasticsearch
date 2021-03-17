@@ -1881,13 +1881,45 @@ Current number of open HTTP connections for the node.
 Total number of HTTP connections opened for the node.
 
 `clients`::
-(object)
-Information on current and recently-closed HTTP connections.
+(array of objects)
+Information on current and recently-closed HTTP client connections.
 +
 .Properties of `clients`
 [%collapsible%open]
 ======
-
+`id`::
+(integer)
+Unique ID for the HTTP client.
+`agent`::
+(string)
+Reported agent for the HTTP client, if available.
+`local_address`::
+(string)
+Local address for the HTTP client.
+`remote_address`::
+(string)
+Remote address for the HTTP client.
+`forwarded_for`::
+(string)
+Value from the client's `x-forwarded-for` HTTP header, if available.
+`opqaue_id`::
+(string)
+Value from the client's `x-opaque-id` HTTP header, if available.
+`opened_time_millis`::
+(integer)
+Time at which the client opened the connection.
+`closed_time_millis`::
+(integer)
+Time at which the client closed the connection if the connection is closed.
+`last_request_time_millis`::
+(integer)
+Time of the most recent request from this client.
+`request_count`::
+(integer)
+Number of requests from this client.
+`request_size_bytes`::
+(integer)
+Cumulative size in bytes of all requests from this client
 
 ======
 

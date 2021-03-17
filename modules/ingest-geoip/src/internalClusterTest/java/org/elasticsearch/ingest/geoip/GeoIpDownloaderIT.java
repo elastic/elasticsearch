@@ -233,6 +233,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         Settings.Builder settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
+        final Set<String> ids = StreamSupport.stream(clusterService().state().nodes().getDataNodes().values().spliterator(), false)
+            .map(c -> c.value.getId())
+            .collect(Collectors.toSet());
         final List<Path> geoipTmpDirs = StreamSupport.stream(internalCluster().getDataNodeInstances(Environment.class).spliterator(), false)
             .map(env -> {
                 Path geoipTmpDir = env.tmpFile().resolve("geoip-databases");
@@ -244,10 +247,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            }).filter(path -> {
-                return StreamSupport.stream(clusterService().state().nodes().getDataNodes().values().spliterator(), false)
-                    .anyMatch(cursor -> cursor.value.getId().equals(path.getFileName().toString()));
-            }).collect(Collectors.toList());
+            }).filter(path -> ids.contains(path.getFileName().toString()))
+            .collect(Collectors.toList());
         assertThat(geoipTmpDirs.size(), equalTo(internalCluster().numDataNodes()));
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {

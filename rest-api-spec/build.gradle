@@ -143,22 +143,9 @@ tasks.named("yamlRestCompatTest").configure {
     'explain/40_mix_typeless_typeful/Explain with typeless API on an index that has types',
     'field_caps/10_basic/Get date_nanos field caps',
     'field_caps/30_filter/Field caps with index filter',
-    'get/100_mix_typeless_typeful/GET with typeless API on an index that has types',
-    'get/10_basic/Basic',
-    'get/11_basic_with_types/Basic',
-    'get/15_default_values/Default values',
-    'get/16_default_values_with_types/Default values',
-    'get/20_stored_fields/Stored fields',
-    'get/21_stored_fields_with_types/Stored fields',
-    'get/41_routing_with_types/Routing',
-    'get/50_with_headers/REST test with headers',
-    'get/51_with_headers_with_types/REST test with headers',
-    'get/61_realtime_refresh_with_types/Realtime Refresh',
-    'get/70_source_filtering/Source filtering',
-    'get/71_source_filtering_with_types/Source filtering',
-    'get/81_missing_with_types/Missing document with catch',
-    'get/81_missing_with_types/Missing document with ignore',
-    'get/91_versions_with_types/Versions',
+    'get/100_mix_typeless_typeful/GET with typeless API on an index that has types',// failing due to include_type_name #48632
+    'get/21_stored_fields_with_types/Stored fields', // failing due to include_type_name #48632
+    'get/71_source_filtering_with_types/Source filtering',// failing due to include_type_name #48632
     'get_source/11_basic_with_types/Basic with types',
     'get_source/16_default_values_with_types/Default values',
     'get_source/41_routing_with_types/Routing',
@@ -367,5 +354,5 @@ tasks.named("yamlRestCompatTest").configure {
 
 tasks.named("transformV7RestTests").configure({ task ->
   task.replaceMatch("_type", "_doc")
-//  task.addWarning("[types removal].*")
+  task.addAllowedWarningRegex("\\[types removal\\].*")
 })

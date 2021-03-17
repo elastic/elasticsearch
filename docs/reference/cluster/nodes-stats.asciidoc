@@ -1886,7 +1886,7 @@ Information on current and recently-closed HTTP client connections.
 +
 .Properties of `clients`
 [%collapsible%open]
-======
+=======
 `id`::
 (integer)
 Unique ID for the HTTP client.
@@ -1920,7 +1920,7 @@ Number of requests from this client.
 `request_size_bytes`::
 (integer)
 Cumulative size in bytes of all requests from this client
-
+=======
 ======
 
 [[cluster-nodes-stats-api-response-body-breakers]]

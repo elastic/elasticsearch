@@ -186,7 +186,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             }
             this.fileExt = in.readString();
             this.numFiles = in.readVLong();
-            if (in.getVersion().before(Version.V_8_0_0)) { // TODO adapt BWC version after backport
+            if (in.getVersion().before(Version.V_7_13_0)) {
                 this.totalSize = new ByteSizeValue(in.readVLong());
                 this.minSize = ByteSizeValue.ZERO;
                 this.maxSize = ByteSizeValue.ZERO;
@@ -252,7 +252,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             }
             out.writeString(fileExt);
             out.writeVLong(numFiles);
-            if (out.getVersion().before(Version.V_8_0_0)) { // TODO adapt BWC version after backport
+            if (out.getVersion().before(Version.V_7_13_0)) {
                 out.writeVLong(totalSize.getBytes());
             } else {
                 totalSize.writeTo(out);

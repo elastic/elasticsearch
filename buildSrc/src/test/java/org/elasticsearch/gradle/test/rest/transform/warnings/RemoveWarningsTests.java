@@ -73,6 +73,6 @@ public class RemoveWarningsTests extends TransformTests {
 
     @Override
     protected boolean getHumanDebug() {
-        return true;
+        return false;
     }
 }

@@ -8,18 +8,20 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheKey;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.CacheFileRegion;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.Set;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 
@@ -33,11 +35,10 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
-        final Environment environment = TestEnvironment.newEnvironment(settings);
-        for (Path path : environment.dataFiles()) {
-            Files.createDirectories(path);
-        }
-        try (FrozenCacheService cacheService = new FrozenCacheService(environment, taskQueue.getThreadPool())) {
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            FrozenCacheService cacheService = new FrozenCacheService(environment, settings, taskQueue.getThreadPool())
+        ) {
             final CacheKey cacheKey = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
             final CacheFileRegion region0 = cacheService.get(cacheKey, 250, 0);
@@ -79,11 +80,10 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
-        final Environment environment = TestEnvironment.newEnvironment(settings);
-        for (Path path : environment.dataFiles()) {
-            Files.createDirectories(path);
-        }
-        try (FrozenCacheService cacheService = new FrozenCacheService(environment, taskQueue.getThreadPool())) {
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            FrozenCacheService cacheService = new FrozenCacheService(environment, settings, taskQueue.getThreadPool())
+        ) {
             final CacheKey cacheKey = generateCacheKey();
             assertEquals(2, cacheService.freeRegionCount());
             final CacheFileRegion region0 = cacheService.get(cacheKey, 250, 0);
@@ -116,11 +116,10 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
-        final Environment environment = TestEnvironment.newEnvironment(settings);
-        for (Path path : environment.dataFiles()) {
-            Files.createDirectories(path);
-        }
-        try (FrozenCacheService cacheService = new FrozenCacheService(environment, taskQueue.getThreadPool())) {
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            FrozenCacheService cacheService = new FrozenCacheService(environment, settings, taskQueue.getThreadPool())
+        ) {
             final CacheKey cacheKey1 = generateCacheKey();
             final CacheKey cacheKey2 = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
@@ -145,11 +144,10 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
-        final Environment environment = TestEnvironment.newEnvironment(settings);
-        for (Path path : environment.dataFiles()) {
-            Files.createDirectories(path);
-        }
-        try (FrozenCacheService cacheService = new FrozenCacheService(environment, taskQueue.getThreadPool())) {
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            FrozenCacheService cacheService = new FrozenCacheService(environment, settings, taskQueue.getThreadPool())
+        ) {
             final CacheKey cacheKey1 = generateCacheKey();
             final CacheKey cacheKey2 = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
@@ -190,6 +188,23 @@ public class FrozenCacheServiceTests extends ESTestCase {
             assertEquals(0, cacheService.getFreq(region0));
             assertEquals(0, cacheService.getFreq(region1));
         }
+    }
+
+    public void testCacheSizeDeprecatedOnNonFrozenNodes() {
+        DiscoveryNode.setAdditionalRoles(
+            Set.of(DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE, DataTier.DATA_FROZEN_NODE_ROLE)
+        );
+        final Settings settings = Settings.builder()
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
+            .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DataTier.DATA_HOT_NODE_ROLE.roleName())
+            .build();
+        FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
+        assertWarnings(
+            "setting ["
+                + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
+                + "] to be positive [500b] on node without the data_frozen role is deprecated, roles are [data_hot]"
+        );
     }
 
     private static CacheKey generateCacheKey() {

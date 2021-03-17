@@ -99,8 +99,8 @@ teardown:
 ---
 "Tests searchable snapshots usage stats with full_copy and shared_cache indices":
   - skip:
-      version: " - 7.99.99"
-      reason:  "extra full_copy and shared_cache fields introduced in 8.0.0"
+      version: " - 7.12.99"
+      reason:  "extra full_copy and shared_cache fields introduced in 7.13.0"
 
   - do:
       xpack.usage: {}

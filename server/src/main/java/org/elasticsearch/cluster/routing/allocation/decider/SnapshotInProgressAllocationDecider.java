@@ -56,8 +56,8 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
 
             for (SnapshotsInProgress.Entry snapshot : snapshotsInProgress.entries()) {
                 SnapshotsInProgress.ShardSnapshotStatus shardSnapshotStatus = snapshot.shards().get(shardRouting.shardId());
-                if (shardSnapshotStatus != null && !shardSnapshotStatus.state().completed() && shardSnapshotStatus.nodeId() != null &&
-                        shardSnapshotStatus.nodeId().equals(shardRouting.currentNodeId())) {
+                if (shardSnapshotStatus != null && shardSnapshotStatus.state().completed() == false &&
+                        shardSnapshotStatus.nodeId() != null && shardSnapshotStatus.nodeId().equals(shardRouting.currentNodeId())) {
                     if (logger.isTraceEnabled()) {
                         logger.trace("Preventing snapshotted shard [{}] from being moved away from node [{}]",
                                 shardRouting.shardId(), shardSnapshotStatus.nodeId());

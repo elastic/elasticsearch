@@ -430,7 +430,28 @@ public class NodeStatsTests extends ESTestCase {
         }
         TransportStats transportStats = frequently() ? new TransportStats(randomNonNegativeLong(), randomNonNegativeLong(),
                 randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
-        HttpStats httpStats = frequently() ? new HttpStats(randomNonNegativeLong(), randomNonNegativeLong()) : null;
+        HttpStats httpStats = null;
+        if (frequently()) {
+            int numClients = randomIntBetween(0, 50);
+            List<HttpStats.ClientStats> clientStats = new ArrayList<>(numClients);
+            for (int k = 0; k < numClients; k++) {
+                var cs = new HttpStats.ClientStats(
+                    randomAlphaOfLength(6),
+                    randomAlphaOfLength(6),
+                    randomAlphaOfLength(6),
+                    randomAlphaOfLength(6),
+                    randomAlphaOfLength(6),
+                    randomAlphaOfLength(6),
+                    randomNonNegativeLong(),
+                    randomBoolean() ? -1 : randomNonNegativeLong(),
+                    randomBoolean() ? -1 : randomNonNegativeLong(),
+                    randomLongBetween(0, 100),
+                    randomLongBetween(0, 99999999)
+                );
+                clientStats.add(cs);
+            }
+            httpStats = new HttpStats(clientStats, randomNonNegativeLong(), randomNonNegativeLong());
+        }
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {
             int numCircuitBreakerStats = randomIntBetween(0, 10);

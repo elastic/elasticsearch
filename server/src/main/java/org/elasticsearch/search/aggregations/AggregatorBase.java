@@ -156,6 +156,12 @@ public abstract class AggregatorBase extends Aggregator {
     /**
      * Get a {@link LeafBucketCollector} for the given ctx, which should
      * delegate to the given collector.
+     * <p>
+     * {@linkplain Aggregator}s that perform collection independent of the main
+     * search should collect the provided leaf in their implementation of this
+     * method and return {@link LeafBucketCollector#NO_OP_COLLECTOR} to signal
+     * that they don't need to be collected with the main search. We'll remove
+     * them from the list of collectors.
      */
     protected abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException;
 
@@ -181,8 +187,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     @Override
     public final void preCollection() throws IOException {
-        List<BucketCollector> collectors = Arrays.asList(subAggregators);
-        collectableSubAggregators = MultiBucketCollector.wrap(collectors);
+        collectableSubAggregators = MultiBucketCollector.wrap(false, Arrays.asList(subAggregators));
         doPreCollection();
         collectableSubAggregators.preCollection();
     }

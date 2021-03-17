@@ -120,7 +120,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
 
     @Override
     protected void doExecute(Task task, PreviewTransformAction.Request request, ActionListener<PreviewTransformAction.Response> listener) {
-        ClusterState clusterState = clusterService.state();
+        final ClusterState clusterState = clusterService.state();
+        TransformNodes.warnIfNoTransformNodes(clusterState);
 
         final TransformConfig config = request.getConfig();
         sourceDestValidator.validate(

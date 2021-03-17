@@ -41,15 +41,6 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
 
     private static final Logger LOGGER = LogManager.getLogger(AbstractAggregationDataExtractor.class);
 
-    /**
-     * The number of key-value pairs written in each batch to process.
-     * This has to be a number that is small enough to allow for responsive
-     * cancelling and big enough to not cause overhead by calling the
-     * post data action too often. The value of 1000 was determined via
-     * such testing.
-     */
-    private static final int BATCH_KEY_VALUE_PAIRS = 1000;
-
     protected final Client client;
     protected final AggregationDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;

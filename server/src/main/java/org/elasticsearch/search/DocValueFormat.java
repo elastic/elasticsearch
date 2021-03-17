@@ -80,6 +80,18 @@ public interface DocValueFormat extends NamedWriteable {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Formats a value of a sort field in a search response. This is used by {@link SearchSortValues}
+     * to avoid sending the internal representation of a value of a sort field in a search response.
+     * The default implementation formats {@link BytesRef} but leave other types as-is.
+     */
+    default Object formatSortValue(Object value) {
+        if (value instanceof BytesRef) {
+            return format((BytesRef) value);
+        }
+        return value;
+    }
+
     DocValueFormat RAW = new DocValueFormat() {
 
         @Override
@@ -166,10 +178,19 @@ public interface DocValueFormat extends NamedWriteable {
     static DocValueFormat withNanosecondResolution(final DocValueFormat format) {
         if (format instanceof DateTime) {
             DateTime dateTime = (DateTime) format;
-            return new DateTime(dateTime.formatter, dateTime.timeZone, DateFieldMapper.Resolution.NANOSECONDS);
+            return new DateTime(dateTime.formatter, dateTime.timeZone, DateFieldMapper.Resolution.NANOSECONDS,
+                dateTime.formatSortValues);
         } else {
             throw new IllegalArgumentException("trying to convert a known date time formatter to a nanosecond one, wrong field used?");
         }
+    }
+
+    static DocValueFormat enableFormatSortValues(DocValueFormat format) {
+        if (format instanceof DateTime) {
+            DateTime dateTime = (DateTime) format;
+            return new DateTime(dateTime.formatter, dateTime.timeZone, dateTime.resolution, true);
+        }
+        throw new IllegalArgumentException("require a date_time formatter; got [" + format.getWriteableName() + "]");
     }
 
     final class DateTime implements DocValueFormat {
@@ -180,12 +201,18 @@ public interface DocValueFormat extends NamedWriteable {
         final ZoneId timeZone;
         private final DateMathParser parser;
         final DateFieldMapper.Resolution resolution;
+        final boolean formatSortValues;
 
         public DateTime(DateFormatter formatter, ZoneId timeZone, DateFieldMapper.Resolution resolution) {
+            this(formatter, timeZone, resolution, false);
+        }
+
+        private DateTime(DateFormatter formatter, ZoneId timeZone, DateFieldMapper.Resolution resolution, boolean formatSortValues) {
             this.formatter = formatter;
             this.timeZone = Objects.requireNonNull(timeZone);
             this.parser = formatter.toDateMathParser();
             this.resolution = resolution;
+            this.formatSortValues = formatSortValues;
         }
 
         public DateTime(StreamInput in) throws IOException {
@@ -200,6 +227,11 @@ public interface DocValueFormat extends NamedWriteable {
                    All indices in 8 should use java style pattern. Hence we can ignore this flag.
                 */
                 in.readBoolean();
+            }
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                this.formatSortValues = in.readBoolean();
+            } else {
+                this.formatSortValues = false;
             }
         }
 
@@ -220,6 +252,9 @@ public interface DocValueFormat extends NamedWriteable {
                 */
                 out.writeBoolean(false);
             }
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeBoolean(formatSortValues);
+            }
         }
 
         public DateMathParser getDateMathParser() {
@@ -234,6 +269,16 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public String format(double value) {
             return format((long) value);
+        }
+
+        @Override
+        public Object formatSortValue(Object value) {
+            if (formatSortValues) {
+                if (value instanceof Long) {
+                    return format((Long) value);
+                }
+            }
+            return value;
         }
 
         @Override
@@ -514,6 +559,14 @@ public interface DocValueFormat extends NamedWriteable {
             } else {
                 return BigInteger.valueOf(formattedValue).and(BIGINTEGER_2_64_MINUS_ONE);
             }
+        }
+
+        @Override
+        public Object formatSortValue(Object value) {
+            if (value instanceof Long) {
+                return format((Long) value);
+            }
+            return value;
         }
 
         /**

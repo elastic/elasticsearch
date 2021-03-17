@@ -26,6 +26,14 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "org.elasticsearch:securemock:${versions.securemock}"
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
+
+  // json schema validation dependencies
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "org.apache.commons:commons-compress:1.19"
+  api "org.apache.commons:commons-lang3:${versions.commons_lang3}"
 }
 
 tasks.named("compileJava").configure { options.compilerArgs << '-Xlint:-cast,-unchecked' }
@@ -43,6 +51,11 @@ tasks.named("dependenciesGraph").configure { enabled = false }
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           // classes are missing
+          'com.github.luben.zstd.ZstdInputStream',
+          'com.github.luben.zstd.ZstdOutputStream',
+          'java.util.jar.Pack200',
+          'java.util.jar.Pack200$Packer',
+          'java.util.jar.Pack200$Unpacker',
           'javax.servlet.ServletContextEvent',
           'javax.servlet.ServletContextListener',
           'org.apache.avalon.framework.logger.Logger',
@@ -51,7 +64,33 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.log4j.Category',
           'org.apache.log4j.Level',
           'org.apache.log4j.Logger',
-          'org.apache.log4j.Priority'
+          'org.apache.log4j.Priority',
+          'org.brotli.dec.BrotliInputStream',
+          'org.jcodings.specific.UTF8Encoding',
+          'org.joni.Matcher',
+          'org.joni.Regex',
+          'org.joni.Syntax',
+          'org.slf4j.Logger',
+          'org.slf4j.LoggerFactory',
+          'org.tukaani.xz.ARMOptions',
+          'org.tukaani.xz.ARMThumbOptions',
+          'org.tukaani.xz.DeltaOptions',
+          'org.tukaani.xz.FilterOptions',
+          'org.tukaani.xz.FinishableWrapperOutputStream',
+          'org.tukaani.xz.IA64Options',
+          'org.tukaani.xz.LZMA2InputStream',
+          'org.tukaani.xz.LZMA2Options',
+          'org.tukaani.xz.LZMAInputStream',
+          'org.tukaani.xz.LZMAOutputStream',
+          'org.tukaani.xz.MemoryLimitException',
+          'org.tukaani.xz.PowerPCOptions',
+          'org.tukaani.xz.SPARCOptions',
+          'org.tukaani.xz.SingleXZInputStream',
+          'org.tukaani.xz.UnsupportedOptionsException',
+          'org.tukaani.xz.X86Options',
+          'org.tukaani.xz.XZ',
+          'org.tukaani.xz.XZInputStream',
+          'org.tukaani.xz.XZOutputStream'
   )
 }
 

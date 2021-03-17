@@ -60,8 +60,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.clusterService = clusterService;
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        final Set<String> metadataFields = indicesService.getMapperRegistry()
-            .getMetadataMapperParsers(Version.CURRENT).keySet();
+        final Set<String> metadataFields = indicesService.getMetadataFields(Version.CURRENT);
         this.metadataFieldPred = metadataFields::contains;
     }
 

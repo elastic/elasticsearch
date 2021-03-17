@@ -57,7 +57,7 @@ public class ExtractedFieldsDetector {
     private static final Logger LOGGER = LogManager.getLogger(ExtractedFieldsDetector.class);
 
     /**
-     * Fields to ignore. These are mostly internal meta fields.
+     * Internal fields to ignore.
      */
     private static final List<String> IGNORE_FIELDS = Collections.singletonList(DestinationIndex.INCREMENTAL_ID);
 

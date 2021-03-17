@@ -18,6 +18,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -829,10 +830,6 @@ public class IndicesService extends AbstractLifecycleComponent
         return indicesQueryCache;
     }
 
-    public MapperRegistry getMapperRegistry() {
-        return mapperRegistry;
-    }
-
     static class OldShardsStats implements IndexEventListener {
 
         final SearchStats searchStats = new SearchStats();
@@ -1577,6 +1574,13 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public Function<String, Predicate<String>> getFieldFilter() {
         return mapperRegistry.getFieldFilter();
+    }
+
+    /**
+     * Returns the registered metadata field names.
+     */
+    public Set<String> getMetadataFields(Version version) {
+        return mapperRegistry.getMetadataMapperParsers(version).keySet();
     }
 
     /**

@@ -130,9 +130,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(TYPE_FIELD.getPreferredName(), type);
-        if (isMetadataField) {
-            builder.field(IS_METADATA_FIELD.getPreferredName(), isMetadataField);
-        }
+        builder.field(IS_METADATA_FIELD.getPreferredName(), isMetadataField);
         builder.field(SEARCHABLE_FIELD.getPreferredName(), isSearchable);
         builder.field(AGGREGATABLE_FIELD.getPreferredName(), isAggregatable);
         if (indices != null) {

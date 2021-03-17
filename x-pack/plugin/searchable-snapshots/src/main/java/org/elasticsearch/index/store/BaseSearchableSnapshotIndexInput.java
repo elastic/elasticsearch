@@ -92,16 +92,18 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     protected final void readInternal(ByteBuffer b) throws IOException {
         assert assertCurrentThreadIsNotCacheFetchAsync();
 
-        final int bytesToRead = b.remaining();
+        final int startPosition = b.position();
         // We can detect that we're going to read the last 16 bytes (that contains the footer checksum) of the file. Such reads are often
         // executed when opening a Directory and since we have the checksum in the snapshot metadata we can use it to fill the ByteBuffer.
         if (maybeReadChecksumFromFileInfo(b)) {
             logger.trace("read footer of file [{}], bypassing all caches", fileInfo.physicalName());
+            assert b.remaining() == 0L : b.remaining();
         } else {
             doReadInternal(b);
         }
-        stats.addLuceneBytesRead(bytesToRead);
-        assert b.remaining() == 0L : b.remaining();
+        final int endPosition = b.position();
+        assert endPosition >= startPosition;
+        stats.addLuceneBytesRead(endPosition - startPosition);
     }
 
     protected abstract void doReadInternal(ByteBuffer b) throws IOException;

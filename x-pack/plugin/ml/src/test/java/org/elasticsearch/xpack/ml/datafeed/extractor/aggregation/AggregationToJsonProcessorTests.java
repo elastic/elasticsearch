@@ -617,7 +617,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
             compositeAggValueSource
         );
         processor.process(aggregations);
-        processor.writeDocs(10000, outputStream);
+        processor.writeAllDocsCancellable(_timestamp -> false, outputStream);
         keyValuePairsWritten = processor.getKeyValueCount();
         return outputStream.toString(StandardCharsets.UTF_8.name());
     }

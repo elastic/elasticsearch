@@ -51,8 +51,8 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     private final DatafeedTimingStatsReporter timingStatsReporter;
     private final AggregatedSearchRequestBuilder requestBuilder;
     private final long interval;
+    private volatile boolean isCancelled;
     private boolean hasNext;
-    private boolean isCancelled;
 
     CompositeAggregationDataExtractor(
         CompositeAggregationBuilder compositeAggregationBuilder,

@@ -418,47 +418,13 @@ class AggregationToJsonProcessor {
     }
 
     /**
-     * Write the aggregated documents one bucket at a time until {@code batchSize}
-     * key-value pairs have been written. Buckets are written in their entirety and
-     * the check on {@code batchSize} run after the bucket has been written so more
-     * than {@code batchSize} key-value pairs could be written.
-     * The function should be called repeatedly until it returns false, at that point
-     * there are no more documents to write.
-     *
-     * @param batchSize The number of key-value pairs to write.
-     * @return True if there are any more documents to write after the call.
-     * False if there are no documents to write.
-     * @throws IOException If an error occurs serialising the JSON
-     */
-    boolean writeDocs(int batchSize, OutputStream outputStream) throws IOException {
-
-        if (docsByBucketTimestamp.isEmpty()) {
-            return false;
-        }
-
-        try (XContentBuilder jsonBuilder = new XContentBuilder(JsonXContent.jsonXContent, outputStream)) {
-            long previousWrittenCount = keyValueWrittenCount;
-            Iterator<Map.Entry<Long, List<Map<String, Object>>>> iterator = docsByBucketTimestamp.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Map.Entry<Long, List<Map<String, Object>>> entry = iterator.next();
-                for (Map<String, Object> map : entry.getValue()) {
-                    writeJsonObject(jsonBuilder, map);
-                }
-                iterator.remove();
-
-                if (keyValueWrittenCount - previousWrittenCount >= batchSize) {
-                    break;
-                }
-            }
-        }
-
-        return docsByBucketTimestamp.isEmpty() == false;
-    }
-
-    /**
      * This writes ALL the documents stored within the processor object unless indicated otherwise by the `shouldCancel` predicate
      *
      * This returns `true` if it is safe to cancel the overall process as the current `date_histogram` bucket has finished.
+     *
+     * For a simple `date_histogram` this is guaranteed. But, for a `composite` agg, it is possible that the current page is in the
+     * middle of a bucket. If you are writing with `composite` aggs, don't cancel the processing until this method returns true.
+     *
      * @param shouldCancel determines if a given timestamp indicates that the processing stream should be cancelled
      * @param outputStream where to write the aggregated data
      * @return true if it is acceptable for the caller to close the process and cancel the stream

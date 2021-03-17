@@ -54,7 +54,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
     protected final AggregationDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;
     private boolean hasNext;
-    private boolean isCancelled;
+    private volatile boolean isCancelled;
     private AggregationToJsonProcessor aggregationToJsonProcessor;
     private final ByteArrayOutputStream outputStream;
 
@@ -167,7 +167,8 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
     private InputStream processNextBatch() throws IOException {
         outputStream.reset();
 
-        hasNext = aggregationToJsonProcessor.writeDocs(BATCH_KEY_VALUE_PAIRS, outputStream);
+        // We can cancel immediately as we process whole date_histogram buckets at a time
+        hasNext = aggregationToJsonProcessor.writeAllDocsCancellable(_timestamp -> isCancelled, outputStream);
         return new ByteArrayInputStream(outputStream.toByteArray());
     }
 

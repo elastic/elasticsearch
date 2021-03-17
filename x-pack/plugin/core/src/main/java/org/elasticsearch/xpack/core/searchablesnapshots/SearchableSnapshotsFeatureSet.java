@@ -54,16 +54,22 @@ public class SearchableSnapshotsFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         ClusterState state = clusterService.state();
-        int numSnapIndices = 0;
+        int numFullCopySnapIndices = 0;
+        int numSharedCacheSnapIndices = 0;
         for (IndexMetadata indexMetadata : state.metadata()) {
             if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexMetadata.getSettings())) {
-                numSnapIndices++;
+                if (SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.get(indexMetadata.getSettings())) {
+                    numSharedCacheSnapIndices++;
+                } else {
+                    numFullCopySnapIndices++;
+                }
             }
         }
         listener.onResponse(
             new SearchableSnapshotFeatureSetUsage(
                 available(),
-                numSnapIndices
+                numFullCopySnapIndices,
+                numSharedCacheSnapIndices
             )
         );
     }

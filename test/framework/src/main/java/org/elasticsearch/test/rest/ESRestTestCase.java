@@ -589,7 +589,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
-                                    logger.warn(new ParameterizedMessage("unable to remove multiple composable index templates {}", names), e);
+                                    logger.warn(
+                                        new ParameterizedMessage("unable to remove multiple composable index templates {}", names), e);
                                 }
                             } else {
                                 for (String name : names) {
@@ -627,7 +628,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                                     try {
                                         adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
                                     } catch (ResponseException e) {
-                                        logger.warn(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
+                                        logger.warn(
+                                            new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
                                     }
                                 }
                             }

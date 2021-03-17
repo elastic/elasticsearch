@@ -45,12 +45,12 @@ public class FileServiceAccountsTokenStore implements ServiceAccountsTokenStore 
         try {
             resourceWatcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
         } catch (IOException e) {
-            throw new ElasticsearchException("failed to start watching users file [{}]", e, file.toAbsolutePath());
+            throw new ElasticsearchException("failed to start watching service_tokens file [{}]", e, file.toAbsolutePath());
         }
         try {
             tokenHashes = parseFile(file, logger);
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to load service tokens file [" + file + "]", e);
+            throw new IllegalStateException("Failed to load service_tokens file [" + file + "]", e);
         }
         listeners = new CopyOnWriteArrayList<>();
     }
@@ -77,6 +77,11 @@ public class FileServiceAccountsTokenStore implements ServiceAccountsTokenStore 
         }
     }
 
+    // package private for testing
+    Map<String, char[]> getTokenHashes() {
+        return tokenHashes;
+    }
+
     static Path resolveFile(Environment env) {
         return XPackPlugin.resolveConfigFile(env, "service_tokens");
     }
@@ -84,7 +89,7 @@ public class FileServiceAccountsTokenStore implements ServiceAccountsTokenStore 
     static Map<String, char[]> parseFileLenient(Path path, @Nullable Logger logger) {
         try {
             return parseFile(path, logger);
-        } catch (IOException e) {
+        } catch (Exception e) {
             logger.error("failed to parse service tokens file [{}]. skipping/removing all tokens...",
                 path.toAbsolutePath());
             return Map.of();

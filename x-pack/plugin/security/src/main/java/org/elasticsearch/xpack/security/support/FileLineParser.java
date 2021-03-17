@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.support;
 
+import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.common.CheckedBiConsumer;
 
 import java.io.IOException;
@@ -22,7 +23,7 @@ public class FileLineParser {
         int lineNumber = 0;
         for (String line : lines) {
             lineNumber++;
-            if (line.startsWith("#")) { // comment
+            if (line.startsWith("#") || Strings.isBlank(line)) { // comment or blank
                 continue;
             }
 

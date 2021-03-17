@@ -27,7 +27,10 @@ about running an unrecognized app. If the MSI has been downloaded from
 Elastic's web site, it is safe to acknowledge the message by allowing the
 installation to continue (`Run anyway`).
 
-include::../version-compat.asciidoc[leveloffset=+3]
+[[odbc-compatibility]]
+==== Version compatibility
+
+include::../version-compat.asciidoc[]
 
 [[download]]
 ==== Download the `.msi` package(s)

@@ -88,7 +88,7 @@ tasks.named("thirdPartyAudit").configure {
           'org.tukaani.xz.XZInputStream',
           'org.tukaani.xz.XZOutputStream'
   )
-  if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+  if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_12) {
       ignoreMissingClasses(
           'java.util.jar.Pack200',
           'java.util.jar.Pack200$Packer',

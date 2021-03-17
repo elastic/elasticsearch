@@ -114,7 +114,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         LocalDatabases localDatabases = new LocalDatabases(geoIpDir, geoIpConfigDir, cache);
         geoIpTmpDir = createTempDir();
         databaseRegistry = new DatabaseRegistry(geoIpTmpDir, client, cache, localDatabases, Runnable::run);
-        databaseRegistry.initialize(resourceWatcherService, mock(IngestService.class));
+        databaseRegistry.initialize("nodeId", resourceWatcherService, mock(IngestService.class));
     }
 
     @After
@@ -142,7 +142,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), notNullValue());
         verify(client, times(10)).search(any());
-        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), hasSize(1));
         }
     }
@@ -166,7 +166,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         verify(client, never()).search(any());
-        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
         }
     }
@@ -188,7 +188,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         verify(client, never()).search(any());
-        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
         }
     }
@@ -209,7 +209,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         verify(client, never()).search(any());
-        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
         }
     }

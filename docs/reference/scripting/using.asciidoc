@@ -89,10 +89,9 @@ script doesn't specify a language, so it defaults to Painless.
 [[prefer-params]]
 === Use parameters in your script
 
-The first time {es} sees a new script, it compiles it and stores the
-compiled version in a cache. Compilation can be a heavy process. If you're
-passing variables into a script, pass them in as named `params` instead of
-hard-coding values into the script itself.
+The first time {es} sees a new script, it compiles the script and stores the
+compiled version in a cache. Compilation can be a heavy process. Rather than
+hard-coding values in your script, pass them as named `params` instead.
 
 For example, in the previous script, we could have just hard coded values and
 written a script that is seemingly less complex. We could just retrieve the
@@ -108,9 +107,8 @@ script source to change the multiplier, and {es} has to recompile the script
 every time that the multiplier changes.
 
 Instead of hard-coding values, use named `params` to make scripts flexible, and
-also reduce compilation time when the script runs. Our script declares a
-parameter named `multiplier` and assigns it a value that we can access it
-anywhere in our script. Also, the script is compiled only once.
+also reduce compilation time when the script runs. You can now make changes to
+the `multiplier` parameter without {es} recompiling the script.
 
 [source,painless]
 ----
@@ -124,11 +122,12 @@ For most contexts, you can compile up to 75 scripts per 5 minutes by default.
 For ingest contexts, the default script compilation rate is unlimited. You
 can change these settings dynamically by setting
 `script.context.$CONTEXT.max_compilations_rate`. For example, the following
-setting limits script compilation to 100 scripts every 10 minutes:
+setting limits script compilation to 100 scripts every 10 minutes for the
+{painless}/painless-field-context.html[field context]:
 
 [source,js]
 ----
-`script.context.field.max_compilations_rate=100/10m`
+script.context.field.max_compilations_rate=100/10m
 ----
 // NOTCONSOLE
 
@@ -139,8 +138,8 @@ rejects the new dynamic scripts with a `circuit_breaking_exception` error.
 [[script-shorten-syntax]]
 === Shorten your script
 Using syntactic abilities that are native to Painless, you can reduce verbosity
-in your scripts and make them shorter. For example, we can write the previous
-script like this and achieve the same goal:
+in your scripts and make them shorter. For example, we can shorten the previous
+script and achieve the same goal:
 
 [source,console]
 ----
@@ -161,9 +160,8 @@ GET my-index-000001/_search
 ----
 // TEST[s/^/PUT my-index-000001\n/]
 
-However, we can leverage capabilities inherent to Painless and shorten this
-script. Let's look at the original version and see how what improvements it
-includes over this current iteration:
+Let's look at the original version and see how what improvements it includes
+over this current iteration:
 
 [source,console]
 ----
@@ -205,7 +203,8 @@ Use this abbreviated syntax anywhere that {es} supports scripts.
 === Store and retrieve scripts
 You can store and retrieve scripts from the cluster state using the `_scripts`
 endpoint. Using stored scripts can help to reduce compilation time and make
-searches faster. Use the `id` parameter to refer to a stored script.
+searches faster. Use the `{id}` path element `_scripts/{id}` to refer to a
+stored script.
 
 NOTE: Unlike regular scripts, stored scripts require that you specify a script
 language using the `lang` parameter.
@@ -314,7 +313,7 @@ Because this is just a list, the tag is added even it exists:
 POST my-index-000001/_update/1
 {
   "script": {
-    "source": "ctx._source.tags.add(params.tag)",
+    "source": "ctx._source.tags.add(params['tag'])",
     "lang": "painless",
     "params": {
       "tag": "blue"
@@ -335,7 +334,7 @@ occurrence.
 POST my-index-000001/_update/1
 {
   "script": {
-    "source": "if (ctx._source.tags.contains(params.tag)) { ctx._source.tags.remove(ctx._source.tags.indexOf(params.tag)) }",
+    "source": "if (ctx._source.tags.contains(params['tag'])) { ctx._source.tags.remove(ctx._source.tags.indexOf(params['tag'])) }",
     "lang": "painless",
     "params": {
       "tag": "blue"
@@ -377,7 +376,7 @@ if the `tags` field contains `green`. Otherwise it does nothing (`noop`):
 POST my-index-000001/_update/1
 {
   "script": {
-    "source": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'none' }",
+    "source": "if (ctx._source.tags.contains(params['tag'])) { ctx.op = 'delete' } else { ctx.op = 'none' }",
     "lang": "painless",
     "params": {
       "tag": "green"
@@ -386,278 +385,6 @@ POST my-index-000001/_update/1
 }
 ----
 // TEST[continued]
-
-[discrete]
-[[script-whats-next]]
-=== What's next
-Now that you've learned the basic syntax of a Painless script and how to
-optimize script syntax, we'll dig more into the language itself. Understanding
-the building blocks of the language will help you to construct more complex and
-powerful scripts.
-
-<<script-spec-types,Learn about types>>
-
-[[script-spec-types]]
-=== Script data types
-A type is a classification of data used to define the properties of a value.
-These properties specify what data a value represents and the rules for how a
-value is evaluated during an operation. Each type belongs to one of the
-following categories: primitive, reference, or dynamic.
-
-[[script-type-primitive]]
-==== Primitive types
-A primitive type holds a singular piece of data. Examples of
-{painless}/painless-types.html#primitive-types[available primitive types] are
-`byte`, `int`, and `long`. Primitive types can also specify the size and type
-of a variable value. For example, an `int` is 32-bit and stores whole numbers,
-whereas a `double` is 64-bit and stores fractional numbers.
-
-The following example declares three primitive types:
-
-[source,console]
-----
-POST /_scripts/painless/_execute
-{
-  "script": {
-    "source": """
-        int my_int; <1>
-        my_int = 1; <2>
-        double my_double = 2.0; <3>
-    """
-  }
-}
-----
-<1> Primitive `int` type declaration
-<2> Primitive `int` type assignment with an `int` constant
-<3> Primitive `double` type declaration with assignment of a `double` constant
-
-You can declare a primitive type variable or access a primitive type member
-field from a reference type instance, and assign it a primitive type value for
-evaluation during later operations. But what's a
-<<script-type-reference,reference type>>?
-
-[[script-type-reference]]
-==== Reference types
-A reference type is a mutable object accessed through different variables that
-change the underlying instance. Reference types hold references to
-objects and provide a way to access them. You define reference types as part of
-the API for scripts.
-
-When you assign a primitive type to another variable, that variable gets a
-*copy* of the contents of the original primitive type. For example, declare
-variable `a` and assign it a value, and then set `b` equal to `a`.
-
-[source,console]
-----
-POST /_scripts/painless/_execute
-{
-  "script": {
-    "source": """
-        int a = 123;
-        int b = a;
-        a = 456;
-        return b;
-    """
-  }
-}
-----
-
-Even if you declare a new value for `a`, returning `b` results in a value of
-`123`, which is the value declared for `a` that variable `b` knows about.
-Because of this relationship, we can say that `b` is a _reference_ to `a`.
-
-[source,console-result]
-----
-{
-  "result" : "123"
-}
-----
-// TEST[continued]
-
-[discrete]
-===== How to use reference types
-What if you want to modify the types and values that are part of a reference
-type? That's where you can leverage the magic of reference types! You can have
-multiple reference type values that point to the _same_ instance, which means
-you don't have to modify the instance itself.
-
-To illustrate the magic of reference types, we'll update a reference type
-within a script. The following request creates two new `ArrayList` objects
-named `first` and `last`. The script creates another object named `current`,
-which references the `first` object.
-
-The `for` loop iterates through every number from `0` to `99` and adds a
-condition that if an integer equals `5`, change the reference of `current` to
-`last`.
-
-[source,console]
-----
-POST /_scripts/painless/_execute
-{
-  "script": {
-    "source": """
-        List first = new ArrayList();
-        List last = new ArrayList();
-        List current = first; <1>
-        for (int i = 0; i < 100; i++) {
-          current.add(i);
-          if (i == 5) {
-            current = last; <2>
-            }
-        }
-        return last;
-    """
-  }
-}
-----
-<1> Set `current` equal to `first`
-<2> Modify `current` to make it equal to `last`
-
-As the script begins iterating from `0` to `99`, it reaches `5` and triggers
-the condition in the `for` loop. The script returns the following result, which
-includes all values from `6` to `99`.
-
-Our script didn't change the `first` or `last` objects, but instead changed the
-reference of `current`. This ability to modify referenced values without
-changing the underlying variable value allows you to write powerful scripts
-with dynamic capabilites.
-
-[source,console-result]
-----
-{
-  "result" : "[6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-  23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41,
-  42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60,
-  61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
-  80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98,
-  99]"
-}
-----
-// TEST[continued]
-
-[[script-type-dynamic]]
-==== Dynamic types
-A dynamic type can represent any value by using a single type named `def`. A
-`def` type value mimics the behavior of whatever value it represents at
-runtime. The underlying value can have different types during script execution,
-which provides flexibility in your script.
-
-For example, the following script includes a `def` type named `abc` that is
-implicitly defined as an `int` with a value of `1`. The second line sets the
-value of `abc` to a string value, which would result in a compilation error if
-`abc` was strictly defined as `int abc`.
-
-[source,painless]
-----
-def abc = 1;
-abc = "a string";
-----
-
-Because a `def` type can mimic multiple types, it always represents
-the last child descendant type value of any type value when evaluated. The
-default value for a newly-declared `def` type variable is `null`.
-
-NOTE: Using the `def` type can have a slight impact on performance. Use only
-primitive types and reference types directly when performance is critical. If
-you know the type you're referring to, using a concrete type instead of a `def`
-type results in faster script execution.
-
-[discrete]
-===== How to use dynamic types
-So how do dynamic types work in practice? Let's look at a basic example. The
-following script creates an empty `List` named `x` and adds `1` to the list.
-The script then declares an `int` named `y` and says that it's equal to an `int`
-named `x`.
-
-[source,console]
-----
-POST /_scripts/painless/_execute
-{
-  "script": {
-    "source": """
-        List x = []; <1>
-        x.add(1);
-        int y = (int)x[0];
-        y.toString();
-    """
-  }
-}
-----
-<1> The brackets `[]` indicate that this is an empty list.
-
-We can simplify that request by using `def`. Instead of explicitly declaring
-a variable named `y` and equating it to `x`, we can say that `def y = x[0]`.
-Now, the `y` variable will mimic `x` however it's defined.
-
-[source,console]
-----
-POST /_scripts/painless/_execute
-{
-  "script": {
-    "source": """
-        List x = [];
-        x.add(1);
-        def y = x[0];
-        y.toString();
-    """
-  }
-}
-----
-
-[discrete]
-===== How to _really_ use dynamic types
-So a `def` type is just another way to shorten scripts, right? True, but the
-real magic is that a `def` type variable can change the type it represents
-during the compilation and evaluation of a script. This capability is incredibly
-powerful when your script is retrieving data, especially `doc` values.
-
-We'll talk more about retrieving data later on, but the main takeaway relating
-to `def` values is this: you don't really need to know what primitive type your
-data is; you can just use a `def` type and then start operating on the data.
-
-For example, the following request starts with a list that includes primitive
-types of `int`, `double`, and `String`. The request then declares an empty
-`String` and introduces a `for` loop. This loop iterates through the values in
-the list and changes the value three times:
-
-* `1` is an `int`
-* `2.0` is a `double`
-* `'3'` is a `string`
-
-[source,console]
-----
-POST /_scripts/painless/_execute
-{
-  "script": {
-    "source": """
-      List list = [1, 2.0, '3'];
-      String string = "";
-      for (def value : list) {
-        string += value.toString();
-        }
-    """
-  }
-}
-----
-
-The type changes occur automatically without doing anything other than using
-`def` and iterating through the values. Painless changes the type for you so
-that you can focus on writing your script without worrying about what your data
-type is.
-
-[discrete]
-[[types-whats-next]]
-==== What's next
-These types are the most basic structures in Painless. There are {painless}/painless-types.html[other types] that you can learn about as you script writing
-skills develop. Now that you've learned about types and variables, you can
-start combining them with operators.
-
-At this point, you know how to write basic scripts that incorporate different
-types and variables to calculate values. This knowledge is foundational for
-writing Painless scripts. Now that you understand how to write a script, you
-need to know about how your script accesses data.
-
-<<modules-scripting-fields,Learn about accessing document fields and data>>
 
 [[scripts-and-search-speed]]
 === Scripts, caching, and search speed

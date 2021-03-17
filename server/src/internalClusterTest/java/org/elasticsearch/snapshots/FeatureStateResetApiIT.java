@@ -45,19 +45,19 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
         String associatedIndex = ".associated-idx-1";
 
         // put a document in a system index
-        index(systemIndex1, "1", "purpose", "system index doc");
+        index(systemIndex1, "_doc", "1", "purpose", "system index doc");
         refresh(systemIndex1);
 
         // put a document in a second system index
-        index(systemIndex2, "1", "purpose", "second system index doc");
+        index(systemIndex2, "_doc", "1", "purpose", "second system index doc");
         refresh(systemIndex2);
 
         // put a document in associated index
-        index(associatedIndex, "1", "purpose", "associated index doc");
+        index(associatedIndex, "_doc", "1", "purpose", "associated index doc");
         refresh(associatedIndex);
 
         // put a document in a normal index
-        index("my_index", "1", "purpose", "normal index doc");
+        index("my_index", "_doc", "1", "purpose", "normal index doc");
         refresh("my_index");
 
         // call the reset API

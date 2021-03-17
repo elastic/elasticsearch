@@ -437,7 +437,7 @@ public class NodeStatsTests extends ESTestCase {
             int numClients = randomIntBetween(0, 50);
             List<HttpStats.ClientStats> clientStats = new ArrayList<>(numClients);
             for (int k = 0; k < numClients; k++) {
-                var cs = new HttpStats.ClientStats(
+                HttpStats.ClientStats cs = new HttpStats.ClientStats(
                     randomAlphaOfLength(6),
                     randomAlphaOfLength(6),
                     randomAlphaOfLength(6),

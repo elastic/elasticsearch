@@ -289,7 +289,7 @@
 "Metric - http":
   - skip:
       features: [arbitrary_key]
-      version: " - 7.99.99"
+      version: " - 7.12.99"
       reason: "change after backporting"
   - do:
       nodes.info: {}

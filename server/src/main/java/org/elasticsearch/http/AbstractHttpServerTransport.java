@@ -147,7 +147,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     void pruneClientStats(boolean throttled) {
         if (throttled == false || (threadPool.relativeTimeInMillis() - lastClientStatsPruneTime > PRUNE_THROTTLE_INTERVAL)) {
             long nowMillis = threadPool.absoluteTimeInMillis();
-            for (var statsEntry : httpChannelStats.entrySet()) {
+            for (Map.Entry<Integer, HttpStats.ClientStats> statsEntry : httpChannelStats.entrySet()) {
                 long closedTimeMillis = statsEntry.getValue().closedTimeMillis;
                 if (closedTimeMillis > 0 && (nowMillis - closedTimeMillis > MAX_CLIENT_STATS_AGE)) {
                     httpChannelStats.remove(statsEntry.getKey());

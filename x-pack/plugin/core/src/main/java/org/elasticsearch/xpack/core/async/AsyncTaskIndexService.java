@@ -55,6 +55,8 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING;
+import static org.elasticsearch.index.engine.EngineConfig.INDEX_CODEC_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
@@ -77,7 +79,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
 
     static Settings settings() {
         return Settings.builder()
-            .put("index.codec", "best_compression")
+            .put(INDEX_CODEC_SETTING.getKey(), "best_compression")
+            .put(INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING.getKey(), 20.0d)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")

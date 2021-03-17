@@ -289,8 +289,8 @@
 "Metric - http":
   - skip:
       features: [arbitrary_key]
-      version: " - 7.99.99"
-      reason: "change after backporting"
+      version: " - 7.12.99"
+      reason: "HTTP client stats added in 7.13.0"
   - do:
       nodes.info: {}
   - set:

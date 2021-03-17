@@ -180,10 +180,9 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertThat(steps.get(2).getKey(), equalTo(expectedThirdKey));
         assertThat(steps.get(2).getNextStepKey(), equalTo(expectedFourthKey));
 
-        assertTrue(steps.get(3) instanceof UpdateSettingsStep);
+        assertTrue(steps.get(3) instanceof ReadOnlyStep);
         assertThat(steps.get(3).getKey(), equalTo(expectedFourthKey));
         assertThat(steps.get(3).getNextStepKey(), equalTo(expectedFifthKey));
-        assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(((UpdateSettingsStep)steps.get(3)).getSettings()));
 
         assertTrue(steps.get(4) instanceof CleanupShrinkIndexStep);
         assertThat(steps.get(4).getKey(), equalTo(expectedFifthKey));

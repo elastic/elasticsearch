@@ -80,8 +80,9 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                 .settings(
                     settings(Version.CURRENT)
                         .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true")
-                        .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "48h")
+                        .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "480h")
                 )
+                .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(System.currentTimeMillis())))
                 .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
                 .numberOfShards(1)
                 .numberOfReplicas(0)
@@ -106,6 +107,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                         .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "false")
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "48h")
                 )
+                .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(System.currentTimeMillis())))
                 .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
                 .numberOfShards(1)
                 .numberOfReplicas(0)
@@ -210,13 +212,6 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             // step time is "10 minutes ago" with a threshold of 1 hour - the threshold level is NOT breached
             LifecycleExecutionState executionState =
                 new LifecycleExecutionState.Builder().setStepTime(epochMillis - TimeValue.timeValueMinutes(10).millis()).build();
-            boolean thresholdBreached = waitedMoreThanThresholdLevel(retryThreshold, executionState, clock);
-            assertThat(thresholdBreached, is(false));
-        }
-
-        {
-            // missing step time
-            LifecycleExecutionState executionState = new LifecycleExecutionState.Builder().build();
             boolean thresholdBreached = waitedMoreThanThresholdLevel(retryThreshold, executionState, clock);
             assertThat(thresholdBreached, is(false));
         }

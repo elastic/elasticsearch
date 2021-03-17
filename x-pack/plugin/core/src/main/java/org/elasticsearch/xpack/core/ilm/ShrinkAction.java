@@ -17,7 +17,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -144,8 +143,6 @@ public class ShrinkAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-        Settings readOnlySettings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
-
         StepKey preShrinkBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_SHRINK_STEP);
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
@@ -180,7 +177,7 @@ public class ShrinkAction implements LifecycleAction {
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             waitForNoFollowerStepKey);
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);
-        UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, cleanupShrinkIndexKey, client, readOnlySettings);
+        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, cleanupShrinkIndexKey, client);
         // we generate a unique shrink index name but we also retry if the allocation of the shrunk index is not possible, so we want to
         // delete the "previously generated" shrink index (this is a no-op if it's the first run of the action and he haven't generated a
         // shrink index name)

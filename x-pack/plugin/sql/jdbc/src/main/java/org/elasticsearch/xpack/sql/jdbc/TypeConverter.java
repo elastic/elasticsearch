@@ -48,7 +48,6 @@ import static org.elasticsearch.xpack.sql.jdbc.EsType.DATETIME;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.TIME;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asDateTimeField;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
-import static org.elasticsearch.xpack.sql.jdbc.TypeUtils.baseType;
 
 /**
  * Conversion utilities for conversion of JDBC types to Java type and back
@@ -210,6 +209,15 @@ final class TypeConverter {
         return failConversion(val, columnType, typeString, type);
     }
 
+    static List<Object> convertArray(Object v, EsType columnBaseType, String typeString) throws SQLException {
+        List<Object> values = new ArrayList<>();
+        for (Object o : (List<?>) v) {
+            // null value expects a NULL type in the converter
+            values.add(o == null ? null : convert(o, columnBaseType, typeString));
+        }
+        return values;
+    }
+
     /**
      * Converts the object from JSON representation to the specified JDBCType
      */
@@ -266,32 +274,8 @@ final class TypeConverter {
                 }
             case IP:
                 return v.toString();
-            case BOOLEAN_ARRAY:
-            case BYTE_ARRAY:
-            case SHORT_ARRAY:
-            case INTEGER_ARRAY:
-            case LONG_ARRAY:
-            case DOUBLE_ARRAY:
-            case FLOAT_ARRAY:
-            case HALF_FLOAT_ARRAY:
-            case SCALED_FLOAT_ARRAY:
-            case KEYWORD_ARRAY:
-            case TEXT_ARRAY:
-            case DATETIME_ARRAY:
-            case IP_ARRAY:
-            case BINARY_ARRAY:
-            case GEO_SHAPE_ARRAY:
-            case GEO_POINT_ARRAY:
-            case SHAPE_ARRAY:
-                List<Object> values = new ArrayList<>();
-                for (Object o : (List<?>) v) {
-                    // null value expects a NULL type in the converter
-                    values.add(o == null ? null : convert(o, baseType(columnType), typeString.substring(0, "_ARRAY".length())));
-                }
-                return values;
             default:
                 throw new SQLException("Unexpected column type [" + typeString + "]");
-
         }
     }
 

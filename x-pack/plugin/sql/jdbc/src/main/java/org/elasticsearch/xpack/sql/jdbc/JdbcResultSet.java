@@ -45,8 +45,6 @@ import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.dateTimeAsMillisSin
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsMillisSinceEpoch;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTimestamp;
-import static org.elasticsearch.xpack.sql.jdbc.TypeUtils.baseType;
-import static org.elasticsearch.xpack.sql.jdbc.TypeUtils.isArray;
 
 class JdbcResultSet implements ResultSet, JdbcWrapper {
 
@@ -109,6 +107,10 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     private EsType columnType(int columnIndex) {
         return cursor.columns().get(columnIndex - 1).type;
+    }
+
+    private boolean columnTypeIsArray(int columnIndex) {
+        return cursor.columns().get(columnIndex - 1).isArray;
     }
 
     void checkOpen() throws SQLException {
@@ -421,7 +423,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Object getObject(int columnIndex) throws SQLException {
-        return convert(columnIndex, null);
+        return columnTypeIsArray(columnIndex) ? convertArray(columnIndex) : convert(columnIndex, null);
     }
 
     @Override
@@ -431,6 +433,17 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         }
 
         return convert(columnIndex, type);
+    }
+
+    private List<Object> convertArray(int columnIndex) throws SQLException {
+        Object val = column(columnIndex);
+
+        if (val == null) {
+            return null;
+        }
+
+        EsType columnType = columnType(columnIndex);
+        return TypeConverter.convertArray(val, columnType, columnType.getName());
     }
 
     private <T> T convert(int columnIndex, Class<T> type) throws SQLException {
@@ -939,10 +952,10 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     @Override
     public Array getArray(int columnIndex) throws SQLException {
         EsType type = columnType(columnIndex);
-        if (isArray(type) == false) {
+        if (columnTypeIsArray(columnIndex) == false) {
             throw new SQLException("Cannot get column [" + columnIndex + "] of type [" + type.getName() + "] as array");
         }
-        return new JdbcArray(timeZone, baseType(type), (List<?>) getObject(columnIndex));
+        return new JdbcArray(timeZone, type, (List<?>) getObject(columnIndex));
     }
 
     @Override

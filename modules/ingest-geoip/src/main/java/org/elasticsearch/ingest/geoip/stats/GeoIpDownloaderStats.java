@@ -8,10 +8,13 @@
 
 package org.elasticsearch.ingest.geoip.stats;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.ingest.geoip.GeoIpDownloader;
 import org.elasticsearch.tasks.Task;
 
@@ -21,6 +24,23 @@ import java.util.Objects;
 public class GeoIpDownloaderStats implements Task.Status {
 
     public static final GeoIpDownloaderStats EMPTY = new GeoIpDownloaderStats(0, 0, 0, 0, 0);
+
+    public static final ConstructingObjectParser<GeoIpDownloaderStats, Void> PARSER = new ConstructingObjectParser<>(
+        "geoip_downloader_stats", a -> new GeoIpDownloaderStats((int) a[0], (int) a[1], (long) a[2], (int) a[3], (int) a[4]));
+
+    private static final ParseField SUCCESSFUL_DOWNLOADS = new ParseField("successful_downloads");
+    private static final ParseField FAILED_DOWNLOADS = new ParseField("failed_downloads");
+    private static final ParseField TOTAL_DOWNLOAD_TIME = new ParseField("total_download_time");
+    private static final ParseField DATABASES_COUNT = new ParseField("databases_count");
+    private static final ParseField SKIPPED_DOWNLOADS = new ParseField("skipped_updates");
+
+    static {
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), SUCCESSFUL_DOWNLOADS);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), FAILED_DOWNLOADS);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_DOWNLOAD_TIME);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), DATABASES_COUNT);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), SKIPPED_DOWNLOADS);
+    }
 
     private final int successfulDownloads;
     private final int failedDownloads;
@@ -85,13 +105,17 @@ public class GeoIpDownloaderStats implements Task.Status {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("successful_downloads", successfulDownloads);
-        builder.field("failed_downloads", failedDownloads);
-        builder.field("total_download_time", totalDownloadTime);
-        builder.field("databases_count", databasesCount);
-        builder.field("skipped_updates", skippedDownloads);
+        builder.field(SUCCESSFUL_DOWNLOADS.getPreferredName(), successfulDownloads);
+        builder.field(FAILED_DOWNLOADS.getPreferredName(), failedDownloads);
+        builder.field(TOTAL_DOWNLOAD_TIME.getPreferredName(), totalDownloadTime);
+        builder.field(DATABASES_COUNT.getPreferredName(), databasesCount);
+        builder.field(SKIPPED_DOWNLOADS.getPreferredName(), skippedDownloads);
         builder.endObject();
         return builder;
+    }
+
+    public static GeoIpDownloaderStats fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
     @Override

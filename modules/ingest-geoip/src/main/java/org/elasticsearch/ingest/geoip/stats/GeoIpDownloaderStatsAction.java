@@ -115,6 +115,13 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
                 }
                 builder.startObject(e.getKey());
                 if (response.databases.isEmpty() == false) {
+                    builder.startArray("databases");
+                    for (String database : response.databases) {
+                        builder.startObject();
+                        builder.field("name", database);
+                        builder.endObject();
+                    }
+                    builder.endArray();
                     builder.array("databases", response.databases.toArray(String[]::new));
                 }
                 if (response.filesInTemp.isEmpty() == false) {
@@ -125,6 +132,19 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             builder.endObject();
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response that = (Response) o;
+            return Objects.equals(getNodes(), that.getNodes()) && Objects.equals(failures(), that.failures());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getNodes(), failures());
         }
     }
 
@@ -154,6 +174,19 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             stats.writeTo(out);
             out.writeCollection(databases, StreamOutput::writeString);
             out.writeCollection(filesInTemp, StreamOutput::writeString);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NodeResponse that = (NodeResponse) o;
+            return stats.equals(that.stats) && databases.equals(that.databases) && filesInTemp.equals(that.filesInTemp);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(stats, databases, filesInTemp);
         }
     }
 }

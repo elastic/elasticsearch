@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Max;
@@ -100,6 +101,14 @@ public final class AggregationTestUtils {
         when(max.value()).thenReturn(value);
         when(max.getValue()).thenReturn(value);
         return max;
+    }
+
+    static Avg createAvg(String name, double value) {
+        Avg avg = mock(Avg.class);
+        when(avg.getName()).thenReturn(name);
+        when(avg.value()).thenReturn(value);
+        when(avg.getValue()).thenReturn(value);
+        return avg;
     }
 
     static GeoCentroid createGeoCentroid(String name, long count, double lat, double lon) {

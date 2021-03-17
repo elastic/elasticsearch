@@ -20,6 +20,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
+import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 
 import java.io.ByteArrayInputStream;
@@ -52,6 +53,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     private final AggregatedSearchRequestBuilder requestBuilder;
     private final long interval;
     private volatile boolean isCancelled;
+    private volatile long nextBucketOnCancel;
     private boolean hasNext;
 
     CompositeAggregationDataExtractor(
@@ -144,8 +146,6 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         if (compositeAgg == null || compositeAgg.getBuckets().isEmpty()) {
             return null;
         }
-        afterKey = compositeAgg.afterKey();
-
         return aggregations;
     }
 
@@ -169,7 +169,6 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         aggregationToJsonProcessor.process(aggs);
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         final boolean hasAfterKey = afterKey != null && (afterKey.get(context.compositeAggDateHistogramGroupSourceName) instanceof Long);
-        final Long nextBucket = hasAfterKey ? (Long)afterKey.get(context.compositeAggDateHistogramGroupSourceName) + interval : null;
         boolean cancellable = aggregationToJsonProcessor.writeAllDocsCancellable(
             timestamp -> {
                 if (isCancelled) {
@@ -178,9 +177,13 @@ class CompositeAggregationDataExtractor implements DataExtractor {
                     if (hasAfterKey == false) {
                         return true;
                     }
-                    // If the current timestamp is part of the next bucket given our current afterKey, the process can be cancelled
-                    // as it has passed into the next date_histogram bucket in the composite aggregation paging
-                    return timestamp >= nextBucket;
+                    if (nextBucketOnCancel == 0L) {
+                        // If we have been cancelled, record the bucket above our latest timestamp
+                        // This indicates when we have completed the current bucket of this timestamp and thus will move to the next
+                        // date_histogram bucket
+                        nextBucketOnCancel = Intervals.alignToCeil(timestamp, interval);
+                    }
+                    return timestamp >= nextBucketOnCancel;
                 }
                 return false;
             }, outputStream);
@@ -188,6 +191,10 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         if (isCancelled && cancellable) {
             hasNext = false;
         }
+        // Only set the after key once we have processed the search, allows us to cancel on the first page
+        CompositeAggregation compositeAgg = aggs.get(compositeAggregationBuilder.getName());
+        afterKey = compositeAgg.afterKey();
+
         return new ByteArrayInputStream(outputStream.toByteArray());
     }
 

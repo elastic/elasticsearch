@@ -30,6 +30,8 @@ public class ESIndexInputTestCase extends ESTestCase {
 
     private static EsThreadPoolExecutor executor;
 
+    private AtomicLong uniqueIdGenerator;
+
     @BeforeClass
     public static void createExecutor() {
         final String name = "TEST-" + getTestClass().getSimpleName() + "#randomReadAndSlice";
@@ -39,6 +41,12 @@ public class ESIndexInputTestCase extends ESTestCase {
     @AfterClass
     public static void destroyExecutor() {
         executor.shutdown();
+    }
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        uniqueIdGenerator = new AtomicLong();
     }
 
     /**
@@ -181,12 +189,9 @@ public class ESIndexInputTestCase extends ESTestCase {
         return output;
     }
 
-
-    private static final AtomicLong uniqueIdGenerator = new AtomicLong();
-
     // generate unique slice names for slicing index inputs because using the same slice name together with different slice sizes
     // is not supported for .cfs files and thus we have to avoid slice name collisions
-    private static String randomUniqueSliceName() {
+    private String randomUniqueSliceName() {
         return randomAlphaOfLength(10) + uniqueIdGenerator.incrementAndGet();
     }
 

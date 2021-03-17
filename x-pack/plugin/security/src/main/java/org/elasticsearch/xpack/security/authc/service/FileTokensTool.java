@@ -113,7 +113,7 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
 
         @Override
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-
+            throw new UnsupportedOperationException("remove command not implemented yet");
         }
     }
 

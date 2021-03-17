@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.security.authc.support.SecurityTokenType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.security.authc.service.ElasticServiceAccounts.ACCOUNTS;
@@ -40,14 +41,22 @@ public class ServiceAccountService {
 
     private static final Logger logger = LogManager.getLogger(ServiceAccountService.class);
 
-    private final ServiceAccountsCredentialStore serviceAccountsCredentialStore;
+    private final ServiceAccountsTokenStore serviceAccountsTokenStore;
 
-    public ServiceAccountService(ServiceAccountsCredentialStore serviceAccountsCredentialStore) {
-        this.serviceAccountsCredentialStore = serviceAccountsCredentialStore;
+    public ServiceAccountService(ServiceAccountsTokenStore serviceAccountsTokenStore) {
+        this.serviceAccountsTokenStore = serviceAccountsTokenStore;
     }
 
     public static boolean isServiceAccount(Authentication authentication) {
         return REALM_TYPE.equals(authentication.getAuthenticatedBy().getType()) && null == authentication.getLookedUpBy();
+    }
+
+    public static boolean isServiceAccountPrincipal(String principal) {
+        return ACCOUNTS.containsKey(principal);
+    }
+
+    public static Collection<String> getServiceAccountPrincipals() {
+        return ACCOUNTS.keySet();
     }
 
     // {@link org.elasticsearch.xpack.security.authc.TokenService#extractBearerTokenFromHeader extracted} from an HTTP authorization header.
@@ -88,7 +97,7 @@ public class ServiceAccountService {
             return;
         }
 
-        final ServiceAccount account = ACCOUNTS.get(token.getAccountId().serviceName());
+        final ServiceAccount account = ACCOUNTS.get(token.getAccountId().asPrincipal());
         if (account == null) {
             final ParameterizedMessage message = new ParameterizedMessage(
                 "the [{}] service account does not exist", token.getAccountId().asPrincipal());
@@ -97,7 +106,7 @@ public class ServiceAccountService {
             return;
         }
 
-        if (serviceAccountsCredentialStore.authenticate(token)) {
+        if (serviceAccountsTokenStore.authenticate(token)) {
             listener.onResponse(success(account, token, nodeName));
         } else {
             final ParameterizedMessage message = new ParameterizedMessage(
@@ -112,11 +121,11 @@ public class ServiceAccountService {
     public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
         assert isServiceAccount(authentication) : "authentication is not for service account: " + authentication;
 
-        final ServiceAccountId accountId = ServiceAccountId.fromPrincipal(authentication.getUser().principal());
-        final ServiceAccount account = ACCOUNTS.get(accountId.serviceName());
+        final String principal = authentication.getUser().principal();
+        final ServiceAccount account = ACCOUNTS.get(principal);
         if (account == null) {
             listener.onFailure(new ElasticsearchSecurityException(
-                "cannot load role for service account [" + accountId.asPrincipal() + "] - no such service account"
+                "cannot load role for service account [" + principal + "] - no such service account"
             ));
             return;
         }

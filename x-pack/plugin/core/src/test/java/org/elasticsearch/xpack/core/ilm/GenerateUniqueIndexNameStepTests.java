@@ -125,7 +125,7 @@ public class GenerateUniqueIndexNameStepTests extends AbstractStepTestCase<Gener
         }
 
         {
-            assertThat(generateValidIndexSuffix(() -> "LegalChars|||# *"), is("LegalChars"));
+            assertThat(generateValidIndexSuffix(() -> "LegalChars|||# *"), is("legalchars"));
         }
     }
 

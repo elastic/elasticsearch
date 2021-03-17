@@ -137,13 +137,13 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
      * This generates a valid unique index name by using the provided prefix, appended with a generated UUID, and the index name.
      */
     static String generateValidIndexName(String prefix, String indexName) {
-        String randomUUID = generateValidIndexSuffix(() -> UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT));
+        String randomUUID = generateValidIndexSuffix(UUIDs::randomBase64UUID);
         randomUUID = randomUUID.substring(0, Math.min(randomUUID.length(), MAX_GENERATED_UUID_LENGTH));
         return prefix + randomUUID + "-" + indexName;
     }
 
     static String generateValidIndexSuffix(Supplier<String> randomGenerator) {
-        String randomSuffix = randomGenerator.get();
+        String randomSuffix = randomGenerator.get().toLowerCase(Locale.ROOT);
         randomSuffix = randomSuffix.replaceAll(ILLEGAL_INDEXNAME_CHARS_REGEX, "");
         if (randomSuffix.length() == 0) {
             throw new IllegalArgumentException("unable to generate random index name suffix");

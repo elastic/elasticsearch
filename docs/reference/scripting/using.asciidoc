@@ -138,8 +138,8 @@ rejects the new dynamic scripts with a `circuit_breaking_exception` error.
 [[script-shorten-syntax]]
 === Shorten your script
 Using syntactic abilities that are native to Painless, you can reduce verbosity
-in your scripts and make them shorter. For example, we can shorten the previous
-script and achieve the same goal:
+in your scripts and make them shorter. Here's a simple script that we can make
+shorter:
 
 [source,console]
 ----
@@ -160,8 +160,8 @@ GET my-index-000001/_search
 ----
 // TEST[s/^/PUT my-index-000001\n/]
 
-Let's look at the original version and see how what improvements it includes
-over this current iteration:
+Let's look at a shortened version of the script to see what improvements it
+includes over the previous iteration:
 
 [source,console]
 ----
@@ -203,7 +203,7 @@ Use this abbreviated syntax anywhere that {es} supports scripts.
 === Store and retrieve scripts
 You can store and retrieve scripts from the cluster state using the `_scripts`
 endpoint. Using stored scripts can help to reduce compilation time and make
-searches faster. Use the `{id}` path element `_scripts/{id}` to refer to a
+searches faster. Use the `{id}` path element in `_scripts/{id}` to refer to a
 stored script.
 
 NOTE: Unlike regular scripts, stored scripts require that you specify a script
@@ -323,11 +323,11 @@ POST my-index-000001/_update/1
 ----
 // TEST[continued]
 
-You can also remove a tag from the list of tags. The Painless function to
-`remove` a tag takes the array index of the element you want to remove. To
-avoid a possible runtime error, you first need to make sure the tag exists. If
-the list contains duplicates of the tag, this script just removes one
-occurrence.
+You can also remove a tag from the list of tags. The `remove` method of a Java
+`List` is available in Painless. It takes the index of the element you
+want to remove. To avoid a possible runtime error, you first need to make sure
+the tag exists. If the list contains duplicates of the tag, this script just
+removes one occurrence.
 
 [source,console]
 ----

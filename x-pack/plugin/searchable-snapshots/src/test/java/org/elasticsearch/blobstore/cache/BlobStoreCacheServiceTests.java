@@ -34,10 +34,14 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class BlobStoreCacheServiceTests extends ESTestCase {
 
@@ -157,9 +161,10 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
         final List<PlainActionFuture<Void>> futures = new ArrayList<>(nbThreads);
         for (int i = 0; i < nbThreads; i++) {
             final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-            threadPool.generic().execute(() -> {
-                blobCacheService.putAsync("_repository", randomAlphaOfLength(3), "/path", 0L, BytesArray.EMPTY, future);
-            });
+            threadPool.generic()
+                .execute(
+                    () -> { blobCacheService.putAsync("_repository", randomAlphaOfLength(3), "/path", 0L, BytesArray.EMPTY, future); }
+                );
             futures.add(future);
         }
 

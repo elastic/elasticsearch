@@ -52,9 +52,6 @@ tasks.named("thirdPartyAudit").configure {
           // classes are missing
           'com.github.luben.zstd.ZstdInputStream',
           'com.github.luben.zstd.ZstdOutputStream',
-          'java.util.jar.Pack200',
-          'java.util.jar.Pack200$Packer',
-          'java.util.jar.Pack200$Unpacker',
           'javax.servlet.ServletContextEvent',
           'javax.servlet.ServletContextListener',
           'org.apache.avalon.framework.logger.Logger',
@@ -91,6 +88,13 @@ tasks.named("thirdPartyAudit").configure {
           'org.tukaani.xz.XZInputStream',
           'org.tukaani.xz.XZOutputStream'
   )
+  if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+      ignoreMissingClasses(
+          'java.util.jar.Pack200',
+          'java.util.jar.Pack200$Packer',
+          'java.util.jar.Pack200$Unpacker'
+      )
+  }
 }
 
 tasks.named("test").configure {

@@ -188,6 +188,95 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("line 1:52: token recognition error at: '\"'", e.getMessage());
     }
 
+    public void testStringWithIncorrectUnicodeEscapedChars() {
+        // Wrong hex digits
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\\u00U1\""));
+        assertEquals("line 1:1: token recognition error at: '\"\\u00U'", e.getMessage());
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\\u{00AFU1}\""));
+        assertEquals("line 1:1: token recognition error at: '\"\\u{00AFU'", e.getMessage());
+
+        // Wrong number of hex digits
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\\u001\""));
+        assertEquals("line 1:1: token recognition error at: '\"\\u001\"'", e.getMessage());
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\\u{D}\""));
+        assertEquals("line 1:2: Unicode sequence in curly braces should use [2-8] hex digits, [\\u{D}] has [1]", e.getMessage());
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\\u{00AFD1431}\""));
+        assertEquals("line 1:2: Unicode sequence in curly braces should use [2-8] hex digits, [\\u{00AFD1431}] has [9]", e.getMessage());
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\\u{}\""));
+        assertEquals("line 1:1: token recognition error at: '\"\\u{}'", e.getMessage());
+
+        // Missing curly brace
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\\u{DA12\""));
+        assertEquals("line 1:1: token recognition error at: '\"\\u{DA12\"'", e.getMessage());
+
+        // Missing opening curly brace but with 4 hex digits is accepted,
+        // as the closing brace on the 5th position is considered a normal char.
+        assertEquals(new Literal(null, "ǰ}", DataTypes.KEYWORD), expr("\"\\u01f0}\""));
+
+        // Null (all zeros escaped sequence)
+        StringBuilder zeros = new StringBuilder("0");
+        for (int i = 1; i < 8; i++) {
+            zeros.append("0");
+            e = expectThrows(ParsingException.class, "Expected syntax error",
+                    () -> expr("\"\\u{" + zeros.toString() + "}\""));
+            assertEquals("line 1:2: Unicode sequence results in null", e.getMessage());
+        }
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\\u0000\""));
+        assertEquals("line 1:2: Unicode sequence results in null", e.getMessage());
+
+        // Inv
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\\u{10000000}\""));
+        assertEquals("line 1:2: Invalid unicode character code [10000000]", e.getMessage());
+    }
+
+    public void testStringWithUnicodeEscapedChars() {
+        String strPadding = randomAlphaOfLength(randomInt(10));
+        String[][] strings = new String[][] {
+            { "\\u0021", "!" },
+            { "\\u{41}", "A" },
+            { "\\u{075}", "u" },
+            { "\\u{00eb}", "ë" },
+            { "\\u{1f0}", "ǰ" },
+            { "\\u0398", "Θ" },
+            { "\\u07e1", "ߡ" },
+            { "\\u{017e1}", "១" },
+            { "\\u2140", "⅀" },
+            { "\\u{02263}", "≣" },
+            { "\\u{0003289}", "㊉" },
+            { "\\u6d89", "涉" },
+            { "\\u{00007c71}", "籱" },
+            { "\\u{1680b}", "𖠋" },
+            { "\\u{01f4a9}", "💩" },
+            { "\\u{0010989}", "\uD802\uDD89"}
+        };
+
+        StringBuilder sbExpected = new StringBuilder();
+        StringBuilder sbInput = new StringBuilder();
+        for (String[] str : strings) {
+            assertEquals(
+                new Literal(null, strPadding + str[1] + strPadding, DataTypes.KEYWORD),
+                expr('"' + strPadding + str[0] + strPadding + '"')
+            );
+
+            sbInput.append(strPadding).append(str[0]);
+            sbExpected.append(strPadding).append(str[1]);
+        }
+        assertEquals(new Literal(null, sbExpected.toString(), DataTypes.KEYWORD), expr('"' + sbInput.toString() + '"'));
+    }
+
     public void testNumbers() {
         assertEquals(new Literal(null, 8589934592L, DataTypes.LONG), expr("8589934592"));
         assertEquals(new Literal(null, 5, DataTypes.INTEGER), expr("5"));

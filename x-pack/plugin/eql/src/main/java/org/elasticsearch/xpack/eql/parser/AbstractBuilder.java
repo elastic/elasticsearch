@@ -137,7 +137,8 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
         checkForSingleQuotedString(source, text, 0);
 
         text = text.substring(1, text.length() - 1);
-        StringBuffer resultString = new StringBuffer();
+        text = handleUnicodeChars(source, text);
+        StringBuilder resultString = new StringBuilder();
         Matcher regexMatcher = slashPattern.matcher(text);
 
         while (regexMatcher.find()) {
@@ -181,6 +182,50 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
         regexMatcher.appendTail(resultString);
 
         return resultString.toString();
+    }
+
+    private static String handleUnicodeChars(Source source, String text) {
+        StringBuilder sb = new StringBuilder();
+
+        int startIdx = 0;
+        int endIdx = 0;
+        int idx = text.indexOf("\\u");
+        while (idx >= 0) {
+            String fullSequence;
+            String unicodeSequence;
+            if (text.charAt(idx + 2) == '{') {
+                endIdx = text.indexOf("}", idx + 1) + 1;
+                unicodeSequence = text.substring(idx + 3, endIdx - 1);
+                int length = unicodeSequence.length();
+                if (length < 2 || length > 8) {
+                    throw new ParsingException(source, "Unicode sequence in curly braces should use [2-8] hex digits, [{}] has [{}]",
+                            text.substring(idx, endIdx), length);
+                }
+                unicodeSequence = text.substring(idx + 3, endIdx - 1);
+            } else {
+                endIdx = idx + 6;
+                unicodeSequence = text.substring(idx + 2, endIdx);
+            }
+            sb.append(text, startIdx, idx).append(hexToUnicode(source, unicodeSequence));
+            idx = text.indexOf("\\u", endIdx);
+            startIdx = endIdx;
+        }
+        if (endIdx < text.length()) {
+            sb.append(text.substring(endIdx));
+        }
+        return sb.toString();
+    }
+
+    private static String hexToUnicode(Source source, String hex) {
+        int code = Integer.parseInt(hex, 16);
+        if (code == 0) {
+            throw new ParsingException(source, "Unicode sequence results in null");
+        }
+        try {
+            return String.valueOf(Character.toChars(code));
+        } catch (IllegalArgumentException e) {
+            throw new ParsingException(source, "Invalid unicode character code [{}]", hex);
+        }
     }
 
     private static void checkForSingleQuotedString(Source source, String text, int i) {

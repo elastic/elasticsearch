@@ -31,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TimeZone;
 
 import org.elasticsearch.common.SuppressForbidden;
 
@@ -44,6 +45,7 @@ import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.dateTimeAsMillisSin
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsMillisSinceEpoch;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTimestamp;
+import static org.elasticsearch.xpack.sql.jdbc.TypeUtils.baseType;
 import static org.elasticsearch.xpack.sql.jdbc.TypeUtils.isArray;
 
 class JdbcResultSet implements ResultSet, JdbcWrapper {
@@ -54,6 +56,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     // instead of dealing with longs, a Calendar object is used instead
     private final Calendar defaultCalendar;
 
+    private final TimeZone timeZone;
     private final JdbcStatement statement;
     private final Cursor cursor;
     private final Map<String, Integer> nameToIndex = new LinkedHashMap<>();
@@ -64,12 +67,12 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     private int rowNumber;
 
-    JdbcResultSet(JdbcConfiguration cfg, @Nullable JdbcStatement statement, Cursor cursor) {
+    JdbcResultSet(TimeZone timeZone, @Nullable JdbcStatement statement, Cursor cursor) {
+        this.timeZone = timeZone;
         this.statement = statement;
         this.cursor = cursor;
-        // statement can be null so we have to extract the timeZone from the non-nullable cfg
         // TODO: should we consider the locale as well?
-        this.defaultCalendar = Calendar.getInstance(cfg.timeZone(), Locale.ROOT);
+        this.defaultCalendar = Calendar.getInstance(timeZone, Locale.ROOT);
 
         List<JdbcColumnInfo> columns = cursor.columns();
         for (int i = 0; i < columns.size(); i++) {
@@ -939,7 +942,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         if (isArray(type) == false) {
             throw new SQLException("Cannot get column [" + columnIndex + "] of type [" + type.getName() + "] as array");
         }
-        return new JdbcArray(type, (List<?>) getObject(columnIndex));
+        return new JdbcArray(timeZone, baseType(type), (List<?>) getObject(columnIndex));
     }
 
     @Override

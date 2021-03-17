@@ -232,6 +232,10 @@ public final class Verifier {
                 checkMatrixStats(p, localFailures);
                 checkCastOnInexact(p, localFailures);
                 checkBinaryHasDocValues(p, localFailures);
+                // restricted array usage
+                checkForRestrictedFunctionInsideFunction(p, Array.class, localFailures);
+                checkArrayFunctionUsedInWhereOrOrderByOrAggregate(p, localFailures);
+                checkArrayFunctionArguments(p, localFailures);
 
                 // restricted array usage
                 checkForRestrictedFunctionInsideFunction(p, Array.class, localFailures);

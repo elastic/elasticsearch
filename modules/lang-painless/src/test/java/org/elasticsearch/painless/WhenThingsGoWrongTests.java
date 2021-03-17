@@ -850,16 +850,4 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
                 exec("def test = ['hostname': 'somehostname']; test?.hostname && params.host.hostname != ''"));
         expectScriptThrows(NullPointerException.class, () -> exec("params?.host?.hostname && params.host?.hostname != ''"));
     }
-
-    public void testDisallowUnreadObjects() {
-        IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("int i = 1; new ArrayList(1); return i;"));
-        assertEquals(iae.getMessage(), "not a statement: new object with constructor [ArrayList/1] not used");
-        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new HashSet(); return 1;"));
-        assertEquals(iae.getMessage(), "not a statement: new object with constructor [HashSet/0] not used");
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("void foo() { new HashMap(); new ArrayList(); } return 1;"));
-        assertEquals(iae.getMessage(), "not a statement: new object with constructor [HashMap/0] not used");
-    }
-
 }

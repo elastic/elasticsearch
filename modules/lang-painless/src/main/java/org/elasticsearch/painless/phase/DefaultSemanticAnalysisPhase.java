@@ -1654,12 +1654,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                             "[" + canonicalTypeName + "/" + userArgumentsSize + "]"));
         }
 
-        if (semanticScope.getCondition(userNewObjNode, Read.class) == false) {
-            throw userNewObjNode.createError(new IllegalArgumentException(
-                    "not a statement: new object with constructor " +
-                            "[" + canonicalTypeName + "/" + userArgumentsSize + "] not used"));
-        }
-
         ScriptScope scriptScope = semanticScope.getScriptScope();
         Class<?> valueType = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 

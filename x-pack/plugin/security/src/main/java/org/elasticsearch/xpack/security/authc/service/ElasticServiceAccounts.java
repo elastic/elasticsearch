@@ -39,8 +39,8 @@ final class ElasticServiceAccounts {
             null
         ));
 
-    static Map<String, ServiceAccount> ACCOUNTS = List.of(FLEET_ACCOUNT).stream()
-        .collect(Collectors.toMap(a -> a.id().serviceName(), Function.identity()));;
+    static final Map<String, ServiceAccount> ACCOUNTS = List.of(FLEET_ACCOUNT).stream()
+        .collect(Collectors.toMap(a -> a.id().asPrincipal(), Function.identity()));;
 
     private ElasticServiceAccounts() {}
 

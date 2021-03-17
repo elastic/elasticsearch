@@ -26,21 +26,31 @@ public class InjectAllowedWarnings extends FeatureInjector implements RestTestTr
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
     private final List<String> allowedWarnings;
+    private final boolean isRegex;
 
     /**
      * @param allowedWarnings The allowed warnings to inject
      */
     public InjectAllowedWarnings(List<String> allowedWarnings) {
+        this(false, allowedWarnings);
+    }
+
+    /**
+     * @param isRegex true if should inject the regex variant of allowed warnings
+     * @param allowedWarnings The allowed warnings to inject
+     */
+    public InjectAllowedWarnings(boolean isRegex, List<String> allowedWarnings) {
+        this.isRegex = isRegex;
         this.allowedWarnings = allowedWarnings;
     }
 
     @Override
     public void transformTest(ObjectNode doNodeParent) {
         ObjectNode doNodeValue = (ObjectNode) doNodeParent.get(getKeyToFind());
-        ArrayNode arrayWarnings = (ArrayNode) doNodeValue.get("allowed_warnings");
+        ArrayNode arrayWarnings = (ArrayNode) doNodeValue.get(getSkipFeatureName());
         if (arrayWarnings == null) {
             arrayWarnings = new ArrayNode(jsonNodeFactory);
-            doNodeValue.set("allowed_warnings", arrayWarnings);
+            doNodeValue.set(getSkipFeatureName(), arrayWarnings);
         }
         allowedWarnings.forEach(arrayWarnings::add);
     }
@@ -52,9 +62,9 @@ public class InjectAllowedWarnings extends FeatureInjector implements RestTestTr
     }
 
     @Override
-    @Internal
+    @Input
     public String getSkipFeatureName() {
-        return "allowed_warnings";
+        return isRegex ? "allowed_warnings_regex" : "allowed_warnings";
     }
 
     @Input

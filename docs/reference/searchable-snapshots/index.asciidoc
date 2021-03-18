@@ -29,7 +29,7 @@ regular index, with minimal need to access the snapshot repository.
 
 [[shared-cache]]
 Shared cache::
-Uses a local cache containing frequently searched parts of the snapshotted
+Uses a local cache containing only frequently searched parts of the snapshotted
 index's data. The frozen tier uses this option by default.
 +
 If a search requires data that's not in the cache, {es} lazily fetches the data
@@ -37,9 +37,12 @@ as needed from the snapshot repository. Searches that require these fetches are
 slower, but repeated searches are served more quickly from the cache.
 +
 Although slower than a full local copy or a regular index, the shared snapshot
-cache still returns results quickly, even for large data sets. This option
-decouples compute and storage, letting you run searches with minimal compute
-resources.
+cache still returns search results quickly, even for large data sets. This
+option decouples compute and storage, letting you run searches with minimal
+compute resources.
++
+IMPORTANT: The shared cache option requires additional node configuration. See
+<<searchable-snapshots-shared-cache>>.
 
 [discrete]
 [[using-searchable-snapshots]]
@@ -129,9 +132,9 @@ the background. You can search these shards even if they are not fully restored.
 If a search hits such a shard before it's fully restored, {es} eagerly retrieves
 the data needed to complete the search.
 
-If you mounted a shared snapshot cache, {es} only stores small parts of the data
-locally on a node in the cluster. The shared cache has a fixed size and evicts
-infrequently used parts of the cache.
+If you mounted a shared snapshot cache, {es} only stores frequently searched
+parts of the qdata locally on a node in the cluster. The shared cache has a fixed
+size and evicts infrequently used parts of the cache.
 
 Replicas of {search-snap} shards are recovered by accessing the data from the
 snapshot repository. In contrast, replicas of regular indices are restored by
@@ -193,7 +196,7 @@ For example:
 
 [source,yaml]
 ----
-xpack.searchable.snapshot.shared_cache.size: "4TB"
+xpack.searchable.snapshot.shared_cache.size: 4TB
 ----
 
 IMPORTANT: Currently, you can configure
@@ -203,7 +206,7 @@ you will only be able to configure this setting on nodes with the
 
 You can set `xpack.searchable.snapshot.shared_cache.size` to any size between a
 couple of gigabytes up to 90% of available disk space. We only recommend higher
-sizes you use the node exclusively as a frozen tier or for searchable snapshots.
+sizes you use the node exclusively on a frozen tier or for searchable snapshots.
 
 [discrete]
 [[searchable-snapshots-frozen-tier-on-cloud]]
@@ -228,13 +231,10 @@ you can dedicate the tier exclusively to the shared snapshot cache.
 {es} tier.
 
 . In the `elasticsearch.yml` file, add the
-`xpack.searchable.snapshot.shared_cache.size` setting. For example:
+<<searchable-snapshots-shared-cache,`xpack.searchable.snapshot.shared_cache.size`>>
+setting. For example:
 +
 [source,yaml]
 ----
 xpack.searchable.snapshot.shared_cache.size: 50GB
 ----
-+
-You can configure the cache size from just a few gigabytes to up to 90% of the
-available disk space. Shared tiers typically have a smaller cache size while
-dedicated tiers should use most of the available disk space.

@@ -123,7 +123,7 @@ logs, metrics, and traces. EQL supports matching for event sequences. See
 
 [[glossary-field]] field::
 // tag::field-def[]
-Key-value pair in an {es} <<glossary-document,document>>. See
+Key-value pair in a <<glossary-document,document>>. See
 {ref}/mapping.html[Mapping].
 // end::field-def[]
 
@@ -210,8 +210,8 @@ metrics. This tier holds your most recent, most-frequently-accessed data. See
 
 [[glossary-id]] id::
 // tag::id-def[]
-Identifier for a <<glossary-document,document>> in {es}. Document IDs must be
-unique within an index. See the {ref}/mapping-id-field.html[`_id` field].
+Identifier for a <<glossary-document,document>>. Document IDs must be unique
+within an index. See the {ref}/mapping-id-field.html[`_id` field].
 // end::id-def[]
 
 [[glossary-index]] index::
@@ -299,9 +299,9 @@ See {ref}/scalability.html[Clusters, nodes, and shards].
 
 [[glossary-primary-shard]] primary shard::
 // tag::primary-shard-def[]
-Lucene instance containing some or all data for an {es} index. When you index a
-<<glossary-document,document>>, {es} first adds the document to the primary
-shard before <<glossary-replica-shard,replica shards>>. See
+Lucene instance containing some or all data for an <<glossary-index,index>>.
+When you index a <<glossary-document,document>>, {es} adds a document to primary
+shards before <<glossary-replica-shard,replica shards>>. See
 {ref}/scalability.html[Clusters, nodes, and shards].
 // end::primary-shard-def[]
 
@@ -432,9 +432,9 @@ segments automatically.
 
 [[glossary-shard]] shard::
 // tag::shard-def[]
-Lucene instance containing some or all data for an {es} index. {es}
-automatically creates and manages these Lucene instances. There are two types of
-shards: <<glossary-primary-shard,primary>> and
+Lucene instance containing some or all data for an <<glossary-index,index>>.
+{es} automatically creates and manages these Lucene instances. There are two
+types of shards: <<glossary-primary-shard,primary>> and
 <<glossary-replica-shard,replica>>. See {ref}/scalability.html[Clusters, nodes,
 and shards].
 // end::shard-def[]
@@ -449,10 +449,10 @@ See the {ref}/indices-shrink-index.html[shrink index API].
 
 [[glossary-snapshot]] snapshot::
 // tag::snapshot-def[]
-Backup taken of a running {es} <<glossary-cluster,cluster>>. You can take
-snapshots of the entire cluster or only specific <<glossary-data-stream,data
-streams>> and <<glossary-index,indices>>. See
-{ref}/snapshot-restore.html[Snapshot and restore].
+Backup taken of a running <<glossary-cluster,cluster>>. You can take snapshots
+of the entire cluster or only specific <<glossary-data-stream,data streams>> and
+<<glossary-index,indices>>. See {ref}/snapshot-restore.html[Snapshot and
+restore].
 // end::snapshot-def[]
 
 [[glossary-snapshot-lifecycle-policy]] snapshot lifecycle policy::
@@ -464,9 +464,9 @@ to retain the resulting <<glossary-snapshot,snapshots>>. See
 
 [[glossary-snapshot-repository]] snapshot repository::
 // tag::snapshot-repository-def[]
-Location where <<glossary-snapshot,snapshot backups>> are stored. A snapshot
-repository can be a shared filesystem or a remote repository, such as Azure or
-Google Cloud Storage. See {ref}/snapshot-restore.html[Snapshot and restore].
+Location where <<glossary-snapshot,snapshots>> are stored. A snapshot repository
+can be a shared filesystem or a remote repository, such as Azure or Google Cloud
+Storage. See {ref}/snapshot-restore.html[Snapshot and restore].
 // end::snapshot-repository-def[]
 
 [[glossary-source_field]] source field::

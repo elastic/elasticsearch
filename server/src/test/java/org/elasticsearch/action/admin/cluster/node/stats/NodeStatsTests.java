@@ -491,21 +491,34 @@ public class NodeStatsTests extends ESTestCase {
             : null;
         IngestStats ingestStats = null;
         if (frequently()) {
-            IngestStats.Stats totalStats = new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-                    randomNonNegativeLong());
             int numPipelines = randomIntBetween(0, 10);
             int numProcessors = randomIntBetween(0, 10);
+            long maxStatValue = Long.MAX_VALUE / numPipelines / numProcessors;
+            IngestStats.Stats totalStats = new IngestStats.Stats(
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue)
+            );
             List<IngestStats.PipelineStat> ingestPipelineStats = new ArrayList<>(numPipelines);
             Map<String, List<IngestStats.ProcessorStat>> ingestProcessorStats = new HashMap<>(numPipelines);
             for (int i = 0; i < numPipelines; i++) {
                 String pipelineId = randomAlphaOfLengthBetween(3, 10);
-                ingestPipelineStats.add(new IngestStats.PipelineStat(pipelineId,  new IngestStats.Stats
-                    (randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())));
+                ingestPipelineStats.add(new IngestStats.PipelineStat(pipelineId,  new IngestStats.Stats(
+                    randomLongBetween(0, maxStatValue),
+                    randomLongBetween(0, maxStatValue),
+                    randomLongBetween(0, maxStatValue),
+                    randomLongBetween(0, maxStatValue))
+                ));
 
                 List<IngestStats.ProcessorStat> processorPerPipeline = new ArrayList<>(numProcessors);
                 for (int j =0; j < numProcessors;j++) {
-                    IngestStats.Stats processorStats = new IngestStats.Stats
-                        (randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+                    IngestStats.Stats processorStats = new IngestStats.Stats(
+                        randomLongBetween(0, maxStatValue),
+                        randomLongBetween(0, maxStatValue),
+                        randomLongBetween(0, maxStatValue),
+                        randomLongBetween(0, maxStatValue)
+                    );
                     processorPerPipeline.add(new IngestStats.ProcessorStat(randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10), processorStats));
                 }

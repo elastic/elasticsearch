@@ -322,7 +322,7 @@ available for searches. See the {ref}/indices-recovery.html[index recovery API].
 [[glossary-reindex]] reindex::
 // tag::reindex-def[]
 Copies documents from a source to a destination. The source and destination can
-be an <<glossary-data-stream,data stream>>, <<glossary-index,index>>, or
+be a <<glossary-data-stream,data stream>>, <<glossary-index,index>>, or
 <<glossary-index-alias,index alias>>. See the {ref}/docs-reindex.html[Reindex
 API].
 // end::reindex-def[]

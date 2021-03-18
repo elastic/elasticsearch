@@ -191,7 +191,6 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
         int endIdx = 0;
         int idx = text.indexOf("\\u");
         while (idx >= 0) {
-            String fullSequence;
             String unicodeSequence;
             if (text.charAt(idx + 2) == '{') {
                 endIdx = text.indexOf("}", idx + 1) + 1;
@@ -201,7 +200,6 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
                     throw new ParsingException(source, "Unicode sequence in curly braces should use [2-8] hex digits, [{}] has [{}]",
                             text.substring(idx, endIdx), length);
                 }
-                unicodeSequence = text.substring(idx + 3, endIdx - 1);
             } else {
                 endIdx = idx + 6;
                 unicodeSequence = text.substring(idx + 2, endIdx);

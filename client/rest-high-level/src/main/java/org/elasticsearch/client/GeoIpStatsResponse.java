@@ -28,8 +28,9 @@ public class GeoIpStatsResponse {
     private static final ConstructingObjectParser<GeoIpStatsResponse, Void> PARSER = new ConstructingObjectParser<>("geoip_stats", a -> {
         Map<String, Object> stats = (Map<String, Object>) a[0];
         List<Tuple<String, NodeInfo>> nodes = (List<Tuple<String, NodeInfo>>) a[1];
+
         return new GeoIpStatsResponse((int) stats.get("successful_downloads"), (int) stats.get("failed_downloads"),
-            (long) stats.get("total_download_time"), (int) stats.get("database_count"), (int) stats.get("skipped_updates"),
+            ((Number)stats.get("total_download_time")).longValue(), (int) stats.get("databases_count"), (int) stats.get("skipped_updates"),
             nodes.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
     });
 
@@ -81,7 +82,7 @@ public class GeoIpStatsResponse {
     }
 
     public static GeoIpStatsResponse fromXContent(XContentParser parser) {
-        return null;
+        return PARSER.apply(parser, null);
     }
 
     public static final class NodeInfo {

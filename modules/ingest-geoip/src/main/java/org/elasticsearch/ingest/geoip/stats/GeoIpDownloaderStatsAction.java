@@ -155,7 +155,7 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
 
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
-            stats = new GeoIpDownloaderStats(in);
+            stats = in.readBoolean() ? new GeoIpDownloaderStats(in) : null;
             databases = in.readSet(StreamInput::readString);
             filesInTemp = in.readSet(StreamInput::readString);
         }
@@ -170,7 +170,10 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            stats.writeTo(out);
+            out.writeBoolean(stats != null);
+            if (stats != null) {
+                stats.writeTo(out);
+            }
             out.writeCollection(databases, StreamOutput::writeString);
             out.writeCollection(filesInTemp, StreamOutput::writeString);
         }

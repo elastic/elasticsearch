@@ -18,16 +18,23 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.junit.After;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, maxNumDataNodes = 1)
 public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
 
     private static final String ENDPOINT = System.getProperty("geoip_endpoint");
@@ -59,7 +66,12 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
         GeoIpDownloaderStatsAction.Request req = new GeoIpDownloaderStatsAction.Request();
         GeoIpDownloaderStatsAction.Response response = client().execute(GeoIpDownloaderStatsAction.INSTANCE, req).actionGet();
         XContentTestUtils.JsonMapView jsonMapView = new XContentTestUtils.JsonMapView(convertToMap(response));
-        assertEquals(0, (int) jsonMapView.get("stats.successful_downloads"));
+        assertThat(jsonMapView.get("stats.successful_downloads"), equalTo(0));
+        assertThat(jsonMapView.get("stats.failed_downloads"), equalTo(0));
+        assertThat(jsonMapView.get("stats.skipped_updates"), equalTo(0));
+        assertThat(jsonMapView.get("stats.databases_count"), equalTo(0));
+        assertThat(jsonMapView.get("stats.total_download_time"), equalTo(0));
+        assertEquals(0, jsonMapView.<Map<String, Object>>get("nodes").size());
 
 
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
@@ -70,6 +82,17 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
 
         assertBusy(() -> {
             GeoIpDownloaderStatsAction.Response res = client().execute(GeoIpDownloaderStatsAction.INSTANCE, req).actionGet();
+            XContentTestUtils.JsonMapView view = new XContentTestUtils.JsonMapView(convertToMap(res));
+            assertThat(view.get("stats.successful_downloads"), equalTo(3));
+            assertThat(view.get("stats.failed_downloads"), equalTo(0));
+            assertThat(view.get("stats.skipped_updates"), equalTo(0));
+            assertThat(view.get("stats.databases_count"), equalTo(3));
+            assertThat(view.get("stats.total_download_time"), greaterThan(0));
+            String id = clusterService().localNode().getId();
+            List<Map<String, Object>> databases = view.get("nodes." + id + ".databases");
+
+            assertThat(databases.stream().map(m -> m.get("name")).collect(Collectors.toSet()),
+                containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb", "GeoLite2-Country.mmdb"));
         });
     }
 

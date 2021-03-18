@@ -53,25 +53,26 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
 /**
  * A component that is responsible for making the databases maintained by {@link GeoIpDownloader}
  * available for ingest processors.
- *
+ * <p>
  * Also provided a lookup mechanism for geoip processors with fallback to {@link LocalDatabases}.
  * All databases are downloaded into a geoip tmp directory, which is created at node startup.
- *
+ * <p>
  * The following high level steps are executed after each cluster state update:
  * 1) Check which databases are available in {@link GeoIpTaskState},
- *    which is part of the geoip downloader persistent task.
+ * which is part of the geoip downloader persistent task.
  * 2) For each database check whether the databases have changed
- *    by comparing the local and remote md5 hash or are locally missing.
+ * by comparing the local and remote md5 hash or are locally missing.
  * 3) For each database identified in step 2 start downloading the database
- *    chunks. Each chunks is appended to a tmp file (inside geoip tmp dir) and
- *    after all chunks have been downloaded, the database is uncompressed and
- *    renamed to the final filename.After this the database is loaded and
- *    if there is an old instance of this database then that is closed.
+ * chunks. Each chunks is appended to a tmp file (inside geoip tmp dir) and
+ * after all chunks have been downloaded, the database is uncompressed and
+ * renamed to the final filename.After this the database is loaded and
+ * if there is an old instance of this database then that is closed.
  * 4) Cleanup locally loaded databases that are no longer mentioned in {@link GeoIpTaskState}.
  */
 public final class DatabaseRegistry implements Closeable {
@@ -131,7 +132,7 @@ public final class DatabaseRegistry implements Closeable {
 
             @Override
             public FileVisitResult visitFileFailed(Path file, IOException e) {
-                if(e instanceof NoSuchFileException == false) {
+                if (e instanceof NoSuchFileException == false) {
                     LOGGER.warn("can't delete stale file [" + file + "]", e);
                 }
                 return FileVisitResult.CONTINUE;
@@ -356,13 +357,13 @@ public final class DatabaseRegistry implements Closeable {
         }
     }
 
-    public Set<String> getAvailableDatabases(){
+    public Set<String> getAvailableDatabases() {
         return Set.copyOf(databases.keySet());
     }
 
-    public Set<String> getFilesInTemp(){
-        try {
-            return Files.list(geoipTmpDirectory).map(Path::getFileName).map(Path::toString).collect(Collectors.toSet());
+    public Set<String> getFilesInTemp() {
+        try (Stream<Path> files = Files.list(geoipTmpDirectory)) {
+            return files.map(Path::getFileName).map(Path::toString).collect(Collectors.toSet());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

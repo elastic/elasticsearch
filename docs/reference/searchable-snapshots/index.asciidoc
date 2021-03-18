@@ -29,8 +29,8 @@ regular index, with minimal need to access the snapshot repository.
 
 [[shared-cache]]
 Shared cache::
-Loads only a local cache of the snapshotted index's data. This cache is shared
-across the cluster's nodes. The frozen tier uses this option by default.
+Uses a local cache containing frequently searched parts of the snapshotted
+index's data. The frozen tier uses this option by default.
 +
 If a search requires data that's not in the cache, {es} lazily fetches the data
 as needed from the snapshot repository. Searches that require these fetches are
@@ -63,8 +63,8 @@ You typically manage {search-snaps} through {ilm-init}. The
 <<ilm-searchable-snapshot, searchable snapshots>> action automatically converts
 a regular index into a {search-snap} index when it reaches the `cold` or
 `frozen` phase. You can also make indices in existing snapshots searchable by
-manually mounting them as {search-snap} indices with the
-<<searchable-snapshots-api-mount-snapshot, mount snapshot>> API.
+manually mounting them using the <<searchable-snapshots-api-mount-snapshot,
+mount snapshot>> API.
 
 To mount an index from a snapshot that contains multiple indices, we recommend
 creating a <<clone-snapshot-api, clone>> of the snapshot that contains only the
@@ -115,24 +115,23 @@ as long as they are fully compatible.
 When an index is mounted from a snapshot, {es} allocates its shards to data
 nodes within the cluster. The data nodes then automatically retrieve the
 relevant shard data from the repository onto local storage, based on the mount
-options specified. Searches use the data held in local storage and, if not
-locally available, download the necessary data from the repository. This avoids
-incurring the cost or performance penalty associated with reading data from the
-repository when the data is locally available.
+options specified. If possible, searches use the data from local storage. If the
+data is not available locally, download the {es} downloads the needed data from
+the snapshot repository.
 
 If a node holding one of these shards fails, {es} automatically allocates it to
 another node, and that node restores the relevant shard data again from the
 repository. No replicas are needed, and no complicated monitoring or orchestration
 is necessary to restore lost shards.
 
-In the "full copy" mode, {es} restores a full copy of the {search-snap} shards
-in the background and you can search them even if they have not been fully
-restored just yet. If a search hits such a {search-snap} shard before it has been
-fully restored, {es} eagerly retrieves the data needed to complete the search.
+If you mounted a full copy of an index, {es} restores the {search-snap} shards in
+the background. You can search these shards even if they are not fully restored.
+If a search hits such a shard before it's fully restored, {es} eagerly retrieves
+the data needed to complete the search.
 
-In the "shared cache" mode, {es} only stores small parts of the data locally on
-a node in the cluster. This node-local shared cache has a fixed size and evicts
-mapped file parts based on a "least-frequently-used" policy.
+If you mounted a shared snapshot cache, {es} only stores small parts of the data
+locally on a node in the cluster. The shared cache has a fixed size and evicts
+infrequently used parts of the cache.
 
 Replicas of {search-snaps} shards are recovered by accessing the data from the
 snapshot repository. In contrast, replicas of regular indices are restored by
@@ -180,57 +179,62 @@ repository storage then you are responsible for its reliability.
 
 experimental::[]
 
-Using {search-snap} in the "shared cache" mode, where only parts of the
-data are locally cached on the nodes in the cluster, requires configuring a
-shared snapshot cache which is used to hold a copy of just the
-frequently-accessed parts of shards of indices which are mounted with
-`?storage=shared_cache`. The `shared_cache` storage option is for example used
-by the <<ilm-searchable-snapshot,ILM searchable snapshot action>> in the
-<<frozen-tier,frozen tier>>.
-
-If you configure a node to have a shared cache (disabled by default) then
-that node will fully reserve the specified amount of space for the cache at
-start up. Indices mounted with the `shared_cache` option can only be allocated
-to nodes that have the shared cache explicitly configured.
+To mount a shared cache of a snapshot, you must reserve space
+for the cache using the `xpack.searchable.snapshot.shared_cache.size` setting.
+Indices mounted as shared cache can only be allocated to nodes that have this
+setting explicitly configured.
 
 `xpack.searchable.snapshot.shared_cache.size`::
 (<<static-cluster-setting,Static>>, <<byte-units,byte value>>)
 The size of the space reserved for the shared cache. Defaults to `0b`, meaning
 that the node has no shared cache.
 
-A reasonable value for the shared cache is anything between a couple of
-gigabytes up to 90% of available disk space, if the node is to be exclusively
-used for indices mounted with the `shared_cache` option.
-
-NOTE: The shared cache can currently be configured on any node. In the future
-this will be restricted to nodes having the <<frozen-tier,frozen tier>> data
-role.
-
-[discrete]
-[[searchable-snapshots-shared-cache-ex]]
-==== Example
-
-Configuring a shared cache that can hold up to 4 terabytes of data is done by
-adding the following line to your `elasticsearch.yml` file:
+For example:
 
 [source,yaml]
---------------------------------------------------
+----
 xpack.searchable.snapshot.shared_cache.size: "4TB"
---------------------------------------------------
+----
+
+IMPORTANT: Currently, you can configure
+`xpack.searchable.snapshot.shared_cache.size` on any node. In a future release,
+you will only be able to configure this setting on nodes with the
+<<data-frozen-node,frozen data>> node role.
+
+You can set `xpack.searchable.snapshot.shared_cache.size` to any size between a
+couple of gigabytes up to 90% of available disk space. We only recommend higher
+sizes you use the node exclusively as a frozen tier or for searchable snapshots.
 
 [discrete]
 [[searchable-snapshots-frozen-tier-on-cloud]]
-==== Configuring the shared snapshot cache for the frozen tier on {ess}
+==== Configure a frozen tier on the {ess}
 
-On {ess}, the frozen tier is not fully integrated yet and requires a simple
-manual configuration step.
+The frozen data tier is not yet available on the {ess-trial}[{ess}]. However,
+you can configure another tier to use a <<shared-cache,shared snapshot cache>>.
+This effectively recreates a frozen tier in your {ess} deployment. Follow these
+steps:
 
-Users in {ess} will have to chose one of the existing tiers in Cloud
-(hot/warm/cold) to run the frozen tier functionality on. This can be configured
-by link:{cloud}/ec-add-user-settings.html[adding the `xpack.searchable.snapshot.shared_cache.size` user setting]
-to one of the existing tiers in the Elasticsearch Service Console.
+. Choose an existing tier to use. Typically, you'll use the cold tier, but the
+hot and warm tiers are also supported. You can use this tier as a shared tier or
+dedicate the tier exclusively to the shared snapshot cache.
 
-Depending on whether the hot/warm/cold tier is to be exclusively used for the
-new frozen functionality or whether it is to be shared with other data
-on that tier, the shared_cache.size can be configured from just a few
-gigabytes up to 90% of the available disk space.
+. Log in to the {ess-trial}[{ess} Console].
+
+. Select your deployment from the {ess} home page or the deployments page.
+
+. From your deployment menu, select **Edit deployment**.
+
+. On the **Edit** page, click **Edit elasticsearch.yml**` under your selected
+{es} tier.
+
+. In the `elasticsearch.yml` file, add the
+`xpack.searchable.snapshot.shared_cache.size` setting.
++
+[source,yaml]
+----
+xpack.searchable.snapshot.shared_cache.size: 50GB
+----
++
+You can configure the cache size from just a few gigabytes to up to 90% of the
+available disk space. Shared tiers typically have a smaller cache size while
+dedicated tiers should use most of the available disk.

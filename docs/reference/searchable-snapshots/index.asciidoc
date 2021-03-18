@@ -120,7 +120,7 @@ data is not available locally, download the {es} downloads the needed data from
 the snapshot repository.
 
 If a node holding one of these shards fails, {es} automatically allocates it to
-another node, and that node restores the relevant shard data again from the
+another node, and that node restores the relevant shard data from the
 repository. No replicas are needed, and no complicated monitoring or orchestration
 is necessary to restore lost shards.
 

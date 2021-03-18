@@ -96,8 +96,8 @@ streams].
 Collection of <<glossary-node,nodes>> with the same {ref}/modules-node.html[data
 role] that typically share the same hardware profile. Data tiers include the
 <<glossary-content-tier, content tier>>, <<glossary-hot-tier, hot tier>>,
-<<glossary-warm-tier, warm tier>>, and <<glossary-cold-tier, cold tier>>. See
-{ref}/data-tiers.html[Data tiers].
+<<glossary-warm-tier, warm tier>>, <<glossary-cold-tier, cold tier>>, and
+<<glossary-frozen-tier,frozen tier>>. See {ref}/data-tiers.html[Data tiers].
 // end::data-tier-def[]
 
 [[glossary-delete-phase]] delete phase::
@@ -204,14 +204,15 @@ the hot phase, an <<glossary-index,index>> is actively updated and queried. See
 // tag::hot-tier-def[]
 <<glossary-data-tier,Data tier>> that contains <<glossary-node,nodes>> that
 handle the <<glossary-index,indexing>> load for time series data, such as logs or
-metrics. This tier holds your most recent, most-frequently-accessed data. See
+metrics. This tier holds your most recent, most frequently accessed data. See
 {ref}/data-tiers.html[Data tiers].
 // end::hot-tier-def[]
 
 [[glossary-id]] id::
 // tag::id-def[]
 Identifier for a <<glossary-document,document>>. Document IDs must be unique
-within an index. See the {ref}/mapping-id-field.html[`_id` field].
+within an <<glossary-index,index>>. See the {ref}/mapping-id-field.html[`_id`
+field].
 // end::id-def[]
 
 [[glossary-index]] index::
@@ -231,10 +232,11 @@ an index alias in place of an index name. See the
 
 [[glossary-index-lifecycle]] index lifecycle::
 // tag::index-lifecycle-def[]
-Four phases an <<glossary-index,index>> can transition through:
+Five phases an <<glossary-index,index>> can transition through:
 <<glossary-hot-phase,hot>>, <<glossary-warm-phase,warm>>,
-<<glossary-cold-phase,cold>>, and <<glossary-delete-phase,delete>>. See
-{ref}/ilm-policy-definition.html[Index lifecycle].
+<<glossary-cold-phase,cold>>, <<glossary-frozen-phase,frozen>>, and
+<<glossary-delete-phase,delete>>. See {ref}/ilm-policy-definition.html[Index
+lifecycle].
 // end::index-lifecycle-def[]
 
 [[glossary-index-lifecycle-policy]] index lifecycle policy::
@@ -300,8 +302,8 @@ See {ref}/scalability.html[Clusters, nodes, and shards].
 [[glossary-primary-shard]] primary shard::
 // tag::primary-shard-def[]
 Lucene instance containing some or all data for an <<glossary-index,index>>.
-When you index a <<glossary-document,document>>, {es} adds a document to primary
-shards before <<glossary-replica-shard,replica shards>>. See
+When you index a <<glossary-document,document>>, {es} adds the document to
+primary shards before <<glossary-replica-shard,replica shards>>. See
 {ref}/scalability.html[Clusters, nodes, and shards].
 // end::primary-shard-def[]
 

@@ -41,6 +41,12 @@ public class ShortFieldMapperTests extends WholeNumberFieldMapperTests {
 
     @Override
     protected Supplier<Number> randomValueSupplier() {
-        return ESTestCase::randomShort;
+        if (randomBoolean()) {
+            return ESTestCase::randomShort;
+        }
+        if (randomBoolean()) {
+            return ESTestCase::randomDouble;
+        }
+        return () -> randomDoubleBetween(Short.MIN_VALUE, Short.MAX_VALUE, true);
     }
 }

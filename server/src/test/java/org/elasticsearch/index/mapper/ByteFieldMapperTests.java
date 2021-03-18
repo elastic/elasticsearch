@@ -40,6 +40,12 @@ public class ByteFieldMapperTests extends WholeNumberFieldMapperTests {
 
     @Override
     protected Supplier<Number> randomValueSupplier() {
-        return ESTestCase::randomByte;
+        if (randomBoolean()) {
+            return ESTestCase::randomByte;
+        }
+        if (randomBoolean()) {
+            return ESTestCase::randomDouble;
+        }
+        return () -> randomDoubleBetween(Byte.MIN_VALUE, Byte.MAX_VALUE, true);
     }
 }

@@ -41,6 +41,12 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
 
     @Override
     protected Supplier<Number> randomValueSupplier() {
-        return ESTestCase::randomInt;
+        if (randomBoolean()) {
+            return ESTestCase::randomInt;
+        }
+        if (randomBoolean()) {
+            return ESTestCase::randomDouble;
+        }
+        return () -> randomDoubleBetween(Integer.MIN_VALUE, Integer.MAX_VALUE, true);
     }
 }

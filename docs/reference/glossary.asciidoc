@@ -504,8 +504,8 @@ typically <<glossary-analysis,analyze>> text is for better search. See
 [[glossary-token]] token::
 // tag::token-def[]
 A chunk of unstructured <<glossary-text,text>> that's been optimized for search.
-{es} creates and normalizes tokens during <<glossary-analysis,text analysis>>.
-Tokens are also called terms. See {ref}/analysis.html[Test analysis].
+In most cases, tokens are individual words. Tokens are also called terms. See
+{ref}/analysis.html[Test analysis].
 // end::token-def[]
 
 [[glossary-tokenization]] tokenization::

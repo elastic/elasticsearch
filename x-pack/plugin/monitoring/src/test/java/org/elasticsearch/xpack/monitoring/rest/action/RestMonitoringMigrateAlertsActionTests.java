@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.XContentBuilderFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsResponse;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsResponse.ExporterMigrationResult;
@@ -51,8 +52,11 @@ public class RestMonitoringMigrateAlertsActionTests extends ESTestCase {
         }
         MonitoringMigrateAlertsResponse restResponse = new MonitoringMigrateAlertsResponse(migrationResults);
 
+        final XContentBuilderFactory factory = mock(XContentBuilderFactory.class);
+        when(factory.newBuilder()).thenReturn(JsonXContent.contentBuilder());
+
         final RestChannel channel = mock(RestChannel.class);
-        when(channel.xContentBuilderFactory().newBuilder()).thenReturn(JsonXContent.contentBuilder());
+        when(channel.xContentBuilderFactory()).thenReturn(factory);
         RestResponse response = RestMonitoringMigrateAlertsAction.getRestBuilderListener(channel).buildResponse(restResponse);
 
         assertThat(response.status(), is(RestStatus.OK));

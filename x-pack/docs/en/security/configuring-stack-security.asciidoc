@@ -51,13 +51,12 @@ will be secured.
 This scenario builds on the one for basic security and secures all HTTP
 traffic with TLS. In addition to configuring TLS on the transport interface of
 your {es} cluster, you configure TLS on the HTTP interface for both
-{es} and {kib}. TLS on the transport interface is mutual in this
-configuration, but TLS on the HTTP layer is unidirectional.
+{es} and {kib}.
 
 NOTE: If you need mutual (bidirectional) TLS on the HTTP layer, then you'll
 need to configure mutual authenticated encryption.
 
-You then configure {kib}, {ls}, and Beats to communicate with
+You then configure {kib} and Beats to communicate with
 {es} using TLS so that all communications are encrypted. This level
 of security is strong, and ensures that any communications in and out of your
 cluster are secure.

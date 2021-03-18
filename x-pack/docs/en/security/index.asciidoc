@@ -4,7 +4,7 @@
 [partintro]
 --
 
-An {es} cluster is typically comprised of many moving parts. There are the {es}
+The Elastic Stack is comprised of many moving parts. There are the {es}
 nodes that form the cluster, plus {ls} instances, {kib} instances, {beats}
 agents, and clients all communicating with the cluster.
 

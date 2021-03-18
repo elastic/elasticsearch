@@ -1902,7 +1902,8 @@ Local address for the HTTP client.
 Remote address for the HTTP client.
 `forwarded_for`::
 (string)
-Value from the client's `x-forwarded-for` HTTP header, if available.
+Value from the client's `x-forwarded-for` HTTP header. If unavailable, this
+property is not included in the response.
 `opqaue_id`::
 (string)
 Value from the client's `x-opaque-id` HTTP header, if available.

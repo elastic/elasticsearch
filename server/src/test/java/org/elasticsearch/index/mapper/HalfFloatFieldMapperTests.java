@@ -42,7 +42,7 @@ public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+    protected Supplier<Number> randomValueSupplier() {
         /*
          * The native valueFetcher returns 32 bits of precision but the
          * doc values fetcher returns 16 bits of precision. To make it

@@ -39,7 +39,7 @@ public class ByteFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+    protected Supplier<Number> randomValueSupplier() {
         return ESTestCase::randomByte;
     }
 }

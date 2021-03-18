@@ -17,6 +17,7 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -219,4 +220,12 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             }
         }
     }
+
+    @Override
+    protected final Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+        Supplier<Number> supplier = randomValueSupplier();
+        return randomBoolean() ? supplier : () -> supplier.get().toString();
+    }
+
+    protected abstract Supplier<Number> randomValueSupplier();
 }

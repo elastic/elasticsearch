@@ -40,7 +40,7 @@ public class FloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+    protected Supplier<Number> randomValueSupplier() {
         /*
          * The source parser and doc values round trip will both reduce
          * the precision to 32 bits if the value is more precise.

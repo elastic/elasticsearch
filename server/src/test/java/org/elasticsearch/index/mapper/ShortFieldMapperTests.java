@@ -40,7 +40,7 @@ public class ShortFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+    protected Supplier<Number> randomValueSupplier() {
         return ESTestCase::randomShort;
     }
 }

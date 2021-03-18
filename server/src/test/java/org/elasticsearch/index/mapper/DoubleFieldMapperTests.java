@@ -40,7 +40,7 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+    protected Supplier<Number> randomValueSupplier() {
         /*
          * The source parser and doc values round trip will both increase
          * the precision to 64 bits if the value is less precise.

@@ -38,7 +38,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
     public HttpStats(StreamInput in) throws IOException {
         serverOpen = in.readVLong();
         totalOpen = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
             clientStats = in.readList(ClientStats::new);
         } else {
             clientStats = List.of();
@@ -49,7 +49,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(serverOpen);
         out.writeVLong(totalOpen);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
             out.writeList(clientStats);
         }
     }

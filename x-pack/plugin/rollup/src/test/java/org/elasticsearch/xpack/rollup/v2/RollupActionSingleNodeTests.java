@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.rollup.v2;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -83,7 +82,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/69799")
 public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
@@ -130,7 +128,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         super.tearDown();
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/69506")
     public void testRollupShardIndexerCleansTempFiles() throws IOException {
         // create rollup config and index documents into source index
         RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
@@ -152,8 +149,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         // re-use source index as temp index for test
         RollupShardIndexer indexer = new RollupShardIndexer(client(), indexService, shard.shardId(), config, index, 2);
         indexer.execute();
-        assertThat(indexer.tmpFilesDeleted, equalTo(indexer.tmpFiles));
         // assert that files are deleted
+        assertThat(indexer.tmpFilesDeleted, equalTo(indexer.tmpFiles));
     }
 
     public void testCannotRollupToExistingIndex() throws Exception {
@@ -173,21 +170,14 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString("Unable to rollup index [" + index + "]"));
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/69506")
-    public void testTemporaryIndexDeletedOnRollupFailure() throws Exception {
+    public void testTemporaryIndexCannotBeCreatedAlreadyExists() {
         RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
-            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("categorical_1", randomAlphaOfLength(1))
-            .endObject();
         RollupActionConfig config = new RollupActionConfig(
             new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
-            Collections.singletonList(new MetricConfig("numeric_non_existent", Collections.singletonList("max"))));
-        bulkIndex(sourceSupplier);
-        expectThrows(ElasticsearchException.class,  () -> rollup(index, rollupIndex, config));
-        // assert that temporary index was removed
-        expectThrows(IndexNotFoundException.class,
-            () -> client().admin().indices().prepareGetIndex().addIndices(".rolluptmp-" + rollupIndex).get());
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max"))));
+        assertTrue(client().admin().indices().prepareCreate(".rolluptmp-" + rollupIndex).get().isAcknowledged());
+        Exception exception = expectThrows(ElasticsearchException.class,  () -> rollup(index, rollupIndex, config));
+        assertThat(exception.getMessage(), containsString("already exists"));
     }
 
     public void testCannotRollupWhileOtherRollupInProgress() throws Exception {

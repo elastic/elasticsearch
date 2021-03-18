@@ -67,6 +67,8 @@ public final class DateFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "date";
     public static final String DATE_NANOS_CONTENT_TYPE = "date_nanos";
     public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
+    public static final DateFormatter DEFAULT_DATE_TIME_NANOS_FORMATTER =
+        DateFormatter.forPattern("strict_date_optional_time_nanos||epoch_millis");
 
     public enum Resolution {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE) {
@@ -219,8 +221,7 @@ public final class DateFieldMapper extends FieldMapper {
         private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final Parameter<String> format
-            = Parameter.stringParam("format", false, m -> toType(m).format, DEFAULT_DATE_TIME_FORMATTER.pattern());
+        private final Parameter<String> format;
         private final Parameter<Locale> locale = new Parameter<>("locale", false, () -> Locale.ROOT,
             (n, c, o) -> LocaleUtils.parse(o.toString()), m -> toType(m).locale);
 
@@ -238,6 +239,10 @@ public final class DateFieldMapper extends FieldMapper {
             this.indexCreatedVersion = indexCreatedVersion;
             this.ignoreMalformed
                 = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
+
+            DateFormatter defaultFormat = resolution == Resolution.NANOSECONDS && indexCreatedVersion.onOrAfter(Version.V_7_0_0) ?
+                DEFAULT_DATE_TIME_NANOS_FORMATTER : DEFAULT_DATE_TIME_FORMATTER;
+            this.format = Parameter.stringParam("format", false, m -> toType(m).format, defaultFormat.pattern());
             if (dateFormatter != null) {
                 this.format.setValue(dateFormatter.pattern());
                 this.locale.setValue(dateFormatter.locale());

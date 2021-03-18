@@ -14,14 +14,12 @@ import org.antlr.v4.runtime.Token;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 
 /**
- * A lexer that is customized for painless. It:
+ * A lexer that is customized for painless suggestions with the following modifications:
  * <ul>
- * <li>Overrides the default error behavior to fail on the first error.
- * <li>Stores the last token in case we need to do lookbehind for semicolon insertion and regex vs division detection.
- * <li>Implements the regex vs division detection.
- * <li>Insert semicolons where they'd improve the language's readability. Rather than hack this into the parser and create a ton of
- * ambiguity we hack them here where we can use heuristics to do it quickly.
- * <li>Enhances the error message when a string contains invalid escape sequences to include a list of valid escape sequences.
+ * <li>Overrides the default error behavior to only fail if we don't recognize a token in default mode
+ * <li>Stores the last token in case we need to do lookbehind for regex vs division detection
+ * <li>Implements the regex vs division detection
+ * <li>Enhances the error message when a string contains invalid escape sequences to include a list of valid escape sequences
  * </ul>
  */
 public final class EnhancedSuggestLexer extends SuggestLexer {

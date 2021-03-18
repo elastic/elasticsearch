@@ -2,7 +2,7 @@
 == {search-snaps-cap}
 
 {search-snaps-cap} let you use <<snapshot-restore,snapshots>> to search and
-store infrequently-accessed, read-only data. The <<cold-tier,cold>> and
+store infrequently accessed, read-only data. The <<cold-tier,cold>> and
 <<frozen-tier,frozen>> data tiers use {search-snaps} to reduce your storage and
 operating costs.
 
@@ -29,7 +29,7 @@ regular index, with minimal need to access the snapshot repository.
 
 [[shared-cache]]
 Shared cache::
-Uses a local cache containing only frequently searched parts of the snapshotted
+Uses a local cache containing only recently searched parts of the snapshotted
 index's data. The frozen tier uses this option by default.
 +
 If a search requires data that's not in the cache, {es} lazily fetches the data
@@ -132,8 +132,8 @@ the background. You can search these shards even if they are not fully restored.
 If a search hits such a shard before it's fully restored, {es} eagerly retrieves
 the data needed to complete the search.
 
-If you mounted a shared snapshot cache, {es} only stores frequently searched
-parts of the qdata locally on a node in the cluster. The shared cache has a fixed
+If you mounted a shared snapshot cache, {es} only stores recently searched
+parts of the data locally on a node in the cluster. The shared cache has a fixed
 size and evicts infrequently used parts of the cache.
 
 Replicas of {search-snap} shards are recovered by accessing the data from the
@@ -182,7 +182,7 @@ repository storage then you are responsible for its reliability.
 
 experimental::[]
 
-To mount a shared cache of a snapshot, you must use the the
+To mount a shared cache of a snapshotted index, you must use the
 `xpack.searchable.snapshot.shared_cache.size` setting to reserve space for the
 cache on one or more nodes. Indices mounted as a shared cache can only be
 allocated to nodes that have this setting explicitly configured.
@@ -206,7 +206,8 @@ you will only be able to configure this setting on nodes with the
 
 You can set `xpack.searchable.snapshot.shared_cache.size` to any size between a
 couple of gigabytes up to 90% of available disk space. We only recommend higher
-sizes you use the node exclusively on a frozen tier or for searchable snapshots.
+sizes if you use the node exclusively on a frozen tier or exclusively for
+searchable snapshots.
 
 [discrete]
 [[searchable-snapshots-frozen-tier-on-cloud]]
@@ -238,3 +239,5 @@ setting. For example:
 ----
 xpack.searchable.snapshot.shared_cache.size: 50GB
 ----
+
+. Click **Save** and **Confirm** to apply your configuration changes.

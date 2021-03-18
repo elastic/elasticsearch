@@ -67,6 +67,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("hello\nworld", unquoteString(source("\"hello\\nworld\"")));
         assertEquals("hello\\\nworld", unquoteString(source("\"hello\\\\\\nworld\"")));
         assertEquals("hello\\\"world", unquoteString(source("\"hello\\\\\\\"world\"")));
+        assertEquals("hello\\world", unquoteString(source("\"hello\\world\"")));
 
         // test for unescaped strings: """...."""
         assertEquals("hello\"world", unquoteString(source("\"\"\"hello\"world\"\"\"")));
@@ -224,25 +225,20 @@ public class ExpressionTests extends ESTestCase {
         // as the closing brace on the 5th position is considered a normal char.
         assertEquals(new Literal(null, "ǰ}", DataTypes.KEYWORD), expr("\"\\u01f0}\""));
 
-        // Null (all zeros escaped sequence)
-        StringBuilder zeros = new StringBuilder("0");
-        for (int i = 1; i < 8; i++) {
-            zeros.append("0");
-            e = expectThrows(ParsingException.class, "Expected syntax error",
-                    () -> expr("\"\\u{" + zeros.toString() + "}\""));
-            assertEquals("line 1:2: Unicode sequence results in null", e.getMessage());
-        }
-        e = expectThrows(ParsingException.class, "Expected syntax error",
-                () -> expr("\"\\u0000\""));
-        assertEquals("line 1:2: Unicode sequence results in null", e.getMessage());
-
-        // Inv
+        // Invalid unicode
         e = expectThrows(ParsingException.class, "Expected syntax error",
                 () -> expr("\"\\u{10000000}\""));
         assertEquals("line 1:2: Invalid unicode character code [10000000]", e.getMessage());
     }
 
     public void testStringWithUnicodeEscapedChars() {
+        assertEquals(new Literal(null, "foo\\u123foo", DataTypes.KEYWORD), expr("\"foo\\\\u123foo\""));
+        assertEquals(new Literal(null, "foo\\ሿoo", DataTypes.KEYWORD), expr("\"foo\\\\\\u123foo\""));
+        assertEquals(new Literal(null, "foo\\\\u123foo", DataTypes.KEYWORD), expr("\"foo\\\\\\\\u123foo\""));
+        assertEquals(new Literal(null, "foo\\u{123f}oo", DataTypes.KEYWORD), expr("\"foo\\\\u{123f}oo\""));
+        assertEquals(new Literal(null, "foo\\ሿoo", DataTypes.KEYWORD), expr("\"foo\\\\\\u{123f}oo\""));
+        assertEquals(new Literal(null, "foo\\\\u{123f}oo", DataTypes.KEYWORD), expr("\"foo\\\\\\\\u{123f}oo\""));
+
         String strPadding = randomAlphaOfLength(randomInt(10));
         String[][] strings = new String[][] {
             { "\\u0021", "!" },
@@ -260,7 +256,11 @@ public class ExpressionTests extends ESTestCase {
             { "\\u{00007c71}", "籱" },
             { "\\u{1680b}", "𖠋" },
             { "\\u{01f4a9}", "💩" },
-            { "\\u{0010989}", "\uD802\uDD89"}
+            { "\\u{0010989}", "\uD802\uDD89"},
+            { "\\u0000", "\u0000"},
+            { "\\u{00}", "\u0000"},
+            { "\\u{000000}", "\u0000"},
+            { "\\u{00000000}", "\u0000"},
         };
 
         StringBuilder sbExpected = new StringBuilder();

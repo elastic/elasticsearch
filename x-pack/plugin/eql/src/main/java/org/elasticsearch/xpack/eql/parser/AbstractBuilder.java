@@ -18,15 +18,11 @@ import org.elasticsearch.xpack.ql.util.Check;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Base parsing visitor class offering utility methods.
  */
 abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
-
-    private static final Pattern slashPattern = Pattern.compile("\\\\.");
 
     @Override
     public Object visit(ParseTree tree) {
@@ -137,88 +133,73 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
         checkForSingleQuotedString(source, text, 0);
 
         text = text.substring(1, text.length() - 1);
-        text = handleUnicodeChars(source, text);
-        StringBuilder resultString = new StringBuilder();
-        Matcher regexMatcher = slashPattern.matcher(text);
-
-        while (regexMatcher.find()) {
-            String group = regexMatcher.group();
-            String replacement;
-
-            switch (group) {
-                case "\\t":
-                    replacement = "\t";
-                    break;
-                case "\\b":
-                    replacement = "\b";
-                    break;
-                case "\\f":
-                    replacement = "\f";
-                    break;
-                case "\\n":
-                    replacement = "\n";
-                    break;
-                case "\\r":
-                    replacement = "\r";
-                    break;
-                case "\\\"":
-                    replacement = "\"";
-                    break;
-                case "\\'":
-                    replacement = "'";
-                    break;
-                case "\\\\":
-                    // will be interpreted as regex, so we have to escape it
-                    replacement = "\\\\";
-                    break;
-                default:
-                    // unknown escape sequence, pass through as-is
-                    replacement = group;
-            }
-
-            regexMatcher.appendReplacement(resultString, replacement);
-
-        }
-        regexMatcher.appendTail(resultString);
-
-        return resultString.toString();
-    }
-
-    private static String handleUnicodeChars(Source source, String text) {
         StringBuilder sb = new StringBuilder();
 
-        int startIdx = 0;
-        int endIdx = 0;
-        for (int idx = text.indexOf("\\u"); idx >= 0; idx = text.indexOf("\\u", endIdx)) {
-            String unicodeSequence;
-            if (text.charAt(idx + 2) == '{') {
-                endIdx = text.indexOf("}", idx + 1) + 1;
-                unicodeSequence = text.substring(idx + 3, endIdx - 1);
-                int length = unicodeSequence.length();
-                if (length < 2 || length > 8) {
-                    throw new ParsingException(source, "Unicode sequence in curly braces should use [2-8] hex digits, [{}] has [{}]",
-                            text.substring(idx, endIdx), length);
+        for (int i = 0; i < text.length();) {
+            if (text.charAt(i) == '\\') {
+                switch (text.charAt(++i)) {
+                    case 't':
+                        sb.append('\t');
+                        break;
+                    case 'b':
+                        sb.append('\b');
+                        break;
+                    case 'f':
+                        sb.append('\f');
+                        break;
+                    case 'n':
+                        sb.append('\n');
+                        break;
+                    case 'r':
+                        sb.append('\r');
+                        break;
+                    case '"':
+                        sb.append('\"');
+                        break;
+                    case '\'':
+                        sb.append('\'');
+                        break;
+                    case 'u':
+                        i = handleUnicodeChars(source, sb, text, ++i);
+                        break;
+                    case '\\':
+                        sb.append('\\');
+                        // will be interpreted as regex, so we have to escape it
+                        break;
+                    default:
+                        // unknown escape sequence, pass through as-is
+                        sb.append('\\').append(text.charAt(i));
                 }
+                i++;
             } else {
-                endIdx = idx + 6;
-                unicodeSequence = text.substring(idx + 2, endIdx);
+                sb.append(text.charAt(i++));
             }
-            sb.append(text, startIdx, idx).append(hexToUnicode(source, unicodeSequence));
-            startIdx = endIdx;
-        }
-        if (endIdx < text.length()) {
-            sb.append(text.substring(endIdx));
         }
         return sb.toString();
     }
 
-    private static String hexToUnicode(Source source, String hex) {
-        int code = Integer.parseInt(hex, 16);
-        if (code == 0) {
-            throw new ParsingException(source, "Unicode sequence results in null");
+    private static int handleUnicodeChars(Source source, StringBuilder sb, String text, int i) {
+        String unicodeSequence;
+        if (text.charAt(i) == '{') {
+            int endIdx = text.indexOf('}', ++i);
+            unicodeSequence = text.substring(i, endIdx);
+            int length = unicodeSequence.length();
+            if (length < 2 || length > 8) {
+                throw new ParsingException(source, "Unicode sequence in curly braces should use [2-8] hex digits, [{}] has [{}]",
+                        text.substring(i - 3, endIdx + 1), length);
+            }
+            i = endIdx;
+        } else {
+            unicodeSequence = text.substring(i, i + 4);
+            i += 3;
         }
+        sb.append(hexToUnicode(source, unicodeSequence));
+        return i;
+    }
+
+    private static String hexToUnicode(Source source, String hex) {
         try {
-            return String.valueOf(Character.toChars(code));
+            return String.valueOf(Character.toChars(Integer.parseInt(hex, 16)));
         } catch (IllegalArgumentException e) {
             throw new ParsingException(source, "Invalid unicode character code [{}]", hex);
         }

@@ -85,16 +85,21 @@ For resiliency, indices in the cold tier can rely on
 [[frozen-tier]]
 === Frozen tier
 
-Once data is no longer being queried, or being queried rarely, it may move from the cold tier
-to the frozen tier where it stays for the rest of its life. The frozen tier uses
-<<ilm-searchable-snapshot, searchable snapshots>> to decouple compute from storage by directly
-accessing the data in a snapshot repository without the need for having a full local copy of
-that data. The frozen tier is a less responsive query tier than the cold tier, as the data is
-loaded on-demand from the snapshot repository, only using a small local cache to store recently
-queried data for optimal performance on repeat searches.
+Once data is no longer or rarely queried, it may move from the cold tier to the
+frozen tier where it stays for the rest of its life.
 
-NOTE: On Elastic Cloud, the frozen tier is not fully integrated yet and requires a
-<<searchable-snapshots-frozen-tier-on-cloud,few manual configuration steps>>.
+The frozen tier uses <<searchable-snapshots,{search-snaps}>> to store and load
+data from a snapshot repository. Instead of using a full local copy, these
+{search-snaps} uses only <<shared-cache,smaller local caches>> of recently
+searched data. While less responsive than the cold tier, these cache
+signficantly reduce local storage costs.
+
+NOTE: The frozen tier is not yet available on the {ess-trial}[{ess}]. To
+recreate similar functionality, see
+<<searchable-snapshots-frozen-tier-on-cloud>>.
+
+{ess} requires additional configuration to use the frozen tier
+functionality.
 
 [discrete]
 [[data-tier-allocation]]

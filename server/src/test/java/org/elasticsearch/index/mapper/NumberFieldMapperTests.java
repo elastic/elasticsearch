@@ -32,6 +32,13 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      */
     protected abstract Number missingValue();
 
+    /**
+     * @return does this mapper allow index time scripts
+     */
+    protected boolean allowsIndexTimeScript() {
+        return false;
+    }
+
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
@@ -205,7 +212,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         assertFalse(dvField.fieldType().stored());
     }
-    
+
     public void testOutOfRangeValues() throws IOException {
 
         for(OutOfRangeSpec item : outOfRangeSpecs()) {
@@ -222,19 +229,20 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     public void testScriptableTypes() {
-        Set<String> scriptableTypes = Set.of("long", "double");
-        for (String type : types()) {
-            if (scriptableTypes.contains(type)) {
-                // won't actually compile because we don't have painless in unit tests, but we can
-                // check that it gets as far as trying to compile it
-                Exception e = expectThrows(MapperParsingException.class,
-                    () -> createDocumentMapper(fieldMapping(b -> b.field("type", type).field("script", "foo"))));
-                assertEquals("Failed to parse mapping: script_lang not supported [painless]", e.getMessage());
-            } else {
-                Exception e = expectThrows(MapperParsingException.class, "Missing exception on type " + type,
-                    () -> createDocumentMapper(fieldMapping(b -> b.field("type", type).field("script", "foo"))));
-                assertEquals("Failed to parse mapping: Unknown parameter [script] for mapper [field]", e.getMessage());
-            }
+        if (allowsIndexTimeScript()) {
+            // won't actually compile because we don't have painless in unit tests, but we can
+            // check that it gets as far as trying to compile it
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("script", "foo");
+            })));
+            assertEquals("Failed to parse mapping: script_lang not supported [painless]", e.getMessage());
+        } else {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("script", "foo");
+            })));
+            assertEquals("Failed to parse mapping: Unknown parameter [script] for mapper [field]", e.getMessage());
         }
     }
 }

@@ -43,6 +43,11 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         b.field("type", "long");
     }
 
+    @Override
+    protected boolean allowsIndexTimeScript() {
+        return true;
+    }
+
     public void testLongIndexingOutOfRange() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "long").field("ignore_malformed", true)));
         ParsedDocument doc = mapper.parse(

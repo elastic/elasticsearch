@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -36,6 +37,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -48,6 +50,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -479,6 +482,59 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             List<?> fromDocValues = docValueFetcher.fetchValues(sourceLookup);
             List<?> fromNative = nativeFetcher.fetchValues(sourceLookup);
             assertEquals(fromDocValues, fromNative);
+        });
+    }
+
+    public void testIndexTimeFieldData() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertParseMinimalWarnings();
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        if (fieldType.isAggregatable() == false) {
+            return; // No field data available, so we ignore
+        }
+        SourceToParse source = source(this::writeField);
+        ParsedDocument doc = mapperService.documentMapper().parse(source);
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
+
+            LeafReaderContext ctx = ir.leaves().get(0);
+
+            ScriptDocValues<?> fieldData = fieldType
+                .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                .load(ctx)
+                .getScriptValues();
+
+            fieldData.setNextDocId(0);
+
+            PostParseExecutor indexTimeExecutor = context -> {
+                try {
+                    ScriptDocValues<?> indexData = fieldType
+                        .fielddataBuilder("test", () -> {
+                            throw new UnsupportedOperationException();
+                        })
+                        .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                        .load(context.leafReaderContext)
+                        .getScriptValues();
+                    indexData.setNextDocId(0);
+
+                    // compare index and search time fielddata
+                    assertThat(fieldData, equalTo(indexData));
+
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            };
+
+            ParseContext pc = mock(ParseContext.class);
+            when(pc.rootDoc()).thenReturn(doc.rootDoc());
+            when(pc.sourceToParse()).thenReturn(source);
+
+            PostParsePhase postParsePhase = new PostParsePhase(
+                Map.of("test", indexTimeExecutor),
+                mapperService::fieldType,
+                pc);
+            postParsePhase.execute();
         });
     }
 }

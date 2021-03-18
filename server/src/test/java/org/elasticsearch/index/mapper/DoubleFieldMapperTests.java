@@ -36,4 +36,9 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "double");
     }
+
+    @Override
+    protected boolean allowsIndexTimeScript() {
+        return true;
+    }
 }

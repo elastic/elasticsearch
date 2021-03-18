@@ -68,6 +68,11 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         return 6;
     }
 
+    @Override
+    public void testIndexTimeFieldData() throws IOException {
+        assumeFalse("Accessing range fields in scripts is not supported", false);
+    }
+
     public void testExistsQueryDocValuesDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

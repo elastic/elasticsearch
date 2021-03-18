@@ -57,9 +57,7 @@ public class PostParsePhase {
         if (postParsePhase == null) {
             return;
         }
-        for (OneTimeFieldExecutor executor : postParsePhase.fieldExecutors.values()) {
-            executor.execute();
-        }
+        postParsePhase.execute();
     }
 
     PostParsePhase(
@@ -72,6 +70,12 @@ public class PostParsePhase {
             postParseExecutors.keySet());
         this.context = new PostParseContext(fieldTypeLookup, pc, reader.getContext());
         postParseExecutors.forEach((k, c) -> fieldExecutors.put(k, new OneTimeFieldExecutor(c)));
+    }
+
+    void execute() {
+        for (OneTimeFieldExecutor executor : fieldExecutors.values()) {
+            executor.execute();
+        }
     }
 
     // FieldExecutors can be called both by executePostParse() and from the lazy reader,
@@ -150,7 +154,7 @@ public class PostParsePhase {
             checkField(field);
             List<BytesRef> values = document.getFields().stream()
                 .filter(f -> Objects.equals(f.name(), field))
-                .filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY)
+                .filter(f -> f.fieldType().docValuesType() == DocValuesType.SORTED)
                 .map(IndexableField::binaryValue)
                 .sorted()
                 .collect(Collectors.toList());
@@ -173,7 +177,7 @@ public class PostParsePhase {
         public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
             List<BytesRef> values = document.getFields().stream()
                 .filter(f -> Objects.equals(f.name(), field))
-                .filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY)
+                .filter(f -> f.fieldType().docValuesType() == DocValuesType.SORTED_SET)
                 .map(IndexableField::binaryValue)
                 .sorted()
                 .collect(Collectors.toList());
@@ -182,7 +186,7 @@ public class PostParsePhase {
 
         @Override
         public FieldInfos getFieldInfos() {
-            throw new UnsupportedOperationException();
+            return new FieldInfos(new FieldInfo[0]);
         }
 
         @Override
@@ -362,7 +366,7 @@ public class PostParsePhase {
 
             @Override
             public boolean advanceExact(int target) {
-                return false;
+                return true;
             }
 
             @Override
@@ -446,6 +450,9 @@ public class PostParsePhase {
             @Override
             public long nextOrd() {
                 i++;
+                if (i >= values.size()) {
+                    return NO_MORE_ORDS;
+                }
                 return i;
             }
 
@@ -461,6 +468,7 @@ public class PostParsePhase {
 
             @Override
             public boolean advanceExact(int target) {
+                i = -1;
                 return true;
             }
 
@@ -471,11 +479,13 @@ public class PostParsePhase {
 
             @Override
             public int nextDoc() {
+                i = -1;
                 return 0;
             }
 
             @Override
             public int advance(int target) {
+                i = -1;
                 return 0;
             }
 

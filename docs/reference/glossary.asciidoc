@@ -497,7 +497,7 @@ See {ref}/glossary.html#glossary-token[token].
 [[glossary-text]] text::
 // tag::text-def[]
 Unstructured content, such as a product description or log message. You
-typically <<glossary-analysis,analyze>> text is for better search. See
+typically <<glossary-analysis,analyze>> text for better search. See
 {ref}/analysis.html[Text analysis].
 // end::text-def[]
 

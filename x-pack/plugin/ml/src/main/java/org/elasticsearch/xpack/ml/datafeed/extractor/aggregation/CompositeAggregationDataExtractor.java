@@ -182,6 +182,12 @@ class CompositeAggregationDataExtractor implements DataExtractor {
                         // This indicates when we have completed the current bucket of this timestamp and thus will move to the next
                         // date_histogram bucket
                         nextBucketOnCancel = Intervals.alignToCeil(timestamp, interval);
+                        LOGGER.debug(() -> new ParameterizedMessage(
+                            "[{}] set future timestamp cancel to [{}] via timestamp [{}]",
+                            context.jobId,
+                            nextBucketOnCancel,
+                            timestamp
+                        ));
                     }
                     return timestamp >= nextBucketOnCancel;
                 }
@@ -189,6 +195,14 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             }, outputStream);
         // If the process is canceled and cancelable, then we can indicate that there are no more buckets to process.
         if (isCancelled && cancellable) {
+            LOGGER.debug(
+                () -> new ParameterizedMessage(
+                    "[{}] cancelled before bucket [{}] on date_histogram page [{}]",
+                    context.jobId,
+                    nextBucketOnCancel,
+                    hasAfterKey ? afterKey.get(context.compositeAggDateHistogramGroupSourceName) : "__null__"
+                )
+            );
             hasNext = false;
         }
         // Only set the after key once we have processed the search, allows us to cancel on the first page

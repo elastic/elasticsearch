@@ -159,7 +159,9 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         outputStream.reset();
 
         // We can cancel immediately as we process whole date_histogram buckets at a time
-        hasNext = aggregationToJsonProcessor.writeAllDocsCancellable(_timestamp -> isCancelled, outputStream);
+        aggregationToJsonProcessor.writeAllDocsCancellable(_timestamp -> isCancelled, outputStream);
+        // We process the whole search. So, if we are chunking or not, we have nothing more to process given the current query
+        hasNext = false;
         return new ByteArrayInputStream(outputStream.toByteArray());
     }
 

@@ -6,20 +6,26 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
@@ -37,7 +43,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -66,6 +71,12 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     @After
     public void cleanup() {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .putNull("logger.org.elasticsearch.xpack.ml.datafeed")
+                .build()).get();
         cleanUp();
     }
 
@@ -295,6 +306,12 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testStopAndRestartCompositeDatafeed() throws Exception {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml.datafeed", "TRACE")
+                .build()).get();
         String indexName = "stop-restart-data";
         client().admin().indices().prepareCreate("stop-restart-data")
             .setMapping("time", "type=date")
@@ -401,12 +418,28 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         for (int i = 0; i < scrollBuckets.size(); i++) {
             Bucket scrollBucket = scrollBuckets.get(i);
             Bucket compositeBucket = compositeBuckets.get(i);
-            assertThat(
-                "composite bucket [" + compositeBucket.getTimestamp() +"] [" + compositeBucket.getEventCount() +"] does not equal"
-                + "scroll bucket [" + scrollBucket.getTimestamp() + "] [" + scrollBucket.getEventCount() + "]",
-                compositeBucket.getEventCount(),
-                equalTo(scrollBucket.getEventCount())
-            );
+            try {
+                assertThat(
+                    "composite bucket [" + compositeBucket.getTimestamp() + "] [" + compositeBucket.getEventCount() + "] does not equal"
+                        + " scroll bucket [" + scrollBucket.getTimestamp() + "] [" + scrollBucket.getEventCount() + "]",
+                    compositeBucket.getEventCount(),
+                    equalTo(scrollBucket.getEventCount())
+                );
+            } catch (AssertionError ae) {
+                String originalMessage = ae.getMessage();
+                try {
+                    SearchSourceBuilder builder = new SearchSourceBuilder().query(QueryBuilders.rangeQuery("time")
+                        .gte(scrollBucket.getTimestamp().getTime())
+                        .lte(scrollBucket.getTimestamp().getTime() + TimeValue.timeValueHours(1).getMillis()))
+                        .size(10_000);
+                    SearchHits hits = client().search(new SearchRequest()
+                        .indices(indexName)
+                        .source(builder)).actionGet().getHits();
+                    fail("Hits: " + Strings.arrayToDelimitedString(hits.getHits(), "\n") + " \n failure: " + originalMessage);
+                } catch (ElasticsearchException ee) {
+                    fail("could not search indices for better info. Original failure: " + originalMessage);
+                }
+            }
         }
     }
 

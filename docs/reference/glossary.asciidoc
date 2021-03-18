@@ -158,7 +158,7 @@ See the {ref}/indices-forcemerge.html[force merge API].
 [[glossary-freeze]] freeze::
 // tag::freeze-def[]
 // tag::freeze-def-short[]
-Makes an index read-only and minimize its memory footprint.
+Makes an index read-only and minimizes its memory footprint.
 // end::freeze-def-short[]
 See the {ref}/freeze-index-api.html[freeze API].
 // end::freeze-def[]
@@ -189,7 +189,7 @@ hold time series data that is accessed rarely and not normally updated. See
 [[glossary-hidden-index]] hidden data stream or index::
 // tag::hidden-index-def[]
 <<glossary-data-stream,Data stream>> or <<glossary-index,index>> excluded from
-most <glossary-index-pattern,index patterns>> by default. See
+most <<glossary-index-pattern,index patterns>> by default. See
 {ref}/multi-index.html#hidden-indices[Hidden data streams and indices].
 // end::hidden-index-def[]
 

@@ -68,7 +68,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `aliases`::
 (Optional, <<indices-aliases,alias object>>) Index aliases which include the
-index. See <<indices-aliases>>.
+index. Index alias names support <<date-math-index-names,date math>>.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
@@ -161,6 +161,18 @@ PUT /test
 }
 --------------------------------------------------
 
+Index alias names also support <<date-math-index-names,date math>>.
+
+[source,console]
+----
+PUT /logs
+{
+  "aliases": {
+    "<logs_{now/M}>": {}
+  }
+}
+----
+
 [[create-index-wait-for-active-shards]]
 ===== Wait for active shards
 
@@ -173,7 +185,7 @@ what happened:
 {
   "acknowledged": true,
   "shards_acknowledged": true,
-  "index": "test"
+  "index": "logs"
 }
 --------------------------------------------------
 

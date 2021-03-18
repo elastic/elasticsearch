@@ -26,6 +26,9 @@ PUT _component_template/template_1
 DELETE _component_template/template_1
 --------------------------------------------------
 
+The provided <component-template> may contain multiple template names separated by a comma.
+If multiple template names are specified then there is no wildcard support and the
+provided names should match completely with existing component templates.
 
 [[delete-component-template-api-request]]
 ==== {api-request-title}
@@ -43,8 +46,8 @@ privilege>> to use this API.
 ==== {api-description-title}
 
 Use the delete component template API to delete one or more component templates
-Component templates are building blocks for constructing <<index-templates,index templates>>  
-that specify index mappings, settings, and aliases. 
+Component templates are building blocks for constructing <<index-templates,index templates>>
+that specify index mappings, settings, and aliases.
 
 [[delete-component-template-api-path-params]]
 ==== {api-path-parms-title}

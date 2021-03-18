@@ -80,7 +80,8 @@ public final class DatabaseRegistry implements Closeable {
 
     private final Client client;
     private final GeoIpCache cache;
-    private final Path geoipTmpDirectory;
+    private final Path geoipTmpBaseDirectory;
+    private Path geoipTmpDirectory;
     private final LocalDatabases localDatabases;
     private final Consumer<Runnable> genericExecutor;
 
@@ -103,13 +104,14 @@ public final class DatabaseRegistry implements Closeable {
                      Consumer<Runnable> genericExecutor) {
         this.client = client;
         this.cache = cache;
-        this.geoipTmpDirectory = tmpDir.resolve("geoip-databases");
+        this.geoipTmpBaseDirectory = tmpDir.resolve("geoip-databases");
         this.localDatabases = localDatabases;
         this.genericExecutor = genericExecutor;
     }
 
-    public void initialize(ResourceWatcherService resourceWatcher, IngestService ingestService) throws IOException {
+    public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestService) throws IOException {
         localDatabases.initialize(resourceWatcher);
+        geoipTmpDirectory = geoipTmpBaseDirectory.resolve(nodeId);
         Files.walkFileTree(geoipTmpDirectory, new FileVisitor<>() {
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
@@ -141,7 +143,7 @@ public final class DatabaseRegistry implements Closeable {
             }
         });
         if (Files.exists(geoipTmpDirectory) == false) {
-            Files.createDirectory(geoipTmpDirectory);
+            Files.createDirectories(geoipTmpDirectory);
         }
         LOGGER.info("initialized database registry, using geoip-databases directory [{}]", geoipTmpDirectory);
         ingestService.addIngestClusterStateListener(this::checkDatabases);

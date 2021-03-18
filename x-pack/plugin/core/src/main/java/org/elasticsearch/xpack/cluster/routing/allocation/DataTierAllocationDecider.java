@@ -21,12 +21,20 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.xpack.core.DataTier;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.DataTier.DATA_FROZEN;
 
 /**
  * The {@code DataTierAllocationDecider} is a custom allocation decider that behaves similar to the
@@ -45,6 +53,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
     public static final String INDEX_ROUTING_PREFER = "index.routing.allocation.include._tier_preference";
     public static final String INDEX_ROUTING_EXCLUDE = "index.routing.allocation.exclude._tier";
 
+    private static final DataTierValidator VALIDATOR = new DataTierValidator();
     public static final Setting<String> CLUSTER_ROUTING_REQUIRE_SETTING = Setting.simpleString(CLUSTER_ROUTING_REQUIRE,
         DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<String> CLUSTER_ROUTING_INCLUDE_SETTING = Setting.simpleString(CLUSTER_ROUTING_INCLUDE,
@@ -52,13 +61,13 @@ public class DataTierAllocationDecider extends AllocationDecider {
     public static final Setting<String> CLUSTER_ROUTING_EXCLUDE_SETTING = Setting.simpleString(CLUSTER_ROUTING_EXCLUDE,
         DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<String> INDEX_ROUTING_REQUIRE_SETTING = Setting.simpleString(INDEX_ROUTING_REQUIRE,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<String> INDEX_ROUTING_INCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_INCLUDE,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<String> INDEX_ROUTING_EXCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_EXCLUDE,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<String> INDEX_ROUTING_PREFER_SETTING = Setting.simpleString(INDEX_ROUTING_PREFER,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     private static void validateTierSetting(String setting) {
         if (Strings.hasText(setting)) {
@@ -68,6 +77,31 @@ public class DataTierAllocationDecider extends AllocationDecider {
             if (invalidTiers.size() > 0) {
                 throw new IllegalArgumentException("invalid tier names: " + invalidTiers);
             }
+        }
+    }
+
+    private static class DataTierValidator implements Setting.Validator<String> {
+        private static final Collection<Setting<?>> dependencies = List.of(IndexModule.INDEX_STORE_TYPE_SETTING,
+            SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING);
+
+        @Override
+        public void validate(String value) {
+            validateTierSetting(value);
+        }
+
+        @Override
+        public void validate(String value, Map<Setting<?>, Object> settings) {
+            if (Strings.hasText(value) && SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(settings) == false) {
+                String[] split = value.split(",");
+                if (Arrays.stream(split).anyMatch(DATA_FROZEN::equals)) {
+                    throw new IllegalArgumentException("[" + DATA_FROZEN + "] tier can only be used for partial searchable snapshots");
+                }
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return dependencies.iterator();
         }
     }
 

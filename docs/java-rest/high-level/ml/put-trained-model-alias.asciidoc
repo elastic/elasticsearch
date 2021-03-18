@@ -5,7 +5,7 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put trained model alias API
+=== Create or update trained model alias API
 
 beta::[]
 
@@ -15,7 +15,7 @@ The created trained model alias can then be used for other APIs in the stack
 instead of the referenced model id.
 
 [id="{upid}-{api}-request"]
-==== Put trained model alias request
+==== Request
 
 A +{request}+ requires the following arguments:
 

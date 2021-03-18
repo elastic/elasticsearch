@@ -471,7 +471,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             MappedFieldType ft = mapperService.fieldType("field");
             assertFetch(mapperService, "field", randomFetchTestValueVendor(ft).get(), randomFetchTestFormat());
         } finally {
-            assertFetchWarnings();
+            assertParseMinimalWarnings();
         }
     }
 
@@ -489,11 +489,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         MapperService mapperService = randomFetchTestMapper();
         try {
             MappedFieldType ft = mapperService.fieldType("field");
-            /*
-             * When we have many values doc values will sort and unique them.
-             * Source fetching won't, but we expect that. So we test with
-             * sorted and uniqued values.
-             */
             int count = between(2, 10);
             List<Object> values = new ArrayList<>(count);
             Supplier<? extends Object> vendor = randomFetchTestValueVendor(ft);
@@ -502,11 +497,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }
             assertFetch(mapperService, "field", values, randomFetchTestFormat());
         } finally {
-            assertFetchWarnings();
+            assertParseMinimalWarnings();
         }
     }
 
-    private MapperService randomFetchTestMapper() throws IOException {
+    protected final MapperService randomFetchTestMapper() throws IOException {
         return createMapperService(mapping(b -> {
             b.startObject("field");
             randomFetchTestFieldConfig(b);
@@ -537,12 +532,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * {@link XContentBuilder#value(Object)}
      */
     protected abstract Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft);
-
-    /**
-     * Assert any warnings that we expect after runing {@link #testFetch}
-     * and {@link #testFetchMany}.
-     */
-    protected void assertFetchWarnings() {}
 
     /**
      * Assert that fetching a value using {@link MappedFieldType#valueFetcher}
@@ -588,7 +577,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
              * and the native fetchers usually don't sort. We're ok with this
              * difference. But we have to convince the test we're ok with it.
              */
-            assertThat(fromNative, containsInAnyOrder(fromDocValues.stream().map(Matchers::equalTo).collect(toList())));
+            assertThat(
+                "fetching " + value,
+                fromNative,
+                containsInAnyOrder(fromDocValues.stream().map(Matchers::equalTo).collect(toList()))
+            );
         });
     }
 

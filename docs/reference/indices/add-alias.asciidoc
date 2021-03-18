@@ -47,7 +47,8 @@ NOTE: You cannot add <<data-streams,data streams>> to an index alias.
 
 `<alias>`::
 (Required, string)
-Name of the index alias to create or update.
+Name of the index alias to create or update. Supports
+<<date-math-index-names,date math>>.
 
 
 [[add-alias-api-query-params]]
@@ -67,6 +68,18 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
 
 [[add-alias-api-example]]
 ==== {api-examples-title}
+
+[[alias-date-math-support]]
+===== Date math support
+
+Index alias names support <<date-math-index-names,date math>>.
+
+[source,console]
+----
+# POST /logs/_alias/<logs_{now/M}>
+POST /logs/_alias/%3Clogs_%7Bnow%2FM%7D%3E
+----
+// TEST[s/^/PUT logs\n/]
 
 [[alias-adding]]
 ===== Add a time-based alias
@@ -139,3 +152,16 @@ PUT /logs_20302801
   }
 }
 --------------------------------------------------
+
+The create index API also supports <<date-math-index-names,date math>> in index
+alias names.
+
+[source,console]
+----
+PUT /logs
+{
+  "aliases": {
+    "<logs_{now/M}>": {}
+  }
+}
+----

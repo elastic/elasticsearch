@@ -48,6 +48,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private static final ParseField PHASE_EXECUTION_INFO = new ParseField("phase_execution");
     private static final ParseField AGE_FIELD = new ParseField("age");
     private static final ParseField REPOSITORY_NAME = new ParseField("repository_name");
+    private static final ParseField SHRINK_INDEX_NAME = new ParseField("shrink_index_name");
     private static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
 
     public static final ConstructingObjectParser<IndexLifecycleExplainResponse, Void> PARSER = new ConstructingObjectParser<>(
@@ -68,6 +69,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                     (Long) (a[10]),
                     (String) a[16],
                     (String) a[17],
+                    (String) a[18],
                     (BytesReference) a[11],
                     (PhaseExecutionInfo) a[12]
                 // a[13] == "age"
@@ -96,6 +98,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), FAILED_STEP_RETRY_COUNT_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REPOSITORY_NAME);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), SNAPSHOT_NAME);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), SHRINK_INDEX_NAME);
     }
 
     private final String index;
@@ -115,25 +118,28 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private final Integer failedStepRetryCount;
     private final String repositoryName;
     private final String snapshotName;
+    private final String shrinkIndexName;
 
     public static IndexLifecycleExplainResponse newManagedIndexResponse(String index, String policyName, Long lifecycleDate,
-            String phase, String action, String step, String failedStep, Boolean isAutoRetryableError, Integer failedStepRetryCount,
-            Long phaseTime, Long actionTime, Long stepTime, String repositoryName, String snapshotName, BytesReference stepInfo,
-            PhaseExecutionInfo phaseExecutionInfo) {
+                                                                        String phase, String action, String step, String failedStep,
+                                                                        Boolean isAutoRetryableError, Integer failedStepRetryCount,
+                                                                        Long phaseTime, Long actionTime, Long stepTime,
+                                                                        String repositoryName, String snapshotName, String shrinkIndexName,
+                                                                        BytesReference stepInfo, PhaseExecutionInfo phaseExecutionInfo) {
         return new IndexLifecycleExplainResponse(index, true, policyName, lifecycleDate, phase, action, step, failedStep,
-            isAutoRetryableError, failedStepRetryCount, phaseTime, actionTime, stepTime, repositoryName, snapshotName, stepInfo,
-            phaseExecutionInfo);
+            isAutoRetryableError, failedStepRetryCount, phaseTime, actionTime, stepTime, repositoryName, snapshotName, shrinkIndexName,
+            stepInfo, phaseExecutionInfo);
     }
 
     public static IndexLifecycleExplainResponse newUnmanagedIndexResponse(String index) {
         return new IndexLifecycleExplainResponse(index, false, null, null, null, null, null, null, null, null, null, null, null, null,
-            null, null, null);
+            null, null, null, null);
     }
 
     private IndexLifecycleExplainResponse(String index, boolean managedByILM, String policyName, Long lifecycleDate,
                                           String phase, String action, String step, String failedStep, Boolean isAutoRetryableError,
                                           Integer failedStepRetryCount, Long phaseTime, Long actionTime, Long stepTime,
-                                          String repositoryName, String snapshotName, BytesReference stepInfo,
+                                          String repositoryName, String snapshotName, String shrinkIndexName, BytesReference stepInfo,
                                           PhaseExecutionInfo phaseExecutionInfo) {
         if (managedByILM) {
             if (policyName == null) {
@@ -171,6 +177,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         this.phaseExecutionInfo = phaseExecutionInfo;
         this.repositoryName = repositoryName;
         this.snapshotName = snapshotName;
+        this.shrinkIndexName = shrinkIndexName;
     }
 
     public IndexLifecycleExplainResponse(StreamInput in) throws IOException {
@@ -202,6 +209,11 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 repositoryName = null;
                 snapshotName = null;
             }
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                shrinkIndexName = in.readOptionalString();
+            } else {
+                shrinkIndexName = null;
+            }
         } else {
             policyName = null;
             lifecycleDate = null;
@@ -218,6 +230,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             phaseExecutionInfo = null;
             repositoryName = null;
             snapshotName = null;
+            shrinkIndexName = null;
         }
     }
 
@@ -244,6 +257,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
                 out.writeOptionalString(repositoryName);
                 out.writeOptionalString(snapshotName);
+            }
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeOptionalString(shrinkIndexName);
             }
         }
     }
@@ -324,6 +340,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         return snapshotName;
     }
 
+    public String getShrinkIndexName() {
+        return shrinkIndexName;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -368,6 +388,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (snapshotName != null) {
                 builder.field(SNAPSHOT_NAME.getPreferredName(), snapshotName);
             }
+            if (shrinkIndexName != null) {
+                builder.field(SHRINK_INDEX_NAME.getPreferredName(), shrinkIndexName);
+            }
             if (stepInfo != null && stepInfo.length() > 0) {
                 builder.rawField(STEP_INFO_FIELD.getPreferredName(), stepInfo.streamInput(), XContentType.JSON);
             }
@@ -382,7 +405,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     @Override
     public int hashCode() {
         return Objects.hash(index, managedByILM, policyName, lifecycleDate, phase, action, step, failedStep, isAutoRetryableError,
-            failedStepRetryCount, phaseTime, actionTime, stepTime, repositoryName, snapshotName, stepInfo, phaseExecutionInfo);
+            failedStepRetryCount, phaseTime, actionTime, stepTime, repositoryName, snapshotName, shrinkIndexName, stepInfo,
+            phaseExecutionInfo);
     }
 
     @Override
@@ -409,6 +433,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 Objects.equals(stepTime, other.stepTime) &&
                 Objects.equals(repositoryName, other.repositoryName) &&
                 Objects.equals(snapshotName, other.snapshotName) &&
+                Objects.equals(shrinkIndexName, other.shrinkIndexName) &&
                 Objects.equals(stepInfo, other.stepInfo) &&
                 Objects.equals(phaseExecutionInfo, other.phaseExecutionInfo);
     }

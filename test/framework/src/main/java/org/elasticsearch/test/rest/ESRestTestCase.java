@@ -614,20 +614,23 @@ public abstract class ESRestTestCase extends ESTestCase {
                             .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
                             .filter(name -> isXPackTemplate(name) == false)
                             .collect(Collectors.toList());
-                        // Ideally we would want to check the version of the elected master node and
-                        // send the delete request directly to that node.
-                        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_13_0))) {
-                            try {
-                                adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
-                            } catch (ResponseException e) {
-                                logger.warn(new ParameterizedMessage("unable to remove multiple composable index templates {}", names), e);
-                            }
-                        } else {
-                            for (String name : names) {
+                        if (names.isEmpty() == false) {
+                            // Ideally we would want to check the version of the elected master node and
+                            // send the delete request directly to that node.
+                            if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_13_0))) {
                                 try {
-                                    adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
+                                    adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
-                                    logger.warn(new ParameterizedMessage("unable to remove composable index template {}", name), e);
+                                    logger.warn(
+                                        new ParameterizedMessage("unable to remove multiple composable index templates {}", names), e);
+                                }
+                            } else {
+                                for (String name : names) {
+                                    try {
+                                        adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
+                                    } catch (ResponseException e) {
+                                        logger.warn(new ParameterizedMessage("unable to remove composable index template {}", name), e);
+                                    }
                                 }
                             }
                         }
@@ -644,23 +647,27 @@ public abstract class ESRestTestCase extends ESTestCase {
                             .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
                             .filter(name -> isXPackTemplate(name) == false)
                             .collect(Collectors.toList());
-                        // Ideally we would want to check the version of the elected master node and
-                        // send the delete request directly to that node.
-                        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_13_0))) {
-                            try {
-                                adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
-                            } catch (ResponseException e) {
-                                logger.warn(new ParameterizedMessage("unable to remove multiple component templates {}", names), e);
-                                    }
-                                }else {
-                            for (String componentTemplate : names) {
+                        if (names.isEmpty() == false) {
+                            // Ideally we would want to check the version of the elected master node and
+                            // send the delete request directly to that node.
+                            if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_13_0))) {
                                 try {
-                                adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
-                            } catch (ResponseException e) {
-                                logger.warn(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
+                                    adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
+                                } catch (ResponseException e) {
+                                    logger.warn(new ParameterizedMessage("unable to remove multiple component templates {}", names), e);
+                                }
+                            } else {
+                                for (String componentTemplate : names) {
+                                    try {
+                                        adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
+                                    } catch (ResponseException e) {
+                                        logger.warn(
+                                            new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
+                                    }
+                                }
                             }
                         }
-                    }} catch (Exception e) {
+                    } catch (Exception e) {
                         logger.debug("ignoring exception removing all component templates", e);
                         // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                     }
@@ -1436,13 +1443,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".transform-")) {
             return true;
         }
+        if (name.startsWith(".deprecation-")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
             case ".slm-history":
             case ".async-search":
             case "saml-service-provider":
-            case "ilm-history":
             case "logs":
             case "logs-settings":
             case "logs-mappings":
@@ -1453,7 +1462,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "synthetics-settings":
             case "synthetics-mappings":
             case ".snapshot-blob-cache":
-            case ".deprecation-indexing-template":
+            case "ilm-history":
             case "logstash-index-template":
             case "security-index-template":
                 return true;

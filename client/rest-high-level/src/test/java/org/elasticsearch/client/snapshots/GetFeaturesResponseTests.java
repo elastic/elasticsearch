@@ -9,6 +9,7 @@
 package org.elasticsearch.client.snapshots;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.client.feature.GetFeaturesResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 

@@ -76,6 +76,7 @@ public class SystemIndexManagerTests extends ESTestCase {
         .build();
 
     private static final SystemIndices.Feature FEATURE = new SystemIndices.Feature(
+        "foo",
         "a test feature",
         org.elasticsearch.common.collect.List.of(DESCRIPTOR)
     );
@@ -107,8 +108,8 @@ public class SystemIndexManagerTests extends ESTestCase {
             .build();
 
         SystemIndices systemIndices = new SystemIndices(org.elasticsearch.common.collect.Map.of(
-            "index 1", new SystemIndices.Feature("index 1 feature", org.elasticsearch.common.collect.List.of(d1)),
-            "index 2", new SystemIndices.Feature("index 2 feature", org.elasticsearch.common.collect.List.of(d2))));
+            "index 1", new SystemIndices.Feature("index 1", "index 1 feature", org.elasticsearch.common.collect.List.of(d1)),
+            "index 2", new SystemIndices.Feature("index 2", "index 2 feature", org.elasticsearch.common.collect.List.of(d2))));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
@@ -145,8 +146,8 @@ public class SystemIndexManagerTests extends ESTestCase {
             .build();
 
         SystemIndices systemIndices = new SystemIndices(org.elasticsearch.common.collect.Map.of(
-            "index 1", new SystemIndices.Feature("index 1 feature", org.elasticsearch.common.collect.List.of(d1)),
-            "index 2", new SystemIndices.Feature("index 2 feature", org.elasticsearch.common.collect.List.of(d2))));;
+            "index 1", new SystemIndices.Feature("index 1", "index 1 feature", org.elasticsearch.common.collect.List.of(d1)),
+            "index 2", new SystemIndices.Feature("index 2", "index 2 feature", org.elasticsearch.common.collect.List.of(d2))));;
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(

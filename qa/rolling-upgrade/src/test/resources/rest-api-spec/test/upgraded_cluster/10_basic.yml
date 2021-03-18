@@ -137,8 +137,8 @@
 ---
 "Verify date_nanos default format":
   - skip:
-        version: "- 6.99.99"
-        reason: date_nanos was introduced in 7.0
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/70577"
 
   - do:
       search:

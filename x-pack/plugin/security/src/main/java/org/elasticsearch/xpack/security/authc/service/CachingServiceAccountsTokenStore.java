@@ -113,7 +113,12 @@ public abstract class CachingServiceAccountsTokenStore implements ServiceAccount
 
     abstract void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener);
 
-    private static class CachedResult {
+    // package private for testing
+    Cache<String, ListenableFuture<CachedResult>> getCache() {
+        return cache;
+    }
+
+    static class CachedResult {
 
         private final boolean success;
         private final char[] hash;

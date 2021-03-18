@@ -18,6 +18,7 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -102,7 +103,7 @@ public class ServiceAccountService {
                 "only [{}] service accounts are supported, but received [{}]",
                 ElasticServiceAccounts.NAMESPACE, serviceAccountToken.getAccountId().asPrincipal());
             logger.debug(message);
-            listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage()));
+            listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage(), RestStatus.UNAUTHORIZED));
             return;
         }
 
@@ -111,7 +112,7 @@ public class ServiceAccountService {
             final ParameterizedMessage message = new ParameterizedMessage(
                 "the [{}] service account does not exist", serviceAccountToken.getAccountId().asPrincipal());
             logger.debug(message);
-            listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage()));
+            listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage(), RestStatus.UNAUTHORIZED));
             return;
         }
 
@@ -124,7 +125,7 @@ public class ServiceAccountService {
                     serviceAccountToken.getAccountId().asPrincipal(),
                     serviceAccountToken.getTokenName());
                 logger.debug(message);
-                listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage()));
+                listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage(), RestStatus.UNAUTHORIZED));
             }
         }, listener::onFailure));
     }
@@ -149,8 +150,6 @@ public class ServiceAccountService {
         return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
             Map.of("_token_name", token.getTokenName()));
     }
-
-
 
     private static ServiceAccountToken doParseToken(SecureString token) throws IOException {
         final byte[] bytes = CharArrays.toUtf8Bytes(token.getChars());

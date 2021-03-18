@@ -71,7 +71,6 @@ public class CompositeServiceAccountsTokenStoreTests extends ESTestCase {
 
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         compositeStore.authenticate(token, future);
-        System.out.println(future.get());
         if (store1Success || store2Success || store3Success) {
             assertThat(future.get(), is(true));
             if (store1Success) {

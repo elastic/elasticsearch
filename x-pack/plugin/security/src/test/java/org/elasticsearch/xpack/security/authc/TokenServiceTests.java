@@ -46,6 +46,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -90,7 +94,10 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import javax.crypto.SecretKey;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -1092,6 +1099,46 @@ public class TokenServiceTests extends ESTestCase {
             accessTokenString = TokenService.hashTokenString(accessTokenString);
         }
         return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
+    }
+
+    public void testStream() throws IOException {
+        final String token = "YJHOiNRCTW-QHYlTLPgY8A";
+        try (ByteArrayOutputStream os = new ByteArrayOutputStream();
+            OutputStream base64 = Base64.getEncoder().wrap(os);
+            StreamOutput out = new OutputStreamStreamOutput(base64)) {
+            out.setVersion(Version.CURRENT);
+            Version.writeVersion(Version.CURRENT, out);
+            out.writeVInt(0); // <-- This is the problem
+            out.writeString(token);
+            final String encoded = new String(os.toByteArray(), StandardCharsets.UTF_8);
+            System.out.println("encoded length = " + encoded.length());
+            final byte[] bytes = encoded.getBytes(StandardCharsets.UTF_8);
+            try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)))) {
+                final Version version = Version.readVersion(in);
+                in.setVersion(version);
+                final int i = in.readVInt();
+                final String decoded = in.readString();
+                System.out.println(decoded);
+            }
+        }
+    }
+
+    public void testStreamSimple() throws IOException {
+        final int vint1 = 128;
+        final int vint2 = 0;
+        try (ByteArrayOutputStream os = new ByteArrayOutputStream();
+            StreamOutput out = new OutputStreamStreamOutput(os)) {
+            out.writeVInt(vint1);
+            out.writeVInt(vint2);
+            out.flush();
+            final String encoded = os.toString(StandardCharsets.UTF_8);
+            System.out.println("encoded length = " + encoded.length());
+            final byte[] bytes = encoded.getBytes(StandardCharsets.UTF_8);
+            try (StreamInput in = new InputStreamStreamInput(new ByteArrayInputStream(bytes))) {
+                assertEquals(vint1, in.readVInt());
+                assertEquals(vint2, in.readVInt());
+            }
+        }
     }
 
 }

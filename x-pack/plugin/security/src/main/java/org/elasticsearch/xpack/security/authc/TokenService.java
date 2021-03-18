@@ -194,7 +194,7 @@ public final class TokenService {
     private static final int TOKEN_LENGTH = 22;
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
     static final int LEGACY_MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
-    static final int MINIMUM_BYTES = VERSION_BYTES + TOKEN_LENGTH + 1;
+    static final int MINIMUM_BYTES = VERSION_BYTES + 1 + TOKEN_LENGTH + 1;
     static final int LEGACY_MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * LEGACY_MINIMUM_BYTES) / 3)).intValue();
     public static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
     static final Version VERSION_HASHED_TOKENS = Version.V_7_2_0;
@@ -1723,6 +1723,9 @@ public final class TokenService {
                  StreamOutput out = new OutputStreamStreamOutput(base64)) {
                 out.setVersion(version);
                 Version.writeVersion(version, out);
+                if (version.onOrAfter(VERSION_TOKEN_TYPE)) {
+                    SecurityTokenType.ACCESS_TOKEN.write(out);
+                }
                 out.writeString(accessToken);
                 return new String(os.toByteArray(), StandardCharsets.UTF_8);
             }
@@ -1757,6 +1760,9 @@ public final class TokenService {
              StreamOutput out = new OutputStreamStreamOutput(base64)) {
             out.setVersion(version);
             Version.writeVersion(version, out);
+            if (version.onOrAfter(VERSION_TOKEN_TYPE)) {
+                SecurityTokenType.REFRESH_TOKEN.write(out);
+            }
             out.writeString(payload);
             return new String(os.toByteArray(), StandardCharsets.UTF_8);
         } catch (IOException e) {

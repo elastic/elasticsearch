@@ -90,10 +90,11 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
             assertThat(view.get("stats.databases_count"), equalTo(3));
             assertThat(view.get("stats.total_download_time"), greaterThan(0));
             Map<String, Map<String, List<Map<String, Object>>>> nodes = view.get("nodes");
-            assertThat(nodes.values(), hasSize(1));
-
-            assertThat(nodes.values().iterator().next().get("databases").stream().map(m -> m.get("name")).collect(Collectors.toSet()),
-                containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb", "GeoLite2-Country.mmdb"));
+            assertThat(nodes.values(), hasSize(greaterThan(0)));
+            for (Map<String, List<Map<String, Object>>> value : nodes.values()) {
+                assertThat(value.get("databases").stream().map(m -> m.get("name")).collect(Collectors.toSet()),
+                    containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb", "GeoLite2-Country.mmdb"));
+            }
         });
     }
 

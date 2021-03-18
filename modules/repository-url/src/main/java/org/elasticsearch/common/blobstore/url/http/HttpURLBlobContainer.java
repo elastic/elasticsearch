@@ -12,6 +12,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.url.URLBlobContainer;
 import org.elasticsearch.common.blobstore.url.URLBlobStore;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -33,6 +34,10 @@ public class HttpURLBlobContainer extends URLBlobContainer {
 
     @Override
     public InputStream readBlob(String name, long position, long length) throws IOException {
+        if (length == 0) {
+            return new ByteArrayInputStream(new byte[0]);
+        }
+
         return new RetryingHttpInputStream(name,
             getURIForBlob(name),
             position,

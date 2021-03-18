@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
@@ -18,9 +17,6 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -352,67 +348,10 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
-        RangeType rt = ((RangeFieldType) ft).rangeType();
         // Doc value fetching crashes.
         // https://github.com/elastic/elasticsearch/issues/70269
         // TODO when we fix doc values fetcher we should add tests for date and ip ranges.
         assumeFalse("DocValuesFetcher doesn't work", true);
-        if (rt.isNumeric()) {
-            Supplier<Number> numbers = randomFetchValueVendor(rt.numberType().numericType());
-            return () -> {
-                Number lhs = numbers.get();
-                Number rhs = numbers.get();
-                // All the number subclasses we get are comparable to each other
-                @SuppressWarnings("unchecked")
-                Comparable<Number> hack = (Comparable<Number>) lhs;
-                if (hack.compareTo(rhs) > 0) {
-                    Number swap = lhs;
-                    lhs = rhs;
-                    rhs = swap;
-                }
-                return Map.of(randomBoolean() ? "gt" : "gte", lhs, randomBoolean() ? "lt" : "lte", rhs);
-            };
-        }
-        throw new UnsupportedOperationException("unsupported field type: " + ft);
-    }
-
-
-    protected Supplier<Number> randomFetchValueVendor(NumericType nt) {
-        switch (nt) {
-            case BYTE:
-                return ESTestCase::randomByte;
-            case SHORT:
-                return ESTestCase::randomShort;
-            case INT:
-                return ESTestCase::randomInt;
-            case LONG:
-                return ESTestCase::randomLong;
-            case HALF_FLOAT:
-                /*
-                 * The native valueFetcher returns 32 bits of precision but the
-                 * doc values fetcher returns 16 bits of precision. To make it
-                 * all line up we round 
-                 */
-                // https://github.com/elastic/elasticsearch/issues/70260
-                return () -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
-            case FLOAT:
-                /*
-                 * The source parser and doc values round trip will both reduce
-                 * the precision to 32 bits if the value is more precise.
-                 * randomDoubleBetween will smear the values out across a wide
-                 * range of valid values.
-                 */
-                return randomBoolean() ? () -> randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true) : ESTestCase::randomFloat;
-            case DOUBLE:
-                /*
-                 * The source parser and doc values round trip will both increase
-                 * the precision to 64 bits if the value is less precise.
-                 * randomDoubleBetween will smear the values out across a wide
-                 * range of valid values.
-                 */
-                return randomBoolean() ? () -> randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : ESTestCase::randomFloat;
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return null;
     }
 }

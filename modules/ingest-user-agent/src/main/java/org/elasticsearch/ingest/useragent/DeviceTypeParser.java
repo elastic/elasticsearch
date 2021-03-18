@@ -144,7 +144,6 @@ public class DeviceTypeParser {
         return null;
     }
 
-
     static final class DeviceTypeSubPattern {
         private final Pattern pattern;
         private final String nameReplacement;

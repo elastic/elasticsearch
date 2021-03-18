@@ -33,6 +33,7 @@ import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, maxNumDataNodes = 1)
 public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
@@ -88,10 +89,10 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
             assertThat(view.get("stats.skipped_updates"), equalTo(0));
             assertThat(view.get("stats.databases_count"), equalTo(3));
             assertThat(view.get("stats.total_download_time"), greaterThan(0));
-            String id = clusterService().localNode().getId();
-            List<Map<String, Object>> databases = view.get("nodes." + id + ".databases");
+            Map<String, Map<String, List<Map<String, Object>>>> nodes = view.get("nodes");
+            assertThat(nodes.values(), hasSize(1));
 
-            assertThat(databases.stream().map(m -> m.get("name")).collect(Collectors.toSet()),
+            assertThat(nodes.values().iterator().next().get("databases").stream().map(m -> m.get("name")).collect(Collectors.toSet()),
                 containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb", "GeoLite2-Country.mmdb"));
         });
     }

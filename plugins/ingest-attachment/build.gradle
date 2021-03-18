@@ -59,7 +59,7 @@ dependencies {
   api "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   api "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
   // EPUB books
-  api 'org.apache.commons:commons-lang3:3.9'
+  api "org.apache.commons:commons-lang3:${versions.commons_lang3}"
   // Microsoft Word files with visio diagrams
   api 'org.apache.commons:commons-math3:3.6.1'
   // POIs dependency

@@ -15,7 +15,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Set;
 
-public class GeoIpDownloaderStatsActionNodeResponseSerializingTest extends
+public class GeoIpDownloaderStatsActionNodeResponseSerializingTests extends
     AbstractWireSerializingTestCase<GeoIpDownloaderStatsAction.NodeResponse> {
 
     @Override

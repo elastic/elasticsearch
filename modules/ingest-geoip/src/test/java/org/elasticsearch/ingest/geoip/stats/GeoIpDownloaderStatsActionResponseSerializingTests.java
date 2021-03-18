@@ -15,7 +15,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.util.Collections;
 import java.util.List;
 
-public class GeoIpDownloaderStatsActionResponseSerializingTest extends
+public class GeoIpDownloaderStatsActionResponseSerializingTests extends
     AbstractWireSerializingTestCase<GeoIpDownloaderStatsAction.Response> {
 
     @Override
@@ -26,7 +26,7 @@ public class GeoIpDownloaderStatsActionResponseSerializingTest extends
     @Override
     protected GeoIpDownloaderStatsAction.Response createTestInstance() {
         List<GeoIpDownloaderStatsAction.NodeResponse> nodeResponses = randomList(10,
-            GeoIpDownloaderStatsActionNodeResponseSerializingTest::createRandomInstance);
+            GeoIpDownloaderStatsActionNodeResponseSerializingTests::createRandomInstance);
         return new GeoIpDownloaderStatsAction.Response(ClusterName.DEFAULT, nodeResponses, Collections.emptyList());
     }
 }

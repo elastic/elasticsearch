@@ -36,6 +36,10 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
             return this;
         }
 
+        if (stage == Stage.INIT) {
+            remoteTranslogSet = false;
+        }
+
         return super.setStage(stage);
     }
 
@@ -61,6 +65,11 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
                 );
             }
         }
+    }
+
+    // Visible for tests
+    boolean isRemoteTranslogSet() {
+        return remoteTranslogSet;
     }
 
     public synchronized void setPreWarmComplete() {

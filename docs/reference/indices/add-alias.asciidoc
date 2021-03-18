@@ -26,6 +26,7 @@ PUT /my-index-000001/_alias/alias1
 
 `POST /<index>/_aliases/<alias>`
 
+
 [[add-alias-api-prereqs]]
 ==== {api-prereq-title}
 
@@ -139,3 +140,22 @@ PUT /logs_20302801
   }
 }
 --------------------------------------------------
+
+===== Date math expressions are supported for aliases as well
+
+[source,console]
+--------------------------------------------------
+# POST /logs/_alias/<logs-{now/M}>
+POST /logs/_alias/%3Clogs-%7Bnow%2FM%7D%3E
+--------------------------------------------------
+
+[source,console]
+--------------------------------------------------
+PUT /logs
+{
+  "aliases": {
+    "<logs-{now/M}>": {}
+  }
+}
+--------------------------------------------------
+

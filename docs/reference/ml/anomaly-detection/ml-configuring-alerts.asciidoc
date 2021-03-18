@@ -1,16 +1,15 @@
 [role="xpack"]
 [[ml-configuring-alerts]]
-= Configuring {anomaly-detect} alerts
+= Generating alerts for {anomaly-jobs}
 
 beta::[]
 
-{kib} {alert-features} include support for {ml} rules, which run scheduled checks on an {anomaly-job} or a 
-group of jobs to detect anomalies with certain conditions. If an anomaly meets 
-the conditions, an alert is created and the associated action is triggered. For 
-example, you can create a rule to check an {anomaly-job} every fifteen minutes 
-for critical anomalies and to notify you in an email. 
-To learn more about {kib} {alert-features}, 
-refer to 
+{kib} {alert-features} include support for {ml} rules, which run scheduled 
+checks on an {anomaly-job} or a group of jobs to detect anomalies with certain 
+conditions. If an anomaly meets the conditions, an alert is created and the 
+associated action is triggered. For example, you can create a rule to check an 
+{anomaly-job} every fifteen minutes for critical anomalies and to notify you in 
+an email. To learn more about {kib} {alert-features}, refer to 
 {kibana-ref}/alerting-getting-started.html#alerting-getting-started[Alerting and Actions].
 
 

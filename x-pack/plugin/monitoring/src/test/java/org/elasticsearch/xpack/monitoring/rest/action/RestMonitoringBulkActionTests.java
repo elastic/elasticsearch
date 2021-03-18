@@ -20,6 +20,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.XContentBuilderFactory;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -149,16 +151,23 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
     private void prepareRequest(final RestRequest restRequest) throws Exception {
         final NodeClient client = mock(NodeClient.class);
         final CheckedConsumer<RestChannel, Exception> consumer = action.prepareRequest(restRequest, client);
-        final RestChannel channel = mock(RestChannel.class);
-        when(channel.xContentBuilderFactory().newBuilder()).thenReturn(JsonXContent.contentBuilder());
+        final RestChannel channel = restChannelWithJsonBuilderMock();
         // trigger execution
         consumer.accept(channel);
     }
 
     private RestBuilderListener<MonitoringBulkResponse> getRestBuilderListener() throws Exception {
-        final RestChannel channel = mock(RestChannel.class);
-        when(channel.xContentBuilderFactory().newBuilder()).thenReturn(JsonXContent.contentBuilder());
+        final RestChannel channel = restChannelWithJsonBuilderMock();
         return RestMonitoringBulkAction.getRestBuilderListener(channel);
+    }
+
+    private RestChannel restChannelWithJsonBuilderMock() throws IOException {
+        final XContentBuilderFactory factory = mock(XContentBuilderFactory.class);
+        when(factory.newBuilder()).thenReturn(JsonXContent.contentBuilder());
+
+        final RestChannel channel = mock(RestChannel.class);
+        when(channel.xContentBuilderFactory()).thenReturn(factory);
+        return channel;
     }
 
     private static FakeRestRequest createRestRequest(final String systemId, final String systemApiVersion, final String interval) {

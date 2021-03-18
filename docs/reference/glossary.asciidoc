@@ -203,8 +203,8 @@ the hot phase, an <<glossary-index,index>> is actively updated and queried. See
 [[glossary-hot-tier]] hot tier::
 // tag::hot-tier-def[]
 <<glossary-data-tier,Data tier>> that contains <<glossary-node,nodes>> that
-handle the <<glossary-index,indexing>> load for time series data such as logs or
-metrics and hold your most recent, most-frequently-accessed data. See
+handle the <<glossary-index,indexing>> load for time series data, such as logs or
+metrics. This tier holds your most recent, most-frequently-accessed data. See
 {ref}/data-tiers.html[Data tiers].
 // end::hot-tier-def[]
 

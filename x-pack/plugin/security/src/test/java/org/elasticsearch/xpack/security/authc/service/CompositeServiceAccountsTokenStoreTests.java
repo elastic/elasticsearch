@@ -15,14 +15,14 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CompositeServiceAccountsCredentialStoreTests extends ESTestCase {
+public class CompositeServiceAccountsTokenStoreTests extends ESTestCase {
 
     public void testAuthenticate() {
         final ServiceAccountToken token = mock(ServiceAccountToken.class);
 
-        final ServiceAccountsCredentialStore store1 = mock(ServiceAccountsCredentialStore.class);
-        final ServiceAccountsCredentialStore store2 = mock(ServiceAccountsCredentialStore.class);
-        final ServiceAccountsCredentialStore store3 = mock(ServiceAccountsCredentialStore.class);
+        final ServiceAccountsTokenStore store1 = mock(ServiceAccountsTokenStore.class);
+        final ServiceAccountsTokenStore store2 = mock(ServiceAccountsTokenStore.class);
+        final ServiceAccountsTokenStore store3 = mock(ServiceAccountsTokenStore.class);
 
         final boolean store1Success = randomBoolean();
         final boolean store2Success = randomBoolean();
@@ -32,8 +32,8 @@ public class CompositeServiceAccountsCredentialStoreTests extends ESTestCase {
         when(store2.authenticate(token)).thenReturn(store2Success);
         when(store3.authenticate(token)).thenReturn(store3Success);
 
-        final ServiceAccountsCredentialStore.CompositeServiceAccountsCredentialStore compositeStore =
-            new ServiceAccountsCredentialStore.CompositeServiceAccountsCredentialStore(List.of(store1, store2, store3));
+        final ServiceAccountsTokenStore.CompositeServiceAccountsTokenStore compositeStore =
+            new ServiceAccountsTokenStore.CompositeServiceAccountsTokenStore(List.of(store1, store2, store3));
 
         if (store1Success || store2Success || store3Success) {
             assertThat(compositeStore.authenticate(token), is(true));

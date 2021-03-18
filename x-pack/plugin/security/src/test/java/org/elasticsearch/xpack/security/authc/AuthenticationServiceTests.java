@@ -95,6 +95,7 @@ import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mock;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -111,6 +112,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -263,7 +265,13 @@ public class AuthenticationServiceTests extends ESTestCase {
                                           mock(CacheInvalidatorRegistry.class), threadPool);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
             clusterService);
-        serviceAccountService = new ServiceAccountService(new CompositeServiceAccountsTokenStore(List.of(), threadContext));
+        serviceAccountService = mock(ServiceAccountService.class);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
+            listener.onResponse(null);
+            return null;
+        }).when(serviceAccountService).tryAuthenticateBearerToken(any(), any(), any());
 
         operatorPrivilegesService = mock(OperatorPrivileges.OperatorPrivilegesService.class);
         service = new AuthenticationService(settings, realms, auditTrailService,
@@ -1898,6 +1906,37 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertEquals(RestStatus.UNAUTHORIZED, e.status());
             verifyZeroInteractions(operatorPrivilegesService);
         }
+    }
+
+    public void testCanAuthenticateServiceAccount() throws ExecutionException, InterruptedException {
+        Mockito.reset(serviceAccountService);
+        final Authentication authentication = new Authentication(
+            new User("elastic/fleet"),
+            new RealmRef("service_account", "service_account", "foo"), null);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
+            listener.onResponse(authentication);
+            return null;
+        }).when(serviceAccountService).tryAuthenticateBearerToken(any(), any(), any());
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        service.authenticate("_action", transportRequest, false, future);
+        assertThat(future.get(), is(authentication));
+    }
+
+    public void testServiceAccountFailureWillNotFallthrough() {
+        Mockito.reset(serviceAccountService);
+        final RuntimeException bailOut = new RuntimeException("bail out");
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
+            listener.onFailure(bailOut);
+            return null;
+        }).when(serviceAccountService).tryAuthenticateBearerToken(any(), any(), any());
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        service.authenticate("_action", transportRequest, false, future);
+        final ExecutionException e = expectThrows(ExecutionException.class, () -> future.get());
+        assertThat(e.getCause().getCause(), is(bailOut));
     }
 
     private static class InternalRequest extends TransportRequest {

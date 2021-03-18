@@ -33,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -119,6 +120,55 @@ public class ServiceAccountServiceTests extends ESTestCase {
         return new Authentication.RealmRef(randomAlphaOfLengthBetween(3, 8),
             randomAlphaOfLengthBetween(3, 8),
             randomAlphaOfLengthBetween(3, 8));
+    }
+
+    public void testTryAuthenticateBearerToken() throws ExecutionException, InterruptedException {
+        // null token
+        final PlainActionFuture<Authentication> future1 = new PlainActionFuture<>();
+        serviceAccountService.tryAuthenticateBearerToken(null, randomAlphaOfLengthBetween(3, 8), future1);
+        assertThat(future1.get(), nullValue());
+
+        // garbage token
+        final PlainActionFuture<Authentication> future2 = new PlainActionFuture<>();
+        serviceAccountService.tryAuthenticateBearerToken(new SecureString(randomAlphaOfLength(75).toCharArray()),
+            randomAlphaOfLengthBetween(3, 8), future2);
+        assertThat(future2.get(), nullValue());
+
+        // Wrong version
+        final PlainActionFuture<Authentication> future3 = new PlainActionFuture<>();
+        serviceAccountService.tryAuthenticateBearerToken(
+            new SecureString("0/uxAwIHZWxhc3RpYwVmbGVldAZ0b2tlbjEWS2xScU9xdDdUSktTNWt3X1hKV0k0QQAAAAAAAAA".toCharArray()),
+            randomAlphaOfLengthBetween(3, 8), future3);
+        assertThat(future3.get(), nullValue());
+
+        // Wrong token type
+        final PlainActionFuture<Authentication> future4 = new PlainActionFuture<>();
+        serviceAccountService.tryAuthenticateBearerToken(
+            new SecureString("46ToAwAHZWxhc3RpYwVmbGVldAZ0b2tlbjEWUmpXRVp1Q3hTVS1lZTJoMFJoYVFqUQAAAAAAAAA".toCharArray()),
+            randomAlphaOfLengthBetween(3, 8), future4);
+        assertThat(future4.get(), nullValue());
+
+        // Valid token
+        final PlainActionFuture<Authentication> future5 = new PlainActionFuture<>();
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
+            listener.onResponse(true);
+            return null;
+        }).when(serviceAccountsTokenStore).authenticate(any(), any());
+        final String nodeName = randomAlphaOfLengthBetween(3, 8);
+        serviceAccountService.tryAuthenticateBearerToken(
+            new SecureString("46ToAwIHZWxhc3RpYwVmbGVldAZ0b2tlbjEWY1hoZExGb2RUZVd4WVU1My02TVBtZwAAAAAAAAA".toCharArray()),
+            nodeName, future5);
+        assertThat(future5.get(), equalTo(
+            new Authentication(
+                new User("elastic/fleet", Strings.EMPTY_ARRAY, "Service account - elastic/fleet", null,
+                    Map.of("_elastic_service_account", true), true),
+                new Authentication.RealmRef(ServiceAccountService.REALM_NAME, ServiceAccountService.REALM_TYPE, nodeName),
+                null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
+                Map.of("_token_name", "token1")
+            )
+        ));
     }
 
     public void testAuthenticateWithToken() throws ExecutionException, InterruptedException {

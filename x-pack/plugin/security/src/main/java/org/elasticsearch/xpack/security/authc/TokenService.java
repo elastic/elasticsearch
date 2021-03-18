@@ -192,9 +192,10 @@ public final class TokenService {
     private static final int HASHED_TOKEN_LENGTH = 43;
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
     private static final int TOKEN_LENGTH = 22;
+    private static final int TOKEN_TYPE_LENGTH = 1;
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
     static final int LEGACY_MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
-    static final int MINIMUM_BYTES = VERSION_BYTES + 1 + TOKEN_LENGTH + 1;
+    static final int MINIMUM_BYTES = VERSION_BYTES + TOKEN_TYPE_LENGTH + TOKEN_LENGTH + 1;
     static final int LEGACY_MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * LEGACY_MINIMUM_BYTES) / 3)).intValue();
     public static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
     static final Version VERSION_HASHED_TOKENS = Version.V_7_2_0;
@@ -1718,16 +1719,14 @@ public final class TokenService {
 
     String prependVersionAndEncodeAccessToken(Version version, String accessToken) throws IOException, GeneralSecurityException {
         if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
-            try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
-                 OutputStream base64 = Base64.getEncoder().wrap(os);
-                 StreamOutput out = new OutputStreamStreamOutput(base64)) {
+            try (BytesStreamOutput out = new BytesStreamOutput(MINIMUM_BASE64_BYTES)) {
                 out.setVersion(version);
                 Version.writeVersion(version, out);
                 if (version.onOrAfter(VERSION_TOKEN_TYPE)) {
                     SecurityTokenType.ACCESS_TOKEN.write(out);
                 }
                 out.writeString(accessToken);
-                return new String(os.toByteArray(), StandardCharsets.UTF_8);
+                return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
         } else {
             // we know that the minimum length is larger than the default of the ByteArrayOutputStream so set the size to this explicitly
@@ -1755,16 +1754,15 @@ public final class TokenService {
     }
 
     public static String prependVersionAndEncodeRefreshToken(Version version, String payload) {
-        try (ByteArrayOutputStream os = new ByteArrayOutputStream();
-             OutputStream base64 = Base64.getEncoder().wrap(os);
-             StreamOutput out = new OutputStreamStreamOutput(base64)) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
             Version.writeVersion(version, out);
             if (version.onOrAfter(VERSION_TOKEN_TYPE)) {
                 SecurityTokenType.REFRESH_TOKEN.write(out);
             }
             out.writeString(payload);
-            return new String(os.toByteArray(), StandardCharsets.UTF_8);
+            return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
+
         } catch (IOException e) {
             throw new RuntimeException("Unexpected exception when working with small in-memory streams", e);
         }
@@ -1779,6 +1777,12 @@ public final class TokenService {
         try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
             final Version version = Version.readVersion(in);
             in.setVersion(version);
+            if (version.onOrAfter(VERSION_TOKEN_TYPE)) {
+                final SecurityTokenType tokenType = SecurityTokenType.read(in);
+                if (tokenType != SecurityTokenType.REFRESH_TOKEN) {
+                    throw new IllegalArgumentException("expect a token type of [REFRESH_TOKEN], got [" + tokenType.name() + "]");
+                }
+            }
             final String payload = in.readString();
             return new Tuple<Version, String>(version, payload);
         }

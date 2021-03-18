@@ -96,7 +96,8 @@ public class ServiceAccountService {
         }
     }
 
-    public void authenticateToken(ServiceAccountToken serviceAccountToken, String nodeName, ActionListener<Authentication> listener) {
+    // package private for testing
+    void authenticateToken(ServiceAccountToken serviceAccountToken, String nodeName, ActionListener<Authentication> listener) {
 
         if (ElasticServiceAccounts.NAMESPACE.equals(serviceAccountToken.getAccountId().namespace()) == false) {
             final ParameterizedMessage message = new ParameterizedMessage(

@@ -102,10 +102,11 @@ public class ServiceAccountIT extends ESRestTestCase {
 
     public void testAuthenticateShouldWorkWithOAuthBearerToken() throws IOException {
         final Request oauthTokenRequest = new Request("POST", "_security/oauth2/token");
-        oauthTokenRequest.setJsonEntity("{\"grant_type\":\"client_credentials\"}");
+        oauthTokenRequest.setJsonEntity("{\"grant_type\":\"password\",\"username\":\"test_admin\",\"password\":\"x-pack-test-password\"}");
         final Response oauthTokenResponse = client().performRequest(oauthTokenRequest);
         assertOK(oauthTokenResponse);
-        final String accessToken = (String) responseAsMap(oauthTokenResponse).get("access_token");
+        final Map<String, Object> oauthTokenResponseMap = responseAsMap(oauthTokenResponse);
+        final String accessToken = (String) oauthTokenResponseMap.get("access_token");
 
         final Request request = new Request("GET", "_security/_authenticate");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessToken));
@@ -114,6 +115,12 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> responseMap = responseAsMap(response);
         assertThat(responseMap.get("username"), equalTo("test_admin"));
         assertThat(responseMap.get("authentication_type"), equalTo("token"));
+
+        final String refreshToken = (String) oauthTokenResponseMap.get("refresh_token");
+        final Request refreshTokenRequest = new Request("POST", "_security/oauth2/token");
+        refreshTokenRequest.setJsonEntity("{\"grant_type\":\"refresh_token\",\"refresh_token\":\"" + refreshToken + "\"}");
+        final Response refreshTokenResponse = client().performRequest(refreshTokenRequest);
+        assertOK(refreshTokenResponse);
     }
 
     public void testAuthenticateShouldDifferentiateBetweenNormalUserAndServiceAccount() throws IOException {

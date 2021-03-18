@@ -59,8 +59,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         // retrieve the initial timestamp in case the action is a cross cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ClusterState clusterState = clusterService.state();
-        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(),
-            request.indices());
+        final Map<String, OriginalIndices> remoteClusterIndices =
+            remoteClusterService.groupIndices(request.indicesOptions(), request.indices());
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         final String[] concreteIndices;
         if (localIndices == null) {
@@ -70,62 +70,81 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
         }
         final int totalNumRequest = concreteIndices.length + remoteClusterIndices.size();
+        if (totalNumRequest == 0) {
+            listener.onResponse(new FieldCapabilitiesResponse(new String[0], Collections.emptyMap()));
+            return;
+        }
+
         final CountDown completionCounter = new CountDown(totalNumRequest);
         final List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());
-        final Runnable onResponse = () -> {
-            if (completionCounter.countDown()) {
-                if (request.isMergeResults()) {
-                    listener.onResponse(merge(indexResponses, request.includeUnmapped()));
-                } else {
-                    listener.onResponse(new FieldCapabilitiesResponse(indexResponses));
+        final ActionListener<List<FieldCapabilitiesIndexResponse>> countDownListener = new ActionListener<>() {
+            @Override
+            public void onResponse(List<FieldCapabilitiesIndexResponse> results) {
+                for (FieldCapabilitiesIndexResponse res : results) {
+                    if (res.canMatch()) {
+                        indexResponses.add(res);
+                    }
+                }
+                countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // TODO we should somehow inform the user that we failed
+                countDown();
+            }
+
+            private void countDown() {
+                if (completionCounter.countDown()) {
+                    if (request.isMergeResults()) {
+                        listener.onResponse(merge(indexResponses, request.includeUnmapped()));
+                    } else {
+                        listener.onResponse(new FieldCapabilitiesResponse(indexResponses));
+                    }
                 }
             }
         };
-        if (totalNumRequest == 0) {
-            listener.onResponse(new FieldCapabilitiesResponse(new String[0], Collections.emptyMap()));
-        } else {
-            ActionListener<FieldCapabilitiesIndexResponse> innerListener = new ActionListener<FieldCapabilitiesIndexResponse>() {
-                @Override
-                public void onResponse(FieldCapabilitiesIndexResponse result) {
-                    if (result.canMatch()) {
-                        indexResponses.add(result);
-                    }
-                    onResponse.run();
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    // TODO we should somehow inform the user that we failed
-                    onResponse.run();
-                }
-            };
-            for (String index : concreteIndices) {
-                client.executeLocally(TransportFieldCapabilitiesIndexAction.TYPE, new FieldCapabilitiesIndexRequest(request.fields(),
-                    index, localIndices, request.indexFilter(), nowInMillis, request.runtimeFields()), innerListener);
-            }
+        for (String index : concreteIndices) {
+            client.executeLocally(TransportFieldCapabilitiesIndexAction.TYPE,
+                new FieldCapabilitiesIndexRequest(
+                    request.fields(),
+                    index,
+                    localIndices,
+                    request.indexFilter(),
+                    nowInMillis, request.runtimeFields()
+                ),
+                ActionListener.wrap(
+                    response -> countDownListener.onResponse(Collections.singletonList(response)),
+                    countDownListener::onFailure
+                )
+            );
+        }
 
-            // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
-            // send us back all individual index results.
-            for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
-                String clusterAlias = remoteIndices.getKey();
-                OriginalIndices originalIndices = remoteIndices.getValue();
-                Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
-                FieldCapabilitiesRequest remoteRequest = new FieldCapabilitiesRequest();
-                remoteRequest.setMergeResults(false); // we need to merge on this node
-                remoteRequest.indicesOptions(originalIndices.indicesOptions());
-                remoteRequest.indices(originalIndices.indices());
-                remoteRequest.fields(request.fields());
-                remoteRequest.runtimeFields(request.runtimeFields());
-                remoteRequest.indexFilter(request.indexFilter());
-                remoteRequest.nowInMillis(nowInMillis);
-                remoteClusterClient.fieldCaps(remoteRequest,  ActionListener.wrap(response -> {
-                    for (FieldCapabilitiesIndexResponse res : response.getIndexResponses()) {
-                        indexResponses.add(new FieldCapabilitiesIndexResponse(RemoteClusterAware.
-                            buildRemoteIndexName(clusterAlias, res.getIndexName()), res.get(), res.canMatch()));
+        // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
+        // send us back all individual index results.
+        for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
+            String clusterAlias = remoteIndices.getKey();
+            OriginalIndices originalIndices = remoteIndices.getValue();
+            Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
+            FieldCapabilitiesRequest remoteRequest = new FieldCapabilitiesRequest();
+            remoteRequest.setMergeResults(false); // we need to merge on this node
+            remoteRequest.indicesOptions(originalIndices.indicesOptions());
+            remoteRequest.indices(originalIndices.indices());
+            remoteRequest.fields(request.fields());
+            remoteRequest.runtimeFields(request.runtimeFields());
+            remoteRequest.indexFilter(request.indexFilter());
+            remoteRequest.nowInMillis(nowInMillis);
+            remoteClusterClient.fieldCaps(remoteRequest,
+                ActionListener.wrap(response -> {
+                    List<FieldCapabilitiesIndexResponse> remotes = new ArrayList<>();
+                    for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
+                        remotes.add(new FieldCapabilitiesIndexResponse(
+                            RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName()),
+                            resp.get(), resp.canMatch()));
                     }
-                    onResponse.run();
-                }, failure -> onResponse.run()));
-            }
+                    countDownListener.onResponse(remotes);
+                }, countDownListener::onFailure));
         }
     }
 

@@ -28,6 +28,7 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FETCH_SIZE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FILTER_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.MODE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_NAME;
@@ -102,6 +103,11 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder binaryFormat(Boolean binaryFormat) {
             request.append(field(BINARY_FORMAT_NAME, binaryFormat));
+            return this;
+        }
+
+        public RequestObjectBuilder fieldMultiValueLeniency(Boolean fieldMultiValueLeniency) {
+            request.append(field(FIELD_MULTI_VALUE_LENIENCY_NAME, fieldMultiValueLeniency));
             return this;
         }
 

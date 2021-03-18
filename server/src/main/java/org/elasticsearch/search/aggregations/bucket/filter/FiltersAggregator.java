@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.Bits;
@@ -394,8 +393,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             } else {
                 collectSubs(ctx, live, sub);
             }
-            // Throwing this exception is how we communicate to the collection mechanism that we don't need the segment.
-            throw new CollectionTerminatedException();
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
         /**

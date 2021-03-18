@@ -577,11 +577,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
              * and the native fetchers usually don't sort. We're ok with this
              * difference. But we have to convince the test we're ok with it.
              */
-            assertThat(
-                "fetching " + value,
-                fromNative,
-                containsInAnyOrder(fromDocValues.stream().map(Matchers::equalTo).collect(toList()))
-            );
+            assertThat("fetching " + value, fromNative, containsInAnyOrder(fromDocValues));
         });
     }
 

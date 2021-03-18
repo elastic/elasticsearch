@@ -167,6 +167,13 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
-        return ESTestCase::randomBoolean;
+        switch (between(0, 3)) {
+            case 0: return ESTestCase::randomBoolean;
+            case 1: return () -> randomBoolean() ? "true" : "false";
+            case 2: return () -> randomBoolean() ? "true" : "";
+            case 3: return () -> randomBoolean() ? "true" : null;
+            default:
+                throw new IllegalStateException();
+        }
     }
 }

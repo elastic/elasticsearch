@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -151,6 +152,10 @@ public final class CreateApiKeyRequest extends ActionRequest {
             if (name.startsWith("_")) {
                 validationException = addValidationError("api key name may not begin with an underscore", validationException);
             }
+        }
+        if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
+            validationException =
+                addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]", validationException);
         }
         return validationException;
     }

@@ -100,7 +100,7 @@ public final class ApiKey {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, id, creation, expiration, invalidated, username, realm);
+        return Objects.hash(name, id, creation, expiration, invalidated, username, realm, metadata);
     }
 
     @Override

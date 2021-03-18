@@ -12,20 +12,17 @@ import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.XContentTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -43,17 +40,33 @@ public class CreateApiKeyRequestTests extends ESTestCase {
 
         final Map<String, Object> apiKeyMetadata = randomMetadata();
         CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("api-key", roles, null, null, apiKeyMetadata);
-        final XContentBuilder builder = XContentFactory.jsonBuilder();
-        createApiKeyRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        final String output = Strings.toString(builder);
-        final String apiKeyMetadataString = apiKeyMetadata == null ? ""
-            : ",\"metadata\":" + XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON).utf8ToString();
-        assertThat(output, equalTo(
-                "{\"name\":\"api-key\",\"role_descriptors\":{\"r1\":{\"applications\":[],\"cluster\":[\"all\"],\"indices\":[{\"names\":"
-                        + "[\"ind-x\"],\"privileges\":[\"all\"],\"allow_restricted_indices\":false}],\"metadata\":{},\"run_as\":[]},"
-                        + "\"r2\":{\"applications\":[],\"cluster\":"
-                        + "[\"all\"],\"indices\":[{\"names\":[\"ind-y\"],\"privileges\":[\"all\"],\"allow_restricted_indices\":false}],"
-                        + "\"metadata\":{},\"run_as\":[]}}" + apiKeyMetadataString + "}"));
+
+        Map<String, Object> expected = new HashMap<>(Map.of(
+            "name", "api-key",
+            "role_descriptors", Map.of(
+                "r1", Map.of(
+                    "applications", List.of(),
+                    "cluster", List.of("all"),
+                    "indices", List.of(
+                        Map.of("names", List.of("ind-x"), "privileges", List.of("all"), "allow_restricted_indices", false)),
+                    "metadata", Map.of(),
+                    "run_as", List.of()),
+                "r2", Map.of(
+                    "applications", List.of(),
+                    "cluster", List.of("all"),
+                    "indices", List.of(
+                        Map.of("names", List.of("ind-y"), "privileges", List.of("all"), "allow_restricted_indices", false)),
+                    "metadata", Map.of(),
+                    "run_as", List.of()))
+        ));
+        if (apiKeyMetadata != null) {
+            expected.put("metadata", apiKeyMetadata);
+        }
+
+        assertThat(
+            XContentHelper.convertToMap(XContentHelper.toXContent(
+                createApiKeyRequest, XContentType.JSON, false), false, XContentType.JSON).v2(),
+            equalTo(expected));
     }
 
     public void testEqualsHashCode() {
@@ -106,6 +119,10 @@ public class CreateApiKeyRequestTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public static Map<String, Object> randomMetadata() {
-        return randomFrom(Map.of("status", "active"), Map.of(), null);
+        return randomFrom(
+            Map.of("status", "active", "level", 42, "nested", Map.of("foo", "bar")),
+            Map.of("status", "active"),
+            Map.of(),
+            null);
     }
 }

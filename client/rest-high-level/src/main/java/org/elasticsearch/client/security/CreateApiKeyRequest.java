@@ -75,7 +75,7 @@ public final class CreateApiKeyRequest implements Validatable, ToXContentObject 
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, refreshPolicy, roles, expiration);
+        return Objects.hash(name, refreshPolicy, roles, expiration, metadata);
     }
 
     @Override

@@ -18,15 +18,7 @@ back to a string depending on the date format that is associated with the field.
 Date formats can be customised, but if no `format` is specified then it uses
 the default:
 
-    "strict_date_optional_time||epoch_millis"
-
-This means that it will accept dates with optional timestamps, which conform
-to the formats supported by
-<<strict-date-time,`strict_date_optional_time`>> including up to nine second
-fractionals or milliseconds-since-the-epoch (thus losing precision on the
-nano second part). Using <<strict-date-time,`strict_date_optional_time`>> will 
-format the result up to only three second fractionals. To
-print and parse up to nine digits of resolution, use <<strict-date-time-nanos,`strict_date_optional_time_nanos`>>.
+    "strict_date_optional_time_nanos||epoch_millis"
 
 For instance:
 
@@ -74,7 +66,7 @@ GET my-index-000001/_search
   "docvalue_fields" : [
     {
       "field" : "date",
-      "format": "strict_date_time" <7>
+      "format": "strict_date_optional_time_nanos" <7>
     }
   ]
 }

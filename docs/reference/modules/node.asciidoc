@@ -121,9 +121,11 @@ Any master-eligible node that is not a <<voting-only-node,voting-only node>> may
 be elected to become the master node by the <<modules-discovery,master election
 process>>.
 
-IMPORTANT: Master nodes must have access to the `data/` directory (just like
-`data` nodes) as this is where the cluster state is persisted between node
-restarts.
+IMPORTANT: Master nodes must have a `path.data` directory whose contents
+persist across restarts, just like data nodes, because this is where the
+cluster metadata is stored. The cluster metadata describes how to read the data
+stored on the data nodes, so if it is lost then the data stored on the data
+nodes cannot be read.
 
 [[dedicated-master-node]]
 ===== Dedicated master-eligible node

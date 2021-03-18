@@ -22,7 +22,7 @@ public class GeoIpStatsResponseTests extends AbstractXContentTestCase<GeoIpStats
     @Override
     protected GeoIpStatsResponse createTestInstance() {
         HashMap<String, GeoIpStatsResponse.NodeInfo> nodes = new HashMap<>();
-        int nodeCount = randomInt();
+        int nodeCount = randomInt(10);
         for (int i = 0; i < nodeCount; i++) {
             List<GeoIpStatsResponse.DatabaseInfo> databases = randomList(5,
                 () -> new GeoIpStatsResponse.DatabaseInfo(randomAlphaOfLength(5)));

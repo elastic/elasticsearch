@@ -220,6 +220,7 @@ public class Packages {
             "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
             "elasticsearch-users",
+            "elasticsearch-service-tokens",
             "x-pack-env",
             "x-pack-security-env",
             "x-pack-watcher-env"

@@ -11,7 +11,7 @@ Executes another pipeline.
 [options="header"]
 |======
 | Name             | Required  | Default  | Description
-| `name`           | yes       | -        | The name of the pipeline to execute. Supports <<accessing-template-fields,template snippets>>.
+| `name`           | yes       | -        | The name of the pipeline to execute. Supports <<template-snippets,template snippets>>.
 include::common-options.asciidoc[]
 |======
 

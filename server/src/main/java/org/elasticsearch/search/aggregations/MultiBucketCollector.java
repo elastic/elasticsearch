@@ -29,24 +29,26 @@ import java.util.List;
  * the null ones.
  */
 public class MultiBucketCollector extends BucketCollector {
-
-    /** See {@link #wrap(Iterable)}. */
-    public static BucketCollector wrap(BucketCollector... collectors) {
-        return wrap(Arrays.asList(collectors));
-    }
-
     /**
      * Wraps a list of {@link BucketCollector}s with a {@link MultiBucketCollector}. This
      * method works as follows:
      * <ul>
      * <li>Filters out the {@link BucketCollector#NO_OP_COLLECTOR}s collectors, so they are not used
      * during search time.
-     * <li>If the input contains 1 real collector, it is returned.
+     * <li>If the input contains 1 real collector we wrap it in a collector that takes
+     * {@code terminateIfNoop} into account.
      * <li>Otherwise the method returns a {@link MultiBucketCollector} which wraps the
      * non-{@link BucketCollector#NO_OP_COLLECTOR} collectors.
      * </ul>
+     * @param terminateIfNoop Pass true if {@link #getLeafCollector} should throw
+     * {@link CollectionTerminatedException} if all leaf collectors are noop. Pass
+     * false if terminating would break stuff. The top level collection for
+     * aggregations should pass true here because we want to skip collections if
+     * all aggregations return NOOP. But when aggregtors themselves call this
+     * method they chould *generally* pass false here because they have collection
+     * actions to perform even if their sub-aggregators are NOOPs.
      */
-    public static BucketCollector wrap(Iterable<? extends BucketCollector> collectors) {
+    public static BucketCollector wrap(boolean terminateIfNoop, Iterable<? extends BucketCollector> collectors) {
         // For the user's convenience, we allow NO_OP collectors to be passed.
         // However, to improve performance, these null collectors are found
         // and dropped from the array we save for actual collection time.
@@ -68,7 +70,43 @@ public class MultiBucketCollector extends BucketCollector {
                     break;
                 }
             }
-            return col;
+            final BucketCollector collector = col;
+            // Wrap the collector in one that takes terminateIfNoop into account.
+            return new BucketCollector() {
+                @Override
+                public ScoreMode scoreMode() {
+                    return collector.scoreMode();
+                }
+
+                @Override
+                public void preCollection() throws IOException {
+                    collector.preCollection();
+                }
+
+                @Override
+                public void postCollection() throws IOException {
+                    collector.postCollection();
+                }
+
+                @Override
+                public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+                    try {
+                        LeafBucketCollector leafCollector = collector.getLeafCollector(ctx);
+                        if (false == leafCollector.isNoop()) {
+                            return leafCollector;
+                        }
+                    } catch (CollectionTerminatedException e) {
+                        throw new IllegalStateException(
+                            "getLeafCollector should return a noop collector instead of throw "
+                                + CollectionTerminatedException.class.getSimpleName(), e
+                        );
+                    }
+                    if (terminateIfNoop) {
+                        throw new CollectionTerminatedException();
+                    }
+                    return LeafBucketCollector.NO_OP_COLLECTOR;
+                }
+            };
         } else {
             BucketCollector[] colls = new BucketCollector[n];
             n = 0;
@@ -77,14 +115,16 @@ public class MultiBucketCollector extends BucketCollector {
                     colls[n++] = c;
                 }
             }
-            return new MultiBucketCollector(colls);
+            return new MultiBucketCollector(terminateIfNoop, colls);
         }
     }
 
+    private final boolean terminateIfNoop;
     private final boolean cacheScores;
     private final BucketCollector[] collectors;
 
-    private MultiBucketCollector(BucketCollector... collectors) {
+    private MultiBucketCollector(boolean terminateIfNoop, BucketCollector... collectors) {
+        this.terminateIfNoop = terminateIfNoop;
         this.collectors = collectors;
         int numNeedsScores = 0;
         for (Collector collector : collectors) {
@@ -129,26 +169,27 @@ public class MultiBucketCollector extends BucketCollector {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext context) throws IOException {
-        final List<LeafBucketCollector> leafCollectors = new ArrayList<>();
+        final List<LeafBucketCollector> leafCollectors = new ArrayList<>(collectors.length);
         for (BucketCollector collector : collectors) {
-            final LeafBucketCollector leafCollector;
             try {
-                leafCollector = collector.getLeafCollector(context);
+                LeafBucketCollector leafCollector = collector.getLeafCollector(context);
+                if (false == leafCollector.isNoop()) {
+                    leafCollectors.add(leafCollector);
+                }
             } catch (CollectionTerminatedException e) {
-                // this leaf collector does not need this segment
-                continue;
+                throw new IllegalStateException(
+                    "getLeafCollector should return a noop collector instead of throw "
+                        + CollectionTerminatedException.class.getSimpleName(),
+                    e
+                );
             }
-            leafCollectors.add(leafCollector);
         }
         switch (leafCollectors.size()) {
             case 0:
-                // TODO it's probably safer to return noop and let the caller throw if it wants to
-                /*
-                 * See MinAggregator which only throws if it has a parent.
-                 * That is because it doesn't want there to ever drop
-                 * to this case and throw, thus skipping calculating the parent.
-                 */
-                throw new CollectionTerminatedException();
+                if (terminateIfNoop) {
+                    throw new CollectionTerminatedException();
+                }
+                return LeafBucketCollector.NO_OP_COLLECTOR;
             case 1:
                 return leafCollectors.get(0);
             default:

@@ -118,8 +118,7 @@ final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected void doPreCollection() throws IOException {
-        List<BucketCollector> collectors = Arrays.asList(subAggregators);
-        deferredCollectors = MultiBucketCollector.wrap(collectors);
+        deferredCollectors = MultiBucketCollector.wrap(false, Arrays.asList(subAggregators));
         collectableSubAggregators = BucketCollector.NO_OP_COLLECTOR;
     }
 
@@ -388,7 +387,7 @@ final class CompositeAggregator extends BucketsAggregator {
             // Throwing this exception will terminate the execution of the search for this root aggregation,
             // see {@link MultiCollector} for more details on how we handle early termination in aggregations.
             earlyTerminated = true;
-            throw new CollectionTerminatedException();
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         } else {
             if (fillDocIdSet) {
                 currentLeaf = ctx;
@@ -399,7 +398,7 @@ final class CompositeAggregator extends BucketsAggregator {
                 // that is after the index sort prefix using the rawAfterKey and we start collecting
                 // document from there.
                 processLeafFromQuery(ctx, indexSortPrefix);
-                throw new CollectionTerminatedException();
+                return LeafBucketCollector.NO_OP_COLLECTOR;
             } else {
                 final LeafBucketCollector inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder, sortPrefixLen));
                 return new LeafBucketCollector() {

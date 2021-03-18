@@ -192,7 +192,7 @@ allocated to nodes that have this setting explicitly configured.
 The size of the space reserved for the shared cache. Defaults to `0b`, meaning
 that the node has no shared cache.
 
-You can configure the setting in the `elasticsearch.yml` file:
+You can configure the setting in `elasticsearch.yml`:
 
 [source,yaml]
 ----

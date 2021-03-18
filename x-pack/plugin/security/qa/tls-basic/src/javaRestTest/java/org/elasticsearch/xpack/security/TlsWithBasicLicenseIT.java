@@ -41,7 +41,11 @@ public class TlsWithBasicLicenseIT extends ESRestTestCase {
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
-        builder.setStrictDeprecationMode(false);
+        if (settings.hasValue("xpack.security.enabled")) {
+            builder.setStrictDeprecationMode(true);
+        } else {
+            builder.setStrictDeprecationMode(false);
+        }
         return builder.build();
     }
 

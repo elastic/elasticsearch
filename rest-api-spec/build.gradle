@@ -20,7 +20,6 @@ artifacts {
 
 testClusters.all {
   module ':modules:mapper-extras'
-  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.named("test").configure {enabled = false }

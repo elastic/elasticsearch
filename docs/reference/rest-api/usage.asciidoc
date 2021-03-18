@@ -49,7 +49,6 @@ GET /_xpack/usage
   "security" : {
     "available" : true,
     "enabled" : false
-    }
   },
   "monitoring" : {
     "available" : true,

@@ -235,10 +235,10 @@ String suggestGrammarPath = 'src/main/antlr'
 String suggestOutputPath = 'src/main/java/org/elasticsearch/painless/antlr'
 
 tasks.register("cleanSuggestGenerated", Delete) {
-    delete fileTree(grammarPath) {
+    delete fileTree(suggestGrammarPath) {
         include 'SuggestLexer.tokens'
     }
-    delete fileTree(outputPath) {
+    delete fileTree(suggestOutputPath) {
         include 'Suggest*.java'
     }
 }
@@ -253,33 +253,33 @@ tasks.register("regenSuggestLexer", JavaExec) {
     systemProperty 'user.variant', ''
     args '-Werror',
             '-package', 'org.elasticsearch.painless.antlr',
-            '-o', outputPath,
-            "${file(grammarPath)}/SuggestLexer.g4"
+            '-o', suggestOutputPath,
+            "${file(suggestGrammarPath)}/SuggestLexer.g4"
 }
 
 tasks.register("regenSuggest") {
     dependsOn "regenSuggestLexer"
     doLast {
         // moves token files to grammar directory for use with IDE's
-        ant.move(file: "${outputPath}/SuggestLexer.tokens", toDir: grammarPath)
+        ant.move(file: "${suggestOutputPath}/SuggestLexer.tokens", toDir: suggestGrammarPath)
         // make the lexer abstract
         ant.replaceregexp(match: '(class \\QSuggest\\ELexer)',
                 replace: 'abstract \\1',
                 encoding: 'UTF-8') {
-            fileset(dir: outputPath, includes: 'SuggestLexer.java')
+            fileset(dir: suggestOutputPath, includes: 'SuggestLexer.java')
         }
         // nuke timestamps/filenames in generated files
         ant.replaceregexp(match: '\\Q// Generated from \\E.*',
                 replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
                 encoding: 'UTF-8') {
-            fileset(dir: outputPath, includes: 'Suggest*.java')
+            fileset(dir: suggestOutputPath, includes: 'Suggest*.java')
         }
         // remove tabs in antlr generated files
         ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
-            fileset(dir: outputPath, includes: 'Suggest*.java')
+            fileset(dir: suggestOutputPath, includes: 'Suggest*.java')
         }
         // fix line endings
-        ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
+        ant.fixcrlf(srcdir: suggestOutputPath, eol: 'lf') {
             patternset(includes: 'Suggest*.java')
         }
     }

@@ -85,21 +85,22 @@ For resiliency, indices in the cold tier can rely on
 [[frozen-tier]]
 === Frozen tier
 
-Once data is no longer or rarely queried, it may move from the cold tier to the
+Once data is rarely or no longer queried, it may move from the cold tier to the
 frozen tier where it stays for the rest of its life.
 
 The frozen tier uses <<searchable-snapshots,{search-snaps}>> to store and load
 data from a snapshot repository. Instead of using a full local copy, these
-{search-snaps} uses only <<shared-cache,smaller local caches>> of recently
-searched data. While less responsive than the cold tier, these cache
-signficantly reduce local storage costs.
+{search-snaps} use smaller <<shared-cache,local caches>> containing only
+recently searched data. If a search requires data that's not in a cache, {es}
+lazily fetches the data as needed from the snapshot repository. This decouples
+compute and storage, letting you run searches with minimal compute resources.
+
+While search is slower on the frozen tier than the cold tier, the frozen tier's
+snapshot caches lets you significantly reduce storage and operating costs.
 
 NOTE: The frozen tier is not yet available on the {ess-trial}[{ess}]. To
 recreate similar functionality, see
 <<searchable-snapshots-frozen-tier-on-cloud>>.
-
-{ess} requires additional configuration to use the frozen tier
-functionality.
 
 [discrete]
 [[data-tier-allocation]]

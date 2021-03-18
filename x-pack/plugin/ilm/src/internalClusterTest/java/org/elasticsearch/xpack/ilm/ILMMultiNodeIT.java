@@ -18,6 +18,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
@@ -58,6 +59,16 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
             // This just generates less churn and makes it easier to read the log file if needed
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
             .build();
+    }
+
+    @Override
+    protected Settings transportClientSettings() {
+        Settings.Builder settings = Settings.builder().put(super.transportClientSettings());
+        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
+        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
+        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
+        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
+        return settings.build();
     }
 
     @After

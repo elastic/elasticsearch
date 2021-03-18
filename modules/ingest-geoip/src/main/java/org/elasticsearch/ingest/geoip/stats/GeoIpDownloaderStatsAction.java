@@ -31,7 +31,7 @@ import java.util.Set;
 public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsAction.Response> {
 
     public static final GeoIpDownloaderStatsAction INSTANCE = new GeoIpDownloaderStatsAction();
-    public static final String NAME = "cluster:monitor/geoip/stats";
+    public static final String NAME = "cluster:monitor/ingest/geoip/stats";
 
     public GeoIpDownloaderStatsAction() {
         super(NAME, Response::new);
@@ -122,7 +122,6 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
                         builder.endObject();
                     }
                     builder.endArray();
-                    builder.array("databases", response.databases.toArray(String[]::new));
                 }
                 if (response.filesInTemp.isEmpty() == false) {
                     builder.array("files_in_temp", response.filesInTemp.toArray(String[]::new));

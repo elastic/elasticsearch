@@ -52,7 +52,7 @@ public class RestMonitoringMigrateAlertsActionTests extends ESTestCase {
         MonitoringMigrateAlertsResponse restResponse = new MonitoringMigrateAlertsResponse(migrationResults);
 
         final RestChannel channel = mock(RestChannel.class);
-        when(channel.newBuilder()).thenReturn(JsonXContent.contentBuilder());
+        when(channel.xContentBuilderFactory().newBuilder()).thenReturn(JsonXContent.contentBuilder());
         RestResponse response = RestMonitoringMigrateAlertsAction.getRestBuilderListener(channel).buildResponse(restResponse);
 
         assertThat(response.status(), is(RestStatus.OK));

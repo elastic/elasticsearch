@@ -110,7 +110,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
 
         @Override
         public void onResponse(CreateTokenResponse createTokenResponse) {
-            try (XContentBuilder builder = channel.newBuilder()) {
+            try (XContentBuilder builder = channel.xContentBuilderFactory().newBuilder()) {
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, createTokenResponse.toXContent(builder, request)));
             } catch (IOException e) {
                 onFailure(e);
@@ -157,7 +157,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
         }
 
         void sendTokenErrorResponse(TokenRequestError error, String description, Exception e) {
-            try (XContentBuilder builder = channel.newErrorBuilder()) {
+            try (XContentBuilder builder = channel.xContentBuilderFactory().newErrorBuilder()) {
                 // defined by https://tools.ietf.org/html/rfc6749#section-5.2
                 builder.startObject()
                         .field("error", error.toString().toLowerCase(Locale.ROOT))

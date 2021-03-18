@@ -7,28 +7,9 @@
  */
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.ParsedMediaType;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-
-import java.io.IOException;
-import java.io.OutputStream;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Predicate;
-
-import static java.util.stream.Collectors.toSet;
 
 public abstract class AbstractRestChannel implements RestChannel {
-
-    private static final Predicate<String> INCLUDE_FILTER = f -> f.charAt(0) != '-';
-    private static final Predicate<String> EXCLUDE_FILTER = INCLUDE_FILTER.negate();
 
     protected final RestRequest request;
     private final boolean detailedErrorsEnabled;
@@ -58,81 +39,8 @@ public abstract class AbstractRestChannel implements RestChannel {
     }
 
     @Override
-    public XContentBuilder newBuilder() throws IOException {
-        return newBuilder(request.getXContentType(), true);
-    }
-
-    @Override
-    public XContentBuilder newErrorBuilder() throws IOException {
-        // Disable filtering when building error responses
-        return newBuilder(request.getXContentType(), false);
-    }
-
-    /**
-     * Creates a new {@link XContentBuilder} for a response to be sent using this channel. The builder's type is determined by the following
-     * logic. If the request has a format parameter that will be used to attempt to map to an {@link XContentType}. If there is no format
-     * parameter, the HTTP Accept header is checked to see if it can be matched to a {@link XContentType}. If this first attempt to map
-     * fails, the request content type will be used if the value is not {@code null}; if the value is {@code null} the output format falls
-     * back to JSON.
-     */
-    @Override
-    public XContentBuilder newBuilder(@Nullable XContentType requestContentType, boolean useFiltering) throws IOException {
-        return newBuilder(requestContentType, null, useFiltering);
-    }
-
-    /**
-     * Creates a new {@link XContentBuilder} for a response to be sent using this channel. The builder's type can be sent as a parameter,
-     * through {@code responseContentType} or it can fallback to {@link #newBuilder(XContentType, boolean)} logic if the sent type value
-     * is {@code null}.
-     */
-    @Override
-    public XContentBuilder newBuilder(@Nullable XContentType requestContentType, @Nullable XContentType responseContentType,
-            boolean useFiltering) throws IOException {
-
-        if (responseContentType == null) {
-            if (Strings.hasText(format)) {
-                responseContentType = XContentType.fromFormat(format);
-            }
-            if (responseContentType == null && Strings.hasText(acceptHeader)) {
-                responseContentType = XContentType.fromMediaType(acceptHeader);
-            }
-        }
-        // try to determine the response content type from the media type or the format query string parameter, with the format parameter
-        // taking precedence over the Accept header
-        if (responseContentType == null) {
-            if (requestContentType != null) {
-                // if there was a parsed content-type for the incoming request use that since no format was specified using the query
-                // string parameter or the HTTP Accept header
-                responseContentType = requestContentType;
-            } else {
-                // default to JSON output when all else fails
-                responseContentType = XContentType.JSON;
-            }
-        }
-
-        Set<String> includes = Collections.emptySet();
-        Set<String> excludes = Collections.emptySet();
-        if (useFiltering) {
-            Set<String> filters = Strings.tokenizeByCommaToSet(filterPath);
-            includes = filters.stream().filter(INCLUDE_FILTER).collect(toSet());
-            excludes = filters.stream().filter(EXCLUDE_FILTER).map(f -> f.substring(1)).collect(toSet());
-        }
-
-        OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
-
-        Map<String, String> parameters = request.getParsedAccept() != null ?
-            request.getParsedAccept().getParameters() : Collections.emptyMap();
-        ParsedMediaType responseMediaType = ParsedMediaType.parseMediaType(responseContentType, parameters);
-
-        XContentBuilder builder =
-            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream,
-                includes, excludes, responseMediaType);
-        if (pretty) {
-            builder.prettyPrint().lfAtEnd();
-        }
-
-        builder.humanReadable(human);
-        return builder;
+    public XContentBuilderFactory xContentBuilderFactory() {
+        return new XContentBuilderFactory(request, format, acceptHeader, filterPath, pretty, human, this::bytesOutput);
     }
 
     /**

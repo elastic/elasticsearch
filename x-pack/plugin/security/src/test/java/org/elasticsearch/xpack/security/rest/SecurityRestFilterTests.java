@@ -182,7 +182,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         RestChannel channel = mock(RestChannel.class);
         when(channel.detailedErrorsEnabled()).thenReturn(detailedErrorsEnabled);
         when(channel.request()).thenReturn(request);
-        when(channel.newErrorBuilder()).thenReturn(JsonXContent.contentBuilder());
+        when(channel.xContentBuilderFactory().newErrorBuilder()).thenReturn(JsonXContent.contentBuilder());
         filter.handleRequest(request, channel, null);
         ArgumentCaptor<BytesRestResponse> response = ArgumentCaptor.forClass(BytesRestResponse.class);
         verify(channel).sendResponse(response.capture());

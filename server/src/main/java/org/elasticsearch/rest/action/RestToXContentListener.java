@@ -28,7 +28,7 @@ public class RestToXContentListener<Response extends ToXContentObject> extends R
 
     @Override
     public final RestResponse buildResponse(Response response) throws Exception {
-        return buildResponse(response, channel.newBuilder());
+        return buildResponse(response, channel.xContentBuilderFactory().newBuilder());
     }
 
     public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {

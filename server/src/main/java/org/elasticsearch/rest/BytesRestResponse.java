@@ -95,7 +95,7 @@ public class BytesRestResponse extends RestResponse {
             }
         }
         this.status = status;
-        try (XContentBuilder builder = channel.newErrorBuilder()) {
+        try (XContentBuilder builder = channel.xContentBuilderFactory().newErrorBuilder()) {
             build(builder, params, status, channel.detailedErrorsEnabled(), e);
             this.content = BytesReference.bytes(builder);
             this.responseMediaType = builder.contentType().mediaType();
@@ -141,7 +141,7 @@ public class BytesRestResponse extends RestResponse {
     }
 
     static BytesRestResponse createSimpleErrorResponse(RestChannel channel, RestStatus status, String errorMessage) throws IOException {
-        return new BytesRestResponse(status, channel.newErrorBuilder().startObject()
+        return new BytesRestResponse(status, channel.xContentBuilderFactory().newErrorBuilder().startObject()
             .field("error", errorMessage)
             .field("status", status.getStatus())
             .endObject());

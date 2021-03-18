@@ -118,7 +118,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
         }
 
         return channel -> {
-            final XContentBuilder builder = channel.newBuilder();
+            final XContentBuilder builder = channel.xContentBuilderFactory().newBuilder();
 
             builder.startObject().startArray("settings");
             for (Map.Entry<String, Object> entry : settingsMap.entrySet()) {

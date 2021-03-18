@@ -23,7 +23,7 @@ public abstract class RestBuilderListener<Response> extends RestResponseListener
 
     @Override
     public final RestResponse buildResponse(Response response) throws Exception {
-        try (XContentBuilder builder = channel.newBuilder()) {
+        try (XContentBuilder builder = channel.xContentBuilderFactory().newBuilder()) {
             final RestResponse restResponse = buildResponse(response, builder);
             assert assertBuilderClosed(builder);
             return restResponse;

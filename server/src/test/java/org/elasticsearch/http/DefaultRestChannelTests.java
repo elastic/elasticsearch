@@ -200,7 +200,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             BytesStreamOutput out = channel.bytesOutput();
             assertThat(out, instanceOf(ReleasableBytesStreamOutput.class));
         } else {
-            try (XContentBuilder builder = channel.newBuilder()) {
+            try (XContentBuilder builder = channel.xContentBuilderFactory().newBuilder()) {
                 // do something builder
                 builder.startObject().endObject();
             }

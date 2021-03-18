@@ -150,14 +150,14 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         final NodeClient client = mock(NodeClient.class);
         final CheckedConsumer<RestChannel, Exception> consumer = action.prepareRequest(restRequest, client);
         final RestChannel channel = mock(RestChannel.class);
-        when(channel.newBuilder()).thenReturn(JsonXContent.contentBuilder());
+        when(channel.xContentBuilderFactory().newBuilder()).thenReturn(JsonXContent.contentBuilder());
         // trigger execution
         consumer.accept(channel);
     }
 
     private RestBuilderListener<MonitoringBulkResponse> getRestBuilderListener() throws Exception {
         final RestChannel channel = mock(RestChannel.class);
-        when(channel.newBuilder()).thenReturn(JsonXContent.contentBuilder());
+        when(channel.xContentBuilderFactory().newBuilder()).thenReturn(JsonXContent.contentBuilder());
         return RestMonitoringBulkAction.getRestBuilderListener(channel);
     }
 

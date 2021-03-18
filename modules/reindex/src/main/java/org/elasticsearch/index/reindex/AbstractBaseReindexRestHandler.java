@@ -103,7 +103,7 @@ public abstract class AbstractBaseReindexRestHandler<
 
     private RestChannelConsumer sendTask(String localNodeId, Task task) {
         return channel -> {
-            try (XContentBuilder builder = channel.newBuilder()) {
+            try (XContentBuilder builder = channel.xContentBuilderFactory().newBuilder()) {
                 builder.startObject();
                 builder.field("task", localNodeId + ":" + task.getId());
                 builder.endObject();

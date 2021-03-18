@@ -639,7 +639,7 @@ public class RestControllerTests extends ESTestCase {
         // dispatch to a compatible handler
         restController.registerHandler(GET, "/foo", RestApiVersion.minimumSupported(), (request, channel1, client) -> {
             // in real use case we will use exact version RestApiVersion.V_7
-            XContentBuilder xContentBuilder = channel1.newBuilder();
+            XContentBuilder xContentBuilder = channel1.xContentBuilderFactory().newBuilder();
             assertThat(xContentBuilder.getRestApiVersion(), equalTo(RestApiVersion.minimumSupported()));
             assertThat(request.contentParser().getRestApiVersion(), equalTo(RestApiVersion.minimumSupported()));
             channel1.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
@@ -662,7 +662,7 @@ public class RestControllerTests extends ESTestCase {
 
         // dispatch to a CURRENT newly added handler
         restController.registerHandler(new Route(GET, "/foo"), (request, channel1, client) -> {
-            XContentBuilder xContentBuilder = channel1.newBuilder();
+            XContentBuilder xContentBuilder = channel1.xContentBuilderFactory().newBuilder();
             // even though the handler is CURRENT, the xContentBuilder has the version requested by a client.
             // This allows to implement the compatible logic within the serialisation without introducing V7 (compatible) handler
             // when only response shape has changed
@@ -701,7 +701,7 @@ public class RestControllerTests extends ESTestCase {
             // the media type is in application/vnd.elasticsearch form but with compatible-with=CURRENT.
             // Hence compatibility is not used.
 
-            XContentBuilder xContentBuilder = channel1.newBuilder();
+            XContentBuilder xContentBuilder = channel1.xContentBuilderFactory().newBuilder();
             assertThat(request.contentParser().getRestApiVersion(), equalTo(RestApiVersion.current()));
             assertThat(xContentBuilder.getRestApiVersion(), equalTo(RestApiVersion.current()));
             channel1.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));

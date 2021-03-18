@@ -86,7 +86,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
                 // XContent branch
                 if (responseMediaType instanceof XContentType) {
                     XContentType type = (XContentType) responseMediaType;
-                    XContentBuilder builder = channel.newBuilder(request.getXContentType(), type, true);
+                    XContentBuilder builder = channel.xContentBuilderFactory().newBuilder(request.getXContentType(), type, true);
                     response.toXContent(builder, request);
                     restResponse = new BytesRestResponse(RestStatus.OK, builder);
                 } else { // TextFormat

@@ -70,7 +70,8 @@ public class RestEqlSearchAction extends BaseRestHandler {
                 @Override
                 public void onResponse(EqlSearchResponse response) {
                     try {
-                        XContentBuilder builder = channel.newBuilder(request.getXContentType(), XContentType.JSON, true);
+                        XContentBuilder builder = channel.xContentBuilderFactory()
+                            .newBuilder(request.getXContentType(), XContentType.JSON, true);
                         response.toXContent(builder, request);
                         channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
                     } catch (Exception e) {

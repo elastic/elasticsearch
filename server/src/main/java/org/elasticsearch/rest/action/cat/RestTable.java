@@ -59,7 +59,7 @@ public class RestTable {
 
     public static RestResponse buildXContentBuilder(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
-        XContentBuilder builder = channel.newBuilder();
+        XContentBuilder builder = channel.xContentBuilderFactory().newBuilder();
         List<DisplayHeader> displayHeaders = buildDisplayHeaders(table, request);
 
         builder.startArray();

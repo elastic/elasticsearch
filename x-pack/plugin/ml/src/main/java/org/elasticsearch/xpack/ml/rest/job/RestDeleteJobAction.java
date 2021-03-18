@@ -54,7 +54,7 @@ public class RestDeleteJobAction extends BaseRestHandler {
             Task task = client.executeLocally(DeleteJobAction.INSTANCE, deleteJobRequest, nullTaskListener());
             // Send task description id instead of waiting for the message
             return channel -> {
-                try (XContentBuilder builder = channel.newBuilder()) {
+                try (XContentBuilder builder = channel.xContentBuilderFactory().newBuilder()) {
                     builder.startObject();
                     builder.field("task", client.getLocalNodeId() + ":" + task.getId());
                     builder.endObject();

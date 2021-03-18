@@ -82,7 +82,7 @@ public class RestGetSourceAction extends BaseRestHandler {
         public RestResponse buildResponse(final GetResponse response) throws Exception {
             checkResource(response);
 
-            final XContentBuilder builder = channel.newBuilder(request.getXContentType(), false);
+            final XContentBuilder builder = channel.xContentBuilderFactory().newBuilder(request.getXContentType(), false);
             final BytesReference source = response.getSourceInternal();
             try (InputStream stream = source.streamInput()) {
                 builder.rawValue(stream, XContentHelper.xContentType(source));

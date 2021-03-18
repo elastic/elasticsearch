@@ -463,7 +463,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * error).
      */
     private void handleBadRequest(String uri, RestRequest.Method method, RestChannel channel) throws IOException {
-        try (XContentBuilder builder = channel.newErrorBuilder()) {
+        try (XContentBuilder builder = channel.xContentBuilderFactory().newErrorBuilder()) {
             builder.startObject();
             {
                 builder.field("error", "no handler found for uri [" + uri + "] and method [" + method + "]");
@@ -504,28 +504,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
-        public XContentBuilder newBuilder() throws IOException {
-            return delegate.newBuilder()
-                .withCompatibleVersion(restApiVersion);
-        }
-
-        @Override
-        public XContentBuilder newErrorBuilder() throws IOException {
-            return delegate.newErrorBuilder()
-                .withCompatibleVersion(restApiVersion);
-        }
-
-        @Override
-        public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
-            return delegate.newBuilder(xContentType, useFiltering)
-                .withCompatibleVersion(restApiVersion);
-        }
-
-        @Override
-        public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
-            throws IOException {
-            return delegate.newBuilder(xContentType, responseContentType, useFiltering)
-                .withCompatibleVersion(restApiVersion);
+        public XContentBuilderFactory xContentBuilderFactory() {
+            return new XContentBuilderFactory(delegate.xContentBuilderFactory(), restApiVersion);
         }
 
         @Override

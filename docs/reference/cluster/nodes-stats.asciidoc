@@ -1892,7 +1892,8 @@ Information on current and recently-closed HTTP client connections.
 Unique ID for the HTTP client.
 `agent`::
 (string)
-Reported agent for the HTTP client, if available.
+Reported agent for the HTTP client. If unavailable, this property is not
+included in the response.
 `local_address`::
 (string)
 Local address for the HTTP client.

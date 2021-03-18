@@ -615,12 +615,12 @@ public abstract class ESRestTestCase extends ESTestCase {
                             .collect(Collectors.toList());
                         for (String name : names) {
                             if (isXPackTemplate(name)) {
-                            continue;
+                                continue;
                             }
-                        try {
-                            adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
-                        } catch (ResponseException e) {
-                            logger.debug(new ParameterizedMessage("unable to remove index template {}", name), e);
+                            try {
+                                adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
+                            } catch (ResponseException e) {
+                                logger.warn(new ParameterizedMessage("unable to remove index template {}", name), e);
                             }
                         }
                     } catch (Exception e) {
@@ -642,7 +642,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                                 }
                                 adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
                             } catch (ResponseException e) {
-                                logger.debug(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
+                                logger.warn(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
                             }
                         }
                     } catch (Exception e) {
@@ -662,7 +662,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                     try {
                         adminClient().performRequest(new Request("DELETE", "_template/" + name));
                     } catch (ResponseException e) {
-                        logger.debug(new ParameterizedMessage("unable to remove index template {}", name), e);
+                        logger.warn(new ParameterizedMessage("unable to remove index template {}", name), e);
                     }
                 }
             } else {
@@ -1421,13 +1421,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".transform-")) {
             return true;
         }
+        if (name.startsWith(".deprecation-")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
             case ".slm-history":
             case ".async-search":
             case "saml-service-provider":
-            case "ilm-history":
             case "logs":
             case "logs-settings":
             case "logs-mappings":
@@ -1438,7 +1440,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "synthetics-settings":
             case "synthetics-mappings":
             case ".snapshot-blob-cache":
-            case ".deprecation-indexing-template":
+            case "ilm-history":
             case "logstash-index-template":
             case "security-index-template":
                 return true;

@@ -1900,7 +1900,7 @@ Local address for the HTTP client.
 `remote_address`::
 (string)
 Remote address for the HTTP client.
-`forwarded_for`::
+`x_forwarded_for`::
 (string)
 Value from the client's `x-forwarded-for` HTTP header. If unavailable, this
 property is not included in the response.

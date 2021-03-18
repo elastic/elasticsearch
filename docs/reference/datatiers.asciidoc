@@ -91,7 +91,7 @@ Once data is no longer being queried, or being queried rarely, it may move from 
 to the frozen tier where it stays for the rest of its life.
 The frozen tier is a less responsive query tier than the cold tier, and data in the frozen tier
 cannot be updated. The frozen tier holds searchable snapshots mounted using the
-`shared_cache` storage option exclusively. The <<ilm-index-lifecycle, frozen phase>> automatically converts data
+`shared_cache` storage option exclusively. The <<ilm-index-lifecycle, frozen phase>> converts data
 transitioning into the frozen tier into a searchable snapshot, eliminating the need for replicas or even a local copy.
 
 [discrete]

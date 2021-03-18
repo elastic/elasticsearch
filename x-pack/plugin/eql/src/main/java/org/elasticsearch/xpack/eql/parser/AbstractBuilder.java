@@ -189,8 +189,7 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
 
         int startIdx = 0;
         int endIdx = 0;
-        int idx = text.indexOf("\\u");
-        while (idx >= 0) {
+        for (int idx = text.indexOf("\\u"); idx >= 0; idx = text.indexOf("\\u", endIdx)) {
             String unicodeSequence;
             if (text.charAt(idx + 2) == '{') {
                 endIdx = text.indexOf("}", idx + 1) + 1;
@@ -205,7 +204,6 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
                 unicodeSequence = text.substring(idx + 2, endIdx);
             }
             sb.append(text, startIdx, idx).append(hexToUnicode(source, unicodeSequence));
-            idx = text.indexOf("\\u", endIdx);
             startIdx = endIdx;
         }
         if (endIdx < text.length()) {

@@ -45,6 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class ILMMultiNodeIT extends ESIntegTestCase {
+
     private static final String index = "myindex";
 
     @Override
@@ -55,8 +56,13 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
+            .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+            .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
+            .put(XPackSettings.GRAPH_ENABLED.getKey(), false)
             .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s")
             // This just generates less churn and makes it easier to read the log file if needed
+            .put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false)
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
             .build();
     }
@@ -69,6 +75,11 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         return settings.build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
     }
 
     @After

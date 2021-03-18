@@ -17,7 +17,7 @@ languages. You can specify the language of the script anywhere that scripts run.
 
 Painless is purpose-built for {es}, can be used for any purpose in the
 scripting APIs, and provides the most flexibility. The other languages are less
-flexible, but typically have higher performance for certain tasks.
+flexible, but can be useful for specific purposes.
 
 [cols="<,<,<,<",options="header",]
 |========

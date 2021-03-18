@@ -36,7 +36,7 @@ If a search requires data that's not in the cache, {es} lazily fetches the data
 as needed from the snapshot repository. Searches that require these fetches are
 slower, but repeated searches are served more quickly from the cache.
 +
-Although slower than a full local copy or a regular index, the shared snapshot
+Although slower than a full local copy or a regular index, a shared snapshot
 cache still returns search results quickly, even for large data sets. This
 option decouples compute and storage, letting you run searches with minimal
 compute resources.
@@ -192,7 +192,7 @@ allocated to nodes that have this setting explicitly configured.
 The size of the space reserved for the shared cache. Defaults to `0b`, meaning
 that the node has no shared cache.
 
-For example:
+You can configure the setting in the `elasticsearch.yml` file:
 
 [source,yaml]
 ----
@@ -202,12 +202,12 @@ xpack.searchable.snapshot.shared_cache.size: 4TB
 IMPORTANT: Currently, you can configure
 `xpack.searchable.snapshot.shared_cache.size` on any node. In a future release,
 you will only be able to configure this setting on nodes with the
-<<data-frozen-node,frozen data>> role.
+<<data-frozen-node,`data_frozen`>> role.
 
 You can set `xpack.searchable.snapshot.shared_cache.size` to any size between a
 couple of gigabytes up to 90% of available disk space. We only recommend higher
-sizes if you use the node exclusively on a frozen tier or exclusively for
-searchable snapshots.
+sizes if you use the node exclusively on a frozen tier or for searchable
+snapshots.
 
 [discrete]
 [[searchable-snapshots-frozen-tier-on-cloud]]
@@ -219,8 +219,8 @@ This effectively recreates a frozen tier in your {ess} deployment. Follow these
 steps:
 
 . Choose an existing tier to use. Typically, you'll use the cold tier, but the
-hot and warm tiers are also supported. You can use this tier as a shared tier, or
-you can dedicate the tier exclusively to the shared snapshot cache.
+hot and warm tiers are also supported. You can use this tier as a shared tier,
+or you can dedicate the tier exclusively to shared snapshot caches.
 
 . Log in to the {ess-trial}[{ess} Console].
 

@@ -235,8 +235,8 @@ an index alias in place of an index name. See the
 // tag::index-lifecycle-def[]
 Five phases an <<glossary-index,index>> can transition through:
 <<glossary-hot-phase,hot>>, <<glossary-warm-phase,warm>>,
-<<glossary-cold-phase,cold>>, <<glossary-frozen-phase,frozen>>, and
-<<glossary-delete-phase,delete>>. See {ref}/ilm-policy-definition.html[Index
+<<glossary-cold-phase,cold>>, {ref}/glossary.html#glossary-frozen-phase[frozen],
+and <<glossary-delete-phase,delete>>. See {ref}/ilm-policy-definition.html[Index
 lifecycle].
 // end::index-lifecycle-def[]
 

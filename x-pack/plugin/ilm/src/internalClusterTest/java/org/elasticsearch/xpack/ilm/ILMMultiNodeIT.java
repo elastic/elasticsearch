@@ -7,20 +7,19 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
@@ -31,6 +30,8 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
+import org.junit.After;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -39,40 +40,31 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class ILMMultiNodeIT extends ESIntegTestCase {
+
     private static final String index = "myindex";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, DataStreamsPlugin.class, IndexLifecycle.class);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
-        settings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
-
-        // This is necessary to prevent ILM and SLM installing a lifecycle policy, these tests assume a blank slate
-        settings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false);
-        settings.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
-        return settings.build();
-    }
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
+            .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+            .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
+            .put(XPackSettings.GRAPH_ENABLED.getKey(), false)
+            .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s")
+            // This just generates less churn and makes it easier to read the log file if needed
+            .put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false)
+            .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
+            .build();
     }
 
     @Override
@@ -83,6 +75,21 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         return settings.build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
+    }
+
+    @After
+    public void cleanup() {
+        try {
+            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[]{index})).get();
+        } catch (Exception e) {
+            // Okay to ignore this
+            logger.info("failed to clean up data stream", e);
+        }
     }
 
     public void testShrinkOnTiers() throws Exception {
@@ -104,38 +111,44 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(LifecycleSettings.LIFECYCLE_NAME, "shrink-policy")
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "shrink-alias")
-            .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_hot")
             .build(), null, null);
 
         ComposableIndexTemplate template = new ComposableIndexTemplate(
-            Collections.singletonList(index + "*"),
+            Collections.singletonList(index),
             t,
             null,
             null,
             null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(),
             null
         );
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("template").indexTemplate(template)
         ).actionGet();
-        client().admin().indices().prepareCreate(index + "-000001")
-            .addAlias(new Alias("shrink-alias").writeIndex(true)).get();
-        client().prepareIndex(index + "-000001", MapperService.SINGLE_MAPPING_NAME)
-            .setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
+        client().prepareIndex(index, "_doc").setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
 
         assertBusy(() -> {
-            String name = "shrink-" + index + "-000001";
             ExplainLifecycleResponse explain =
                 client().execute(ExplainLifecycleAction.INSTANCE, new ExplainLifecycleRequest().indices("*")).get();
             logger.info("--> explain: {}", Strings.toString(explain));
 
-            IndexLifecycleExplainResponse indexResp = explain.getIndexResponses().get(name);
-            assertNotNull(indexResp);
-            assertThat(indexResp.getPhase(), equalTo("warm"));
-            assertThat(indexResp.getStep(), equalTo("complete"));
-        }, 60, TimeUnit.SECONDS);
+            String backingIndexName = DataStream.getDefaultBackingIndexName(index, 1);
+            IndexLifecycleExplainResponse indexResp = null;
+            for (Map.Entry<String, IndexLifecycleExplainResponse> indexNameAndResp : explain.getIndexResponses().entrySet()) {
+                if (indexNameAndResp.getKey().startsWith(SHRUNKEN_INDEX_PREFIX) &&
+                    indexNameAndResp.getKey().contains(backingIndexName)) {
+                    indexResp = indexNameAndResp.getValue();
+                    assertNotNull(indexResp);
+                    assertThat(indexResp.getPhase(), equalTo("warm"));
+                    assertThat(indexResp.getStep(), equalTo("complete"));
+                    break;
+                }
+            }
+
+            assertNotNull("Unable to find an ilm explain output for the shrunk index of " + index, indexResp);
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void startHotOnlyNode() {

@@ -1900,6 +1900,9 @@ Local address for the HTTP client.
 `remote_address`::
 (string)
 Remote address for the HTTP client.
+`last_uri`::
+(string)
+The URI of the client's most recent request.
 `x_forwarded_for`::
 (string)
 Value from the client's `x-forwarded-for` HTTP header. If unavailable, this

@@ -97,7 +97,8 @@ Collection of <<glossary-node,nodes>> with the same {ref}/modules-node.html[data
 role] that typically share the same hardware profile. Data tiers include the
 <<glossary-content-tier, content tier>>, <<glossary-hot-tier, hot tier>>,
 <<glossary-warm-tier, warm tier>>, <<glossary-cold-tier, cold tier>>, and
-<<glossary-frozen-tier,frozen tier>>. See {ref}/data-tiers.html[Data tiers].
+{ref}/glossary.html#glossary-frozen-tier[frozen tier]. See
+{ref}/data-tiers.html[Data tiers].
 // end::data-tier-def[]
 
 [[glossary-delete-phase]] delete phase::

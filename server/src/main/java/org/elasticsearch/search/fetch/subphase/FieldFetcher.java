@@ -72,7 +72,11 @@ public class FieldFetcher {
             Collection<String> concreteFields = context.simpleMatchToIndexNames(fieldPattern);
             for (String field : concreteFields) {
                 MappedFieldType ft = context.getFieldType(field);
-                if (ft == null || context.isMetadataField(field)) {
+                if (ft == null) {
+                    continue;
+                }
+                // we want to skip metadata fields if we have a wildcard pattern
+                if (context.isMetadataField(field) && Regex.isSimpleMatchPattern(fieldPattern)) {
                     continue;
                 }
                 if (field.startsWith(nestedScopePath) == false) {

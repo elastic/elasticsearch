@@ -208,6 +208,8 @@ NOTE: The shared cache can currently be configured on any node. In the future
 this will be restricted to nodes having the <<frozen-tier,frozen tier>> data
 role.
 
+[discrete]
+[[searchable-snapshots-shared-cache-ex]]
 ==== Example
 
 Configuring a shared cache that can hold up to 4 terabytes of data is done by
@@ -218,6 +220,7 @@ adding the following line to your `elasticsearch.yml` file:
 xpack.searchable.snapshot.shared_cache.size: "4TB"
 --------------------------------------------------
 
+[discrete]
 [[searchable-snapshots-frozen-tier-on-cloud]]
 ==== Configuring the shared snapshot cache for the frozen tier on {ess}
 

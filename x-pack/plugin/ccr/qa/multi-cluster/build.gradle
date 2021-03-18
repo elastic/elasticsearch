@@ -13,6 +13,7 @@ testClusters {
   'leader-cluster' {
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'path.repo', "${buildDir}/cluster/shared/repo/leader-cluster"
   }
   'middle-cluster' {
     testDistribution = 'DEFAULT'
@@ -25,6 +26,7 @@ testClusters {
 tasks.register("leader-cluster", RestIntegTestTask) {
   mustRunAfter("precommit")
   systemProperty 'tests.target_cluster', 'leader'
+  systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
 }
 
 tasks.register("middle-cluster", RestIntegTestTask) {

@@ -34,7 +34,6 @@ dependencies {
   api project(':modules:aggs-matrix-stats')
   api project(':modules:rank-eval')
   api project(':modules:lang-mustache')
-  api project(':modules:ingest-geoip')
 
   // Don't bundle the server or low-level rest client JARs in the shadow JAR since these get published to Maven Central
   shadow project(':server')
@@ -50,6 +49,9 @@ dependencies {
   // (In order to serialize a server side class to a client side class or the other way around)
   testImplementation(project(':x-pack:plugin:core')) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
+  }
+  testImplementation project(':modules:ingest-geoip') {
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
   }
   testImplementation(project(':x-pack:plugin:eql'))
 }

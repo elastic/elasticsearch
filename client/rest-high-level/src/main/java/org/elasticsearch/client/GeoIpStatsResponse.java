@@ -11,18 +11,22 @@ package org.elasticsearch.client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class GeoIpStatsResponse {
+public class GeoIpStatsResponse implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<GeoIpStatsResponse, Void> PARSER = new ConstructingObjectParser<>("geoip_stats", a -> {
@@ -30,7 +34,7 @@ public class GeoIpStatsResponse {
         List<Tuple<String, NodeInfo>> nodes = (List<Tuple<String, NodeInfo>>) a[1];
 
         return new GeoIpStatsResponse((int) stats.get("successful_downloads"), (int) stats.get("failed_downloads"),
-            ((Number)stats.get("total_download_time")).longValue(), (int) stats.get("databases_count"), (int) stats.get("skipped_updates"),
+            ((Number) stats.get("total_download_time")).longValue(), (int) stats.get("databases_count"), (int) stats.get("skipped_updates"),
             nodes.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
     });
 
@@ -85,7 +89,42 @@ public class GeoIpStatsResponse {
         return PARSER.apply(parser, null);
     }
 
-    public static final class NodeInfo {
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GeoIpStatsResponse that = (GeoIpStatsResponse) o;
+        return successfulDownloads == that.successfulDownloads
+            && failedDownloads == that.failedDownloads
+            && totalDownloadTime == that.totalDownloadTime
+            && databasesCount == that.databasesCount
+            && skippedDownloads == that.skippedDownloads
+            && nodes.equals(that.nodes);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(successfulDownloads, failedDownloads, totalDownloadTime, databasesCount, skippedDownloads, nodes);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.startObject("stats");
+        {
+            builder.field("successful_downloads", successfulDownloads);
+            builder.field("failed_downloads", failedDownloads);
+            builder.field("skipped_updates", skippedDownloads);
+            builder.field("total_download_time", totalDownloadTime);
+            builder.field("databases_count", databasesCount);
+        }
+        builder.endObject();
+        builder.field("nodes", nodes);
+        builder.endObject();
+        return builder;
+    }
+
+    public static final class NodeInfo implements ToXContentObject {
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<NodeInfo, Void> PARSER = new ConstructingObjectParser<>("node_info", a -> {
             List<DatabaseInfo> databases = (List<DatabaseInfo>) a[1];
@@ -113,9 +152,31 @@ public class GeoIpStatsResponse {
         public Map<String, DatabaseInfo> getDatabases() {
             return databases;
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("files_in_temp", filesInTemp);
+            builder.field("databases", databases.values());
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NodeInfo nodeInfo = (NodeInfo) o;
+            return filesInTemp.equals(nodeInfo.filesInTemp) && databases.equals(nodeInfo.databases);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(filesInTemp, databases);
+        }
     }
 
-    public static final class DatabaseInfo {
+    public static final class DatabaseInfo implements ToXContentObject {
 
         private static final ConstructingObjectParser<DatabaseInfo, Void> PARSER = new ConstructingObjectParser<>("database_info",
             a -> new DatabaseInfo((String) a[0]));
@@ -132,6 +193,27 @@ public class GeoIpStatsResponse {
 
         public String getName() {
             return name;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("name", name);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DatabaseInfo that = (DatabaseInfo) o;
+            return name.equals(that.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name);
         }
     }
 }

@@ -48,6 +48,11 @@ public class HistogramFieldMapperTests extends MapperTestCase {
             m -> assertTrue(((HistogramFieldMapper)m).ignoreMalformed()));
     }
 
+    @Override
+    protected boolean supportsScripts() {
+        return false;
+    }
+
     public void testParseValue() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(

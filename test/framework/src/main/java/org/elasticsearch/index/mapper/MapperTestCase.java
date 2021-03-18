@@ -485,7 +485,15 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         });
     }
 
-    public void testIndexTimeFieldData() throws IOException {
+    /**
+     * @return whether or not this field type supports access to its values from scripts
+     */
+    protected boolean supportsScripts() {
+        return true;
+    }
+
+    public final void testIndexTimeFieldData() throws IOException {
+        assumeTrue("Field type does not support scripting", supportsScripts());
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         assertParseMinimalWarnings();
         MappedFieldType fieldType = mapperService.fieldType("field");

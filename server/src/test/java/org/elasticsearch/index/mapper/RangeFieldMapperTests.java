@@ -69,8 +69,8 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     @Override
-    public void testIndexTimeFieldData() throws IOException {
-        assumeFalse("Accessing range fields in scripts is not supported", false);
+    protected boolean supportsScripts() {
+        return false;
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {

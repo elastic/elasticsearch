@@ -699,8 +699,7 @@ public class TokenServiceTests extends ESTestCase {
         assertThat(e.getMetadata(FeatureNotEnabledException.DISABLED_FEATURE_METADATA), contains("security_tokens"));
 
         PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-        final SecureString bearerToken = tokenService.extractBearerTokenFromHeader(null);
-        tokenService.tryAuthenticateToken(bearerToken, future);
+        tokenService.tryAuthenticateToken(null, future);
         assertNull(future.get());
 
         PlainActionFuture<TokensInvalidationResult> invalidateFuture = new PlainActionFuture<>();

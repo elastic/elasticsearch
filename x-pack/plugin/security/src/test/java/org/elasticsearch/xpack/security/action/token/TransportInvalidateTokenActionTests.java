@@ -15,8 +15,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexClosedException;
@@ -34,13 +33,11 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.support.SecurityTokenType;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.ByteArrayOutputStream;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Base64;
 import java.util.Collections;
@@ -132,13 +129,12 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
     }
 
     private String generateAccessTokenString() throws Exception {
-        try (ByteArrayOutputStream os = new ByteArrayOutputStream(TokenService.MINIMUM_BASE64_BYTES);
-             OutputStream base64 = Base64.getEncoder().wrap(os);
-             StreamOutput out = new OutputStreamStreamOutput(base64)) {
+        try (BytesStreamOutput out = new BytesStreamOutput(TokenService.MINIMUM_BASE64_BYTES)) {
             out.setVersion(Version.CURRENT);
             Version.writeVersion(Version.CURRENT, out);
+            SecurityTokenType.ACCESS_TOKEN.write(out);
             out.writeString(UUIDs.randomBase64UUID());
-            return new String(os.toByteArray(), StandardCharsets.UTF_8);
+            return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
         }
     }
 

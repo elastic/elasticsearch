@@ -469,6 +469,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         assert assertCurrentThreadMayWriteCacheFile();
         byteBuffer.flip();
         int written = fc.write(byteBuffer, start);
+        assert byteBuffer.hasRemaining() == false;
         byteBuffer.clear();
         return written;
     }

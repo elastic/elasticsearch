@@ -58,7 +58,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAct
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.SnapshottableFeaturesAction;
+import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.TransportSnapshottableFeaturesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
@@ -227,6 +229,8 @@ import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -282,6 +286,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRemoteClusterInfoAction;
+import org.elasticsearch.rest.action.admin.cluster.RestResetFeatureStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshottableFeaturesAction;
@@ -392,6 +397,7 @@ import static java.util.Collections.unmodifiableMap;
 public class ActionModule extends AbstractModule {
 
     private static final Logger logger = LogManager.getLogger(ActionModule.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -436,6 +442,13 @@ public class ActionModule extends AbstractModule {
                     throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST wrapper");
                 }
                 restWrapper = newRestWrapper;
+                if (restWrapper.getClass().getCanonicalName() == null ||
+                    restWrapper.getClass().getCanonicalName().startsWith("org.elasticsearch") == false) {
+                    deprecationLogger.deprecate(DeprecationCategory.PLUGINS, "3rd_party_rest_deprecation", "The " +
+                        plugin.getClass().getName() + "plugin installs a custom REST wrapper. This functionality is deprecated and will " +
+                        "not be possible in Elasticsearch 8.0. If this plugin is intended to provide security features for Elasticsearch " +
+                        "then you should switch to using the built-in Elasticsearch features instead.");
+                }
             }
         }
         mappingRequestValidators = new RequestValidators<>(
@@ -501,6 +514,7 @@ public class ActionModule extends AbstractModule {
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
         actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
         actions.register(SnapshottableFeaturesAction.INSTANCE, TransportSnapshottableFeaturesAction.class);
+        actions.register(ResetFeatureStateAction.INSTANCE, TransportResetFeatureStateAction.class);
 
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
@@ -651,6 +665,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeleteSnapshotAction());
         registerHandler.accept(new RestSnapshotsStatusAction());
         registerHandler.accept(new RestSnapshottableFeaturesAction());
+        registerHandler.accept(new RestResetFeatureStateAction());
         registerHandler.accept(new RestGetIndicesAction());
         registerHandler.accept(new RestIndicesStatsAction());
         registerHandler.accept(new RestIndicesSegmentsAction(threadPool));

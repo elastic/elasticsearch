@@ -242,3 +242,134 @@
           size: 1
           sort: ["_shard_doc"]
           search_after: [ 0L ]
+
+---
+"Format sort values":
+  - skip:
+      version: " - 7.99.99"
+      reason: Format sort output is introduced in 8.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              timestamp:
+                type: date
+                format: yyyy-MM-dd HH:mm:ss.SSS
+  - do:
+      indices.create:
+        index: test_nanos
+        body:
+          mappings:
+            properties:
+              timestamp:
+                type: date_nanos
+                format: dd/MM/yyyy HH:mm:ss.SSS
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body: |
+          {"index":{}}
+          {"timestamp":"2021-10-13 00:30:04.828"}
+          {"index":{}}
+          {"timestamp":"2021-06-11 04:30:04.828"}
+          {"index":{}}
+          {"timestamp":"2021-02-11 08:30:04.828"}
+  - do:
+      bulk:
+        refresh: true
+        index: test_nanos
+        body: |
+          {"index":{}}
+          {"timestamp":"21/08/2021 03:30:04.732"}
+          {"index":{}}
+          {"timestamp":"20/05/2021 05:30:04.832"}
+          {"index":{}}
+          {"timestamp":"15/04/2021 06:30:04.821"}
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 1
+          sort: [{timestamp: {"order" : "asc", "format": "strict_date_optional_time_nanos"}}]
+  - match: {hits.total.value: 3 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._source.timestamp: "2021-02-11 08:30:04.828" }
+  - match: {hits.hits.0.sort: ["2021-02-11T08:30:04.828Z"] }
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 1
+          sort: [{timestamp: {"order" : "asc", "format": "strict_date_optional_time_nanos"}}]
+          search_after: ["2021-02-11T08:30:04.828Z"]
+  - match: {hits.total.value: 3 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._source.timestamp: "2021-06-11 04:30:04.828" }
+  - match: {hits.hits.0.sort: ["2021-06-11T04:30:04.828Z"] }
+
+  # mismatch format
+  - do:
+      catch: /failed to parse date field/
+      search:
+        index: test
+        body:
+          size: 1
+          sort: [{ timestamp: {"order" : "asc", "format": "yyyy-MM-dd HH:mm:ss.SSS"}}]
+          search_after: [ "2021-02-11T08:30:04.828Z" ]
+  - do:
+      catch: /failed to parse date field/
+      search:
+        index: test
+        body:
+          size: 1
+          sort: [ { timestamp: { "order": "asc", "format": "epoch_millis" } } ]
+          search_after: [ "2021-02-11T08:30:04.828Z" ]
+  - do:
+      search:
+        index: test
+        body:
+          size: 1
+          sort: [{timestamp: {"order" : "asc", "format": "yyyy-MM-dd | HH:mm:ss.SSS"}}]
+          search_after: ["2021-02-11 | 08:30:04.828"]
+  - match: {hits.total.value: 3 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._source.timestamp: "2021-06-11 04:30:04.828" }
+  - match: {hits.hits.0.sort: ["2021-06-11 | 04:30:04.828"] }
+
+  # Mixed two types with numeric
+  - do:
+      search:
+        index: tes*
+        body:
+          size: 2
+          sort: [ { timestamp: { "order": "asc", "format": "strict_date_optional_time_nanos", "numeric_type": "date_nanos" } } ]
+  - match: { hits.total.value: 6 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.timestamp: "2021-02-11 08:30:04.828" }
+  - match: { hits.hits.0.sort: [ "2021-02-11T08:30:04.828Z" ] }
+  - match: { hits.hits.1._index: test_nanos }
+  - match: { hits.hits.1._source.timestamp: "15/04/2021 06:30:04.821" }
+  - match: { hits.hits.1.sort: [ "2021-04-15T06:30:04.821Z" ] }
+
+  - do:
+      search:
+        index: test*
+        body:
+          size: 2
+          sort: [ { timestamp: { "order": "asc", "format": "strict_date_optional_time_nanos", "numeric_type": "date" } } ]
+          search_after: [ "2021-04-15T06:30:04.821Z" ]
+  - match: { hits.total.value: 6 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._index: test_nanos }
+  - match: { hits.hits.0._source.timestamp: "20/05/2021 05:30:04.832" }
+  - match: { hits.hits.0.sort: [ "2021-05-20T05:30:04.832Z" ] }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1._source.timestamp: "2021-06-11 04:30:04.828" }
+  - match: { hits.hits.1.sort: [ "2021-06-11T04:30:04.828Z" ] }

@@ -604,18 +604,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         if (jobTask == null) {
             listener.onResponse(null);
         } else {
-            persistentTasksService.sendRemoveRequest(jobTask.getId(),
-                    new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
-                        @Override
-                        public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
-                            listener.onResponse(Boolean.TRUE);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
+            persistentTasksService.sendRemoveRequest(jobTask.getId(), listener.delegateFailure((l, task) -> l.onResponse(Boolean.TRUE)));
         }
     }
 

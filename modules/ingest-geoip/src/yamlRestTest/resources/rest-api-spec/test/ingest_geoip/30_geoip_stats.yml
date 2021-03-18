@@ -1,7 +1,7 @@
 ---
 "Test geoip stats":
   - do:
-      ingest.geoip_stats: {}
+      ingest.geo_ip_stats: {}
   - match: { stats.successful_downloads: 0 }
   - match: { stats.failed_downloads: 0 }
   - match: { stats.skipped_updates: 0 }

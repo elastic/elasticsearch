@@ -1,7 +1,7 @@
 [[indices-add-alias]]
-=== Add index alias API
+=== Create or update index alias API
 ++++
-<titleabbrev>Add index alias</titleabbrev>
+<titleabbrev>Create or update index alias</titleabbrev>
 ++++
 
 Creates or updates an index alias.

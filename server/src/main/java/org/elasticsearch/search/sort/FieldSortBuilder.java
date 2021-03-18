@@ -66,6 +66,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     public static final ParseField SORT_MODE = new ParseField("mode");
     public static final ParseField UNMAPPED_TYPE = new ParseField("unmapped_type");
     public static final ParseField NUMERIC_TYPE = new ParseField("numeric_type");
+    public static final ParseField FORMAT = new ParseField("format");
 
     /**
      * special field name to sort by index order
@@ -93,6 +94,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     private SortMode sortMode;
 
     private NestedSortBuilder nestedSort;
+
+    private String format;
 
     /** Copy constructor. */
     public FieldSortBuilder(FieldSortBuilder template) {
@@ -141,6 +144,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             numericType = in.readOptionalString();
         }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            format = in.readOptionalString();
+        }
     }
 
     @Override
@@ -157,6 +163,13 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         out.writeOptionalWriteable(nestedSort);
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeOptionalString(numericType);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalString(format);
+        } else {
+            if (format != null) {
+                throw new IllegalArgumentException("Custom format for output of sort fields requires all nodes on 8.0 or later");
+            }
         }
     }
 
@@ -273,6 +286,22 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return this;
     }
 
+    /**
+     * Returns the external format that is specified via {@link #setFormat(String)}
+     */
+    public String getFormat() {
+        return format;
+    }
+
+    /**
+     * Specifies a format specification that will be used to format the output value of this sort field.
+     * Currently, only "date" and "data_nanos" date types support this external format (i.e., date format).
+     */
+    public FieldSortBuilder setFormat(String format) {
+        this.format = format;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -292,6 +321,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         if (numericType != null) {
             builder.field(NUMERIC_TYPE.getPreferredName(), numericType);
+        }
+        if (format != null) {
+            builder.field(FORMAT.getPreferredName(), format);
         }
         builder.endObject();
         builder.endObject();
@@ -353,11 +385,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 isNanosecond = ((IndexNumericFieldData) fieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
             }
         }
-        DocValueFormat format = fieldType.docValueFormat(null, null);
-        if (isNanosecond) {
-            format = DocValueFormat.withNanosecondResolution(format);
+        DocValueFormat formatter = fieldType.docValueFormat(format, null);
+        if (format != null) {
+            formatter = DocValueFormat.enableFormatSortValues(formatter);
         }
-        return new SortFieldAndFormat(field, format);
+        if (isNanosecond) {
+            formatter = DocValueFormat.withNanosecondResolution(formatter);
+        }
+        return new SortFieldAndFormat(field, formatter);
     }
 
     public boolean canRewriteToMatchNone() {
@@ -622,13 +657,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return (Objects.equals(this.fieldName, builder.fieldName) && Objects.equals(this.missing, builder.missing)
                 && Objects.equals(this.order, builder.order) && Objects.equals(this.sortMode, builder.sortMode)
                 && Objects.equals(this.unmappedType, builder.unmappedType) && Objects.equals(this.nestedSort, builder.nestedSort))
-                && Objects.equals(this.numericType, builder.numericType);
+                && Objects.equals(this.numericType, builder.numericType)
+                && Objects.equals(this.format, builder.format);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(this.fieldName, this.nestedSort, this.missing, this.order, this.sortMode,
-            this.unmappedType, this.numericType);
+            this.unmappedType, this.numericType, this.format);
     }
 
     @Override
@@ -658,6 +694,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORT_MODE);
         PARSER.declareObject(FieldSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
         PARSER.declareString(FieldSortBuilder::setNumericType, NUMERIC_TYPE);
+        PARSER.declareString(FieldSortBuilder::setFormat, FORMAT);
     }
 
     @Override

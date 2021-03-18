@@ -385,4 +385,9 @@ public class IndexLifecycleService
         final State state = clusterService.lifecycleState();
         return state == State.STOPPED || state == State.CLOSED;
     }
+
+    // visible for testing
+    PolicyStepsRegistry getPolicyRegistry() {
+        return policyRegistry;
+    }
 }

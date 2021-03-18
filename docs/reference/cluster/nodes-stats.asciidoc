@@ -1922,7 +1922,7 @@ Time of the most recent request from this client.
 Number of requests from this client.
 `request_size_bytes`::
 (integer)
-Cumulative size in bytes of all requests from this client
+Cumulative size in bytes of all requests from this client.
 =======
 ======
 

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -157,7 +158,10 @@ public class GeoIpStatsResponse implements ToXContentObject {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("files_in_temp", filesInTemp);
-            builder.field("databases", databases.values());
+            builder.field("databases", databases.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(Map.Entry::getValue)
+                .collect(Collectors.toList()));
             builder.endObject();
             return builder;
         }

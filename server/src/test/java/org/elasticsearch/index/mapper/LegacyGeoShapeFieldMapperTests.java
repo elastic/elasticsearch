@@ -616,9 +616,4 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         assumeFalse("Test implemented in a follow up", true);
         return null;
     }
-
-    @Override
-    protected void assertFetchWarnings() {
-        assertFieldWarnings("strategy");
-    }
 }

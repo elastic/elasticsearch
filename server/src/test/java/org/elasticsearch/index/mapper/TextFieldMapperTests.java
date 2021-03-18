@@ -67,7 +67,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -1084,15 +1083,12 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
-        /*
-         * We only expect fetching text fields to line up with their fieldata
-         * if the field data if the analysis chain doesn't modiy it at all.
-         */
-        return () -> randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        assumeFalse("We don't have a way to assert things here", true);
+        return null;
     }
 
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
-        b.field("type", "text").field("fielddata", true); // Enable field data so we can compare
+        assumeFalse("We don't have a way to assert things here", true);
     }
 }

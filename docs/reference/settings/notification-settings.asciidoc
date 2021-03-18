@@ -282,6 +282,7 @@ include::ssl-settings.asciidoc[]
 (<<dynamic-cluster-setting,Dynamic>>) 
 Specifies a custom message to be sent if the formula verification criteria
 for CSV files, from kibana `xpack.reporting.csv.checkForFormulas`, is true.
+Use %s in the message as a placeholder for the filename.  
 
 [[slack-notification-settings]]
 ==== Slack Notification Settings

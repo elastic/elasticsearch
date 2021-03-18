@@ -388,7 +388,6 @@ public class DoSection implements ExecutableSection {
             final boolean matches = matcher.matches();
             if (matches) {
                 final String message = HeaderWarning.extractWarningValueFromWarningHeader(header, true);
-
                 if (allowed.contains(message)) {
                     continue;
                 }

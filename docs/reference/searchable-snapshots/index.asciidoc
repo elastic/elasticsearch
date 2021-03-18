@@ -1,53 +1,51 @@
 [[searchable-snapshots]]
 == {search-snaps-cap}
 
-{search-snaps-cap} let you reduce your operating costs by using
-<<snapshot-restore, snapshots>> to power your searches when the index becomes
-read-only and is less frequently queried. It is one of the key features for
-powering the <<cold-tier,cold>> and <<frozen-tier,frozen>> data tiers.
+{search-snaps-cap} let you use <<snapshot-restore,snapshots>> to search and
+store infrequently-accessed, read-only data. The <<cold-tier,cold>> and
+<<frozen-tier,frozen>> data tiers use {search-snaps} to reduce your storage and
+operating costs.
 
-{search-snaps-cap} come in two flavors, one where a full copy of the data
-in the snapshot is loaded into the cluster (which is the default
-in the <<cold-tier,cold tier>>), and another one where only parts
-of the data are stored locally in a shared cache on the nodes in the cluster
-(which is the default in the <<frozen-tier,frozen tier>>). Both eliminate the
-need for<<scalability,replica shards>>, powering recovery events by accessing
-the data from the snapshot instead.
+{search-snaps-cap} eliminate the need for <<scalability,replica shards>>,
+potentially halving the local storage needed to search your data.
+{search-snaps-cap} rely on the same snapshot mechanism you already use for
+backups and have minimal impact on your snapshot repository storage costs.
 
-When you mount an index from a snapshot as a {search-snap} using the
-"full copy" mode, {es} copies the index shards to local storage
-within the cluster. This ensures that search performance is comparable to
-searching any other index, and minimizes the need to access the snapshot
-repository. Should a node fail, shards of a {search-snap} index are
-automatically recovered from the snapshot repository. This can result in
-significant cost savings for less frequently searched data.
-With {search-snaps}, you no longer need an extra index shard copy to avoid data
-loss, potentially halving the node local storage capacity necessary for
-searching that data. Because {search-snaps} rely on the same snapshot mechanism
-you use for backups, they have a minimal impact on your snapshot repository
-storage costs.
+[discrete]
+[[mount-options]]
+=== Mount options
 
-When you mount an index from a snapshot as a {search-snap} using the
-"shared cache" mode, {es} only caches small parts of the data locally in
-the cluster and lazily fetches data from the snapshot repository on a by-need
-basis as searches require access. This effectively decouples compute from
-storage, allowing very large data sets to be queried with little compute
-resources, allowing compute costs to be reduced by an order of magnitude when
-compared to a classical setup with local storage. Searches are expected to be
-potentially much slower, but this can be ok for less frequently searched data.
-Searches still see great benefits of having the data indexed by default in
-{es}, which avoids doing a full scan of the data, and leveraging these index
-structures searches can still relatively quickly return results over very large
-data sets.
+To search a snapshot, you must first mount it locally as an index. There are two
+mounting options, each with a different local storage footprint:
 
+[[full-copy]]
+Full copy::
+Loads a full, local copy of the snapshotted index's shards into the cluster. The
+cold tier uses this option by default.
++
+If a node fails, {es} automatically recovers the index's shards from the
+snapshot repository. Search performance for a full copy is comparable to a
+regular index, with minimal need to access the snapshot repository.
+
+[[shared-cache]]
+Shared cache::
+Loads only a local cache of the snapshotted index's data. This cache is shared
+across the cluster's nodes. The frozen tier uses this option by default.
++
+If a search requires data that's not in the cache, {es} lazily fetches the data
+as needed from the snapshot repository. Searches that require these fetches are
+slower, but repeated searches are served from the cache.
++
+Although slower than a full local copy or a regular index, the shared snapshot
+cache still returns results quickly, even for large data sets. This option
+decouples compute and storage, letting you run searches with minimal compute
+resources.
 
 [discrete]
 [[using-searchable-snapshots]]
 === Using {search-snaps}
 
 Searching a {search-snap} index is the same as searching any other index.
-The main difference is that searches might be slower in case where not all the
-data is locally available.
 
 By default, {search-snap} indices have no replicas. The underlying snapshot
 provides resilience and the query volume is expected to be low enough that a

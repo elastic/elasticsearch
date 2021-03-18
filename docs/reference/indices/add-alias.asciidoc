@@ -26,7 +26,6 @@ PUT /my-index-000001/_alias/alias1
 
 `POST /<index>/_aliases/<alias>`
 
-
 [[add-alias-api-prereqs]]
 ==== {api-prereq-title}
 

@@ -49,9 +49,10 @@ public class RestWatchServiceAction extends BaseRestHandler {
         }
 
         @Override
-        public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-            return channel ->
-                client.execute(WatcherServiceAction.INSTANCE, new WatcherServiceRequest().stop(), new RestToXContentListener<>(channel));
+        public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
+            final WatcherServiceRequest request = new WatcherServiceRequest().stop();
+            request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+            return channel -> client.execute(WatcherServiceAction.INSTANCE, request, new RestToXContentListener<>(channel));
         }
     }
 }

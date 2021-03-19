@@ -39,13 +39,13 @@ POST /_snapshot/my_repository/_verify
 [[verify-snapshot-repo-api-desc]]
 ==== {api-description-title}
 
-By default, <<put-snapshot-repo-api,put snapshot repository API>> requests
-verify that a snapshot is functional on all master and data nodes in the
-cluster.
+By default, <<put-snapshot-repo-api,create or update snapshot repository API>>
+requests verify that a snapshot is functional on all master and data nodes in
+the cluster.
 
-You can skip this verification using the put snapshot repository API's `verify`
-parameter. You can then use the verify snapshot repository API to manually
-verify the repository.
+You can skip this verification using the create or update snapshot repository
+API's `verify` parameter. You can then use the verify snapshot repository API to
+manually verify the repository.
 
 If verification is successful, the verify snapshot repository API returns a list
 of nodes connected to the snapshot repository. If verification failed, the API

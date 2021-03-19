@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -53,6 +54,7 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -300,10 +302,10 @@ public class MetadataIndexTemplateService {
      * Remove the given component template from the cluster state. The component template name
      * supports simple regex wildcards for removing multiple component templates at a time.
      */
-    public void removeComponentTemplate(final String name, final TimeValue masterTimeout,
-                                        final ActionListener<AcknowledgedResponse> listener) {
-        validateNotInUse(clusterService.state().metadata(), name);
-        clusterService.submitStateUpdateTask("remove-component-template [" + name + "]",
+    public void removeComponentTemplate(final String[] names, final TimeValue masterTimeout,
+                                        ClusterState state, final ActionListener<AcknowledgedResponse> listener) {
+        validateNotInUse(state.metadata(), names);
+        clusterService.submitStateUpdateTask("remove-component-template [" + String.join(",", names) + "]",
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
@@ -313,27 +315,7 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    Set<String> templateNames = new HashSet<>();
-                    for (String templateName : currentState.metadata().componentTemplates().keySet()) {
-                        if (Regex.simpleMatch(name, templateName)) {
-                            templateNames.add(templateName);
-                        }
-                    }
-                    if (templateNames.isEmpty()) {
-                        // if its a match all pattern, and no templates are found (we have none), don't
-                        // fail with index missing...
-                        if (Regex.isMatchAllPattern(name)) {
-                            return currentState;
-                        }
-                        // TODO: perhaps introduce a ComponentTemplateMissingException?
-                        throw new IndexTemplateMissingException(name);
-                    }
-                    Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-                    for (String templateName : templateNames) {
-                        logger.info("removing component template [{}]", templateName);
-                        metadata.removeComponentTemplate(templateName);
-                    }
-                    return ClusterState.builder(currentState).metadata(metadata).build();
+                    return innerRemoveComponentTemplate(currentState, names);
                 }
 
                 @Override
@@ -343,13 +325,64 @@ public class MetadataIndexTemplateService {
             });
     }
 
+    static ClusterState innerRemoveComponentTemplate(ClusterState currentState, String... names) {
+        validateNotInUse(currentState.metadata(), names);
+
+        final Set<String> templateNames = new HashSet<>();
+        if (names.length > 1) {
+            Set<String> missingNames = null;
+            for (String name : names) {
+                if (currentState.metadata().componentTemplates().containsKey(name)) {
+                    templateNames.add(name);
+                } else {
+                    // wildcards are not supported, so if a name with a wildcard is specified then
+                    // the else clause gets executed, because template names can't contain a wildcard.
+                    if (missingNames == null) {
+                        missingNames = new LinkedHashSet<>();
+                    }
+                    missingNames.add(name);
+                }
+            }
+
+            if (missingNames != null) {
+                throw new ResourceNotFoundException(String.join(",", missingNames));
+            }
+        } else {
+            for (String templateName : currentState.metadata().componentTemplates().keySet()) {
+                if (Regex.simpleMatch(names[0], templateName)) {
+                    templateNames.add(templateName);
+                }
+            }
+            if (templateNames.isEmpty()) {
+                // if its a match all pattern, and no templates are found (we have none), don't
+                // fail with index missing...
+                if (Regex.isMatchAllPattern(names[0])) {
+                    return currentState;
+                }
+                throw new ResourceNotFoundException(names[0]);
+            }
+        }
+        Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+        for (String templateName : templateNames) {
+            logger.info("removing component template [{}]", templateName);
+            metadata.removeComponentTemplate(templateName);
+        }
+        return ClusterState.builder(currentState).metadata(metadata).build();
+    }
+
     /**
      * Validates that the given component template is not used by any index
      * templates, throwing an error if it is still in use
      */
-    static void validateNotInUse(Metadata metadata, String templateNameOrWildcard) {
+    static void validateNotInUse(Metadata metadata, String... templateNameOrWildcard) {
+        final Predicate<String> predicate;
+        if (templateNameOrWildcard.length > 1) {
+            predicate = name -> Arrays.stream(templateNameOrWildcard).anyMatch(s -> Objects.equals(s, name));
+        } else {
+            predicate = name -> Regex.simpleMatch(templateNameOrWildcard[0], name);
+        }
         final Set<String> matchingComponentTemplates = metadata.componentTemplates().keySet().stream()
-            .filter(name -> Regex.simpleMatch(templateNameOrWildcard, name))
+            .filter(predicate)
             .collect(Collectors.toSet());
         final Set<String> componentsBeingUsed = new HashSet<>();
         final List<String> templatesStillUsing = metadata.templatesV2().entrySet().stream()

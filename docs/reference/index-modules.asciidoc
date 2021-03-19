@@ -2,9 +2,6 @@
 [[index-modules]]
 = Index modules
 
-[partintro]
---
-
 Index Modules are modules created per index and control all aspects related to
 an index.
 
@@ -252,6 +249,23 @@ are ignored for this index.
     The maximum length of regex that can be used in Regexp Query.
     Defaults to `1000`.
 
+
+`index.query.default_field`::
++
+--
+(string or array of strings)
+Wildcard (`*`) patterns matching one or more fields. The following query types
+search these matching fields by default:
+
+* <<query-dsl-mlt-query>>
+* <<query-dsl-multi-match-query>>
+* <<query-dsl-query-string-query>>
+* <<query-dsl-simple-query-string-query>>
+
+Defaults to `*`, which matches all fields eligible for
+<<term-level-queries,term-level queries>>, excluding metadata fields.
+--
+
  `index.routing.allocation.enable`::
 
     Controls shard allocation for this index. It can be set to:
@@ -273,6 +287,7 @@ are ignored for this index.
     The length of time that a <<delete-versioning,deleted document's version number>> remains available for <<index-versioning,further versioned operations>>.
     Defaults to `60s`.
 
+[[index-default-pipeline]]
  `index.default_pipeline`::
 
     The default <<ingest,ingest node>> pipeline for this index. Index requests will fail
@@ -280,6 +295,7 @@ are ignored for this index.
     overridden using the `pipeline` parameter. The special pipeline name `_none` indicates
     no ingest pipeline should be run.
 
+[[index-final-pipeline]]
  `index.final_pipeline`::
     The final <<ingest,ingest node>> pipeline for this index. Index requests
     will fail if the final pipeline is set and the pipeline does not exist.
@@ -341,7 +357,6 @@ Other index settings are available in index modules:
 <<ilm-settings,{ilm-cap}>>::
 
     Specify the lifecycle policy and rollover alias for an index.
---
 
 include::index-modules/analysis.asciidoc[]
 

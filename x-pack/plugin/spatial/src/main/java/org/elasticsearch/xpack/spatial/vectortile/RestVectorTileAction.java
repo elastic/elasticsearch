@@ -60,7 +60,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
-                        if (currentFieldName == "query") {
+                        if (currentFieldName.equals("query")) {
                             queryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
                         } else {
                             throw new IllegalArgumentException("Unsupported field " + currentFieldName);

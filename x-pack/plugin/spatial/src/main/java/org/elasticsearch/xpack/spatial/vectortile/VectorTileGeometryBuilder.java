@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.spatial.vectortile;
 
+import com.wdtinc.mapbox_vector_tile.VectorTile;
 import com.wdtinc.mapbox_vector_tile.encoding.GeomCmd;
 import com.wdtinc.mapbox_vector_tile.encoding.GeomCmdHdr;
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.geometry.Rectangle;
-
-import java.util.List;
 
 class VectorTileGeometryBuilder {
 
@@ -35,33 +34,34 @@ class VectorTileGeometryBuilder {
         return (int) (pointXScale * (VectorTileUtils.lonToSphericalMercator(lon) - rectangle.getMinX()));
     }
 
-    public void point(List<Integer> collector, double lon, double lat) {
-        collector.add(GeomCmdHdr.cmdHdr(GeomCmd.MoveTo, 1));
-        collector.add(BitUtil.zigZagEncode(lon(lon)));
-        collector.add(BitUtil.zigZagEncode(lat(lat)));
+    public void point(VectorTile.Tile.Feature.Builder featureBuilder, double lon, double lat) {
+        featureBuilder.setType(VectorTile.Tile.GeomType.POINT);
+        featureBuilder.addGeometry(GeomCmdHdr.cmdHdr(GeomCmd.MoveTo, 1));
+        featureBuilder.addGeometry(BitUtil.zigZagEncode(lon(lon)));
+        featureBuilder.addGeometry(BitUtil.zigZagEncode(lat(lat)));
     }
 
-    public void box(List<Integer> collector, double minLon, double maxLon, double minLat, double maxLat) {
+    public void box(VectorTile.Tile.Feature.Builder featureBuilder, double minLon, double maxLon, double minLat, double maxLat) {
+        featureBuilder.setType(VectorTile.Tile.GeomType.POLYGON);
         final int minX = lon(minLon);
         final int minY = lat(minLat);
         final int maxX = lon(maxLon);
         final int maxY = lat(maxLat);
-
-        collector.add(GeomCmdHdr.cmdHdr(GeomCmd.MoveTo, 1));
-        collector.add(BitUtil.zigZagEncode(minX));
-        collector.add(BitUtil.zigZagEncode(minY));
-        collector.add(GeomCmdHdr.cmdHdr(GeomCmd.LineTo, 3));
+        featureBuilder.addGeometry(GeomCmdHdr.cmdHdr(GeomCmd.MoveTo, 1));
+        featureBuilder.addGeometry(BitUtil.zigZagEncode(minX));
+        featureBuilder.addGeometry(BitUtil.zigZagEncode(minY));
+        featureBuilder.addGeometry(GeomCmdHdr.cmdHdr(GeomCmd.LineTo, 3));
         // 1
-        collector.add(BitUtil.zigZagEncode(0));
-        collector.add(BitUtil.zigZagEncode(maxY - minY));
+        featureBuilder.addGeometry(BitUtil.zigZagEncode(0));
+        featureBuilder.addGeometry(BitUtil.zigZagEncode(maxY - minY));
         // 2
-        collector.add(BitUtil.zigZagEncode(maxX - minX));
-        collector.add(BitUtil.zigZagEncode(0));
+        featureBuilder.addGeometry(BitUtil.zigZagEncode(maxX - minX));
+        featureBuilder.addGeometry(BitUtil.zigZagEncode(0));
         // 3
-        collector.add(BitUtil.zigZagEncode(0));
-        collector.add(BitUtil.zigZagEncode(minY - maxY));
+        featureBuilder.addGeometry(BitUtil.zigZagEncode(0));
+        featureBuilder.addGeometry(BitUtil.zigZagEncode(minY - maxY));
         // close
-        collector.add(GeomCmdHdr.cmdHdr(GeomCmd.ClosePath, 1));
+        featureBuilder.addGeometry(GeomCmdHdr.cmdHdr(GeomCmd.ClosePath, 1));
     }
 
 }

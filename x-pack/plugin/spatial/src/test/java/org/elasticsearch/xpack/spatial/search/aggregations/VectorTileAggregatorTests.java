@@ -145,7 +145,7 @@ public class VectorTileAggregatorTests extends AggregatorTestCase {
             IndexSearcher searcher = new IndexSearcher(reader);
             InternalVectorTile result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType, sourceFieldType);
             assertEquals("my_agg", result.getName());
-            VectorTile.Tile tileResult = VectorTile.Tile.newBuilder().mergeFrom(result.getVectorTile()).build();
+            VectorTile.Tile tileResult = VectorTile.Tile.newBuilder().mergeFrom(result.getVectorTileBytes()).build();
             assertNotNull(tileResult);
             int expectedLayers = (expectedPolygons > 0 ? 1 : 0) + (expectedLines > 0 ? 1 : 0) + (expectedPoints > 0 ? 1 : 0);
             assertThat(expectedLayers, Matchers.equalTo(tileResult.getLayersCount()));

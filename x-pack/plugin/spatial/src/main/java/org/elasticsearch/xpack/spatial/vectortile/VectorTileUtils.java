@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.vectortile;
 
+import com.wdtinc.mapbox_vector_tile.VectorTile;
 import org.elasticsearch.geometry.Rectangle;
 import org.locationtech.jts.geom.Envelope;
 
@@ -14,6 +15,14 @@ import org.locationtech.jts.geom.Envelope;
  * Utility methods For vector tiles. Transforms WGS84 into spherical mercator.
  */
 public class VectorTileUtils {
+
+    public static VectorTile.Tile.Layer.Builder createLayerBuilder(String layerName, int extent) {
+        final VectorTile.Tile.Layer.Builder layerBuilder = VectorTile.Tile.Layer.newBuilder();
+        layerBuilder.setVersion(2);
+        layerBuilder.setName(layerName);
+        layerBuilder.setExtent(extent);
+        return layerBuilder;
+    }
 
     /**
      * Gets the JTS envelope for z/x/y/ tile in  spherical mercator projection.

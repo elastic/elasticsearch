@@ -80,8 +80,8 @@ public class RestVectorTileAction extends BaseRestHandler {
             public RestResponse buildResponse(SearchResponse searchResponse) throws Exception {
                 final InternalVectorTile t = searchResponse.getAggregations().get(field);
                 final BytesStream bytesOut = Streams.flushOnCloseStream(channel.bytesOutput());
-                bytesOut.write(t.getVectorTile());
-                return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
+                t.writeTileToStream(bytesOut);
+                return new BytesRestResponse(RestStatus.OK, "application/x-protobuf", bytesOut.bytes());
             }
         });
     }

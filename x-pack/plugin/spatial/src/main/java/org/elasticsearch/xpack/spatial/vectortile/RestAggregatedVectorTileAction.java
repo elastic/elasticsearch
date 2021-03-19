@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.spatial.vectortile;
 
-
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -36,13 +35,23 @@ import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestAggregatedVectorTileAction extends BaseRestHandler {
+
+    private static final String INDEX_PARAM = "index";
+    private static final String FIELD_PARAM = "field";
+    private static final String Z_PARAM = "z";
+    private static final String X_PARAM = "x";
+    private static final String Y_PARAM = "y";
+    private static final String TYPE_PARAM = "type";
+    private static final String GRID_TYPE = "grid";
+
+    private static final String GRID_FIELD = "grid";
+    private static final String BOUNDS_FIELD = "bounds";
 
     @Override
     public List<Route> routes() {
@@ -51,12 +60,12 @@ public class RestAggregatedVectorTileAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        final String index  = restRequest.param("index");
-        final String field  = restRequest.param("field");
-        final int z = Integer.parseInt(restRequest.param("z"));
-        final int x = Integer.parseInt(restRequest.param("x"));
-        final int y = Integer.parseInt(restRequest.param("y"));
-        final boolean isGrid = restRequest.hasParam("type") ? "grid".equals(restRequest.param("type")) : false;
+        final String index  = restRequest.param(INDEX_PARAM);
+        final String field  = restRequest.param(FIELD_PARAM);
+        final int z = Integer.parseInt(restRequest.param(Z_PARAM));
+        final int x = Integer.parseInt(restRequest.param(X_PARAM));
+        final int y = Integer.parseInt(restRequest.param(Y_PARAM));
+        final boolean isGrid = restRequest.hasParam(TYPE_PARAM) && GRID_TYPE.equals(restRequest.param(TYPE_PARAM));
 
         final VectorTileAggConfig config = resolveConfig(restRequest);
         final SearchRequestBuilder builder = searchBuilder(client, index.split(","), field, z, x, y, config);
@@ -70,22 +79,18 @@ public class RestAggregatedVectorTileAction extends BaseRestHandler {
                 // a tile with empty layers?
                 final VectorTile.Tile.Builder tileBuilder = VectorTile.Tile.newBuilder();
                 final VectorTileGeometryBuilder geomBuilder = new VectorTileGeometryBuilder(z, x, y, extent);
-                final InternalGeoTileGrid t = searchResponse.getAggregations().get("grid");
-                tileBuilder.addLayers(getPointLayer(t, geomBuilder));
-                final InternalGeoBounds b = searchResponse.getAggregations().get("bounds");
-                tileBuilder.addLayers(getMetaLayer(b, geomBuilder));
+                final InternalGeoTileGrid grid = searchResponse.getAggregations().get(GRID_FIELD);
+                tileBuilder.addLayers(getPointLayer(grid, geomBuilder));
+                final InternalGeoBounds bounds = searchResponse.getAggregations().get(BOUNDS_FIELD);
+                tileBuilder.addLayers(getMetaLayer(bounds, geomBuilder));
                 final BytesStream bytesOut = Streams.flushOnCloseStream(channel.bytesOutput());
-                bytesOut.write(tileBuilder.build().toByteArray());
-                return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
+                tileBuilder.build().writeTo(bytesOut);
+                return new BytesRestResponse(RestStatus.OK, "application/x-protobuf", bytesOut.bytes());
             }
 
             private VectorTile.Tile.Layer.Builder getPointLayer(InternalGeoTileGrid t, VectorTileGeometryBuilder geomBuilder) {
-                final VectorTile.Tile.Layer.Builder pointLayerBuilder = VectorTile.Tile.Layer.newBuilder();
-                pointLayerBuilder.setVersion(2);
-                pointLayerBuilder.setName("AGG");
-                pointLayerBuilder.setExtent(extent);
+                final VectorTile.Tile.Layer.Builder pointLayerBuilder = VectorTileUtils.createLayerBuilder("AGG", extent);
                 pointLayerBuilder.addKeys("count");
-                final List<Integer> commands = new ArrayList<>();
                 final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
                 final VectorTile.Tile.Value.Builder valueBuilder = VectorTile.Tile.Value.newBuilder();
                 final HashMap<Long, Integer> values = new HashMap<>();
@@ -95,17 +100,13 @@ public class RestAggregatedVectorTileAction extends BaseRestHandler {
                     if (count > 0) {
                         featureBuilder.clear();
                         // create geometry commands
-                        commands.clear();
                         if (isGrid) {
-                            featureBuilder.setType(VectorTile.Tile.GeomType.POLYGON);
                             Rectangle r = GeoTileUtils.toBoundingBox(bucket.getKeyAsString());
-                            geomBuilder.box(commands, r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat());
+                            geomBuilder.box(featureBuilder, r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat());
                         } else {
-                            featureBuilder.setType(VectorTile.Tile.GeomType.POINT);
                             GeoPoint point = (GeoPoint) bucket.getKey();
-                            geomBuilder.point(commands, point.lon(), point.lat());
+                            geomBuilder.point(featureBuilder, point.lon(), point.lat());
                         }
-                        featureBuilder.addAllGeometry(commands);
                         // Add count as key value pair
                         featureBuilder.addTags(0);
                         final int tagValue;
@@ -126,18 +127,12 @@ public class RestAggregatedVectorTileAction extends BaseRestHandler {
             }
 
             private VectorTile.Tile.Layer.Builder getMetaLayer(InternalGeoBounds t, VectorTileGeometryBuilder geomBuilder) {
-                final VectorTile.Tile.Layer.Builder metaLayerBuilder = VectorTile.Tile.Layer.newBuilder();
-                metaLayerBuilder.setVersion(2);
-                metaLayerBuilder.setName("META");
-                metaLayerBuilder.setExtent(extent);
+                final VectorTile.Tile.Layer.Builder metaLayerBuilder = VectorTileUtils.createLayerBuilder("META", extent);
                 final GeoPoint topLeft = t.topLeft();
                 final GeoPoint bottomRight = t.bottomRight();
                 if (topLeft != null && bottomRight != null) {
                     final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
-                    featureBuilder.setType(VectorTile.Tile.GeomType.POLYGON);
-                    final List<Integer> commands = new ArrayList<>();
-                    geomBuilder.box(commands, topLeft.lon(), bottomRight.lon(), bottomRight.lat(), topLeft.lat());
-                    featureBuilder.addAllGeometry(commands);
+                    geomBuilder.box(featureBuilder, topLeft.lon(), bottomRight.lon(), bottomRight.lat(), topLeft.lat());
                     metaLayerBuilder.addFeatures(featureBuilder);
                 }
                 return metaLayerBuilder;
@@ -148,9 +143,6 @@ public class RestAggregatedVectorTileAction extends BaseRestHandler {
     public static SearchRequestBuilder searchBuilder(Client client, String[] index, String field, int z, int x, int y,
                                                      VectorTileAggConfig config) throws IOException {
         final Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
-        GeoBoundingBox boundingBox =
-            new GeoBoundingBox(new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
-                new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon()));
         QueryBuilder qBuilder = QueryBuilders.geoShapeQuery(field, rectangle);
         if (config.getQueryBuilder() != null) {
             BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
@@ -159,13 +151,16 @@ public class RestAggregatedVectorTileAction extends BaseRestHandler {
             qBuilder = boolQueryBuilder;
         }
         int extent = 1 << config.getScaling();
-        GeoGridAggregationBuilder aBuilder = new GeoTileGridAggregationBuilder("grid")
+        GeoBoundingBox boundingBox =
+            new GeoBoundingBox(new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+                new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon()));
+        GeoGridAggregationBuilder aBuilder = new GeoTileGridAggregationBuilder(GRID_FIELD)
             .field(field).precision(Math.min(GeoTileUtils.MAX_ZOOM, z + config.getScaling()))
             .setGeoBoundingBox(boundingBox).size(extent * extent);
         if (config.getAggBuilder() != null) {
             aBuilder.subAggregations(config.getAggBuilder());
         }
-        GeoBoundsAggregationBuilder boundsBuilder = new GeoBoundsAggregationBuilder("bounds").field(field).wrapLongitude(false);
+        GeoBoundsAggregationBuilder boundsBuilder = new GeoBoundsAggregationBuilder(BOUNDS_FIELD).field(field).wrapLongitude(false);
         SearchRequestBuilder requestBuilder =  client.prepareSearch(index).setQuery(qBuilder)
             .addAggregation(aBuilder).addAggregation(boundsBuilder).setSize(0);
         if (config.getRuntimeMappings() != null) {

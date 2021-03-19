@@ -14,9 +14,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.xpack.spatial.vectortile.VectorTileUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -42,18 +43,8 @@ public class InternalVectorTile extends InternalAggregation {
      */
     public InternalVectorTile(StreamInput in) throws IOException {
         super(in);
-        if (in.readBoolean()) {
-            final VectorTile.Tile.Layer.Builder polygon = VectorTile.Tile.Layer.newBuilder();
-            this.polygons = polygon.mergeFrom(in.readByteArray()).build();
-        } else {
-            this.polygons = null;
-        }
-        if (in.readBoolean()) {
-            final VectorTile.Tile.Layer.Builder line = VectorTile.Tile.Layer.newBuilder();
-            this.lines = line.mergeFrom(in.readByteArray()).build();
-        } else {
-            this.lines = null;
-        }
+        this.polygons = in.readBoolean() ? VectorTile.Tile.Layer.parseDelimitedFrom(in) : null;
+        this.lines = in.readBoolean() ? VectorTile.Tile.Layer.parseDelimitedFrom(in) : null;
         this.points = in.readBoolean() ? in.readLongArray() : null;
     }
 
@@ -61,13 +52,13 @@ public class InternalVectorTile extends InternalAggregation {
     protected void doWriteTo(StreamOutput out) throws IOException {
         if (polygons != null) {
             out.writeBoolean(true);
-            out.writeByteArray(polygons.toByteArray());
+            polygons.writeDelimitedTo(out);
         } else {
             out.writeBoolean(false);
         }
         if (lines != null) {
             out.writeBoolean(true);
-            out.writeByteArray(lines.toByteArray());
+            lines.writeDelimitedTo(out);
         } else {
             out.writeBoolean(false);
         }
@@ -77,7 +68,6 @@ public class InternalVectorTile extends InternalAggregation {
         } else {
             out.writeBoolean(false);
         }
-
     }
 
     @Override
@@ -85,7 +75,15 @@ public class InternalVectorTile extends InternalAggregation {
         return VectorTileAggregationBuilder.NAME;
     }
 
-    public byte[] getVectorTile() {
+    public byte[] getVectorTileBytes() {
+        return getVectorTile().toByteArray();
+    }
+
+    public void writeTileToStream(OutputStream stream) throws IOException {
+        getVectorTile().writeTo(stream);
+    }
+
+    private VectorTile.Tile getVectorTile() {
         final VectorTile.Tile.Builder tileBuilder = VectorTile.Tile.newBuilder();
         if (polygons != null) {
             tileBuilder.addLayers(polygons);
@@ -96,16 +94,13 @@ public class InternalVectorTile extends InternalAggregation {
         if (points != null) {
             tileBuilder.addLayers(buildPointLayer());
         }
-        return tileBuilder.build().toByteArray();
+        return tileBuilder.build();
     }
 
     private VectorTile.Tile.Layer buildPointLayer() {
-        final VectorTile.Tile.Layer.Builder pointLayerBuilder = VectorTile.Tile.Layer.newBuilder();
-        pointLayerBuilder.setVersion(2);
-        pointLayerBuilder.setName(AbstractVectorTileAggregator.POINT_LAYER);
-        pointLayerBuilder.setExtent(AbstractVectorTileAggregator.POINT_EXTENT);
+        final VectorTile.Tile.Layer.Builder pointLayerBuilder =
+            VectorTileUtils.createLayerBuilder(AbstractVectorTileAggregator.POINT_LAYER, AbstractVectorTileAggregator.POINT_EXTENT);
         pointLayerBuilder.addKeys(COUNT_KEY);
-        final List<Integer> commands = new ArrayList<>();
         final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
         final VectorTile.Tile.Value.Builder valueBuilder = VectorTile.Tile.Value.newBuilder();
         final HashMap<Long, Integer> values = new HashMap<>();
@@ -117,11 +112,9 @@ public class InternalVectorTile extends InternalAggregation {
                     featureBuilder.clear();
                     featureBuilder.setType(VectorTile.Tile.GeomType.POINT);
                     // create geometry commands
-                    commands.clear();
-                    commands.add(GeomCmdHdr.cmdHdr(GeomCmd.MoveTo, 1));
-                    commands.add(BitUtil.zigZagEncode(i));
-                    commands.add(BitUtil.zigZagEncode(j));
-                    featureBuilder.addAllGeometry(commands);
+                    featureBuilder.addGeometry(GeomCmdHdr.cmdHdr(GeomCmd.MoveTo, 1));
+                    featureBuilder.addGeometry(BitUtil.zigZagEncode(i));
+                    featureBuilder.addGeometry(BitUtil.zigZagEncode(j));
                     // Add count as key value pair
                     featureBuilder.addTags(0);
                     final int tagValue;
@@ -151,20 +144,19 @@ public class InternalVectorTile extends InternalAggregation {
             InternalVectorTile internalVectorTile = (InternalVectorTile) aggregation;
             if (internalVectorTile.polygons != null) {
                 if (polygons == null) {
-                    polygons = VectorTile.Tile.Layer.newBuilder();
-                    polygons.setVersion(2);
-                    polygons.setName(AbstractVectorTileAggregator.POLYGON_LAYER);
-                    polygons.setExtent(AbstractVectorTileAggregator.POLYGON_EXTENT);
+                    polygons =
+                        VectorTileUtils.createLayerBuilder(AbstractVectorTileAggregator.POLYGON_LAYER,
+                            AbstractVectorTileAggregator.POLYGON_EXTENT
+                    );
                     polygons.addKeys(AbstractVectorTileAggregator.ID_TAG);
                 }
                 mergeLayer(polygons, internalVectorTile.polygons);
             }
             if (internalVectorTile.lines != null) {
                 if (lines == null) {
-                    lines = VectorTile.Tile.Layer.newBuilder();
-                    lines.setVersion(2);
-                    lines.setName(AbstractVectorTileAggregator.LINE_LAYER);
-                    lines.setExtent(AbstractVectorTileAggregator.LINE_EXTENT);
+                    lines = VectorTileUtils.createLayerBuilder(AbstractVectorTileAggregator.LINE_LAYER,
+                        AbstractVectorTileAggregator.LINE_EXTENT
+                    );
                     lines.addKeys(AbstractVectorTileAggregator.ID_TAG);
                 }
                 mergeLayer(lines, internalVectorTile.lines);
@@ -205,7 +197,7 @@ public class InternalVectorTile extends InternalAggregation {
         if (path.isEmpty()) {
             return this;
         } else if (path.size() == 1 && "value".equals(path.get(0))) {
-            return getVectorTile();
+            return getVectorTileBytes();
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
@@ -213,7 +205,7 @@ public class InternalVectorTile extends InternalAggregation {
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(CommonFields.VALUE.getPreferredName(), getVectorTile());
+        builder.field(CommonFields.VALUE.getPreferredName(), getVectorTileBytes());
         return builder;
     }
 

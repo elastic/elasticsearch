@@ -15,9 +15,7 @@ import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -79,9 +77,7 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
             FileAttributesChecker attributesChecker = new FileAttributesChecker(serviceTokensFile);
             final Map<String, char[]> tokenHashes = new TreeMap<>(FileServiceAccountsTokenStore.parseFile(serviceTokensFile, null));
 
-            try (SecureString tokenString = UUIDs.randomBase64UUIDSecureString()) {
-                final ServiceAccountToken token =
-                    new ServiceAccountToken(ServiceAccountId.fromPrincipal(principal), tokenName, tokenString);
+            try (ServiceAccountToken token = ServiceAccountToken.of(ServiceAccountId.fromPrincipal(principal), tokenName)) {
                 if (tokenHashes.containsKey(token.getQualifiedName())) {
                     throw new UserException(ExitCodes.CODE_ERROR, "Service token [" + token.getQualifiedName() + "] already exists");
                 }

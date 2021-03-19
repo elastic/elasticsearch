@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.support.SecurityTokenType;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.Objects;
@@ -26,7 +28,7 @@ import java.util.Objects;
  *   <li>The {@link #getSecret() secret credential} for that token</li>
  * </ol>
  */
-public class ServiceAccountToken {
+public class ServiceAccountToken implements Closeable {
     private final ServiceAccountId accountId;
     private final String tokenName;
     private final SecureString secret;
@@ -69,6 +71,11 @@ public class ServiceAccountToken {
     }
 
     @Override
+    public void close() throws IOException {
+        secret.close();
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o)
             return true;
@@ -81,5 +88,9 @@ public class ServiceAccountToken {
     @Override
     public int hashCode() {
         return Objects.hash(accountId, tokenName, secret);
+    }
+
+    public static ServiceAccountToken of(ServiceAccountId accountId, String tokenName) {
+        return new ServiceAccountToken(accountId, tokenName, UUIDs.randomBase64UUIDSecureString());
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
@@ -18,11 +19,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 
+import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public abstract class CachingServiceAccountsTokenStore implements ServiceAccountsTokenStore {
+public abstract class CachingServiceAccountsTokenStore implements ServiceAccountsTokenStore, CacheInvalidatorRegistry.CacheInvalidator {
 
     private static final Logger logger = LogManager.getLogger(CachingServiceAccountsTokenStore.class);
 
@@ -90,25 +93,37 @@ public abstract class CachingServiceAccountsTokenStore implements ServiceAccount
                     logger.trace("cache service token [{}] authentication result", token.getQualifiedName());
                     listenableCacheEntry.onResponse(new CachedResult(hasher, success, token));
                     listener.onResponse(success);
-                }, listener::onFailure));
+                }, e -> {
+                    // In case of failure, evict the cache entry and notify all listeners
+                    cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
+                    listenableCacheEntry.cancel(true);
+                    listener.onFailure(e);
+                }));
             }
         } catch (final ExecutionException e) {
             listener.onFailure(e);
         }
     }
 
-    public final void invalidate(String qualifiedTokenName) {
+    @Override
+    public final void invalidate(Collection<String> qualifiedTokenNames) {
         if (cache != null) {
-            logger.trace("invalidating cache for service token [{}]", qualifiedTokenName);
-            cache.invalidate(qualifiedTokenName);
+            logger.trace("invalidating cache for service token [{}]",
+                Strings.collectionToCommaDelimitedString(qualifiedTokenNames));
+            qualifiedTokenNames.forEach(cache::invalidate);
         }
     }
 
+    @Override
     public final void invalidateAll() {
         if (cache != null) {
             logger.trace("invalidating cache for all service tokens");
             cache.invalidateAll();
         }
+    }
+
+    protected ThreadPool getThreadPool() {
+        return threadPool;
     }
 
     abstract void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener);

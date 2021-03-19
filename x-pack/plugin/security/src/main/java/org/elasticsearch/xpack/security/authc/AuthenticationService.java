@@ -365,7 +365,7 @@ public class AuthenticationService {
                     }));
                 }
             }, e -> {
-                logger.debug("Failed to validate service account token for request [{}]", request);
+                logger.debug(new ParameterizedMessage("Failed to validate service account token for request [{}]", request), e);
                 listener.onFailure(request.exceptionProcessingRequest(e, null));
             }));
         }

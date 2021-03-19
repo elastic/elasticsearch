@@ -115,8 +115,8 @@
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: mapper_parsing_exception }
-  - match: { items.0.index.error.reason: "Can't find template for mapping hint [bar_foo] of field [new_location]"}
+  - match: { items.0.index.error.reason: "Can't find dynamic template for mapping hint [bar_foo] of field [new_location]"}
   - match: { items.1.index.status: 400 }
   - match: { items.1.index.error.type: mapper_parsing_exception }
-  - match: { items.1.index.error.reason: "Can't find template for mapping hint [foo_bar] of field [new_location]"}
+  - match: { items.1.index.error.reason: "Can't find dynamic template for mapping hint [foo_bar] of field [new_location]"}
   - match: { items.2.index.result: created }

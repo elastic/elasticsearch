@@ -231,11 +231,11 @@ public class DynamicTemplate implements ToXContentObject {
     private final XContentFieldType xcontentFieldType;
     private final Map<String, Object> mapping;
     private final boolean runtimeMapping;
-    private final String matchHint;
+    private final String matchMappingHint;
 
     private DynamicTemplate(String name, String pathMatch, String pathUnmatch, String match, String unmatch,
                             XContentFieldType xcontentFieldType, MatchType matchType, Map<String, Object> mapping,
-                            boolean runtimeMapping, String matchHint) {
+                            boolean runtimeMapping, String matchMappingHint) {
         this.name = name;
         this.pathMatch = pathMatch;
         this.pathUnmatch = pathUnmatch;
@@ -245,7 +245,7 @@ public class DynamicTemplate implements ToXContentObject {
         this.xcontentFieldType = xcontentFieldType;
         this.mapping = mapping;
         this.runtimeMapping = runtimeMapping;
-        this.matchHint = matchHint;
+        this.matchMappingHint = matchMappingHint;
     }
 
     public String name() {
@@ -256,7 +256,10 @@ public class DynamicTemplate implements ToXContentObject {
         return pathMatch;
     }
 
-    public boolean match(String path, String name, String hint, XContentFieldType xcontentFieldType) {
+    public boolean match(String path, String name, String mappingHint, XContentFieldType xcontentFieldType) {
+        if (mappingHint != null) {
+            return mappingHint.equals(matchMappingHint);
+        }
         if (pathMatch != null && matchType.matches(pathMatch, path) == false) {
             return false;
         }
@@ -273,9 +276,6 @@ public class DynamicTemplate implements ToXContentObject {
             return false;
         }
         if (runtimeMapping && xcontentFieldType.supportsRuntimeField() == false) {
-            return false;
-        }
-        if (Objects.equals(hint, matchHint) == false) {
             return false;
         }
         return true;
@@ -379,8 +379,8 @@ public class DynamicTemplate implements ToXContentObject {
         } else if (match == null && pathMatch == null) {
             builder.field("match_mapping_type", "*");
         }
-        if (matchHint != null) {
-            builder.field("match_mapping_hint", matchHint);
+        if (matchMappingHint != null) {
+            builder.field("match_mapping_hint", matchMappingHint);
         }
         if (matchType != MatchType.SIMPLE) {
             builder.field("match_pattern", matchType);

@@ -242,7 +242,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         for (BulkItemResponse resp : bulkItemResponses.getItems()) {
             assertThat(resp.getFailure().getCause(), instanceOf(MapperParsingException.class));
             assertThat(resp.getFailureMessage(),
-                containsString("Can't find template for mapping hint [location] of field [my_location]"));
+                containsString("Can't find dynamic template for mapping hint [location] of field [my_location]"));
         }
     }
 }

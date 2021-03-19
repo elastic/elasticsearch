@@ -231,7 +231,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                                 final long startTimeNanos = stats.currentTimeNanos();
                                 writeCacheFile(
                                     channel,
-                                    cachedBlob.bytes().streamInput(),
+                                    cachedBlob.bytes().slice(toIntBytes(relativePos), toIntBytes(len)).streamInput(),
                                     channelPos,
                                     relativePos,
                                     len,

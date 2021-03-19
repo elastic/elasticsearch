@@ -275,10 +275,8 @@ node.roles: [ data_cold ]
 [[data-frozen-node]]
 ==== [x-pack]#Frozen data node#
 
-Frozen data nodes store read-only indices that are accessed rarely. Nodes in the
-frozen tier use less performant hardware than the cold tier. To minimize
-resources, indices in the frozen tier may rely on searchable snapshots for
-resiliency.
+Frozen data nodes store searchable snapshots mounted with the `shared_cache`
+option exclusively.
 
 To create a dedicated frozen node, set:
 [source,yaml]

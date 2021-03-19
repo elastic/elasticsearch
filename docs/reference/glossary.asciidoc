@@ -35,7 +35,7 @@ patterns].
 
 [[glossary-cluster]] cluster::
 // tag::cluster-def[]
-A group of one or more connected <<glossary-node,nodes>>. See
+A group of one or more connected {es} <<glossary-node,nodes>>. See
 {ref}/scalability.html[Clusters, nodes, and shards].
 // end::cluster-def[]
 
@@ -209,7 +209,7 @@ metrics. This tier holds your most recent, most frequently accessed data. See
 {ref}/data-tiers.html[Data tiers].
 // end::hot-tier-def[]
 
-[[glossary-id]] id::
+[[glossary-id]] ID::
 // tag::id-def[]
 Identifier for a <<glossary-document,document>>. Document IDs must be unique
 within an <<glossary-index,index>>. See the {ref}/mapping-id-field.html[`_id`

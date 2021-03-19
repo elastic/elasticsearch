@@ -1,5 +1,5 @@
 ---
-"Create API key in the upgraded cluster":
+"Create and Get API key in the upgraded cluster":
 
   - skip:
       features: headers
@@ -14,9 +14,6 @@
   - match: { name: "my-new-api-key" }
   - is_true: id
   - is_true: api_key
-
----
-"Get API keys in the upgraded cluster":
 
   - do:
       security.get_api_key:

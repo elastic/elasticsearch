@@ -672,22 +672,22 @@ public abstract class ParseContext {
     /**
      * Find a dynamic mapping template for the given field and its matching type
      *
-     * @param name      the name of the field
+     * @param fieldName the name of the field
      * @param matchType the expecting matchType of the field
      * @return the matching template; otherwise returns null
-     * @throws MapperParsingException if the given field has a type hint, but no template matches
+     * @throws MapperParsingException if the given field has a dynamic template name hint, but no template matches that name hint.
      */
-    public final DynamicTemplate findDynamicTemplate(String name, DynamicTemplate.XContentFieldType matchType) {
-        final String pathAsString = path().pathAsText(name);
-        final String mappingHint = sourceToParse().mappingHints().get(pathAsString);
-        for (DynamicTemplate dynamicTemplate : root().dynamicTemplates()) {
-            if (dynamicTemplate.match(pathAsString, name, mappingHint, matchType)) {
-                return dynamicTemplate;
+    public final DynamicTemplate findDynamicTemplate(String fieldName, DynamicTemplate.XContentFieldType matchType) {
+        final String pathAsString = path().pathAsText(fieldName);
+        final String matchTemplateName = sourceToParse().dynamicTemplateHints().get(pathAsString);
+        for (DynamicTemplate template : root().dynamicTemplates()) {
+            if (template.match(matchTemplateName, pathAsString, fieldName, matchType)) {
+                return template;
             }
         }
-        if (mappingHint != null) {
+        if (matchTemplateName != null) {
             throw new MapperParsingException(
-                "Can't find dynamic template for mapping hint [" + mappingHint + "] of field [" + pathAsString + "]");
+                "Can't find dynamic template for dynamic template name hint [" + matchTemplateName + "] of field [" + pathAsString + "]");
         }
         return null;
     }

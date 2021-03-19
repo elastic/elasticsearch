@@ -631,6 +631,15 @@ If `true`, the destination must be an <<indices-aliases,index alias>>. Defaults 
 `false`.
 end::require-alias[]
 
+tag::bulk-dynamic-template-hints[]
+`dynamic_template_hints`::
+(Optional, map)
+A map of hints from the full name of fields to the name of <<dynamic-templates, dynamic templates>.
+Defaults to an empty map. If a name hint matches a dynamic template, then that template will be applied
+regardless of other match predicates defined in the template. And if a field is defined in the mapping,
+then its name hint won't be used.
+end::bulk-dynamic-template-hints[]
+
 tag::node-filter[]
 `<node_filter>`::
 (Optional, string)

@@ -19,7 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.TreeMap;
 
 public class DynamicTemplate implements ToXContentObject {
@@ -145,7 +144,6 @@ public class DynamicTemplate implements ToXContentObject {
         Map<String, Object> mapping = null;
         boolean runtime = false;
         String matchMappingType = null;
-        String matchMappingHint = null;
         String matchPattern = MatchType.SIMPLE.toString();
 
         for (Map.Entry<String, Object> entry : conf.entrySet()) {
@@ -160,8 +158,6 @@ public class DynamicTemplate implements ToXContentObject {
                 pathUnmatch = entry.getValue().toString();
             } else if ("match_mapping_type".equals(propName)) {
                 matchMappingType = entry.getValue().toString();
-            } else if ("match_mapping_hint".equals(propName)) {
-                matchMappingHint = entry.getValue().toString();
             } else if ("match_pattern".equals(propName)) {
                 matchPattern = entry.getValue().toString();
             } else if ("mapping".equals(propName)) {
@@ -185,22 +181,24 @@ public class DynamicTemplate implements ToXContentObject {
                 throw new IllegalArgumentException("Illegal dynamic template parameter: [" + propName + "]");
             }
         }
-
-        if (match == null && pathMatch == null && matchMappingType == null && matchMappingHint == null) {
-            throw new MapperParsingException("template must have match, path_match, match_mapping_type " +
-                "or match_mapping_hint set " + conf.toString());
-        }
         if (mapping == null) {
             throw new MapperParsingException("template [" + name + "] must have either mapping or runtime set");
         }
 
-        XContentFieldType xcontentFieldType = null;
-        if (matchMappingType != null && matchMappingType.equals("*") == false) {
-            xcontentFieldType = XContentFieldType.fromString(matchMappingType);
-            if (runtime && xcontentFieldType.supportsRuntimeField() == false) {
-                throw new MapperParsingException("Dynamic template [" + name + "] defines a runtime field but type ["
-                    + xcontentFieldType + "] is not supported as runtime field");
+        XContentFieldType[] xContentFieldTypes = new XContentFieldType[0];
+        if (matchMappingType == null) {
+            if (match != null || pathMatch != null) {
+                xContentFieldTypes = XContentFieldType.values();
             }
+        } else if (matchMappingType.equals("*")) {
+            xContentFieldTypes = XContentFieldType.values();
+        } else {
+            final XContentFieldType xContentFieldType = XContentFieldType.fromString(matchMappingType);
+            if (runtime && xContentFieldType.supportsRuntimeField() == false) {
+                throw new MapperParsingException("Dynamic template [" + name + "] defines a runtime field but type ["
+                    + xContentFieldType + "] is not supported as runtime field");
+            }
+            xContentFieldTypes = new XContentFieldType[]{xContentFieldType};
         }
 
         final MatchType matchType = MatchType.fromString(matchPattern);
@@ -218,8 +216,7 @@ public class DynamicTemplate implements ToXContentObject {
             }
         }
 
-        return new DynamicTemplate(name, pathMatch, pathUnmatch, match, unmatch, xcontentFieldType,
-            matchType, mapping, runtime, matchMappingHint);
+        return new DynamicTemplate(name, pathMatch, pathUnmatch, match, unmatch, xContentFieldTypes, matchType, mapping, runtime);
     }
 
     private final String name;
@@ -228,24 +225,22 @@ public class DynamicTemplate implements ToXContentObject {
     private final String match;
     private final String unmatch;
     private final MatchType matchType;
-    private final XContentFieldType xcontentFieldType;
+    private final XContentFieldType[] xContentFieldTypes;
     private final Map<String, Object> mapping;
     private final boolean runtimeMapping;
-    private final String matchMappingHint;
 
     private DynamicTemplate(String name, String pathMatch, String pathUnmatch, String match, String unmatch,
-                            XContentFieldType xcontentFieldType, MatchType matchType, Map<String, Object> mapping,
-                            boolean runtimeMapping, String matchMappingHint) {
+                            XContentFieldType[] xContentFieldTypes, MatchType matchType, Map<String, Object> mapping,
+                            boolean runtimeMapping) {
         this.name = name;
         this.pathMatch = pathMatch;
         this.pathUnmatch = pathUnmatch;
         this.match = match;
         this.unmatch = unmatch;
         this.matchType = matchType;
-        this.xcontentFieldType = xcontentFieldType;
+        this.xContentFieldTypes = xContentFieldTypes;
         this.mapping = mapping;
         this.runtimeMapping = runtimeMapping;
-        this.matchMappingHint = matchMappingHint;
     }
 
     public String name() {
@@ -256,26 +251,31 @@ public class DynamicTemplate implements ToXContentObject {
         return pathMatch;
     }
 
-    public boolean match(String path, String name, String mappingHint, XContentFieldType xcontentFieldType) {
+    public String match() {
+        return match;
+    }
+
+    public boolean match(String templateName, String path, String fieldName, XContentFieldType xcontentFieldType) {
+        // If the template name parameter is specified, then we will check only the name of the template and ignore other matches.
+        if (templateName != null) {
+            return templateName.equals(name);
+        }
         if (pathMatch != null && matchType.matches(pathMatch, path) == false) {
             return false;
         }
-        if (match != null && matchType.matches(match, name) == false) {
+        if (match != null && matchType.matches(match, fieldName) == false) {
             return false;
         }
         if (pathUnmatch != null && matchType.matches(pathUnmatch, path)) {
             return false;
         }
-        if (unmatch != null && matchType.matches(unmatch, name)) {
+        if (unmatch != null && matchType.matches(unmatch, fieldName)) {
             return false;
         }
-        if (this.xcontentFieldType != null && this.xcontentFieldType != xcontentFieldType) {
+        if (Arrays.stream(xContentFieldTypes).noneMatch(xcontentFieldType::equals)) {
             return false;
         }
         if (runtimeMapping && xcontentFieldType.supportsRuntimeField() == false) {
-            return false;
-        }
-        if (Objects.equals(mappingHint, matchMappingHint) == false) {
             return false;
         }
         return true;
@@ -351,8 +351,8 @@ public class DynamicTemplate implements ToXContentObject {
         return name;
     }
 
-    XContentFieldType getXContentFieldType() {
-        return xcontentFieldType;
+    XContentFieldType[] getXContentFieldTypes() {
+        return xContentFieldTypes;
     }
 
     Map<String, Object> getMapping() {
@@ -374,13 +374,10 @@ public class DynamicTemplate implements ToXContentObject {
         if (pathUnmatch != null) {
             builder.field("path_unmatch", pathUnmatch);
         }
-        if (xcontentFieldType != null) {
-            builder.field("match_mapping_type", xcontentFieldType);
-        } else if (match == null && pathMatch == null) {
+        if (xContentFieldTypes.length == 1) {
+            builder.field("match_mapping_type", xContentFieldTypes[0]);
+        } else if (xContentFieldTypes.length > 1 && match == null && pathMatch == null) {
             builder.field("match_mapping_type", "*");
-        }
-        if (matchMappingHint != null) {
-            builder.field("match_mapping_hint", matchMappingHint);
         }
         if (matchType != MatchType.SIMPLE) {
             builder.field("match_pattern", matchType);

@@ -283,6 +283,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=tag::bulk-dynamic-template-hints]
 --
 
 `delete`::
@@ -311,6 +313,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=tag::bulk-dynamic-template-hints]
 --
 
 `update`::
@@ -738,3 +742,38 @@ The API returns the following result.
 }
 ----
 // TESTRESPONSE[s/"index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA"/"index_uuid": $body.$_path/]
+
+
+[discrete]
+[[bulk-dynamic-template-hints]]
+===== Example with dynamic template hints
+
+The below example creates a dynamic template, then performs a bulk request 
+consisting of index/create requests with dynamic template hints.
+
+[source,console]
+----
+PUT my-index/
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "geo_point": {
+         "mapping": {
+            "mapping" : "geo_point"
+         }
+        }
+      }
+    ]
+  }
+}
+
+POST /_bulk
+{ "index" : { "_index" : "my_index", "_id" : "1", "dynamic_template_hints": {"work_location": "geo_point"}} }
+{ "field" : "value1", "work_location": "41.12,-71.34", "raw_location": "41.12,-71.34"}
+{ "create" : { "_index" : "my_index", "_id" : "2", "dynamic_template_hints": {"home_location": "geo_point"}} }
+{ "field" : "value2", "home_location": "41.12,-71.34"}
+----
+
+The bulk request creates two new fields `work_location` and `home_location` with type `geo_point` because 
+of the dynamic template hints parameter; however, the `raw_location` field is created with the type `text`.

@@ -109,7 +109,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
-    private Map<String, String> mappingHints = Map.of();
+    private Map<String, String> dynamicTemplateHints = Map.of();
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -149,7 +149,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             requireAlias = false;
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            mappingHints = in.readMap(StreamInput::readString, StreamInput::readString);
+            dynamicTemplateHints = in.readMap(StreamInput::readString, StreamInput::readString);
         }
     }
 
@@ -661,7 +661,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeBoolean(requireAlias);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeMap(mappingHints, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(dynamicTemplateHints, StreamOutput::writeString, StreamOutput::writeString);
         }
     }
 
@@ -722,19 +722,19 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * Specifies a map of hints from the full path of field names to mapping hints defined in dynamic templates.
+     * Specifies a map of hints from the full path of field names to the name of dynamic mapping templates
      */
-    public IndexRequest setMappingHints(Map<String, String> mappingHints) {
-        this.mappingHints = Objects.requireNonNull(mappingHints);
+    public IndexRequest setDynamicTemplateHints(Map<String, String> dynamicTemplateHints) {
+        this.dynamicTemplateHints = Objects.requireNonNull(dynamicTemplateHints);
         return this;
     }
 
     /**
-     * Returns a map of hints from the full path (i.e. foo.bar) of field names to mapping hints defined in dynamic templates.
+     * Returns a map of hints from the full path of field names to the name of dynamic mapping templates.
      *
-     * @see #setMappingHints(Map)
+     * @see #setDynamicTemplateHints(Map)
      */
-    public Map<String, String> getMappingHints() {
-        return mappingHints;
+    public Map<String, String> getDynamicTemplateHints() {
+        return dynamicTemplateHints;
     }
 }

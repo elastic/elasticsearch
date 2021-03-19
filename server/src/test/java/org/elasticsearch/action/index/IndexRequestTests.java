@@ -154,7 +154,7 @@ public class IndexRequestTests extends ESTestCase {
             .boxed()
             .collect(Collectors.toMap(n -> "field-" + n, n -> "hint-" + n));
         indexRequest.source("{}", XContentType.JSON);
-        indexRequest.setMappingHints(dynamicMappingHints);
+        indexRequest.setDynamicTemplateHints(dynamicMappingHints);
         indexRequest.setRequireAlias(isRequireAlias);
         assertEquals(XContentType.JSON, indexRequest.getContentType());
 
@@ -165,7 +165,7 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(XContentType.JSON, serialized.getContentType());
         assertEquals(new BytesArray("{}"), serialized.source());
         assertEquals(isRequireAlias, serialized.isRequireAlias());
-        assertThat(serialized.getMappingHints(), equalTo(dynamicMappingHints));
+        assertThat(serialized.getDynamicTemplateHints(), equalTo(dynamicMappingHints));
     }
 
     // reindex makes use of index requests without a source so this needs to be handled
@@ -190,7 +190,7 @@ public class IndexRequestTests extends ESTestCase {
         Map<String, String> dynamicMappingHints = IntStream.range(0, randomIntBetween(0, 10))
             .boxed()
             .collect(Collectors.toMap(n -> "field-" + n, n -> "hint-" + n));
-        indexRequest.setMappingHints(dynamicMappingHints);
+        indexRequest.setDynamicTemplateHints(dynamicMappingHints);
         // old version
         {
             Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0));
@@ -200,7 +200,7 @@ public class IndexRequestTests extends ESTestCase {
             StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
             in.setVersion(ver);
             IndexRequest serialized = new IndexRequest(in);
-            assertThat(serialized.getMappingHints(), anEmptyMap());
+            assertThat(serialized.getDynamicTemplateHints(), anEmptyMap());
         }
         // new version
         {
@@ -211,7 +211,7 @@ public class IndexRequestTests extends ESTestCase {
             StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
             in.setVersion(ver);
             IndexRequest serialized = new IndexRequest(in);
-            assertThat(serialized.getMappingHints(), equalTo(dynamicMappingHints));
+            assertThat(serialized.getDynamicTemplateHints(), equalTo(dynamicMappingHints));
         }
     }
 

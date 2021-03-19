@@ -322,55 +322,55 @@ public class BulkRequestTests extends ESTestCase {
         assertEquals(3, bulkRequestWithNewLine.numberOfActions());
     }
 
-    public void testMappingHints() throws Exception {
+    public void testDynamicMappingTemplateHints() throws Exception {
         BytesArray data = new BytesArray(
-            "{ \"index\":{\"_index\":\"test\",\"mapping_hints\":{\"baz\":\"t1\", \"foo.bar\":\"t2\"}}}\n" +
+            "{ \"index\":{\"_index\":\"test\",\"dynamic_template_hints\":{\"baz\":\"t1\", \"foo.bar\":\"t2\"}}}\n" +
             "{ \"field1\" : \"value1\" }\n" +
 
             "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\" } }\n" +
 
-            "{ \"create\" : {\"_index\":\"test\",\"mapping_hints\":{\"bar\":\"t1\"}}}\n" +
+            "{ \"create\" : {\"_index\":\"test\",\"dynamic_template_hints\":{\"bar\":\"t1\"}}}\n" +
             "{ \"field1\" : \"value3\" }\n" +
 
-            "{ \"create\" : {\"mapping_hints\":{\"foo.bar\":\"xyz\"}}}\n" +
+            "{ \"create\" : {\"dynamic_template_hints\":{\"foo.bar\":\"xyz\"}}}\n" +
             "{ \"field1\" : \"value3\" }\n" +
 
-            "{ \"index\" : {\"mapping_hints\":{}}\n" +
+            "{ \"index\" : {\"dynamic_template_hints\":{}}\n" +
             "{ \"field1\" : \"value3\" }\n"
         );
         BulkRequest bulkRequest = new BulkRequest().add(data, null, XContentType.JSON);
         assertThat(bulkRequest.requests, hasSize(5));
-        assertThat(((IndexRequest) bulkRequest.requests.get(0)).getMappingHints(),
+        assertThat(((IndexRequest) bulkRequest.requests.get(0)).getDynamicTemplateHints(),
             equalTo(Map.of("baz", "t1", "foo.bar", "t2")));
-        assertThat(((IndexRequest) bulkRequest.requests.get(2)).getMappingHints(),
+        assertThat(((IndexRequest) bulkRequest.requests.get(2)).getDynamicTemplateHints(),
             equalTo(Map.of("bar", "t1")));
-        assertThat(((IndexRequest) bulkRequest.requests.get(3)).getMappingHints(),
+        assertThat(((IndexRequest) bulkRequest.requests.get(3)).getDynamicTemplateHints(),
             equalTo(Map.of("foo.bar", "xyz")));
-        assertThat(((IndexRequest) bulkRequest.requests.get(4)).getMappingHints(),
+        assertThat(((IndexRequest) bulkRequest.requests.get(4)).getDynamicTemplateHints(),
             equalTo(Map.of()));
     }
 
-    public void testInvalidMappingHint() {
+    public void testInvalidDynamicTemplateHint() {
         BytesArray deleteWithMappingHint = new BytesArray(
-            "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\", \"mapping_hints\":{\"baz\":\"t1\"}} }\n");
+            "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\", \"dynamic_template_hints\":{\"baz\":\"t1\"}} }\n");
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
             () -> new BulkRequest().add(deleteWithMappingHint, null, XContentType.JSON));
-        assertThat(error.getMessage(), equalTo("Delete request in line [1] does not accept mapping_hints"));
+        assertThat(error.getMessage(), equalTo("Delete request in line [1] does not accept dynamic_template_hints"));
 
         BytesArray updateWithMappingHint = new BytesArray(
-            "{ \"update\" : {\"mapping_hints\":{\"foo.bar\":\"xyz\"}}}\n" +
+            "{ \"update\" : {\"dynamic_template_hints\":{\"foo.bar\":\"xyz\"}}}\n" +
             "{ \"field1\" : \"value3\" }\n");
         error = expectThrows(IllegalArgumentException.class,
             () -> new BulkRequest().add(updateWithMappingHint, null, XContentType.JSON));
-        assertThat(error.getMessage(), equalTo("Update request in line [2] does not accept mapping_hints"));
+        assertThat(error.getMessage(), equalTo("Update request in line [2] does not accept dynamic_template_hints"));
 
         BytesArray invalidMappingHint = new BytesArray(
-            "{ \"index\":{\"_index\":\"test\",\"mapping_hints\":[]}\n" +
+            "{ \"index\":{\"_index\":\"test\",\"dynamic_template_hints\":[]}\n" +
             "{ \"field1\" : \"value1\" }\n"
         );
         error = expectThrows(IllegalArgumentException.class,
             () -> new BulkRequest().add(invalidMappingHint, null, XContentType.JSON));
-        assertThat(error.getMessage(),
-            equalTo("Malformed action/metadata line [1], expected a simple value for field [mapping_hints] but found [START_ARRAY]"));
+        assertThat(error.getMessage(), equalTo("Malformed action/metadata line [1], " +
+            "expected a simple value for field [dynamic_template_hints] but found [START_ARRAY]"));
     }
 }

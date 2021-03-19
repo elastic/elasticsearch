@@ -9,7 +9,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -173,16 +172,21 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertBusy(() -> assertThat(clusterService.state().metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion)));
     }
 
-    public void testSimpleTypeHint() throws Exception {
+    public void testDynamicTemplateNameHints() throws Exception {
         final XContentBuilder mappings = XContentFactory.jsonBuilder();
         mappings.startObject();
         {
             mappings.startArray("dynamic_templates");
             {
                 mappings.startObject();
-                mappings.startObject("locations");
+                mappings.startObject("location");
                 {
-                    mappings.field("match_mapping_hint", "location");
+                    if (randomBoolean()) {
+                        mappings.field("match", "location");
+                    }
+                    if (randomBoolean()) {
+                        mappings.field("match_mapping_type", "string");
+                    }
                     mappings.startObject("mapping");
                     {
                         mappings.field("type", "geo_point");
@@ -198,23 +202,24 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").setMapping(mappings));
         List<IndexRequest> requests = new ArrayList<>();
         requests.add(new IndexRequest("test").id("1").source("location", "41.12,-71.34")
-            .setMappingHints(Map.of("location", "location")));
+            .setDynamicTemplateHints(Map.of("location", "location")));
         requests.add(new IndexRequest("test").id("2").source(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("location").field("lat", 41.12).field("lon", -71.34).endObject()
                 .endObject())
-            .setMappingHints(Map.of("location", "location")));
+            .setDynamicTemplateHints(Map.of("location", "location")));
         requests.add(new IndexRequest("test").id("3").source("address.location", "41.12,-71.34")
-            .setMappingHints(Map.of("address.location", "location")));
+            .setDynamicTemplateHints(Map.of("address.location", "location")));
         requests.add(new IndexRequest("test").id("4").source("location", new double[]{-71.34, 41.12})
-            .setMappingHints(Map.of("location", "location")));
+            .setDynamicTemplateHints(Map.of("location", "location")));
         requests.add(new IndexRequest("test").id("5").source("array_of_numbers", new double[]{-71.34, 41.12}));
 
         Randomness.shuffle(requests);
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         requests.forEach(bulkRequest::add);
-        client().bulk(bulkRequest).actionGet();
+        final BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertFalse(bulkResponse.hasFailures());
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(new GeoBoundingBoxQueryBuilder("location").setCorners(new GeoPoint(42, -72), new GeoPoint(40, -74)))
@@ -226,23 +231,59 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "3");
     }
 
-    public void testTypeHintNotFound() throws Exception {
+    public void testDynamicTemplateNameHintNotMatched() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test"));
+        final XContentBuilder mappings = XContentFactory.jsonBuilder();
+        mappings.startObject();
+        {
+            mappings.startArray("dynamic_templates");
+            {
+                if (randomBoolean()) {
+                    mappings.startObject();
+                    mappings.startObject("location");
+                    {
+                        if (randomBoolean()) {
+                            mappings.field("match", "location");
+                        }
+                        if (randomBoolean()) {
+                            mappings.field("match_mapping_type", "string");
+                        }
+                        mappings.startObject("mapping");
+                        {
+                            mappings.field("type", "geo_point");
+                        }
+                        mappings.endObject();
+                    }
+                    mappings.endObject();
+                    mappings.endObject();
+                }
+            }
+            mappings.endArray();
+        }
+        mappings.endObject();
+
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         bulkRequest.add(
             new IndexRequest("test").id("1").source(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .field("my_location",  "41.12,-71.34")
+                    .field("my_location", "41.12,-71.34")
                     .endObject())
-                .setMappingHints(Map.of("my_location", "location"))
+                .setDynamicTemplateHints(Map.of("my_location", "foo_bar")),
+            new IndexRequest("test").id("2").source(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("address.location", "41.12,-71.34")
+                    .endObject())
+                .setDynamicTemplateHints(Map.of("address.location", "bar_foo"))
         );
         final BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
         assertTrue(bulkItemResponses.hasFailures());
-        for (BulkItemResponse resp : bulkItemResponses.getItems()) {
-            assertThat(resp.getFailure().getCause(), instanceOf(MapperParsingException.class));
-            assertThat(resp.getFailureMessage(),
-                containsString("Can't find dynamic template for mapping hint [location] of field [my_location]"));
-        }
+        assertThat(bulkItemResponses.getItems()[0].getFailure().getCause(), instanceOf(MapperParsingException.class));
+        assertThat(bulkItemResponses.getItems()[0].getFailureMessage(),
+            containsString("Can't find dynamic template for dynamic template name hint [foo_bar] of field [my_location]"));
+        assertThat(bulkItemResponses.getItems()[1].getFailure().getCause(), instanceOf(MapperParsingException.class));
+        assertThat(bulkItemResponses.getItems()[1].getFailureMessage(),
+            containsString("Can't find dynamic template for dynamic template name hint [bar_foo] of field [address.location]"));
     }
 }

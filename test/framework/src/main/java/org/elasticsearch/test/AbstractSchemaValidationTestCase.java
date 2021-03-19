@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -48,10 +49,10 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
         SchemaValidatorsConfig config = new SchemaValidatorsConfig();
         JsonSchemaFactory factory = initializeSchemaFactory();
 
-        Path p = getDataPath(PathUtils.get(getSchemaLocation(), getJsonSchemaFileName()).toString());
-        logger.debug("loading schema from: [{}]", p);
+        String path = getSchemaLocation() + getJsonSchemaFileName();
+        logger.debug("loading schema from: [{}]", path);
 
-        JsonSchema jsonSchema = factory.getSchema(mapper.readTree(Files.newInputStream(p)), config);
+        JsonSchema jsonSchema = factory.getSchema(mapper.readTree(getClass().getResourceAsStream(path)), config);
 
         // ensure the schema meets certain criteria like not empty, strictness
         assertTrue("found empty schema", jsonSchema.getValidators().size() > 0);
@@ -108,9 +109,10 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
     private JsonSchemaFactory initializeSchemaFactory() {
         JsonSchemaFactory factory = JsonSchemaFactory.builder(JsonSchemaFactory.getInstance(getSchemaVersion())).uriFetcher(uri -> {
             String fileName = uri.toString().substring(uri.getScheme().length() + 1);
-            Path path = getDataPath(PathUtils.get(getSchemaLocation(), fileName).toString());
+            Path path = getDataPath(getSchemaLocation() + fileName);
+            String resource = getSchemaLocation() + fileName;
             logger.debug("loading sub-schema [{}] from: [{}]", uri, path);
-            return Files.newInputStream(path);
+            return getClass().getResourceAsStream(getSchemaLocation() + fileName);
         }, "file").build();
 
         return factory;

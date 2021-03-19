@@ -96,7 +96,7 @@ public abstract class CachingServiceAccountsTokenStore implements ServiceAccount
                 }, e -> {
                     // In case of failure, evict the cache entry and notify all listeners
                     cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
-                    listenableCacheEntry.cancel(true);
+                    listenableCacheEntry.onFailure(e);
                     listener.onFailure(e);
                 }));
             }

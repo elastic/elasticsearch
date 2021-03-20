@@ -210,7 +210,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         mappings.endObject().endObject();
         assertAcked(client().admin().indices().prepareCreate("test")
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 3)))
-            .setMapping(mappings));
+            .addMapping("_doc", mappings));
 
 
         client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)

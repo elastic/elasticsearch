@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -32,7 +33,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -47,8 +47,6 @@ import java.util.stream.StreamSupport;
 public class Realms implements Iterable<Realm> {
 
     private static final Logger logger = LogManager.getLogger(Realms.class);
-    private static final int REALM_ORDER_LOWER_BOUND = Integer.MIN_VALUE + 2;
-    private static final int REALM_ORDER_UPPER_BOUND = Integer.MAX_VALUE - 2;
 
     private final Settings settings;
     private final Environment env;
@@ -57,7 +55,6 @@ public class Realms implements Iterable<Realm> {
     private final ThreadContext threadContext;
     private final ReservedRealm reservedRealm;
 
-    private final Set<String> disabledNativeRealmTypes;
     protected List<Realm> realms;
     // a list of realms that are considered standard in that they are provided by x-pack and
     // interact with a 3rd party source on a limited basis
@@ -75,12 +72,12 @@ public class Realms implements Iterable<Realm> {
         this.reservedRealm = reservedRealm;
         assert factories.get(ReservedRealm.TYPE) == null;
         final List<RealmConfig> realmConfigs = buildRealmConfigs();
-        disabledNativeRealmTypes = findDisabledNativeRealmTypes(realmConfigs);
         this.realms = initRealms(realmConfigs);
+        assert realms.get(0) == reservedRealm : "the first realm must be reserved realm";
         // pre-computing a list of internal only realms allows us to have much cheaper iteration than a custom iterator
         // and is also simpler in terms of logic. These lists are small, so the duplication should not be a real issue here
-        List<Realm> standardRealms = new ArrayList<>();
-        List<Realm> nativeRealms = new ArrayList<>();
+        List<Realm> standardRealms = new ArrayList<>(List.of(reservedRealm));
+        List<Realm> basicRealms = new ArrayList<>(List.of(reservedRealm));
         for (Realm realm : realms) {
             // don't add the reserved realm here otherwise we end up with only this realm...
             if (InternalRealms.isStandardRealm(realm.type())) {
@@ -88,22 +85,18 @@ public class Realms implements Iterable<Realm> {
             }
 
             if (FileRealmSettings.TYPE.equals(realm.type()) || NativeRealmSettings.TYPE.equals(realm.type())) {
-                nativeRealms.add(realm);
+                basicRealms.add(realm);
             }
         }
 
-        for (List<Realm> realmList : Arrays.asList(standardRealms, nativeRealms)) {
-            if (realmList.isEmpty()) {
-                addNativeRealms(realmList);
+        if (Assertions.ENABLED) {
+            for (List<Realm> realmList : Arrays.asList(standardRealms, basicRealms)) {
+                assert realmList.get(0) == reservedRealm : "the first realm must be reserved realm";
             }
-
-            assert realmList.contains(reservedRealm) == false;
-            realmList.add(0, reservedRealm);
-            assert realmList.get(0) == reservedRealm;
         }
 
         this.standardRealmsOnly = Collections.unmodifiableList(standardRealms);
-        this.nativeRealmsOnly = Collections.unmodifiableList(nativeRealms);
+        this.nativeRealmsOnly = Collections.unmodifiableList(basicRealms);
         realms.forEach(r -> r.initialize(this, licenseState));
     }
 
@@ -183,13 +176,6 @@ public class Realms implements Iterable<Realm> {
                 }
                 continue;
             }
-            // Ensure we always have some values reserved at each end of integer's range
-            // so they can be used for adding file and native realms
-            if (config.order() <= REALM_ORDER_LOWER_BOUND || config.order() >= REALM_ORDER_UPPER_BOUND) {
-                throw new IllegalArgumentException(String.format(Locale.ROOT,
-                    "realm order value must be greater than [%s] and smaller than [%s], but got [%s] for [%s]",
-                    REALM_ORDER_LOWER_BOUND, REALM_ORDER_UPPER_BOUND, config.order(), config.identifier()));
-            }
             Realm realm = factory.create(config);
             nameToRealmIdentifier.computeIfAbsent(realm.name(), k ->
                 new HashSet<>()).add(RealmSettings.realmSettingPrefix(realm.type()) + realm.name());
@@ -199,10 +185,9 @@ public class Realms implements Iterable<Realm> {
         }
 
         checkUniqueOrders(orderToRealmName);
-
-        addNativeRealms(realms);
         Collections.sort(realms);
 
+        maybeAddBasicRealms(realms, findDisabledBasicRealmTypes(realmConfigs));
         // always add built in first!
         realms.add(0, reservedRealm);
         String duplicateRealms = nameToRealmIdentifier.entrySet().stream()
@@ -277,25 +262,22 @@ public class Realms implements Iterable<Realm> {
         }
     }
 
-    private void addNativeRealms(List<Realm> realms) throws Exception {
-        final boolean noRealmConfigured = realms.isEmpty();
-        int realmOrder = noRealmConfigured ? REALM_ORDER_LOWER_BOUND - 1 : REALM_ORDER_UPPER_BOUND;
-        addUnconfiguredRealmIfNecessary(realms, FileRealmSettings.TYPE, FileRealmSettings.DEFAULT_NAME, realmOrder);
-
-        realmOrder += 1;
-        addUnconfiguredRealmIfNecessary(realms, NativeRealmSettings.TYPE, NativeRealmSettings.DEFAULT_NAME, realmOrder);
-    }
-
-    private void addUnconfiguredRealmIfNecessary(List<Realm> realms, String type, String name, int order) throws Exception {
-        if (false == disabledNativeRealmTypes.contains(type) && false == realms.stream().anyMatch(r -> type.equals(r.type()))) {
-            Realm.Factory factory = factories.get(type);
-            if (factory != null) {
-                var realmIdentifier = new RealmConfig.RealmIdentifier(type, name);
-                realms.add(factory.create(new RealmConfig(
-                    realmIdentifier,
-                    ensureOrderSetting(settings, realmIdentifier, order),
-                    env, threadContext)));
-            }
+    private void maybeAddBasicRealms(List<Realm> realms, Set<String> disabledBasicRealmTypes) throws Exception {
+        final Set<String> realmTypes = realms.stream().map(Realm::type).collect(Collectors.toUnmodifiableSet());
+        // Add native realm first so that file realm will be in the beginning
+        if (false == disabledBasicRealmTypes.contains(NativeRealmSettings.TYPE) && false == realmTypes.contains(NativeRealmSettings.TYPE)) {
+            var nativeRealmId = new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, NativeRealmSettings.DEFAULT_NAME);
+            realms.add(0, factories.get(NativeRealmSettings.TYPE).create(new RealmConfig(
+                nativeRealmId,
+                ensureOrderSetting(settings, nativeRealmId, Integer.MIN_VALUE),
+                env, threadContext)));
+        }
+        if (false == disabledBasicRealmTypes.contains(FileRealmSettings.TYPE) && false == realmTypes.contains(FileRealmSettings.TYPE)) {
+            var fileRealmId = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, FileRealmSettings.DEFAULT_NAME);
+            realms.add(0, factories.get(FileRealmSettings.TYPE).create(new RealmConfig(
+                fileRealmId,
+                ensureOrderSetting(settings, fileRealmId, Integer.MIN_VALUE),
+                env, threadContext)));
         }
     }
 
@@ -347,7 +329,7 @@ public class Realms implements Iterable<Realm> {
         return realmConfigs;
     }
 
-    private Set<String> findDisabledNativeRealmTypes(List<RealmConfig> realmConfigs) {
+    private Set<String> findDisabledBasicRealmTypes(List<RealmConfig> realmConfigs) {
         return realmConfigs.stream()
             .filter(rc -> FileRealmSettings.TYPE.equals(rc.type()) || NativeRealmSettings.TYPE.equals(rc.type()))
             .filter(rc -> false == rc.enabled())

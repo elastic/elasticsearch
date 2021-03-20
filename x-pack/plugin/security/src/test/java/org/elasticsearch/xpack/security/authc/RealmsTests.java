@@ -120,6 +120,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(iterator.hasNext(), is(true));
         Realm realm = iterator.next();
         assertThat(realm, is(reservedRealm));
+        assertImplicitlyAddedBasicRealms(iterator, fileRealmDisabled, nativeRealmDisabled);
 
         int i = 0;
         while (iterator.hasNext()) {
@@ -133,7 +134,6 @@ public class RealmsTests extends ESTestCase {
                 break;
             }
         }
-        assertImplicitlyAddedNativeRealms(iterator, fileRealmDisabled, nativeRealmDisabled);
 
         assertThat(realms.getUnlicensedRealms(), empty());
         assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
@@ -238,6 +238,8 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(true));
         Realm realm = iter.next();
         assertThat(realm, is(reservedRealm));
+        assertImplicitlyAddedBasicRealms(iter, fileRealmDisabled, nativeRealmDisabled);
+
         int i = 0;
         while (iter.hasNext()) {
             realm = iter.next();
@@ -250,7 +252,6 @@ public class RealmsTests extends ESTestCase {
                 break;
             }
         }
-        assertImplicitlyAddedNativeRealms(iter, fileRealmDisabled, nativeRealmDisabled);
 
         assertThat(realms.getUnlicensedRealms(), empty());
         assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
@@ -261,7 +262,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
         assertThat(realm, is(reservedRealm));
-        assertImplicitlyAddedNativeRealms(iter, fileRealmDisabled, nativeRealmDisabled);
+        assertImplicitlyAddedBasicRealms(iter, fileRealmDisabled, nativeRealmDisabled);
 
         assertThat(realms.getUnlicensedRealms(), iterableWithSize(randomRealmTypesCount));
         iter = realms.getUnlicensedRealms().iterator();
@@ -292,13 +293,14 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(true));
         Realm realm = iter.next();
         assertThat(realm, is(reservedRealm));
+        assertImplicitlyAddedBasicRealms(iter, fileRealmDisabled, nativeRealmDisabled);
         assertTrue(iter.hasNext());
         realm = iter.next();
         assertThat(realm.type(), is("ldap"));
         assertTrue(iter.hasNext());
         realm = iter.next();
         assertThat(realm.type(), is("type_0"));
-        assertImplicitlyAddedNativeRealms(iter, fileRealmDisabled, nativeRealmDisabled);
+
         assertThat(realms.getUnlicensedRealms(), empty());
         assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
 
@@ -307,10 +309,10 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
         assertThat(realm, is(reservedRealm));
+        assertImplicitlyAddedBasicRealms(iter, fileRealmDisabled, nativeRealmDisabled);
         assertTrue(iter.hasNext());
         realm = iter.next();
         assertThat(realm.type(), is("ldap"));
-        assertImplicitlyAddedNativeRealms(iter, fileRealmDisabled, nativeRealmDisabled);
 
         assertThat(realms.getUnlicensedRealms(), iterableWithSize(1));
         realm = realms.getUnlicensedRealms().get(0);
@@ -322,7 +324,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
         assertThat(realm, is(reservedRealm));
-        assertImplicitlyAddedNativeRealms(iter, fileRealmDisabled, nativeRealmDisabled);
+        assertImplicitlyAddedBasicRealms(iter, fileRealmDisabled, nativeRealmDisabled);
 
         assertThat(realms.getUnlicensedRealms(), iterableWithSize(2));
         realm = realms.getUnlicensedRealms().get(0);
@@ -333,7 +335,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(realm.name(), equalTo("custom"));
     }
 
-    public void testUnlicensedWithNativeRealmSettings() throws Exception {
+    public void testUnlicensedWithBasicRealmSettings() throws Exception {
         factories.put(LdapRealmSettings.LDAP_TYPE, config -> new DummyRealm(LdapRealmSettings.LDAP_TYPE, config));
         final String type = randomFrom(FileRealmSettings.TYPE, NativeRealmSettings.TYPE);
         final String otherType = FileRealmSettings.TYPE.equals(type) ? NativeRealmSettings.TYPE : FileRealmSettings.TYPE;
@@ -349,17 +351,17 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(true));
         Realm realm = iter.next();
         assertThat(realm, is(reservedRealm));
+        if (false == otherTypeDisabled) {
+            assertThat(iter.hasNext(), is(true));
+            realm = iter.next();
+            assertThat(realm.type(), is(otherType));
+        }
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
         assertThat(realm.type(), is("ldap"));
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
         assertThat(realm.type(), is(type));
-        if (false == otherTypeDisabled) {
-            assertThat(iter.hasNext(), is(true));
-            realm = iter.next();
-            assertThat(realm.type(), is(otherType));
-        }
         assertThat(iter.hasNext(), is(false));
         assertThat(realms.getUnlicensedRealms(), empty());
 
@@ -368,14 +370,14 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
         assertThat(realm, is(reservedRealm));
-        assertThat(iter.hasNext(), is(true));
-        realm = iter.next();
-        assertThat(realm.type(), is(type));
         if (false == otherTypeDisabled) {
             assertThat(iter.hasNext(), is(true));
             realm = iter.next();
             assertThat(realm.type(), is(otherType));
         }
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm.type(), is(type));
         assertThat(iter.hasNext(), is(false));
 
         assertThat(realms.getUnlicensedRealms(), iterableWithSize(1));
@@ -399,10 +401,10 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(true));
         Realm realm = iter.next();
         assertThat(realm, is(reservedRealm));
+        assertImplicitlyAddedBasicRealms(iter, fileRealmDisabled, nativeRealmDisabled);
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
         assertThat(realm.type(), is(selectedRealmType));
-        assertImplicitlyAddedNativeRealms(iter, fileRealmDisabled, nativeRealmDisabled);
         assertThat(realms.getUnlicensedRealms(), empty());
 
         allowOnlyStandardRealms();
@@ -410,7 +412,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
         assertThat(realm, is(reservedRealm));
-        assertImplicitlyAddedNativeRealms(iter, fileRealmDisabled, nativeRealmDisabled);
+        assertImplicitlyAddedBasicRealms(iter, fileRealmDisabled, nativeRealmDisabled);
 
         assertThat(realms.getUnlicensedRealms(), iterableWithSize(1));
         realm = realms.getUnlicensedRealms().get(0);
@@ -422,7 +424,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
         assertThat(realm, is(reservedRealm));
-        assertImplicitlyAddedNativeRealms(iter, fileRealmDisabled, nativeRealmDisabled);
+        assertImplicitlyAddedBasicRealms(iter, fileRealmDisabled, nativeRealmDisabled);
 
         assertThat(realms.getUnlicensedRealms(), iterableWithSize(1));
         realm = realms.getUnlicensedRealms().get(0);
@@ -448,33 +450,24 @@ public class RealmsTests extends ESTestCase {
                 logger.error("put [{}] -> [{}]", orders.get(i), i);
             }
         }
+        final boolean fileRealmDisabled = randomDisableRealm(builder, FileRealmSettings.TYPE);
+        final boolean nativeRealmDisabled = randomDisableRealm(builder, NativeRealmSettings.TYPE);
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
         Iterator<Realm> iterator = realms.iterator();
         Realm realm = iterator.next();
         assertThat(realm, is(reservedRealm));
-        assertThat(iterator.hasNext(), is(true));
+        assertImplicitlyAddedBasicRealms(iterator, fileRealmDisabled, nativeRealmDisabled);
 
         int count = 0;
         while (iterator.hasNext()) {
             realm = iterator.next();
             Integer index = orderToIndex.get(realm.order());
-            if (index == null) {
-                // Default realms are inserted when factories size is 1 and enabled is false
-                assertThat(realm.type(), equalTo(FileRealmSettings.TYPE));
-                assertThat(realm.name(), equalTo("default_" + FileRealmSettings.TYPE));
-                assertThat(iterator.hasNext(), is(true));
-                realm = iterator.next();
-                assertThat(realm.type(), equalTo(NativeRealmSettings.TYPE));
-                assertThat(realm.name(), equalTo("default_" + NativeRealmSettings.TYPE));
-                assertThat(iterator.hasNext(), is(false));
-            } else {
-                assertThat(realm.type(), equalTo("type_" + index));
-                assertThat(realm.name(), equalTo("realm_" + index));
-                assertThat(settings.getAsBoolean("xpack.security.authc.realms.realm_" + index + ".enabled", true), equalTo(Boolean.TRUE));
-                count++;
-            }
+            assertThat(realm.type(), equalTo("type_" + index));
+            assertThat(realm.name(), equalTo("realm_" + index));
+            assertThat(settings.getAsBoolean("xpack.security.authc.realms.realm_" + index + ".enabled", true), equalTo(Boolean.TRUE));
+            count++;
         }
 
         assertThat(count, equalTo(orderToIndex.size()));
@@ -590,28 +583,6 @@ public class RealmsTests extends ESTestCase {
                 "multiple realms [realm_1, realm_2] configured of type [kerberos], [kerberos] can only have one such realm configured")));
     }
 
-    public void testRealmOrderValueMustBeWithinRange() {
-        final Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
-        List<Integer> orders = new ArrayList<>(randomRealmTypesCount);
-        for (int i = 0; i < randomRealmTypesCount; i++) {
-            orders.add(i);
-        }
-        Collections.shuffle(orders, random());
-        orders.set(randomIntBetween(0, orders.size() - 1),
-            randomFrom(
-                Integer.MIN_VALUE + 1, Integer.MIN_VALUE + 2,
-                Integer.MAX_VALUE - 1, Integer.MAX_VALUE - 2));
-        for (int i = 0; i < randomRealmTypesCount; i++) {
-            builder.put("xpack.security.authc.realms.type_" + i + ".realm_" + i + ".order", orders.get(i));
-        }
-        final Settings settings = builder.build();
-        Environment env = TestEnvironment.newEnvironment(settings);
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new Realms(settings, env, factories, licenseState, threadContext, reservedRealm));
-        assertThat(e.getMessage(), containsString("realm order value must be greater than"));
-        assertThat(e.getMessage(), containsString("and smaller than"));
-    }
-
     private boolean randomDisableRealm(Settings.Builder builder, String type) {
         final boolean disabled = randomBoolean();
         if (disabled) {
@@ -620,7 +591,7 @@ public class RealmsTests extends ESTestCase {
         return disabled;
     }
 
-    private void assertImplicitlyAddedNativeRealms(Iterator<Realm> iter, boolean fileRealmDisabled, boolean nativeRealmDisabled) {
+    private void assertImplicitlyAddedBasicRealms(Iterator<Realm> iter, boolean fileRealmDisabled, boolean nativeRealmDisabled) {
         Realm realm;
         if (false == fileRealmDisabled && false == nativeRealmDisabled) {
             assertTrue(iter.hasNext());
@@ -642,7 +613,6 @@ public class RealmsTests extends ESTestCase {
             assertThat(realm.type(), is(NativeRealmSettings.TYPE));
             assertThat(realm.name(), is(NativeRealmSettings.DEFAULT_NAME));
         }
-        assertFalse(iter.hasNext());
     }
 
     static class DummyRealm extends Realm {

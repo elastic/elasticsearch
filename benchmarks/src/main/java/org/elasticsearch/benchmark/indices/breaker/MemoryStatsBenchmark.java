@@ -44,49 +44,49 @@ public class MemoryStatsBenchmark {
 
     @Benchmark
     @Threads(1)
-    public long getMemoryStats_01() {
+    public long getMemoryStats01() {
         Blackhole.consumeCPU(tokens);
         return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
     }
 
     @Benchmark
     @Threads(2)
-    public long getMemoryStats_02() {
+    public long getMemoryStats02() {
         Blackhole.consumeCPU(tokens);
         return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
     }
 
     @Benchmark
     @Threads(4)
-    public long getMemoryStats_04() {
+    public long getMemoryStats04() {
         Blackhole.consumeCPU(tokens);
         return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
     }
 
     @Benchmark
     @Threads(8)
-    public long getMemoryStats_08() {
+    public long getMemoryStats08() {
         Blackhole.consumeCPU(tokens);
         return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
     }
 
     @Benchmark
     @Threads(16)
-    public long getMemoryStats_16() {
+    public long getMemoryStats16() {
         Blackhole.consumeCPU(tokens);
         return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
     }
 
     @Benchmark
     @Threads(32)
-    public long getMemoryStats_32() {
+    public long getMemoryStats32() {
         Blackhole.consumeCPU(tokens);
         return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
     }
 
     @Benchmark
     @Threads(64)
-    public long getMemoryStats_64() {
+    public long getMemoryStats64() {
         Blackhole.consumeCPU(tokens);
         return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
     }

@@ -508,6 +508,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testGroupByOrderByFieldFromGroupByFunction() {
         assertEquals("1:54: Cannot order by non-grouped column [int], expected [ABS(int)]",
                 error("SELECT ABS(int) FROM test GROUP BY ABS(int) ORDER BY int"));
+        assertEquals("1:91: Cannot order by non-grouped column [c], expected [b] or an aggregate function",
+            error("SELECT b, abs, 2 as c FROM (SELECT bool as b, ABS(int) abs FROM test) GROUP BY b ORDER BY c"));
     }
 
     public void testGroupByOrderByScalarOverNonGrouped_WithHaving() {
@@ -517,7 +519,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testGroupByHavingNonGrouped() {
         assertEquals("1:48: Cannot use HAVING filter on non-aggregate [int]; use WHERE instead",
-                error("SELECT AVG(int) FROM test GROUP BY text HAVING int > 10"));
+            error("SELECT AVG(int) FROM test GROUP BY bool HAVING int > 10"));
+        accept("SELECT AVG(int) FROM test GROUP BY bool HAVING AVG(int) > 2");
+    }
+    
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69758")
+    public void testGroupByWhereSubselect() {
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool) WHERE b = false");
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool HAVING AVG(int) > 2) WHERE b = false");
     }
 
     public void testGroupByAggregate() {
@@ -569,6 +578,10 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT int FROM test WHERE dep.start_date > '2020-01-30'::date AND (int > 10 OR dep.end_date IS NULL)");
         accept("SELECT int FROM test WHERE dep.start_date > '2020-01-30'::date AND (int > 10 OR dep.end_date IS NULL) " +
                "OR NOT(dep.start_date >= '2020-01-01')");
+        String operator = randomFrom("<", "<=");
+        assertEquals("1:42: WHERE isn't (yet) compatible with scalar functions on nested fields [dep.location]",
+            error("SELECT shape FROM test " +
+                "WHERE ST_Distance(dep.location, ST_WKTToSQL('point (10 20)')) " + operator + " 25"));
     }
 
     public void testOrderByOnNested() {
@@ -1225,5 +1238,23 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         // inexact without underlying keyword (text only)
         assertEquals("1:36: [text] of data type [text] cannot be used for [CAST()] inside the WHERE clause",
                 error("SELECT * FROM test WHERE NOT (CAST(text AS string) = 'foo') OR true"));
+    }
+
+    public void testBinaryFieldWithDocValues() {
+        accept("SELECT binary_stored FROM test WHERE binary_stored IS NOT NULL");
+        accept("SELECT binary_stored FROM test GROUP BY binary_stored HAVING count(binary_stored) > 1");
+        accept("SELECT count(binary_stored) FROM test HAVING count(binary_stored) > 1");
+        accept("SELECT binary_stored FROM test ORDER BY binary_stored");
+    }
+
+    public void testBinaryFieldWithNoDocValues() {
+        assertEquals("1:31: Binary field [binary] cannot be used for filtering unless it has the doc_values setting enabled",
+            error("SELECT binary FROM test WHERE binary IS NOT NULL"));
+        assertEquals("1:34: Binary field [binary] cannot be used in aggregations unless it has the doc_values setting enabled",
+            error("SELECT binary FROM test GROUP BY binary"));
+        assertEquals("1:45: Binary field [binary] cannot be used for filtering unless it has the doc_values setting enabled",
+            error("SELECT count(binary) FROM test HAVING count(binary) > 1"));
+        assertEquals("1:34: Binary field [binary] cannot be used for ordering unless it has the doc_values setting enabled",
+            error("SELECT binary FROM test ORDER BY binary"));
     }
 }

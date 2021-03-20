@@ -926,6 +926,35 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         executeQueryWithNextPage("text/csv; header=present", "text,number,sum\r\n", "%s,%d,%d\r\n");
     }
 
+    public void testCSVWithDelimiterParameter() throws IOException {
+        String format = randomFrom("txt", "tsv", "json", "yaml", "smile", "cbor");
+        String query = "SELECT * FROM test";
+        index("{\"foo\":1}");
+
+        Request badRequest = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        badRequest.addParameter("format", format);
+        badRequest.addParameter("delimiter", ";");
+        badRequest.setEntity(
+            new StringEntity(
+                query(query).mode(randomValueOtherThan(Mode.JDBC.toString(), BaseRestSqlTestCase::randomMode)).toString(),
+                ContentType.APPLICATION_JSON
+            )
+        );
+        expectBadRequest(() -> {
+            client().performRequest(badRequest);
+            return Collections.emptyMap();
+        }, containsString("request [/_sql] contains unrecognized parameter: [delimiter]"));
+
+        Request csvRequest = new Request("POST", SQL_QUERY_REST_ENDPOINT + "?format=csv&delimiter=%3B");
+        csvRequest.setEntity(
+            new StringEntity(
+                query(query).mode(randomValueOtherThan(Mode.JDBC.toString(), BaseRestSqlTestCase::randomMode)).toString(),
+                ContentType.APPLICATION_JSON
+            )
+        );
+        assertOK(client().performRequest(csvRequest));
+    }
+
     public void testQueryInTSV() throws IOException {
         index(
             "{\"name\":" + toJson("first") + ", \"number\" : 1 }",
@@ -944,6 +973,55 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
     public void testNextPageTSV() throws IOException {
         executeQueryWithNextPage("text/tab-separated-values", "text\tnumber\tsum\n", "%s\t%d\t%d\n");
+    }
+
+    public void testBinaryFieldFiltering() throws IOException {
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("properties");
+            {
+                createIndex.startObject("id").field("type", "long").endObject();
+                createIndex.startObject("binary").field("type", "binary").field("doc_values", true).endObject();
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject().endObject();
+
+        Request request = new Request("PUT", "/test_binary");
+        request.setJsonEntity(Strings.toString(createIndex));
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        long nonNullId = randomLong();
+        long nullId = randomLong();
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{").append(toJson("index")).append(":{}}\n");
+        bulk.append("{");
+        {
+            bulk.append(toJson("id")).append(":").append(nonNullId);
+            bulk.append(",");
+            bulk.append(toJson("binary")).append(":").append(toJson("U29tZSBiaW5hcnkgYmxvYg=="));
+        }
+        bulk.append("}\n");
+        bulk.append("{").append(toJson("index")).append(":{}}\n");
+        bulk.append("{");
+        {
+            bulk.append(toJson("id")).append(":").append(nullId);
+        }
+        bulk.append("}\n");
+
+        request = new Request("PUT", "/test_binary/_bulk?refresh=true");
+        request.setJsonEntity(bulk.toString());
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        String mode = randomMode();
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", singletonList(columnInfo(mode, "id", "long", JDBCType.BIGINT, 20)));
+        expected.put("rows", singletonList(singletonList(nonNullId)));
+        assertResponse(expected, runSql(mode, "SELECT id FROM test_binary WHERE binary IS NOT NULL", false));
+
+        expected.put("rows", singletonList(singletonList(nullId)));
+        assertResponse(expected, runSql(mode, "SELECT id FROM test_binary WHERE binary IS NULL", false));
     }
 
     private void executeQueryWithNextPage(String format, String expectedHeader, String expectedLineFormat) throws IOException {

@@ -69,9 +69,9 @@ public interface TransformConfigManager {
      * This deletes stored state/stats documents for the given transformId that are contained in old index versions.
      *
      * @param transformId The transform ID referenced by the documents
-     * @param listener listener to alert on completion
+     * @param listener listener to alert on completion, returning the number of deleted docs
      */
-    void deleteOldTransformStoredDocuments(String transformId, ActionListener<Boolean> listener);
+    void deleteOldTransformStoredDocuments(String transformId, ActionListener<Long> listener);
 
     /**
      * This deletes stored checkpoint documents for the given transformId, based on number and age.

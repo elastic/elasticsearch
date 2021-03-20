@@ -66,9 +66,12 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             cause = "api";
         }
 
-        final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
+
+        final long resolvedAt = System.currentTimeMillis();
+        final String indexName  = indexNameExpressionResolver.resolveDateMathExpression(request.index(), resolvedAt);
 
         final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
+
         final boolean isSystemIndex = descriptor != null && descriptor.isAutomaticallyManaged();
 
         final CreateIndexClusterStateUpdateRequest updateRequest;
@@ -86,19 +89,21 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             }
             updateRequest = buildSystemIndexUpdateRequest(request, cause, descriptor);
         } else {
-            updateRequest = buildUpdateRequest(request, cause, indexName);
+            updateRequest = buildUpdateRequest(request, cause, indexName, resolvedAt);
         }
 
         createIndexService.createIndex(updateRequest, listener.map(response ->
             new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName)));
     }
 
-    private CreateIndexClusterStateUpdateRequest buildUpdateRequest(CreateIndexRequest request, String cause, String indexName) {
+    private CreateIndexClusterStateUpdateRequest buildUpdateRequest(CreateIndexRequest request, String cause,
+                                                                    String indexName, long nameResolvedAt) {
         return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .settings(request.settings())
             .mappings(request.mappings())
             .aliases(request.aliases())
+            .nameResolvedInstant(nameResolvedAt)
             .waitForActiveShards(request.waitForActiveShards());
     }
 

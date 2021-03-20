@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.client.Client;
@@ -17,34 +19,37 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.getShrinkIndexName;
+
 /**
  * Shrinks an index, using a prefix prepended to the original index name for the name of the shrunken index.
  */
 public class ShrinkStep extends AsyncActionStep {
     public static final String NAME = "shrink";
+    private static final Logger logger = LogManager.getLogger(ShrinkStep.class);
+
 
     private Integer numberOfShards;
-    private ByteSizeValue maxSinglePrimarySize;
-    private String shrunkIndexPrefix;
+    private ByteSizeValue maxPrimaryShardSize;
 
     public ShrinkStep(StepKey key, StepKey nextStepKey, Client client, Integer numberOfShards,
-                      ByteSizeValue maxSinglePrimarySize, String shrunkIndexPrefix) {
+                      ByteSizeValue maxPrimaryShardSize) {
         super(key, nextStepKey, client);
         this.numberOfShards = numberOfShards;
-        this.maxSinglePrimarySize = maxSinglePrimarySize;
-        this.shrunkIndexPrefix = shrunkIndexPrefix;
+        this.maxPrimaryShardSize = maxPrimaryShardSize;
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 
     public Integer getNumberOfShards() {
         return numberOfShards;
     }
 
-    public ByteSizeValue getMaxSinglePrimarySize() {
-        return maxSinglePrimarySize;
-    }
-
-    String getShrunkIndexPrefix() {
-        return shrunkIndexPrefix;
+    public ByteSizeValue getMaxPrimaryShardSize() {
+        return maxPrimaryShardSize;
     }
 
     @Override
@@ -53,6 +58,15 @@ public class ShrinkStep extends AsyncActionStep {
         if (lifecycleState.getLifecycleDate() == null) {
             throw new IllegalStateException("source index [" + indexMetadata.getIndex().getName() +
                 "] is missing lifecycle date");
+        }
+
+        String shrunkenIndexName = getShrinkIndexName(indexMetadata.getIndex().getName(), lifecycleState);
+        if (currentState.metadata().index(shrunkenIndexName) != null) {
+            logger.warn("skipping [{}] step for index [{}] as part of policy [{}] as the shrunk index [{}] already exists",
+                ShrinkStep.NAME, indexMetadata.getIndex().getName(),
+                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()), shrunkenIndexName);
+            listener.onResponse(true);
+            return;
         }
 
         String lifecycle = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
@@ -67,10 +81,9 @@ public class ShrinkStep extends AsyncActionStep {
         }
         Settings relevantTargetSettings = builder.build();
 
-        String shrunkenIndexName = shrunkIndexPrefix + indexMetadata.getIndex().getName();
         ResizeRequest resizeRequest = new ResizeRequest(shrunkenIndexName, indexMetadata.getIndex().getName())
             .masterNodeTimeout(getMasterTimeout(currentState));
-        resizeRequest.setMaxSinglePrimarySize(maxSinglePrimarySize);
+        resizeRequest.setMaxPrimaryShardSize(maxPrimaryShardSize);
         resizeRequest.getTargetIndexRequest().settings(relevantTargetSettings);
 
         getClient().admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(response -> {
@@ -84,7 +97,7 @@ public class ShrinkStep extends AsyncActionStep {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), numberOfShards, maxSinglePrimarySize, shrunkIndexPrefix);
+        return Objects.hash(super.hashCode(), numberOfShards, maxPrimaryShardSize);
     }
 
     @Override
@@ -98,8 +111,7 @@ public class ShrinkStep extends AsyncActionStep {
         ShrinkStep other = (ShrinkStep) obj;
         return super.equals(obj) &&
                 Objects.equals(numberOfShards, other.numberOfShards) &&
-                Objects.equals(maxSinglePrimarySize, other.maxSinglePrimarySize) &&
-                Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
+                Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize);
     }
 
 }

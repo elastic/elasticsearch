@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -140,6 +141,31 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         DocumentField field = fields.get("object.field");
         assertThat(field.getValues().size(), equalTo(2));
         assertThat(field.getValues(), containsInAnyOrder("value", "value2"));
+    }
+
+    public void testNullValues() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startObject("object").field("field", "value").endObject()
+            .nullField("object.field")
+            .endObject();
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "*");
+        assertThat(fields.size(), equalTo(1));
+
+        DocumentField field = fields.get("object.field");
+        assertThat(field.getValues().size(), equalTo(1));
+        assertThat(field.getValues(), containsInAnyOrder("value"));
+
+        source = XContentFactory.jsonBuilder().startObject()
+            .array("nullable_long_field", 1, 2, 3, null, 5)
+            .endObject();
+        fields = fetchFields(mapperService, source, "*");
+        assertThat(fields.size(), equalTo(1));
+
+        field = fields.get("nullable_long_field");
+        assertThat(field.getValues().size(), equalTo(5));
+        assertThat(field.getValues(), containsInAnyOrder(1L, 2L, 3L, 5L, 42L));
     }
 
     public void testNonExistentField() throws IOException {
@@ -821,6 +847,23 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.get("date_field").getValues().get(1), equalTo("12"));
     }
 
+    /**
+     * Field patterns retrieved with "include_unmapped" use an automaton with a maximal allowed size internally.
+     * This test checks we have a bound in place to avoid misuse of this with exceptionally large field patterns
+     */
+    public void testTooManyUnmappedFieldWildcardPattern() throws IOException {
+        MapperService mapperService = createMapperService();
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("a", "foo").endObject();
+
+        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
+        boolean includeUnmapped = true;
+        for (int i = 0; i < 1000; i++) {
+            fieldAndFormatList.add(new FieldAndFormat(randomAlphaOfLength(150) + "*", null, includeUnmapped));
+        }
+        expectThrows(TooComplexToDeterminizeException.class, () -> fetchFields(mapperService, source, fieldAndFormatList));
+    }
+
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {
         return Collections.singletonList(new FieldAndFormat(name, format, includeUnmapped));
     }
@@ -852,6 +895,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                 .startObject("date_field").field("type", "date").endObject()
                 .startObject("geo_point").field("type", "geo_point").endObject()
                 .startObject("float_range").field("type", "float_range").endObject()
+                .startObject("nullable_long_field").field("type", "long").field("null_value", 42).endObject()
                 .startObject("object")
                     .startObject("properties")
                         .startObject("field").field("type", "keyword").endObject()

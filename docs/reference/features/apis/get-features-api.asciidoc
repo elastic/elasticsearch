@@ -1,0 +1,56 @@
+[[get-features-api]]
+=== Get Features API
+++++
+<titleabbrev>Get features</titleabbrev>
+++++
+
+Gets a list of features which can be included in snapshots using the
+<<create-snapshot-api-feature-states,`feature_states` field>> when creating a
+snapshot.
+
+[source,console]
+-----------------------------------
+GET /_features
+-----------------------------------
+
+[[get-features-api-request]]
+==== {api-request-title}
+
+`GET /_features`
+
+
+[[get-features-api-desc]]
+==== {api-description-title}
+
+You can use the get features API to determine which feature states
+to include when <<snapshots-take-snapshot,taking a snapshot>>. By default, all
+feature states are included in a snapshot if that snapshot includes the global
+state, or none if it does not.
+
+A feature state includes one or more system indices necessary for a given
+feature to function. In order to ensure data integrity, all system indices that
+comprise a feature state are snapshotted and restored together.
+
+The features listed by this API are a combination of built-in features and
+features defined by plugins. In order for a feature's state to be listed in this
+API and recognized as a valid feature state by the create snapshot API, the
+plugin which defines that feature must be installed on the master node.
+
+==== {api-examples-title}
+
+[source,console-result]
+----
+{
+    "features": [
+        {
+            "name": "tasks",
+            "description": "Manages task results"
+        },
+        {
+            "name": "kibana",
+            "description": "Manages Kibana configuration and reports"
+        }
+    ]
+}
+----
+// TESTRESPONSE[skip:response differs between default distro and OSS]

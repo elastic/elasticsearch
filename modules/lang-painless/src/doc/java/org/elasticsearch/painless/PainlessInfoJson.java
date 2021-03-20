@@ -223,7 +223,11 @@ public class PainlessInfoJson {
 
                 JavadocExtractor.ParsedMethod parsedMethod = parsed.getMethod(name, parameterTypes);
                 if ((parsedMethod == null || parsedMethod.isEmpty()) && className.equals(info.getDeclaring()) == false) {
-                    parsedMethod = extractor.parseClass(info.getDeclaring()).getMethod(name, parameterTypes);
+                    JavadocExtractor.ParsedJavaClass parsedDeclared = extractor.parseClass(info.getDeclaring());
+                    parsedMethod = parsedDeclared.getMethod(name, parameterTypes);
+                    if (parsedMethod == null) {
+                        parsedMethod = parsedDeclared.getAugmentedMethod(name, javaNamesToDisplayNames.get(className), parameterTypes);
+                    }
                 }
                 if (parsedMethod != null) {
                     javadoc = parsedMethod.javadoc;

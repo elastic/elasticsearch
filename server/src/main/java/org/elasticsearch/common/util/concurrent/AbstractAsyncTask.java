@@ -50,7 +50,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
         }
     }
 
-    public TimeValue getInterval() {
+    public synchronized TimeValue getInterval() {
         return interval;
     }
 

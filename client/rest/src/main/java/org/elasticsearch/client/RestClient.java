@@ -228,7 +228,7 @@ public class RestClient implements Closeable {
      * Get the list of nodes that the client knows about. The list is
      * unmodifiable.
      */
-    public List<Node> getNodes() {
+    public synchronized List<Node> getNodes() {
         return nodeTuple.nodes;
     }
 

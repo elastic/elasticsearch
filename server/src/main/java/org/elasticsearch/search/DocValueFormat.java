@@ -247,7 +247,7 @@ public interface DocValueFormat extends NamedWriteable {
             this.formatter = isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern);
 
             this.parser = formatter.toDateMathParser();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
                 this.formatSortValues = in.readBoolean();
             } else {
                 this.formatSortValues = false;
@@ -272,7 +272,7 @@ public interface DocValueFormat extends NamedWriteable {
                 //in order not to loose information if the formatter is a joda we send a flag
                 out.writeBoolean(formatter instanceof JodaDateFormatter);//todo pg consider refactor to isJoda method..
             }
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
                 out.writeBoolean(formatSortValues);
             }
         }

@@ -34,6 +34,7 @@ import org.elasticsearch.search.SearchSortValuesAndFormatsTests;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -146,7 +147,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         assertEquals(orig.searchType(), copy.searchType());
         assertEquals(orig.shardId(), copy.shardId());
         assertEquals(orig.numberOfShards(), copy.numberOfShards());
-        assertEquals(orig.cacheKey(), copy.cacheKey());
+        assertEquals(orig.cacheKey(List.of()), copy.cacheKey(List.of()));
         assertNotSame(orig, copy);
         assertEquals(orig.getAliasFilter(), copy.getAliasFilter());
         assertEquals(orig.indexBoost(), copy.indexBoost(), 0.0f);

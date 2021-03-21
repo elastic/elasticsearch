@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
@@ -149,6 +150,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -227,6 +229,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final TimestampFieldMapperService timestampFieldMapperService;
+    private final List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> requestCacheKeyDifferentiators;
 
     @Override
     protected void doStart() {
@@ -246,7 +249,8 @@ public class IndicesService extends AbstractLifecycleComponent
                           Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories, ValuesSourceRegistry valuesSourceRegistry,
                           Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
                           List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners,
-                          Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers) {
+                          Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers,
+                          List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> requestCacheKeyDifferentiators) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -295,6 +299,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.recoveryStateFactories = recoveryStateFactories;
         this.indexFoldersDeletionListeners = new CompositeIndexFoldersDeletionListener(indexFoldersDeletionListeners);
         this.snapshotCommitSuppliers = snapshotCommitSuppliers;
+        this.requestCacheKeyDifferentiators = requestCacheKeyDifferentiators;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -1399,7 +1404,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
-        BytesReference cacheKey = request.cacheKey();
+        BytesReference cacheKey = request.cacheKey(requestCacheKeyDifferentiators);
         BytesReference bytesReference = cacheShardLevelResult(
             context.indexShard(),
             context.getSearchExecutionContext().mappingCacheKey(),

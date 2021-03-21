@@ -9,12 +9,14 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -222,6 +224,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -243,6 +246,7 @@ import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -270,6 +274,7 @@ public class SearchModule {
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private final List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> requestCacheKeyDifferentiators = new ArrayList<>();
 
     /**
      * Constructs a new SearchModule object
@@ -295,6 +300,7 @@ public class SearchModule {
         registerSearchExts(plugins);
         registerShapes();
         registerIntervalsSourceProviders();
+        registerRequestCacheKeyDifferentiators(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
     }
 
@@ -308,6 +314,10 @@ public class SearchModule {
 
     public ValuesSourceRegistry getValuesSourceRegistry() {
         return valuesSourceRegistry;
+    }
+
+    public List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> getRequestCacheKeyDifferentiators() {
+        return requestCacheKeyDifferentiators;
     }
 
     /**
@@ -828,6 +838,10 @@ public class SearchModule {
 
     private void registerIntervalsSourceProviders() {
         namedWriteables.addAll(getIntervalsSourceProviderNamedWritables());
+    }
+
+    private void registerRequestCacheKeyDifferentiators(List<SearchPlugin> plugins) {
+        registerFromPlugin(plugins, SearchPlugin::getRequestCacheKeyDifferentiators, requestCacheKeyDifferentiators::add);
     }
 
     public static List<NamedWriteableRegistry.Entry> getIntervalsSourceProviderNamedWritables() {

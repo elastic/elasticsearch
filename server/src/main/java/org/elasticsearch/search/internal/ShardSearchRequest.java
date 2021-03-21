@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -47,6 +48,7 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -412,10 +414,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     /**
      * Returns the cache key for this shard search request, based on its content
      */
-    public BytesReference cacheKey() throws IOException {
+    public BytesReference cacheKey(
+        List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> differentiators) throws IOException {
         BytesStreamOutput out = scratch.get();
         try {
             this.innerWriteTo(out, true);
+            for (CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> c : differentiators) {
+                c.accept(this, out);
+            }
             // copy it over since we don't want to share the thread-local bytes in #scratch
             return out.copyBytes();
         } finally {

@@ -50,8 +50,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
         AllocateAction.NAME, MigrateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
     static final List<String> ORDERED_VALID_COLD_ACTIONS;
-    static final List<String> ORDERED_VALID_FROZEN_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME,
-        ReadOnlyAction.NAME, SearchableSnapshotAction.NAME, AllocateAction.NAME, MigrateAction.NAME, FreezeAction.NAME);
+    static final List<String> ORDERED_VALID_FROZEN_ACTIONS = Collections.singletonList(SearchableSnapshotAction.NAME);
     static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(WaitForSnapshotAction.NAME, DeleteAction.NAME);
     static final Set<String> VALID_HOT_ACTIONS;
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
@@ -136,10 +135,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
             }
         }
 
-        if (phase.getActions().get(SearchableSnapshotAction.NAME) != null && phase.getName().equals(FROZEN_PHASE) == false) {
-            // the `searchable_snapshot` action defines migration rules itself, so no need to inject a migrate action, unless we're in the
-            // frozen phase (as the migrate action would also include the `data_frozen` role which is not guaranteed to be included by all
-            // types of searchable snapshots)
+        if (phase.getActions().get(SearchableSnapshotAction.NAME) != null) {
+            // Searchable snapshots automatically set their own allocation rules, no need to configure them with a migrate step.
             return false;
         }
 
@@ -301,6 +298,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
         validateActionsFollowingSearchableSnapshot(phases);
         validateAllSearchableSnapshotActionsUseSameRepository(phases);
+        validateFrozenPhaseHasSearchableSnapshotAction(phases);
     }
 
     static void validateActionsFollowingSearchableSnapshot(Collection<Phase> phases) {
@@ -411,6 +409,22 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
         // If we found any invalid phase timings, concatenate their messages and return the message
         return Strings.collectionToCommaDelimitedString(errors);
+    }
+
+    /**
+     * Require that the "frozen" phase configured in a policy has a searchable snapshot action.
+     */
+    static void validateFrozenPhaseHasSearchableSnapshotAction(Collection<Phase> phases) {
+        Optional<Phase> maybeFrozenPhase = phases.stream()
+            .filter(p -> FROZEN_PHASE.equals(p.getName()))
+            .findFirst();
+
+        maybeFrozenPhase.ifPresent(p -> {
+            if (p.getActions().containsKey(SearchableSnapshotAction.NAME) == false) {
+                throw new IllegalArgumentException("policy specifies the [" + FROZEN_PHASE + "] phase without a corresponding [" +
+                    SearchableSnapshotAction.NAME + "] action, but a searchable snapshot action is required in the frozen phase");
+            }
+        });
     }
 
     private static boolean definesAllocationRules(AllocateAction action) {

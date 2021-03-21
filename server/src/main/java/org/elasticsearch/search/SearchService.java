@@ -338,18 +338,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void executeDfsPhase(ShardSearchRequest request, boolean keepStatesInContext,
                                 SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
         final IndexShard shard = getShard(request);
-        rewriteAndFetchShardRequest(shard, request, new ActionListener<ShardSearchRequest>() {
-            @Override
-            public void onResponse(ShardSearchRequest rewritten) {
-                // fork the execution in the search thread pool
-                runAsync(getExecutor(shard), () -> executeDfsPhase(request, task, keepStatesInContext), listener);
-            }
-
-            @Override
-            public void onFailure(Exception exc) {
-                listener.onFailure(exc);
-            }
-        });
+        rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, rewritten) -> {
+            // fork the execution in the search thread pool
+            runAsync(getExecutor(shard), () -> executeDfsPhase(request, task, keepStatesInContext), l);
+        }));
     }
 
     private DfsSearchResult executeDfsPhase(ShardSearchRequest request,
@@ -385,34 +377,26 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
-        rewriteAndFetchShardRequest(shard, request, new ActionListener<ShardSearchRequest>() {
-            @Override
-            public void onResponse(ShardSearchRequest orig) {
-                // check if we can shortcut the query phase entirely.
-                if (orig.canReturnNullResponseIfMatchNoDocs()) {
-                    assert orig.scroll() == null;
-                    final CanMatchResponse canMatchResp;
-                    try {
-                        ShardSearchRequest clone = new ShardSearchRequest(orig);
-                        canMatchResp = canMatch(clone, false);
-                    } catch (Exception exc) {
-                        listener.onFailure(exc);
-                        return;
-                    }
-                    if (canMatchResp.canMatch == false) {
-                        listener.onResponse(QuerySearchResult.nullInstance());
-                        return;
-                    }
+        rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, orig) -> {
+            // check if we can shortcut the query phase entirely.
+            if (orig.canReturnNullResponseIfMatchNoDocs()) {
+                assert orig.scroll() == null;
+                final CanMatchResponse canMatchResp;
+                try {
+                    ShardSearchRequest clone = new ShardSearchRequest(orig);
+                    canMatchResp = canMatch(clone, false);
+                } catch (Exception exc) {
+                    l.onFailure(exc);
+                    return;
                 }
-                // fork the execution in the search thread pool
-                runAsync(getExecutor(shard), () -> executeQueryPhase(orig, task, keepStatesInContext), listener);
+                if (canMatchResp.canMatch == false) {
+                    l.onResponse(QuerySearchResult.nullInstance());
+                    return;
+                }
             }
-
-            @Override
-            public void onFailure(Exception exc) {
-                listener.onFailure(exc);
-            }
-        });
+            // fork the execution in the search thread pool
+            runAsync(getExecutor(shard), () -> executeQueryPhase(orig, task, keepStatesInContext), l);
+        }));
     }
 
     private IndexShard getShard(ShardSearchRequest request) {

@@ -41,7 +41,6 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class GetResult implements Writeable, Iterable<DocumentField>, ToXContentObject {
 
-
     public static final String _INDEX = "_index";
     public static final String _ID = "_id";
     private static final String _VERSION = "_version";

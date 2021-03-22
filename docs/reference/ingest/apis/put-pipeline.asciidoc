@@ -4,8 +4,8 @@
 <titleabbrev>Create or update pipeline</titleabbrev>
 ++++
 
-Creates or updates an ingest pipeline.
-Changes made using this API take effect immediately.
+Creates or updates an <<ingest,ingest pipeline>>. Changes made using this API
+take effect immediately.
 
 [source,console]
 ----
@@ -58,26 +58,16 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 Description of the ingest pipeline.
 
 `processors`::
-+
---
-(Required, array of <<processors,processor objects>>)
-Array of processors used to pre-process documents
-before indexing.
-
-Processors are executed in the order provided.
-
-See <<processors>>.
---
+(Required, array of <<processors,processor>> objects)
+Processors used to preform transformations on documents before indexing.
+Processors run sequentially in the order specified.
 
 `version`::
-+
---
 (Optional, integer)
-Optional version number used by external systems to manage ingest pipelines.
-
-Versions are not used or validated by {es};
-they are intended for external management only.
---
+Version number used by external systems to track ingest pipelines.
++
+This parameter is intended for external systems only. {es} does not use or
+validate pipeline version numbers.
 
 
 [[put-pipeline-api-example]]

@@ -107,13 +107,14 @@ copying data from the primary.
 To search a snapshot, you must first mount it locally as an index. Usually
 {ilm-init} will do this automatically, but you can also call the
 <<searchable-snapshots-api-mount-snapshot,mount snapshot>> API yourself. There
-are two possibilities for the `?storage` mount option, each with different
-performance characteristics and a different local storage footprint:
+are two options for mounting a snapshot, each with different performance
+characteristics and local storage footprints:
 
 [[full-copy]]
 Full copy::
 Loads a full copy of the snapshotted index's shards onto node-local storage
-within the cluster. This is the default mount option.
+within the cluster. This is the default mount option. {ilm-init} uses this
+option by default in the `hot` and `cold` phases.
 +
 Search performance for a full-copy searchable snapshot index is normally
 comparable to a regular index, since there is minimal need to access the
@@ -129,13 +130,13 @@ Shared cache::
 experimental::[]
 +
 Uses a local cache containing only recently searched parts of the snapshotted
-index's data. {ilm-init}-managed indices use this option by default when they
-move into the frozen tier.
+index's data. {ilm-init} uses this option by default in the `frozen` phase and
+corresponding frozen tier.
 +
 If a search requires data that is not in the cache, {es} fetches the missing
 data from the snapshot repository. Searches that require these fetches are
 slower, but the fetched data is stored in the cache so that similar searches
-can be served more quickly in future. {es} will evict infrequently-used data
+can be served more quickly in future. {es} will evict infrequently used data
 from the cache to free up space.
 +
 Although slower than a full local copy or a regular index, a shared-cache

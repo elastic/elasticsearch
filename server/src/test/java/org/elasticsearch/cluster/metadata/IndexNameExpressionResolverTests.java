@@ -1922,13 +1922,15 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             Map.of(
                 "ml",
                 new Feature(
+                    "ml",
                     "ml indices",
                     List.of(new SystemIndexDescriptor(".ml-meta", "ml meta"), new SystemIndexDescriptor(".ml-stuff", "other ml"))
                 ),
                 "watcher",
-                new Feature("watcher indices", List.of(new SystemIndexDescriptor(".watches", "watches index"))),
+                new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches", "watches index"))),
                 "stack-component",
-                new Feature("stack component",
+                new Feature("stack-component",
+                    "stack component",
                     List.of(
                         new SystemIndexDescriptor(
                             ".external-sys-idx",
@@ -2316,11 +2318,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("some-other-index").state(State.OPEN));
         SystemIndices systemIndices = new SystemIndices(
             Map.of("ml",
-                new Feature("ml indices",
+                new Feature("ml", "ml indices",
                     List.of(new SystemIndexDescriptor(".ml-meta", "ml meta"), new SystemIndexDescriptor(".ml-stuff", "other ml"))
                 ),
                 "watcher",
-                new Feature("watcher indices", List.of(new SystemIndexDescriptor(".watches", "watches index")))
+                new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches", "watches index")))
             )
         );
         indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);

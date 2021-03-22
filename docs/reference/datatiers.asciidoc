@@ -87,12 +87,27 @@ For resiliency, indices in the cold tier can rely on
 
 experimental::[]
 
-Once data is no longer being queried, or being queried rarely, it may move from the cold tier
-to the frozen tier where it stays for the rest of its life.
-The frozen tier is a less responsive query tier than the cold tier, and data in the frozen tier
-cannot be updated. The frozen tier holds searchable snapshots mounted using the
-`shared_cache` storage option exclusively. The <<ilm-index-lifecycle, frozen phase>> converts data
-transitioning into the frozen tier into a searchable snapshot, eliminating the need for replicas or even a local copy.
+Once data is no longer being queried, or being queried rarely, it may move from
+the cold tier to the frozen tier where it stays for the rest of its life.
+
+The frozen tier uses <<searchable-snapshots,{search-snaps}>> to store and load
+data from a snapshot repository. Instead of using a full local copy of your
+data, these {search-snaps} use smaller <<shared-cache,local caches>> containing
+only recently searched data. If a search requires data that is not in a cache,
+{es} fetches the data as needed from the snapshot repository. This decouples
+compute and storage, letting you run searches over very large data sets with
+minimal compute resources, which significantly reduces your storage and
+operating costs.
+
+The <<ilm-index-lifecycle, frozen phase>> automatically converts data
+transitioning into the frozen tier into a shared-cache searchable snapshot.
+
+Search is typically slower on the frozen tier than the cold tier, because {es}
+must sometimes fetch data from the snapshot repository.
+
+NOTE: The frozen tier is not yet available on the {ess-trial}[{ess}]. To
+recreate similar functionality, see
+<<searchable-snapshots-frozen-tier-on-cloud>>.
 
 [discrete]
 [[data-tier-allocation]]

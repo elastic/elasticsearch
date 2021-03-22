@@ -194,8 +194,10 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         fields = fetchFields(mapperService, source, "_type");
         assertTrue(fields.isEmpty());
 
-        fields = fetchFields(mapperService, source, "_seq_no");
-        assertTrue(fields.isEmpty());
+        // several other metadata fields throw exceptions via their value fetchers when trying to get them
+        for (String fieldname : List.of("_id", "_index", "_seq_no", "_routing", "_ignored")) {
+            expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
+        }
     }
 
     public void testFetchAllFields() throws IOException {

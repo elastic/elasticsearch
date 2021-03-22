@@ -28,6 +28,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -171,11 +172,61 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
         assertEquals("No field found for [runtime-field] in mapping", e.getCause().getMessage());
     }
 
+    public void testIgnoreScriptErrors() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("message").field("type", "keyword").endObject();
+            b.startObject("message_length");
+            {
+                b.field("type", "long");
+                b.field("script", "message_length");
+            }
+            b.endObject();
+            b.startObject("message_error");
+            {
+                b.field("type", "long");
+                b.field("script", "throws");
+                b.field("on_script_error", "ignore");
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("message", "this is some text")));
+        assertThat(doc.rootDoc().getFields("message_length"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("message_error"), arrayWithSize(0));
+        assertThat(doc.rootDoc().getField("_ignored").stringValue(), equalTo("message_error"));
+    }
+
+    public void testRejectScriptErrors() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("message").field("type", "keyword").endObject();
+            b.startObject("message_length");
+            {
+                b.field("type", "long");
+                b.field("script", "message_length");
+            }
+            b.endObject();
+            b.startObject("message_error");
+            {
+                b.field("type", "long");
+                b.field("script", "throws");
+            }
+            b.endObject();
+        }));
+
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("message", "foo"))));
+        assertThat(e.getMessage(), equalTo("failed to parse"));
+        assertThat(e.getCause().getMessage(), equalTo("Error executing script on field [message_error]"));
+        assertThat(e.getCause().getCause().getMessage(), equalTo("Oops!"));
+    }
+
     private static Consumer<TestLongFieldScript> getLongScript(String name) {
         if ("refer-to-runtime".equals(name)) {
             return s -> {
                 s.emitValue((long) s.getDoc().get("runtime-field").get(0));
             };
+        }
+        if ("throws".equals(name)) {
+            return s -> { throw new RuntimeException("Oops!"); };
         }
         if (name.endsWith("_length")) {
             String field = name.substring(0, name.lastIndexOf("_length"));

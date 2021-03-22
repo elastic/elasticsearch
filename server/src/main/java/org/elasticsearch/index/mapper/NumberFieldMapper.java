@@ -81,6 +81,12 @@ public class NumberFieldMapper extends FieldMapper {
         private final Parameter<Number> nullValue;
 
         private final Parameter<MapperScript<Number>> script;
+        private final Parameter<String> onScriptError = Parameter.restrictedStringParam(
+            "on_script_error",
+            false,
+            m -> toType(m).onScriptError,
+            "reject", "ignore"
+        );
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -123,7 +129,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, script, meta);
+            return List.of(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, script, onScriptError, meta);
         }
 
         @Override
@@ -983,7 +989,7 @@ public class NumberFieldMapper extends FieldMapper {
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
             this.nullValue = nullValue;
-            this.script = script == null ? null : script;
+            this.script = script;
         }
 
         NumberFieldType(String name, Builder builder) {
@@ -1116,6 +1122,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final Explicit<Boolean> coerce;
     private final Number nullValue;
     private final MapperScript<Number> script;
+    private final String onScriptError;
 
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
@@ -1137,6 +1144,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
         this.script = builder.script.get();
+        this.onScriptError = builder.onScriptError.get();
     }
 
     boolean coerce() {
@@ -1218,12 +1226,25 @@ public class NumberFieldMapper extends FieldMapper {
         if (this.script == null) {
             return null;
         }
-        return c -> this.script.executeAndEmit(
-            c.searchLookup,
-            c.leafReaderContext,
-            0,
-            v -> this.indexValue(c.pc, v)
-        );
+        return new PostParseExecutor() {
+            @Override
+            public void execute(PostParseContext context) {
+                script.executeAndEmit(
+                    context.searchLookup,
+                    context.leafReaderContext,
+                    0,
+                    v -> indexValue(context.pc, v));
+            }
+
+            @Override
+            public void onError(PostParseContext context, Exception e) throws IOException {
+                if ("ignore".equals(onScriptError)) {
+                    context.pc.addIgnoredField(name());
+                } else {
+                    throw new IOException("Error executing script on field [" + name() + "]", e);
+                }
+            }
+        };
     }
 
     @Override

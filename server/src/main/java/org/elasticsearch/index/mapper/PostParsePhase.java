@@ -52,7 +52,7 @@ public class PostParsePhase {
      * @param lookup        the MappingLookup to collect executors from
      * @param parseContext  the ParseContext of the current document
      */
-    public static void executePostParsePhases(MappingLookup lookup, ParseContext parseContext) {
+    public static void executePostParsePhases(MappingLookup lookup, ParseContext parseContext) throws IOException {
         PostParsePhase postParsePhase = lookup.buildPostParsePhase(parseContext);
         if (postParsePhase == null) {
             return;
@@ -72,7 +72,7 @@ public class PostParsePhase {
         postParseExecutors.forEach((k, c) -> fieldExecutors.put(k, new OneTimeFieldExecutor(c)));
     }
 
-    void execute() {
+    void execute() throws IOException {
         for (OneTimeFieldExecutor executor : fieldExecutors.values()) {
             executor.execute();
         }
@@ -90,9 +90,13 @@ public class PostParsePhase {
             this.executor = executor;
         }
 
-        void execute() {
+        void execute() throws IOException {
             if (executed == false) {
-                executor.execute(context);
+                try {
+                    executor.execute(context);
+                } catch (Exception e) {
+                    executor.onError(context, e);
+                }
                 executed = true;
             }
         }
@@ -111,7 +115,7 @@ public class PostParsePhase {
             this.calculatedFields = calculatedFields;
         }
 
-        private void checkField(String field) {
+        private void checkField(String field) throws IOException {
             if (calculatedFields.contains(field)) {
                 // this means that a mapper script is referring to another calculated field;
                 // in which case we need to execute that field first. We also check for loops here

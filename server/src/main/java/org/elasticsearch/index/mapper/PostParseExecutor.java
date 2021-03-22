@@ -8,11 +8,15 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.io.IOException;
+
 /**
  * Runs after a document has been parsed
  */
 public interface PostParseExecutor {
 
-    void execute(PostParseContext context);
+    void execute(PostParseContext context) throws IOException;
+
+    void onError(PostParseContext context, Exception e) throws IOException;
 
 }

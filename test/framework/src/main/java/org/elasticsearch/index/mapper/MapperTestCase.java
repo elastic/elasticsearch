@@ -37,7 +37,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -515,8 +514,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
             fieldData.setNextDocId(0);
 
-            PostParseExecutor indexTimeExecutor = context -> {
-                try {
+            PostParseExecutor indexTimeExecutor = new PostParseExecutor() {
+                @Override
+                public void execute(PostParseContext context) throws IOException {
                     ScriptDocValues<?> indexData = fieldType
                         .fielddataBuilder("test", () -> {
                             throw new UnsupportedOperationException();
@@ -528,9 +528,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
                     // compare index and search time fielddata
                     assertThat(fieldData, equalTo(indexData));
+                }
 
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+                @Override
+                public void onError(PostParseContext context, Exception e) throws IOException {
+                    throw new IOException(e);
                 }
             };
 

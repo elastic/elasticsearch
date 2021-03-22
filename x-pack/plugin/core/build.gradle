@@ -106,9 +106,6 @@ tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('forbidden/hasher-signatures.txt')
 }
 
-tasks.withType(JavaCompile).configureEach {
-  options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-}
 
 // make LicenseSigner available for testing signed licenses
 sourceSets.test.resources {

@@ -72,6 +72,8 @@ import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.input.none.NoneInput;
+import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
+import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;
 import org.elasticsearch.xpack.core.watcher.transform.TransformRegistry;
 import org.elasticsearch.xpack.core.watcher.transport.actions.QueryWatchesAction;
@@ -312,7 +314,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         parsers.put(ScriptCondition.TYPE, (c, id, p) -> ScriptCondition.parse(scriptService, id, p));
 
         final ConditionRegistry conditionRegistry = new ConditionRegistry(Collections.unmodifiableMap(parsers), getClock());
-        final Map<String, TransformFactory> transformFactories = new HashMap<>();
+        final Map<String, TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>>
+            transformFactories = new HashMap<>();
         transformFactories.put(ScriptTransform.TYPE, new ScriptTransformFactory(scriptService));
         transformFactories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, xContentRegistry, scriptService));
         final TransformRegistry transformRegistry = new TransformRegistry(Collections.unmodifiableMap(transformFactories));

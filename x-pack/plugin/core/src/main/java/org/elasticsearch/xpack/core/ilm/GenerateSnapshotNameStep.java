@@ -38,7 +38,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
 
     public static final String NAME = "generate-snapshot-name";
 
-    private static final Logger logger = LogManager.getLogger(CreateSnapshotStep.class);
+    private static final Logger logger = LogManager.getLogger(GenerateSnapshotNameStep.class);
 
     private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
         new IndexNameExpressionResolver.DateMathExpressionResolver();

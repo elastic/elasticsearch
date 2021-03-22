@@ -120,7 +120,7 @@ public class SqlSearchIT extends ESRestTestCase {
                 }
             }
         );
-        assertAllTypesWithNodes(expectedResponse, bwcNodes);
+        assertAllTypesWithNodes(expectedResponse, bwcNodes, false);
     }
 
     public void testAllTypesWithRequestToUpgradedNodes() throws Exception {
@@ -149,7 +149,7 @@ public class SqlSearchIT extends ESRestTestCase {
                 }
             }
         );
-        assertAllTypesWithNodes(expectedResponse, newNodes);
+        assertAllTypesWithNodes(expectedResponse, newNodes, true);
     }
 
     @SuppressWarnings("unchecked")
@@ -230,12 +230,14 @@ public class SqlSearchIT extends ESRestTestCase {
         return unmodifiableMap(column);
     }
 
-    private void assertAllTypesWithNodes(Map<String, Object> expectedResponse, List<TestNode> nodesList) throws Exception {
+    private void assertAllTypesWithNodes(Map<String, Object> expectedResponse, List<TestNode> nodesList, boolean asDriver)
+        throws Exception {
         try (
             RestClient client = buildClient(restClientSettings(),
                 nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new))
         ) {
             Request request = new Request("POST", "_sql");
+            String mode = "\"mode\":" + (asDriver ? "\"jdbc\"" : "\"plain\"");
             String version = ",\"version\":\"" + newVersion.toString() + "\"";
             String binaryFormat = ",\"binary_format\":\"false\"";
 
@@ -250,7 +252,7 @@ public class SqlSearchIT extends ESRestTestCase {
                 .collect(Collectors.toList()).stream().collect(Collectors.joining(", "));
             String query = "SELECT " + intervalYearMonth + intervalDayTime + fieldsList + " FROM " + index + " ORDER BY id";
             request.setJsonEntity(
-                "{\"mode\":\"jdbc\"" + version + binaryFormat + ",\"query\":\"" + query + "\"}"
+                "{" + mode + version + binaryFormat + ",\"query\":\"" + query + "\"}"
             );
             assertBusy(() -> { assertResponse(expectedResponse, runSql(client, request)); });
         }

@@ -735,7 +735,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return true;
     }
 
-    synchronized void stopAndSaveState() {
+    synchronized void stopAndMaybeSaveState() {
         onStop();
         IndexerState state = stop();
 

@@ -39,7 +39,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         for (int i = 0; i < numResponse; i++) {
             responses.add(createRandomIndexResponse());
         }
-        randomResponse = new FieldCapabilitiesResponse(responses);
+        randomResponse = new FieldCapabilitiesResponse(responses, Collections.emptyMap());
         return randomResponse;
     }
 

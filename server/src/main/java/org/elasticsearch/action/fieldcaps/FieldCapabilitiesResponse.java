@@ -59,8 +59,8 @@ public class FieldCapabilitiesResponse extends ActionResponse implements StatusT
         this(indices, responseMap, Collections.emptyList(), Collections.emptyMap());
     }
 
-    FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses) {
-        this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses, Collections.emptyMap());
+    FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses, Map<String, Exception> failureMap) {
+        this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses, failureMap);
     }
 
     private FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> responseMap,

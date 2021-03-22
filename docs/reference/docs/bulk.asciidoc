@@ -775,5 +775,5 @@ POST /_bulk
 { "field" : "value2", "home_location": "41.12,-71.34"}
 ----
 
-The bulk request creates two new fields `work_location` and `home_location` with type `geo_point` because 
-of the `dynamic_templates` parameter; however, the `raw_location` field is created with the type `text`.
+The bulk request creates two new fields `work_location` and `home_location` with type `geo_point` according
+to the `dynamic_templates` parameter; however, the `raw_location` field is created with the type `text`.

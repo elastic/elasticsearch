@@ -15,8 +15,8 @@ name
 dotted path to the field
 
 * if a dynamic template does not define `match_mapping_type` nor `match` nor
-`path_match`, then it won't match any field except fields are used with 
-name hints in a <bulk, bulk request>.
+`path_match`, then it won't match any field, but it can be referred to by
+name in `dynamic_templates` as part of a <bulk, bulk request>.
 
 Use the `{name}` and `{dynamic_type}` <<template-variables,template variables>>
 in the mapping specification as placeholders.

@@ -61,22 +61,16 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         if (rarely()) {
             rangeSize = FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.get(Settings.EMPTY);
         } else if (randomBoolean()) {
-            rangeSize = new ByteSizeValue(
-                randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), ByteSizeValue.ofKb(8L).getBytes())
-            );
+            rangeSize = new ByteSizeValue(randomIntBetween(1, 16) * CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes());
         } else {
-            rangeSize = new ByteSizeValue(
-                randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), ByteSizeValue.ofMb(64L).getBytes())
-            );
+            rangeSize = new ByteSizeValue(randomIntBetween(1, 16000) * CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes());
         }
 
         final ByteSizeValue regionSize;
         if (rarely()) {
             regionSize = FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY);
-        } else if (randomBoolean()) {
-            regionSize = new ByteSizeValue(randomLongBetween(ByteSizeValue.ofKb(1L).getBytes(), ByteSizeValue.ofKb(8L).getBytes()));
         } else {
-            regionSize = new ByteSizeValue(randomLongBetween(ByteSizeValue.ofKb(1L).getBytes(), ByteSizeValue.ofMb(64L).getBytes()));
+            regionSize = new ByteSizeValue(randomIntBetween(1, 16) * ByteSizeValue.ofKb(4L).getBytes());
         }
 
         final ByteSizeValue cacheSize;

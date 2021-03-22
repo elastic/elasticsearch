@@ -49,6 +49,10 @@ public class ServiceAccountToken {
         return secret;
     }
 
+    public String getQualifiedName() {
+        return getAccountId().asPrincipal() + "/" + tokenName;
+    }
+
     public SecureString asBearerString() throws IOException {
         try(
             BytesStreamOutput out = new BytesStreamOutput()) {

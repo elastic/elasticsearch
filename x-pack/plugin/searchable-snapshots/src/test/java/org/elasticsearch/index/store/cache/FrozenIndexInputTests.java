@@ -24,6 +24,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.xpack.searchablesnapshots.cache.SharedCacheConfiguration;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -60,35 +61,30 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         final ByteSizeValue rangeSize;
         if (rarely()) {
             rangeSize = FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.get(Settings.EMPTY);
-        } else if (randomBoolean()) {
-            rangeSize = new ByteSizeValue(
-                randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), ByteSizeValue.ofKb(8L).getBytes())
-            );
         } else {
-            rangeSize = new ByteSizeValue(
-                randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), ByteSizeValue.ofMb(64L).getBytes())
+            rangeSize = ByteSizeValue.ofBytes(
+                SharedCacheConfiguration.SMALL_REGION_SIZE + randomIntBetween(1, 1024 * 4) * SharedCacheConfiguration.TINY_REGION_SIZE
             );
         }
 
         final ByteSizeValue regionSize;
         if (rarely()) {
             regionSize = FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY);
-        } else if (randomBoolean()) {
-            regionSize = new ByteSizeValue(randomLongBetween(ByteSizeValue.ofKb(1L).getBytes(), ByteSizeValue.ofKb(8L).getBytes()));
         } else {
-            regionSize = new ByteSizeValue(randomLongBetween(ByteSizeValue.ofKb(1L).getBytes(), ByteSizeValue.ofMb(64L).getBytes()));
+            regionSize = ByteSizeValue.ofBytes(
+                SharedCacheConfiguration.SMALL_REGION_SIZE + randomIntBetween(1, 1024 * 4) * SharedCacheConfiguration.TINY_REGION_SIZE
+            );
         }
 
-        final ByteSizeValue cacheSize;
-        if (rarely()) {
-            cacheSize = regionSize;
-        } else {
-            cacheSize = new ByteSizeValue(randomLongBetween(1L, 10L) * regionSize.getBytes() + randomIntBetween(0, 100));
-        }
+        final ByteSizeValue cacheSize = new ByteSizeValue(
+            randomLongBetween(6L, 10L) * Math.max(regionSize.getBytes(), rangeSize.getBytes()) + randomIntBetween(0, 100)
+        );
 
         final Settings settings = Settings.builder()
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
             .put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
+            .put(SharedCacheConfiguration.SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE.getKey(), 0.25f)
+            .put(SharedCacheConfiguration.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.getKey(), 0.125f)
             .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
             .put("path.home", createTempDir())
             .build();

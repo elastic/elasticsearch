@@ -176,7 +176,7 @@ public class BlobStoreCacheService {
         }
     }
 
-    private static final Set<String> METADATA_FILES_EXTENSIONS;
+    public static final Set<String> METADATA_FILES_EXTENSIONS;
     private static final Set<String> OTHER_FILES_EXTENSIONS;
     static {
         // List of Lucene file extensions that are considered as "metadata" and should therefore be fully cached in the blob store cache.

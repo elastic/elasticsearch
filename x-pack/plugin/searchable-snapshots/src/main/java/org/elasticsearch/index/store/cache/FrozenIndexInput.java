@@ -19,7 +19,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
-import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
@@ -29,6 +28,7 @@ import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
+import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.FrozenCacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.cache.SharedBytes;
 
@@ -40,8 +40,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Consumer;
 
+import static org.elasticsearch.blobstore.cache.BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
@@ -49,7 +49,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
     public static final IOContext CACHE_WARMING_CONTEXT = new IOContext();
 
     private static final Logger logger = LogManager.getLogger(FrozenIndexInput.class);
-    private static final int COPY_BUFFER_SIZE = ByteSizeUnit.KB.toIntBytes(8);
+    public static final int COPY_BUFFER_SIZE = ByteSizeUnit.KB.toIntBytes(8);
 
     private final FrozenCacheFile frozenCacheFile;
     private final int defaultRangeSize;
@@ -91,13 +91,13 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             0L,
             0L,
             fileInfo.length(),
-            directory.getFrozenCacheFile(name, fileInfo.length()),
+            directory.getFrozenCacheFile(name, fileInfo.length(), ByteRange.EMPTY),
             rangeSize,
             recoveryRangeSize,
             directory.getBlobCacheByteRange(name, fileInfo.length()),
             ByteRange.EMPTY
         );
-        assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
+        assert getBufferSize() <= DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
         stats.incrementOpenCount();
     }
 
@@ -226,16 +226,14 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                             cachedRange,
                             cachedRange,
                             (channel, channelPos, relativePos, len) -> Math.toIntExact(len),
-                            (channel, channelPos, relativePos, len, progressUpdater) -> {
+                            (cacheWriter, relativePos, len) -> {
                                 assert len <= cachedBlob.to() - cachedBlob.from();
                                 final long startTimeNanos = stats.currentTimeNanos();
                                 writeCacheFile(
-                                    channel,
+                                    cacheWriter,
                                     cachedBlob.bytes().slice(toIntBytes(relativePos), toIntBytes(len)).streamInput(),
-                                    channelPos,
                                     relativePos,
                                     len,
-                                    progressUpdater,
                                     startTimeNanos
                                 );
                             },
@@ -293,12 +291,12 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                     luceneByteBufLock,
                     stopAsyncReads
                 ),
-                (channel, channelPos, relativePos, len, progressUpdater) -> {
+                (cacheWriter, relativePos, len) -> {
                     final long startTimeNanos = stats.currentTimeNanos();
                     final long streamStartPosition = rangeToWrite.start() + relativePos + compoundFileOffset;
 
                     try (InputStream input = openInputStreamFromBlobStore(streamStartPosition, len)) {
-                        this.writeCacheFile(channel, input, channelPos, relativePos, len, progressUpdater, startTimeNanos);
+                        this.writeCacheFile(cacheWriter, input, relativePos, len, startTimeNanos);
                     }
                 },
                 directory.cacheFetchAsyncExecutor()
@@ -465,15 +463,6 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         return ByteRange.EMPTY;
     }
 
-    private static int positionalWrite(SharedBytes.IO fc, long start, ByteBuffer byteBuffer) throws IOException {
-        assert assertCurrentThreadMayWriteCacheFile();
-        byteBuffer.flip();
-        int written = fc.write(byteBuffer, start);
-        assert byteBuffer.hasRemaining() == false;
-        byteBuffer.clear();
-        return written;
-    }
-
     /**
      * Perform a single {@code read()} from {@code inputStream} into {@code copyBuffer}, handling an EOF by throwing an {@link EOFException}
      * rather than returning {@code -1}. Returns the number of bytes read, which is always positive.
@@ -575,52 +564,26 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         return bytesRead;
     }
 
-    /**
-     * Thread local direct byte buffer to aggregate multiple positional writes to the cache file.
-     */
-    private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
-        () -> ByteBuffer.allocateDirect(COPY_BUFFER_SIZE * 8)
-    );
-
     private void writeCacheFile(
-        final SharedBytes.IO fc,
+        final FrozenCacheService.WriteSession cacheWriter,
         final InputStream input,
-        final long fileChannelPos,
         final long relativePos,
         final long length,
-        final Consumer<Long> progressUpdater,
         final long startTimeNanos
     ) throws IOException {
         assert assertCurrentThreadMayWriteCacheFile();
-        logger.trace(
-            "{}: writing channel {} pos {} length {} (details: {})",
-            fileInfo.physicalName(),
-            fileChannelPos,
-            relativePos,
-            length,
-            frozenCacheFile
-        );
+        logger.trace("{}: writing pos {} length {} (details: {})", fileInfo.physicalName(), relativePos, length, frozenCacheFile);
         final long end = relativePos + length;
         final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
         logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", relativePos, end, frozenCacheFile));
 
         long bytesCopied = 0L;
         long remaining = length;
-        final ByteBuffer buf = writeBuffer.get();
-        buf.clear();
         while (remaining > 0L) {
             final int bytesRead = readSafe(input, copyBuffer, relativePos, end, remaining, frozenCacheFile);
-            if (bytesRead > buf.remaining()) {
-                long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
-                bytesCopied += bytesWritten;
-                progressUpdater.accept(bytesCopied);
-            }
-            buf.put(copyBuffer, 0, bytesRead);
+            bytesCopied += cacheWriter.add(copyBuffer, bytesRead);
             remaining -= bytesRead;
         }
-        long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
-        bytesCopied += bytesWritten;
-        progressUpdater.accept(bytesCopied);
         final long endTimeNanos = stats.currentTimeNanos();
         assert bytesCopied == length;
         stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
@@ -673,13 +636,13 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
 
         if (sliceCompoundFile) {
             sliceCompoundFileOffset = this.offset + sliceOffset;
-            sliceFrozenCacheFile = directory.getFrozenCacheFile(sliceName, sliceLength);
             sliceHeaderByteRange = directory.getBlobCacheByteRange(sliceName, sliceLength);
             if (sliceHeaderByteRange.length() < sliceLength) {
                 sliceFooterByteRange = ByteRange.of(sliceLength - CodecUtil.footerLength(), sliceLength);
             } else {
                 sliceFooterByteRange = ByteRange.EMPTY;
             }
+            sliceFrozenCacheFile = directory.getFrozenCacheFile(sliceName, sliceLength, sliceFooterByteRange);
         } else {
             sliceCompoundFileOffset = this.compoundFileOffset;
             sliceFrozenCacheFile = this.frozenCacheFile;

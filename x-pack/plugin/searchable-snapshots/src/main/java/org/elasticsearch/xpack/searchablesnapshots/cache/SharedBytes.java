@@ -38,8 +38,7 @@ public class SharedBytes extends AbstractRefCounted {
         StandardOpenOption.WRITE,
         StandardOpenOption.CREATE };
 
-    final int numRegions;
-    final long regionSize;
+    final SharedCacheConfiguration sharedCacheConfiguration;
 
     // TODO: for systems like Windows without true p-write/read support we should split this up into multiple channels since positional
     // operations in #IO are not contention-free there (https://bugs.java.com/bugdatabase/view_bug.do?bug_id=6265734)
@@ -47,11 +46,10 @@ public class SharedBytes extends AbstractRefCounted {
 
     private final Path path;
 
-    SharedBytes(int numRegions, long regionSize, NodeEnvironment environment) throws IOException {
+    SharedBytes(SharedCacheConfiguration sharedCacheConfiguration, NodeEnvironment environment) throws IOException {
         super("shared-bytes");
-        this.numRegions = numRegions;
-        this.regionSize = regionSize;
-        final long fileSize = numRegions * regionSize;
+        this.sharedCacheConfiguration = sharedCacheConfiguration;
+        final long fileSize = sharedCacheConfiguration.totalSize();
         Path cacheFile = null;
         if (fileSize > 0) {
             cacheFile = findCacheSnapshotCacheFilePath(environment, fileSize);
@@ -146,38 +144,64 @@ public class SharedBytes extends AbstractRefCounted {
         });
     }
 
-    long getPhysicalOffset(long chunkPosition) {
-        long physicalOffset = chunkPosition * regionSize;
-        assert physicalOffset <= numRegions * regionSize;
-        return physicalOffset;
+    long getPhysicalOffset(long sharedPageIndex) {
+        return sharedCacheConfiguration.getPhysicalOffset(sharedPageIndex);
     }
 
     public final class IO extends AbstractRefCounted {
 
-        private final int sharedBytesPos;
+        private final int pageIndex;
         private final long pageStart;
 
-        private IO(final int sharedBytesPos) {
+        private IO(final int pageIndex) {
             super("shared-bytes-io");
-            this.sharedBytesPos = sharedBytesPos;
-            pageStart = getPhysicalOffset(sharedBytesPos);
+            this.pageIndex = pageIndex;
+            pageStart = getPhysicalOffset(pageIndex);
         }
 
         @SuppressForbidden(reason = "Use positional reads on purpose")
         public int read(ByteBuffer dst, long position) throws IOException {
+            assert refCount() > 0;
             checkOffsets(position, dst.remaining());
-            return fileChannel.read(dst, position);
+            return fileChannel.read(dst, pageStart + position);
         }
 
+        /**
+         * Writes the contents of the given buffer to the requested position. This method assumes that both the size of the buffer as well
+         * as the write position are 4k aligned.
+         *
+         * @param src      byte buffer to write (must have a remaining number of bytes that is a multiple of
+         *                 {@link SharedCacheConfiguration#TINY_REGION_SIZE} and fits into this region fully
+         * @param position position relative to the start index of this instance to write to and that is a multiple of
+         *                 {@link SharedCacheConfiguration#TINY_REGION_SIZE}
+         */
+        public void writeAligned(ByteBuffer src, long position) throws IOException {
+            assert src.remaining() % SharedCacheConfiguration.TINY_REGION_SIZE == 0;
+            assert position % SharedCacheConfiguration.TINY_REGION_SIZE == 0;
+            write(src, position);
+        }
+
+        /**
+         * Same as {@link #writeAligned} but without alignment assumptions on buffer or write position.
+         */
         @SuppressForbidden(reason = "Use positional writes on purpose")
-        public int write(ByteBuffer src, long position) throws IOException {
+        public void write(ByteBuffer src, long position) throws IOException {
+            assert refCount() > 0;
             checkOffsets(position, src.remaining());
-            return fileChannel.write(src, position);
+            fileChannel.write(src, pageStart + position);
+        }
+
+        /**
+         * Returns the maximum size of this cache channel's region.
+         */
+        public long size() {
+            assert refCount() > 0;
+            return sharedCacheConfiguration.regionSizeBySharedPageIndex(pageIndex);
         }
 
         private void checkOffsets(long position, long length) {
-            long pageEnd = pageStart + regionSize;
-            if (position < pageStart || position > pageEnd || position + length > pageEnd) {
+            final long regionSize = sharedCacheConfiguration.regionSizeBySharedPageIndex(pageIndex);
+            if (position < 0 || position + length > regionSize) {
                 assert false;
                 throw new IllegalArgumentException("bad access");
             }
@@ -185,7 +209,7 @@ public class SharedBytes extends AbstractRefCounted {
 
         @Override
         protected void closeInternal() {
-            ios.remove(sharedBytesPos, this);
+            ios.remove(pageIndex, this);
             SharedBytes.this.decRef();
         }
     }

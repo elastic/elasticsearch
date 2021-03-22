@@ -40,6 +40,7 @@ import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.xpack.searchablesnapshots.cache.SharedCacheConfiguration;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -70,6 +71,12 @@ import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
 import static org.elasticsearch.index.store.cache.TestUtils.randomPopulateAndReads;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.SharedCacheConfiguration.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.SharedCacheConfiguration.SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE;
 
 public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTestCase {
 
@@ -150,18 +157,11 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
 
     protected FrozenCacheService randomFrozenCacheService() {
         final Settings.Builder cacheSettings = Settings.builder();
-        if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
-        }
-        if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), randomFrozenCacheSize());
-        }
-        if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
-        }
-        if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
-        }
+        final ByteSizeValue cacheRangeSize = randomFrozenCacheRangeSize();
+        cacheSettings.put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), cacheRangeSize)
+            .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes() * 4))
+            .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE.getKey(), 0.125f)
+            .put(SNAPSHOT_CACHE_TINY_REGION_SIZE_SHARE.getKey(), 0.125f);
         return new FrozenCacheService(nodeEnvironment, cacheSettings.build(), threadPool);
     }
 
@@ -184,8 +184,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         return new FrozenCacheService(
             nodeEnvironment,
             Settings.builder()
-                .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                .put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
+                .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRangeSize.getBytes()))
                 .build(),
             threadPool
         );
@@ -206,25 +206,17 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         return new ByteSizeValue(randomNonNegativeLong());
     }
 
-    protected static ByteSizeValue randomFrozenCacheSize() {
-        return new ByteSizeValue(randomLongBetween(0, 10_000_000));
-    }
-
     /**
      * @return a random {@link ByteSizeValue} that can be used to set {@link CacheService#SNAPSHOT_CACHE_RANGE_SIZE_SETTING}
      */
     protected static ByteSizeValue randomCacheRangeSize() {
-        return new ByteSizeValue(
-            randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), CacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes())
-        );
+        return new ByteSizeValue(randomIntBetween(2, 4) * SharedCacheConfiguration.SMALL_REGION_SIZE);
     }
 
     protected static ByteSizeValue randomFrozenCacheRangeSize() {
         return new ByteSizeValue(
-            randomLongBetween(
-                FrozenCacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(),
-                FrozenCacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes()
-            )
+            randomLongBetween(2, MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes() / (4 * SharedCacheConfiguration.SMALL_REGION_SIZE) + 2)
+                * SharedCacheConfiguration.SMALL_REGION_SIZE
         );
     }
 

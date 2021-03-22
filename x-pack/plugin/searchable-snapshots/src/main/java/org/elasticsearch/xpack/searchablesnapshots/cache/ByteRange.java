@@ -25,7 +25,7 @@ public final class ByteRange implements Comparable<ByteRange> {
         this.start = start;
         this.end = end;
         assert start >= 0L : "Start must be >= 0 but saw [" + start + "]";
-        assert end >= start : "End must be greater or equal to start but saw [" + start + "][" + start + "]";
+        assert end >= start : "End must be greater or equal to start but saw [" + start + "][" + end + "]";
     }
 
     /**
@@ -63,6 +63,21 @@ public final class ByteRange implements Comparable<ByteRange> {
      */
     public boolean isSubRangeOf(ByteRange range) {
         return start >= range.start() && end <= range.end();
+    }
+
+    public boolean hasOverlap(ByteRange other) {
+        return start < other.end && end > other.start;
+    }
+
+    /**
+     * Computes the overlap of the given range with this range in coordinates relative to the start of this range.
+     *
+     * @param other other range
+     * @return relative overlap
+     */
+    public ByteRange relativeOverlap(ByteRange other) {
+        assert hasOverlap(other) : "no overlap between [" + this + "] and [" + other + "]";
+        return ByteRange.of(Math.max(start, other.start()) - start, Math.min(end, other.end()) - start);
     }
 
     public boolean contains(long start, long end) {

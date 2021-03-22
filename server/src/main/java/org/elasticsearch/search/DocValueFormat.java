@@ -228,7 +228,7 @@ public interface DocValueFormat extends NamedWriteable {
                 */
                 in.readBoolean();
             }
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
                 this.formatSortValues = in.readBoolean();
             } else {
                 this.formatSortValues = false;
@@ -252,7 +252,7 @@ public interface DocValueFormat extends NamedWriteable {
                 */
                 out.writeBoolean(false);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
                 out.writeBoolean(formatSortValues);
             }
         }

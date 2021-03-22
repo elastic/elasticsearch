@@ -103,6 +103,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
             equalTo(PhaseCompleteStep.finalStep("hot").getKey())), 30, TimeUnit.SECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70595")
     public void testShrinkActionInPolicyWithoutHotPhase() throws Exception {
         createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1, null));
         createComposableTemplate(client(), template,  dataStream + "*", getTemplate(policyName));

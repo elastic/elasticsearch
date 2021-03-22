@@ -353,8 +353,8 @@ shards].
 Creates a new write index when the current one reaches a certain size, number of
 docs, or age.
 // end::rollover-def-short[]
-A rollover can target a <<data-streams, data stream>> or an
-<<indices-aliases,index alias>> with a write index.
+A rollover can target a <<glossary-data-stream,data stream>> or an
+<<glossary-index-alias,index alias>> with a write index.
 // end::rollover-def[]
 
 ifdef::permanently-unreleased-branch[]

@@ -1,0 +1,53 @@
+{
+  "settings": {},
+  "mappings": {
+    "_doc" : {
+      "dynamic": false,
+      "_meta": {
+        "version": "${fleet.version}"
+      },
+      "properties": {
+        "identifier": {
+          "type": "keyword"
+        },
+        "compressionAlgorithm": {
+          "type": "keyword",
+          "index": false
+        },
+        "encryptionAlgorithm": {
+          "type": "keyword",
+          "index": false
+        },
+        "encodedSha256": {
+          "type": "keyword"
+        },
+        "encodedSize": {
+          "type": "long",
+          "index": false
+        },
+        "decodedSha256": {
+          "type": "keyword"
+        },
+        "decodedSize": {
+          "type": "long",
+          "index": false
+        },
+        "created": {
+          "type": "date"
+        },
+        "packageName": {
+          "type": "keyword"
+        },
+        "type": {
+          "type": "keyword"
+        },
+        "relative_url": {
+          "type": "keyword"
+        },
+        "body": {
+          "type": "binary"
+        }
+      }
+    }
+  }
+}

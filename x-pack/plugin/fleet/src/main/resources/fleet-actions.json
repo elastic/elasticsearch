@@ -1,0 +1,35 @@
+{
+  "settings": {},
+  "mappings": {
+    "_doc" : {
+      "dynamic": false,
+      "_meta": {
+        "version": "${fleet.version}"
+      },
+      "properties": {
+        "action_id": {
+          "type": "keyword"
+        },
+        "agents": {
+          "type": "keyword"
+        },
+        "data": {
+          "enabled": false,
+          "type": "object"
+        },
+        "expiration": {
+          "type": "date"
+        },
+        "input_type": {
+          "type": "keyword"
+        },
+        "@timestamp": {
+          "type": "date"
+        },
+        "type": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}

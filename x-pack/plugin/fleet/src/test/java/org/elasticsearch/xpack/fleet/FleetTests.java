@@ -25,7 +25,15 @@ public class FleetTests extends ESTestCase {
 
         assertThat(
             fleetDescriptors.stream().map(SystemIndexDescriptor::getIndexPattern).collect(Collectors.toList()),
-            containsInAnyOrder(".fleet-servers*", ".fleet-policies*", ".fleet-agents*", ".fleet-actions*")
+            containsInAnyOrder(
+                ".fleet-servers*",
+                ".fleet-policies-[0-9]+*",
+                ".fleet-agents*",
+                ".fleet-actions*",
+                ".fleet-policies-leader*",
+                ".fleet-enrollment-api-keys*",
+                ".fleet-artifacts*"
+            )
         );
 
         assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-servers")));

@@ -1,0 +1,26 @@
+{
+  "settings": {},
+  "mappings": {
+    "_doc" : {
+      "dynamic": false,
+      "_meta": {
+        "version": "${fleet.version}"
+      },
+      "properties": {
+        "server": {
+          "properties": {
+            "id": {
+              "type": "keyword"
+            },
+            "version": {
+              "type": "keyword"
+            }
+          }
+        },
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}

@@ -166,7 +166,7 @@ tasks.named("preProcessFixture").configure {
     createAndSetWritable(
       "${buildDir}/repo",
       "${buildDir}/logs/default-1",
-      "${buildDir}/logs/default-2"
+      "${buildDir}/logs/default-2",
     )
   }
 }

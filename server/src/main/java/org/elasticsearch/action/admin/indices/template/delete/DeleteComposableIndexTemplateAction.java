@@ -56,13 +56,13 @@ public class DeleteComposableIndexTemplateAction extends ActionType<Acknowledged
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (Arrays.stream(names).anyMatch(Strings::hasLength) == false) {
-                validationException = addValidationError("name is missing", validationException);
+                validationException = addValidationError("no template names specified", validationException);
             }
             return validationException;
         }
 
         /**
-         * The index template name to delete.
+         * The index template names to delete.
          */
         public String[] names() {
             return names;

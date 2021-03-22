@@ -61,7 +61,7 @@ GET my-index-000001/_search
 NOTE: Multi-fields do not change the original `_source` field.
 
 TIP: New multi-fields can be added to existing
-fields using the <<indices-put-mapping,PUT mapping API>>.
+fields using the <<indices-put-mapping,update mapping API>>.
 
 ==== Multi-fields with multiple analyzers
 

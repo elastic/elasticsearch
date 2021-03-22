@@ -16,6 +16,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class CountersTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testCounters() {
         Counters counters = new Counters();
         counters.inc("f", 200);

@@ -420,3 +420,13 @@ cluster.
 
 WARNING: Running multiple versions of {es} in the same cluster beyond the
 duration of an upgrade is not supported.
+
+{es} only supports the following APIs via cross-cluster search:
+
+* <<search-search,`_search`>>
+* <<async-search,`_async_search`>>
+* <<search-field-caps,`_field_caps`>>
+
+Only features that exist across all searched clusters are supported. Using
+a recent feature with a remote cluster where the feature is not supported
+will result in undefined behavior.

@@ -167,8 +167,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         final long previousWritesCompleted;
         final long currentSectorsWritten;
         final long previousSectorsWritten;
-        long currentIOTime;
-        long previousIOTime;
+        final long currentIOTime;
+        final long previousIOTime;
 
         public DeviceStats(
                 final int majorDeviceNumber,
@@ -240,6 +240,9 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
                 currentIOTime = in.readLong();
                 previousIOTime = in.readLong();
+            }else {
+                currentIOTime = 0;
+                previousIOTime = 0;
             }
         }
 
@@ -329,7 +332,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         final long totalWriteOperations;
         final long totalReadKilobytes;
         final long totalWriteKilobytes;
-        long totalIOTimeInMillis;
+        final long totalIOTimeInMillis;
 
         public IoStats(final DeviceStats[] devicesStats) {
             this.devicesStats = devicesStats;
@@ -369,6 +372,9 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             this.totalWriteKilobytes = in.readLong();
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
                 this.totalIOTimeInMillis = in.readLong();
+            }
+            else{
+                this.totalIOTimeInMillis = 0;
             }
         }
 

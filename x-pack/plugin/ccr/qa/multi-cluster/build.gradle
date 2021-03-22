@@ -13,10 +13,14 @@ testClusters {
   'leader-cluster' {
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
   }
   'middle-cluster' {
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
     setting 'cluster.remote.leader_cluster.seeds',
             { "\"${testClusters.named('leader-cluster').get().getAllTransportPortURI().join(",")}\"" }
   }
@@ -51,6 +55,9 @@ testClusters.matching { it.name == "follow-cluster" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
   setting 'cluster.remote.leader_cluster.seeds',
     { "\"${testClusters.named('leader-cluster').get().getAllTransportPortURI().join(",")}\"" }
   setting 'cluster.remote.middle_cluster.seeds',

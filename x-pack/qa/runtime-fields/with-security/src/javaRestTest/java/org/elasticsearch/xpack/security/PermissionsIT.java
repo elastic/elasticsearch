@@ -29,8 +29,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
 public class PermissionsIT extends ESRestTestCase {
 
     private static HighLevelClient highLevelClient;

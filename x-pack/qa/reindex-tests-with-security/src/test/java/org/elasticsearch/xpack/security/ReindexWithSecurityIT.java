@@ -33,7 +33,6 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.util.Collections;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 

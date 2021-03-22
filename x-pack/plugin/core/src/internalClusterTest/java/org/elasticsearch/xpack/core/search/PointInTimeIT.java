@@ -415,6 +415,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         }
     }
 
+    @SuppressWarnings({"rawtypes","unchecked"})
     private void assertPagination(PointInTimeBuilder pit, int expectedNumDocs, int size, SortBuilder<?>... sorts) throws Exception {
         Set<String> seen = new HashSet<>();
         SearchRequestBuilder builder = client().prepareSearch()

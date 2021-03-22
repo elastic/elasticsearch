@@ -112,6 +112,7 @@ testClusters.all {
   setting 'indices.lifecycle.history_index_enabled', 'false'
   keystore 'bootstrap.password', 'x-pack-test-password'
   keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+  setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
 
   user username: "x_pack_rest_user", password: "x-pack-test-password"
   user username: "cat_test_user", password: "cat-test-password", role: "cat_test_role"

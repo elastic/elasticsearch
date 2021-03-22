@@ -109,13 +109,16 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         if (randomBoolean()) {
             builder.setNumericType(randomFrom(random(), "long", "double"));
         }
+        if (fieldName.equals("custom_date") && randomBoolean()) {
+            builder.setFormat(randomFrom("yyyy-MM-dd", "yyyy/MM/dd"));
+        }
         return builder;
     }
 
     @Override
     protected FieldSortBuilder mutate(FieldSortBuilder original) throws IOException {
         FieldSortBuilder mutated = new FieldSortBuilder(original);
-        int parameter = randomIntBetween(0, 5);
+        int parameter = randomIntBetween(0, 6);
         switch (parameter) {
         case 0:
             mutated.setNestedSort(
@@ -138,6 +141,9 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         case 5:
             mutated.setNumericType(randomValueOtherThan(original.getNumericType(),
                 () -> randomFrom("long", "double")));
+            break;
+        case 6:
+            mutated.setFormat(randomValueOtherThan(original.getFormat(), () -> randomFrom("yyyy-MM-dd", "yyyy/MM/dd")));
             break;
         default:
             throw new IllegalStateException("Unsupported mutation.");
@@ -328,6 +334,29 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         assertThat(sortField.getShardRequestIndex(), equalTo(searchExecutionContext.getShardRequestIndex()));
         assertThat(sortField.getReverse(), equalTo(reverse));
         assertThat(sortAndFormat.format, equalTo(DocValueFormat.RAW));
+    }
+
+    public void testFormatDateTime() throws Exception {
+        SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
+
+        SortFieldAndFormat sortAndFormat = SortBuilders.fieldSort("custom-date").build(searchExecutionContext);
+        assertThat(sortAndFormat.format.formatSortValue(1615580798601L), equalTo(1615580798601L));
+
+        sortAndFormat = SortBuilders.fieldSort("custom-date").setFormat("yyyy-MM-dd").build(searchExecutionContext);
+        assertThat(sortAndFormat.format.formatSortValue(1615580798601L), equalTo("2021-03-12"));
+
+        sortAndFormat = SortBuilders.fieldSort("custom-date").setFormat("epoch_millis").build(searchExecutionContext);
+        assertThat(sortAndFormat.format.formatSortValue(1615580798601L), equalTo("1615580798601"));
+
+        sortAndFormat = SortBuilders.fieldSort("custom-date").setFormat("yyyy/MM/dd HH:mm:ss").build(searchExecutionContext);
+        assertThat(sortAndFormat.format.formatSortValue(1615580798601L), equalTo("2021/03/12 20:26:38"));
+    }
+
+    public void testInvalidFormat() {
+        SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
+            () -> SortBuilders.fieldSort("custom-keyword").setFormat("yyyy/MM/dd HH:mm:ss").build(searchExecutionContext));
+        assertThat(error.getMessage(), equalTo("Field [custom-keyword] of type [keyword] does not support custom formats"));
     }
 
     @Override

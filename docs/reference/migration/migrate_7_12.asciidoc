@@ -80,3 +80,4 @@ To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
 ////
+//end::notable-breaking-changes[]

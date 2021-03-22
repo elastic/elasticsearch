@@ -10,7 +10,6 @@ package org.elasticsearch.rollup;
 
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchService;
@@ -29,13 +28,16 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROLLUP_SOURCE_UUID;
 public class RollupShardDecider {
 
-    static final Set<String> SUPPORTED_AGGS = Set.of(
+    private static final List<String> ALLOWED_INTERVAL_TYPES = List.of("calendar_interval", "fixed_interval");
+    private static final Set<String> SUPPORTED_AGGS = Set.of(
         DateHistogramAggregationBuilder.NAME,
         TermsAggregationBuilder.NAME,
         MinAggregationBuilder.NAME,
@@ -58,12 +60,11 @@ public class RollupShardDecider {
                                                           IndexMetadata requestIndexMetadata,
                                                           SortedMap<String, IndexAbstraction> indexLookup) throws IOException {
         IndexAbstraction originalIndex = indexLookup.get(requestIndexMetadata.getIndex().getName());
-
         String sourceIndexUuid = requestIndexMetadata.getSettings().get(INDEX_ROLLUP_SOURCE_UUID.getKey(),
             requestIndexMetadata.getIndex().getUUID());
 
         // Index must be member of a data stream and rollup metadata must exist in the index metadata
-        if (originalIndex.getParentDataStream() == null || INDEX_ROLLUP_SOURCE_UUID.exists(requestIndexMetadata.getSettings()) == false) {
+        if (originalIndex.getParentDataStream() == null || requestIndexMetadata.isRollupIndex() == false) {
             return new SearchService.CanMatchResponse(true, null, sourceIndexUuid, null);
         }
 
@@ -72,26 +73,43 @@ public class RollupShardDecider {
             return new SearchService.CanMatchResponse(false, null, sourceIndexUuid, null);
         }
 
-        MappingMetadata indexMapping = requestIndexMetadata.mapping();
-        indexMapping.getSourceAsMap();
-
+        // TODO (csoulios): Timezone and interval validations will eventually move to the AggregationBuilder
         final AggregatorFactories.Builder aggregations = request.source() != null ? request.source().aggregations() : null;
         DateHistogramAggregationBuilder source = getDateHistogramAggregationBuilder(aggregations);
+        String tsField = source.field();
 
-        ZoneId sourceTimeZone = ZoneOffset.UTC; // Default timezone is UTC
-        if (source != null && source.timeZone() != null) {
-            sourceTimeZone = ZoneId.of(source.timeZone().toString(), ZoneId.SHORT_IDS);
+        Map<String, Map<String, Object>> mapingAsMap =
+            (Map<String, Map<String, Object>>) requestIndexMetadata.mapping().sourceAsMap().get("properties");
+
+        if (mapingAsMap == null || mapingAsMap.containsKey(tsField) == false) {
+            throw new IllegalStateException("Rollup index mapping does not contain time time_zone information");
         }
+
+        Map<String, String> timestampMeta = (Map<String, String>) mapingAsMap.get(tsField).get("meta");
+        ZoneId rollupTimeZone = timestampMeta.containsKey("time_zone") ?  ZoneId.of(timestampMeta.get("time_zone")) : ZoneOffset.UTC;
+        ZoneId sourceTimeZone = source != null && source.timeZone() != null ?
+            ZoneId.of(source.timeZone().toString(), ZoneId.SHORT_IDS) : ZoneOffset.UTC; // Default timezone is UTC
+
         DateHistogramInterval sourceInterval = source != null ? source.getCalendarInterval() : null;
+        DateHistogramInterval rollupInterval = null;
+        for (String intervalType : ALLOWED_INTERVAL_TYPES) {
+            if (timestampMeta.containsKey(intervalType)) {
+                rollupInterval  = new DateHistogramInterval(timestampMeta.get(intervalType));
+                break;
+            }
+        }
+        if (rollupInterval == null) {
+            throw new IllegalStateException("Rollup index mapping does not contain time interval information");
+        }
+
         // Incompatible timezone => skip this rollup index
-//        if (canMatchTimezone(sourceTimeZone, rollupIndexMetadata.getDateTimezone().zoneId()) == false
-//            || canMatchCalendarInterval(sourceInterval, rollupIndexMetadata.getDateInterval()) == false) {
-//            return new SearchService.CanMatchResponse(false, null);
-//        }
-//        // Assign index priority to match the rollup interval. Higher intervals have higher priority
-//        // Index priority be evaluated at the coordinator node to select the optimal shard
-//        long priority = rollupIndexMetadata.getDateInterval().estimateMillis();
-        long priority = 0;
+        if (canMatchTimezone(sourceTimeZone, rollupTimeZone) == false
+            || canMatchCalendarInterval(sourceInterval, rollupInterval) == false) {
+            return new SearchService.CanMatchResponse(false, null);
+        }
+        // Assign index priority to match the rollup interval. Higher intervals have higher priority
+        // Index priority be evaluated at the coordinator node to select the optimal shard
+        long priority = rollupInterval.estimateMillis();
 
         return new SearchService.CanMatchResponse(true, null, sourceIndexUuid, priority);
     }
@@ -104,6 +122,7 @@ public class RollupShardDecider {
      *  - Request size must be 0
      *  - Metric aggregations must be supported
      *  - No use of runtime fields in the query
+     *  - Check for any unmapped fields
      *
      * @param request the search request to parse
      * @return true if a rollup index can
@@ -129,6 +148,8 @@ public class RollupShardDecider {
         if (request.getRuntimeMappings().isEmpty() == false) {
             return false;
         }
+
+        //TODO: Check for unmapped fields
         return true;
     }
 

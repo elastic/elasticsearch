@@ -1247,14 +1247,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
 
                     if (RollupV2.isEnabled()) {
-                        IndexMetadata requestIndexMetadata = clusterService.state().getMetadata()
-                                .index(request.shardId().getIndexName());
-
+                        IndexMetadata requestIndexMetadata = context.getIndexSettings().getIndexMetadata();
                         CanMatchResponse rollupCanMatchResponse = RollupShardDecider.canMatch(request, context, requestIndexMetadata,
                             clusterService.state().getMetadata().getIndicesLookup());
 
                         return new CanMatchResponse(rollupCanMatchResponse.canMatch(), minMax,
-                            rollupCanMatchResponse.sourceIndex(),
+                            rollupCanMatchResponse.sourceIndexUuid(),
                             rollupCanMatchResponse.priority());
                     }
                 } else {
@@ -1356,7 +1354,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final class CanMatchResponse extends SearchPhaseResult {
         private final boolean canMatch;
         private final MinAndMax<?> estimatedMinAndMax;
-        private final String sourceIndex;
+        private final String sourceIndexUuid;
         private final Long priority;
 
         public CanMatchResponse(StreamInput in) throws IOException {
@@ -1368,18 +1366,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 estimatedMinAndMax = null;
             }
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                sourceIndex = in.readOptionalString();
+                sourceIndexUuid = in.readOptionalString();
                 priority = in.readOptionalLong();
             } else {
-                sourceIndex = null;
+                sourceIndexUuid = null;
                 priority = null;
             }
         }
 
-        public CanMatchResponse(boolean canMatch, MinAndMax<?> estimatedMinAndMax, String sourceIndex, Long priority) {
+        public CanMatchResponse(boolean canMatch, MinAndMax<?> estimatedMinAndMax, String sourceIndexUuid, Long priority) {
             this.canMatch = canMatch;
             this.estimatedMinAndMax = estimatedMinAndMax;
-            this.sourceIndex = sourceIndex;
+            this.sourceIndexUuid = sourceIndexUuid;
             this.priority = priority;
         }
 
@@ -1394,7 +1392,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 out.writeOptionalWriteable(estimatedMinAndMax);
             }
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalString(sourceIndex);
+                out.writeOptionalString(sourceIndexUuid);
                 out.writeOptionalLong(priority);
             }
         }
@@ -1407,8 +1405,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return estimatedMinAndMax;
         }
 
-        public String sourceIndex() {
-            return sourceIndex;
+        public String sourceIndexUuid() {
+            return sourceIndexUuid;
         }
 
         public Long priority() {

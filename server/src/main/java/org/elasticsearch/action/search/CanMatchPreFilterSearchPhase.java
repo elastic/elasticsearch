@@ -142,7 +142,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     private FixedBitSet chooseOptimalRollupShards(CanMatchSearchPhaseResults results,
                                                   GroupShardsIterator<SearchShardIterator> shardsIts,
                                                   FixedBitSet possibleMatches) {
-        // Map with key the index that will be replaced by an optimal rollup index. The optimal index
+        // Map with key the index UUID that will be replaced by an optimal rollup index. The optimal index
         // will be its substitute. The value is a tuple containing the name of the substitute index
         // and its priority. In the end all indices contained in the keys will be ignored.
         Map<String, Tuple<String, Long>> indexSubstitute = new HashMap<>(shardsIts.size());
@@ -152,34 +152,34 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             CanMatchResponse result = results.getResult(i++);
             if (result.canMatch()) {
                 String indexName = iter.shardId().getIndexName();
-                String indexID = iter.shardId().getIndex().getUUID();
+                String indexUuid = iter.shardId().getIndex().getUUID();
                 Long priority = result.priority();
-                String sourceIndex = result.sourceIndex();
+                String sourceIndexUuid = result.sourceIndexUuid();
                 IndexAbstraction originalIndex = clusterState.getMetadata().getIndicesLookup().get(indexName);
 
                 // If index is not a member of a data stream or is not a rollup index, it will not be replaced
                 // Also, if an index has already been marked to be replaced, it should be skipped.
-                if (originalIndex.getParentDataStream() == null || sourceIndex == null || priority == null
-                    || indexSubstitute.containsKey(indexName)) {
+                if (originalIndex.getParentDataStream() == null || sourceIndexUuid == null || priority == null
+                    || indexSubstitute.containsKey(indexUuid)) {
                     continue;
                 }
 
-                if (indexSubstitute.containsKey(sourceIndex)) {
+                if (indexSubstitute.containsKey(sourceIndexUuid)) {
                     // Retrieve the previously optimal index and compare it with the current index
                     // Find a new optimal index and replace source index and suboptimal rollup index
                     // with the new optimal index.
-                    Tuple<String, Long> previousOptimalIndex = indexSubstitute.get(sourceIndex);
-                    String newOptimalIndex = previousOptimalIndex.v2() >= priority ? previousOptimalIndex.v1() : indexName;
+                    Tuple<String, Long> previousOptimalIndex = indexSubstitute.get(sourceIndexUuid);
+                    String newOptimalIndex = previousOptimalIndex.v2() >= priority ? previousOptimalIndex.v1() : indexUuid;
                     Tuple<String, Long> optimalTuple = Tuple.tuple(newOptimalIndex, Math.max(priority, previousOptimalIndex.v2()));
 
                     // Replace original index with the new optimal index
-                    indexSubstitute.put(sourceIndex, optimalTuple);
+                    indexSubstitute.put(sourceIndexUuid, optimalTuple);
 
                     // Replace suboptimal index with the new optimal index
-                    String suboptimalIndex = indexName.equals(newOptimalIndex) == false ? indexName : previousOptimalIndex.v1();
+                    String suboptimalIndex = indexUuid.equals(newOptimalIndex) == false ? indexUuid : previousOptimalIndex.v1();
                     indexSubstitute.put(suboptimalIndex, optimalTuple);
                 } else {
-                    indexSubstitute.put(sourceIndex, Tuple.tuple(indexName, priority));
+                    indexSubstitute.put(sourceIndexUuid, Tuple.tuple(indexUuid, priority));
                 }
             }
         }
@@ -187,8 +187,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         FixedBitSet newMatches = possibleMatches.clone();
         i = 0;
         for (SearchShardIterator iter : shardsIts) {
-            // TODO: Replace the following with iter.shardId().getIndex().getUUID()
-            if (newMatches.get(i) && indexSubstitute.containsKey(iter.shardId().getIndexName())) {
+            if (newMatches.get(i) && indexSubstitute.containsKey(iter.shardId().getIndex().getUUID())) {
                 newMatches.clear(i);
             }
             i++;

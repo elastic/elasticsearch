@@ -7,9 +7,11 @@
 package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -20,8 +22,11 @@ import java.util.SortedMap;
 
 public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
-    public SearchRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState) {
+    private final ClusterService clusterService;
+
+    public SearchRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, ClusterService clusterService) {
         super(threadPool.getThreadContext(), licenseState);
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -29,6 +34,10 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
                          SortedMap<String, IndicesAccessControl.IndexAccessControl> indexAccessControlByIndex,
                          ActionListener<Void> listener) {
         final SearchRequest request = (SearchRequest) indicesRequest;
+        if (clusterService.state().nodes().getMinNodeVersion().before(Version.V_7_11_2)) {
+            request.requestCache(false);
+        }
+
         final SearchSourceBuilder source = request.source();
 
         if (indexAccessControlByIndex.values().stream().anyMatch(iac -> iac.getDocumentPermissions().hasDocumentLevelPermissions())) {

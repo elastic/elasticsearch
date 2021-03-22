@@ -397,9 +397,7 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
 
-        final XContentFieldType[] types = Arrays.stream(template.getXContentFieldTypes())
-            .filter(t -> template.isRuntimeMapping() == false ||t.supportsRuntimeField())
-            .toArray(XContentFieldType[]::new);
+        final XContentFieldType[] types = template.getXContentFieldTypes();
 
         Exception lastError = null;
         boolean dynamicTemplateInvalid = types.length > 0;

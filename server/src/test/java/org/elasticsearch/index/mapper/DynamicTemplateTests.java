@@ -22,6 +22,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class DynamicTemplateTests extends ESTestCase {
 
     public void testMappingTypeTypeNotSet() {
@@ -249,34 +251,53 @@ public class DynamicTemplateTests extends ESTestCase {
 
         // name-based template
         templateDef = new HashMap<>();
+        if (randomBoolean()) {
+            templateDef.put("match_mapping_type", "*");
+        }
         templateDef.put("match", "*name");
         templateDef.put("unmatch", "first_name");
         templateDef.put("mapping", Collections.singletonMap("store", true));
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match\":\"*name\",\"unmatch\":\"first_name\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
+        assertThat(Strings.toString(builder), equalTo(
+            "{\"match\":\"*name\",\"unmatch\":\"first_name\",\"match_mapping_type\":\"*\",\"mapping\":{\"store\":true}}"));
 
         // path-based template
         templateDef = new HashMap<>();
         templateDef.put("path_match", "*name");
         templateDef.put("path_unmatch", "first_name");
+        if (randomBoolean()) {
+            templateDef.put("match_mapping_type", "*");
+        }
         templateDef.put("mapping", Collections.singletonMap("store", true));
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"path_match\":\"*name\",\"path_unmatch\":\"first_name\",\"mapping\":{\"store\":true}}",
-                Strings.toString(builder));
+        assertThat(Strings.toString(builder), equalTo(
+            "{\"path_match\":\"*name\",\"path_unmatch\":\"first_name\",\"match_mapping_type\":\"*\",\"mapping\":{\"store\":true}}"));
 
         // regex matching
         templateDef = new HashMap<>();
         templateDef.put("match", "^a$");
         templateDef.put("match_pattern", "regex");
+        if (randomBoolean()) {
+            templateDef.put("match_mapping_type", "*");
+        }
         templateDef.put("mapping", Collections.singletonMap("store", true));
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match\":\"^a$\",\"match_pattern\":\"regex\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
+        assertThat(Strings.toString(builder), equalTo(
+            "{\"match\":\"^a$\",\"match_mapping_type\":\"*\",\"match_pattern\":\"regex\",\"mapping\":{\"store\":true}}"));
+
+        // empty condition
+        templateDef = new HashMap<>();
+        templateDef.put("mapping", Collections.singletonMap("store", true));
+        template = DynamicTemplate.parse("my_template", templateDef);
+        builder = JsonXContent.contentBuilder();
+        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertThat(Strings.toString(builder), equalTo("{\"mapping\":{\"store\":true}}"));
     }
 
     public void testSerializationRuntimeMappings() throws Exception {
@@ -293,32 +314,43 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef = new HashMap<>();
         templateDef.put("match", "*name");
         templateDef.put("unmatch", "first_name");
+        if (randomBoolean()) {
+            templateDef.put("match_mapping_type", "*");
+        }
         templateDef.put("runtime", Collections.singletonMap("type", "new_type"));
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match\":\"*name\",\"unmatch\":\"first_name\",\"runtime\":{\"type\":\"new_type\"}}", Strings.toString(builder));
+        assertThat(Strings.toString(builder), equalTo(
+            "{\"match\":\"*name\",\"unmatch\":\"first_name\",\"match_mapping_type\":\"*\",\"runtime\":{\"type\":\"new_type\"}}"));
 
         // path-based template
         templateDef = new HashMap<>();
         templateDef.put("path_match", "*name");
         templateDef.put("path_unmatch", "first_name");
+        if (randomBoolean()) {
+            templateDef.put("match_mapping_type", "*");
+        }
         templateDef.put("runtime", Collections.emptyMap());
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"path_match\":\"*name\",\"path_unmatch\":\"first_name\",\"runtime\":{}}",
-            Strings.toString(builder));
+        assertThat(Strings.toString(builder), equalTo(
+            "{\"path_match\":\"*name\",\"path_unmatch\":\"first_name\",\"match_mapping_type\":\"*\",\"runtime\":{}}"));
 
         // regex matching
         templateDef = new HashMap<>();
         templateDef.put("match", "^a$");
+        if (randomBoolean()) {
+            templateDef.put("match_mapping_type", "*");
+        }
         templateDef.put("match_pattern", "regex");
         templateDef.put("runtime", Collections.emptyMap());
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match\":\"^a$\",\"match_pattern\":\"regex\",\"runtime\":{}}", Strings.toString(builder));
+        assertThat(Strings.toString(builder), equalTo(
+            "{\"match\":\"^a$\",\"match_mapping_type\":\"*\",\"match_pattern\":\"regex\",\"runtime\":{}}"));
     }
 
     public void testMatchTemplateName() throws Exception {

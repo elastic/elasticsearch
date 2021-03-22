@@ -185,20 +185,24 @@ public class DynamicTemplate implements ToXContentObject {
             throw new MapperParsingException("template [" + name + "] must have either mapping or runtime set");
         }
 
-        XContentFieldType[] xContentFieldTypes = new XContentFieldType[0];
-        if (matchMappingType == null) {
-            if (match != null || pathMatch != null) {
+        final XContentFieldType[] xContentFieldTypes;
+        if ("*".equals(matchMappingType) || (matchMappingType == null && (match != null || pathMatch != null))) {
+            if (runtime) {
+                xContentFieldTypes = Arrays.stream(XContentFieldType.values())
+                    .filter(XContentFieldType::supportsRuntimeField)
+                    .toArray(XContentFieldType[]::new);
+            } else {
                 xContentFieldTypes = XContentFieldType.values();
             }
-        } else if (matchMappingType.equals("*")) {
-            xContentFieldTypes = XContentFieldType.values();
-        } else {
+        } else if (matchMappingType != null) {
             final XContentFieldType xContentFieldType = XContentFieldType.fromString(matchMappingType);
             if (runtime && xContentFieldType.supportsRuntimeField() == false) {
                 throw new MapperParsingException("Dynamic template [" + name + "] defines a runtime field but type ["
                     + xContentFieldType + "] is not supported as runtime field");
             }
             xContentFieldTypes = new XContentFieldType[]{xContentFieldType};
+        } else {
+            xContentFieldTypes = new XContentFieldType[0];
         }
 
         final MatchType matchType = MatchType.fromString(matchPattern);
@@ -374,10 +378,13 @@ public class DynamicTemplate implements ToXContentObject {
         if (pathUnmatch != null) {
             builder.field("path_unmatch", pathUnmatch);
         }
-        if (xContentFieldTypes.length == 1) {
-            builder.field("match_mapping_type", xContentFieldTypes[0]);
-        } else if (xContentFieldTypes.length > 1 && match == null && pathMatch == null) {
+        // We have more than one types when (1) `match_mapping_type` is "*", and (2) match and/or path_match are defined but not
+        // `match_mapping_type`, which implicitly means we accepts all match_mapping_type. We can also use "*" for the later case.
+        // TODO: Should we support a list of types in `match_mapping_type`?
+        if (xContentFieldTypes.length > 1) {
             builder.field("match_mapping_type", "*");
+        } else if (xContentFieldTypes.length == 1) {
+            builder.field("match_mapping_type", xContentFieldTypes[0]);
         }
         if (matchType != MatchType.SIMPLE) {
             builder.field("match_pattern", matchType);

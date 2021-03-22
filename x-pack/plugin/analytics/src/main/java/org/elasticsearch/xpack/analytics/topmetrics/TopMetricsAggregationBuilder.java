@@ -63,7 +63,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
         registry.register(
             REGISTRY_KEY,
             org.elasticsearch.common.collect.List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
-            TopMetricsAggregator.GlobalOrdsValues::new,
+            TopMetricsAggregator.SegmentOrdsValues::new,
             false
         );
     }

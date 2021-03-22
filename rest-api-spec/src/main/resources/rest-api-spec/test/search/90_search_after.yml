@@ -246,8 +246,8 @@
 ---
 "Format sort values":
   - skip:
-      version: " - 7.99.99"
-      reason: Format sort output is introduced in 8.0
+      version: " - 7.12.99"
+      reason: Format sort output is introduced in 7.13
 
   - do:
       indices.create:

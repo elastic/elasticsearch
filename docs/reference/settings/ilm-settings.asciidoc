@@ -59,6 +59,13 @@ An index that was rolled over would normally match the full format,
 for example `logs-2016.10.31-000002`). 
 If the index name doesn't match the pattern, index creation fails.
 
+[[index-lifecycle-step-wait-time-threshold]]
+`index.lifecycle.step.wait_time_threshold`::
+(<<indices-update-settings,Dynamic>>, <<time-units,time value>>)
+Time to wait for the cluster to resolve allocation issues during an {ilm-init}
+<<ilm-shrink,`shrink`>> action. Must be greater than `1h` (1 hour). Defaults to
+`12h` (12 hours). See <<ilm-shrink-shard-allocation>>.
+
 `index.lifecycle.rollover_alias`::
 (<<indices-update-settings,Dynamic>>, string) 
 The index alias to update when the index rolls over. Specify when using a

@@ -86,10 +86,6 @@ Example response:
           "available" : true,
           "enabled" : true
       },
-      "flattened" : {
-         "available" : true,
-         "enabled" : true
-      },
       "frozen_indices" : {
          "available" : true,
          "enabled" : true
@@ -119,10 +115,6 @@ Example response:
          "enabled" : true
       },
       "rollup": {
-         "available": true,
-         "enabled": true
-      },
-      "runtime_fields": {
          "available": true,
          "enabled": true
       },

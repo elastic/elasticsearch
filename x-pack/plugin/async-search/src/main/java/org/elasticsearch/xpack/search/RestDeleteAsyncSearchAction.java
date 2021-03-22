@@ -17,15 +17,12 @@ import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
-public class RestDeleteAsyncSearchAction extends BaseRestHandler  {
+public class RestDeleteAsyncSearchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(DELETE, "/_async_search/{id}")));
+        return org.elasticsearch.common.collect.List.of(new Route(DELETE, "/_async_search/{id}"));
     }
 
     @Override

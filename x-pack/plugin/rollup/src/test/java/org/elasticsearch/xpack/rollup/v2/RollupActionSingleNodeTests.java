@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.rollup.v2;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -65,6 +66,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/69799")
 public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
@@ -91,9 +93,11 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "date_1", "type=date",
                 "numeric_1", "type=double",
                 "numeric_2", "type=float",
+                "numeric_nonaggregatable", "type=double,doc_values=false",
                 "categorical_1", "type=keyword").get();
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/69506")
     public void testRollupShardIndexerCleansTempFiles() throws IOException {
         // create rollup config and index documents into source index
         RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
@@ -136,6 +140,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString("Unable to rollup index [" + index + "]"));
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/69506")
     public void testTemporaryIndexDeletedOnRollupFailure() throws Exception {
         RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
@@ -254,6 +259,21 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
+    }
+
+    public void testValidationCheck() throws IOException {
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
+            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            // use integers to ensure that avg is comparable between rollup and original
+            .field("numeric_nonaggregatable", randomInt())
+            .endObject();
+        RollupActionConfig config = new RollupActionConfig(
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
+            Collections.singletonList(new MetricConfig("numeric_nonaggregatable", Collections.singletonList("avg"))));
+        bulkIndex(sourceSupplier);
+        Exception e = expectThrows(Exception.class, () -> rollup(config));
+        assertThat(e.getMessage(), containsString("The field [numeric_nonaggregatable] must be aggregatable"));
     }
 
     private RollupActionDateHistogramGroupConfig randomRollupActionDateHistogramGroupConfig(String field) {

@@ -532,6 +532,7 @@ Test nested field inside object structure:
            index: test
            body:
               _source: false
+              sort: "obj.other_obj_field"
               fields: [ "*" ]
   - length: { hits.hits.0.fields : 2 }
   - match:
@@ -551,10 +552,13 @@ Test nested field inside object structure:
         search:
            index: test
            body:
+              sort: "obj.other_obj_field"
               _source: false
               fields: ["obj.other_obj_field"]
   - match:
         hits.hits.0.fields.obj\.other_obj_field.0: other_value
+  - match:
+        hits.hits.1.fields.obj\.other_obj_field.0: other_value2
 
   -  do:
         search:

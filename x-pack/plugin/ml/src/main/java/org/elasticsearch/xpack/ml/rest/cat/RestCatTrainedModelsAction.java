@@ -39,8 +39,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
 
@@ -48,9 +46,10 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return org.elasticsearch.common.collect.List.of(
             new Route(GET, "_cat/ml/trained_models"),
-            new Route(GET, "_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}")));
+            new Route(GET, "_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
+        );
     }
 
     @Override
@@ -65,7 +64,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             modelId = Metadata.ALL;
         }
         GetTrainedModelsStatsAction.Request statsRequest = new GetTrainedModelsStatsAction.Request(modelId);
-        GetTrainedModelsAction.Request modelsAction = new GetTrainedModelsAction.Request(modelId, false, null);
+        GetTrainedModelsAction.Request modelsAction = new GetTrainedModelsAction.Request(modelId, null, Collections.emptySet());
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             statsRequest.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                 restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
@@ -207,22 +206,14 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
                                                                         final int size,
                                                                         final List<TrainedModelConfig> configs,
                                                                         final ActionListener<Table> listener) {
-        return new GroupedActionListener<>(new ActionListener<Collection<ActionResponse>>() {
-            @Override
-            public void onResponse(final Collection<ActionResponse> responses) {
-                GetTrainedModelsStatsAction.Response statsResponse = extractResponse(responses, GetTrainedModelsStatsAction.Response.class);
-                GetDataFrameAnalyticsAction.Response analytics = extractResponse(responses, GetDataFrameAnalyticsAction.Response.class);
-                listener.onResponse(buildTable(request,
+        return new GroupedActionListener<>(listener.delegateFailure((l, responses) -> {
+            GetTrainedModelsStatsAction.Response statsResponse = extractResponse(responses, GetTrainedModelsStatsAction.Response.class);
+            GetDataFrameAnalyticsAction.Response analytics = extractResponse(responses, GetDataFrameAnalyticsAction.Response.class);
+            l.onResponse(buildTable(request,
                     statsResponse.getResources().results(),
                     configs,
                     analytics == null ? Collections.emptyList() : analytics.getResources().results()));
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                listener.onFailure(e);
-            }
-        }, size);
+        }), size);
     }
 
 

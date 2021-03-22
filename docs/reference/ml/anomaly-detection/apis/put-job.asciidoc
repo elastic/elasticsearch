@@ -224,7 +224,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=categorization-examples-limit]
 
 `model_memory_limit`:::
 (long or string) 
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-ad]
 ====
 //End analysis_limits
 

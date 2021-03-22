@@ -81,6 +81,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -156,6 +157,13 @@ public class JobResultsProvider {
     private static final double ESTABLISHED_MEMORY_CV_THRESHOLD = 0.1;
     public static final Version HIDDEN_INTRODUCED_VERSION = Version.V_7_7_0;
 
+    // filter for quantiles in modelSnapshots to avoid memory overhead
+    private static final FetchSourceContext REMOVE_QUANTILES_FROM_SOURCE = new FetchSourceContext(
+        true,
+        null,
+        new String[] { ModelSnapshot.QUANTILES.getPreferredName() }
+    );
+
     private final Client client;
     private final Settings settings;
     private final IndexNameExpressionResolver resolver;
@@ -202,7 +210,8 @@ public class JobResultsProvider {
                 .add(resultDocSearch)
                 .add(quantilesDocSearch);
 
-        ActionListener<MultiSearchResponse> searchResponseActionListener = new ActionListener<MultiSearchResponse>() {
+        ActionListener<MultiSearchResponse> searchResponseActionListener =
+                new ActionListener.Delegating<MultiSearchResponse, Boolean>(listener) {
             @Override
             public void onResponse(MultiSearchResponse response) {
                 List<SearchHit> searchHits = new ArrayList<>();
@@ -224,14 +233,14 @@ public class JobResultsProvider {
                                 }
                             }
                         }
-                        listener.onFailure(e);
+                        delegate.onFailure(e);
                         return;
                     }
                     searchHits.addAll(Arrays.asList(itemResponse.getResponse().getHits().getHits()));
                 }
 
                 if (searchHits.isEmpty()) {
-                    listener.onResponse(true);
+                    delegate.onResponse(true);
                 } else {
                     int quantileDocCount = 0;
                     int categorizerStateDocCount = 0;
@@ -251,16 +260,11 @@ public class JobResultsProvider {
                     LOGGER.warn("{} result, {} quantile state and {} categorizer state documents exist for a prior job with Id [{}]",
                             resultDocCount, quantileDocCount, categorizerStateDocCount, job.getId());
 
-                    listener.onFailure(ExceptionsHelper.conflictStatusException(
+                    delegate.onFailure(ExceptionsHelper.conflictStatusException(
                                     "[" + resultDocCount + "] result and [" + (quantileDocCount + categorizerStateDocCount) +
                             "] state documents exist for a prior job with Id [" + job.getId() + "]. " +
                                             "Please create the job with a different Id"));
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
             }
         };
 
@@ -416,17 +420,9 @@ public class JobResultsProvider {
             final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName)
                     .setType(mappingType)
                     .setSource(termFieldsMapping).request();
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, new ActionListener<AcknowledgedResponse>() {
-                @Override
-                public void onResponse(AcknowledgedResponse putMappingResponse) {
-                    listener.onResponse(putMappingResponse.isAcknowledged());
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            }, client.admin().indices()::putMapping);
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
+                    listener.<AcknowledgedResponse>delegateFailure((l, putMappingResponse) ->
+                            l.onResponse(putMappingResponse.isAcknowledged())), client.admin().indices()::putMapping);
         } catch (IOException e) {
             listener.onFailure(e);
         }
@@ -1022,6 +1018,8 @@ public class JobResultsProvider {
     /**
      * Get model snapshots for the job ordered by descending timestamp (newest first).
      *
+     * Note: quantiles are removed from the results.
+     *
      * @param jobId the job id
      * @param from  number of snapshots to from
      * @param size  number of snapshots to retrieve
@@ -1033,6 +1031,8 @@ public class JobResultsProvider {
 
     /**
      * Get model snapshots for the job ordered by descending restore priority.
+     *
+     * Note: quantiles are removed from the results.
      *
      * @param jobId          the job id
      * @param from           number of snapshots to from
@@ -1098,6 +1098,7 @@ public class JobResultsProvider {
         sourceBuilder.from(from);
         sourceBuilder.size(size);
         sourceBuilder.trackTotalHits(true);
+        sourceBuilder.fetchSource(REMOVE_QUANTILES_FROM_SOURCE);
         searchRequest.source(sourceBuilder);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(searchResponse -> {

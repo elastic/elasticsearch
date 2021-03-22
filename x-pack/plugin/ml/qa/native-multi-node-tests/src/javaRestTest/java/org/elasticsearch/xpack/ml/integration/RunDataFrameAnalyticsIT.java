@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +40,8 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -49,25 +50,9 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
-    @Before
-    public void enableLogging() {
-        client().admin().cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
-                .put("logger.org.elasticsearch.xpack.ml.action", "DEBUG")
-                .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG"))
-            .get();
-    }
-
     @After
     public void cleanup() {
         cleanUp();
-        client().admin().cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
-                .putNull("logger.org.elasticsearch.xpack.ml.action")
-                .putNull("logger.org.elasticsearch.xpack.ml.dataframe"))
-            .get();
     }
 
     public void testOutlierDetectionWithFewDocuments() throws Exception {
@@ -156,6 +141,41 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started analyzing",
             "Started writing results",
             "Finished analysis");
+    }
+
+    public void testPreview() throws Exception {
+        String sourceIndex = "test-outlier-detection-preview";
+
+        client().admin().indices().prepareCreate(sourceIndex)
+            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=unsigned_long", "categorical_1", "type=keyword")
+            .get();
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        for (int i = 0; i < 5; i++) {
+            IndexRequest indexRequest = new IndexRequest(sourceIndex);
+
+            // We insert one odd value out of 5 for one feature
+            String docId = i == 0 ? "outlier" : "normal" + i;
+            indexRequest.id(docId);
+            indexRequest.source("numeric_1", i == 0 ? 100.0 : 1.0, "numeric_2", 1, "categorical_1", "foo_" + i);
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        String id = "test_outlier_detection_preview";
+        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
+            new OutlierDetection.Builder().build());
+        putAnalytics(config);
+        List<Map<String, Object>> preview = previewDataFrame(id).getFeatureValues();
+        for (Map<String, Object> feature : preview) {
+            assertThat(feature.keySet(), hasItems("numeric_1", "numeric_2"));
+            assertThat(feature, not(hasKey("categorical_1")));
+        }
     }
 
     public void testOutlierDetectionWithEnoughDocumentsToScroll() throws Exception {
@@ -581,7 +601,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Stopped analytics");
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/67889")
     public void testOutlierDetectionStopAndRestart() throws Exception {
         String sourceIndex = "test-outlier-detection-stop-and-restart";
 

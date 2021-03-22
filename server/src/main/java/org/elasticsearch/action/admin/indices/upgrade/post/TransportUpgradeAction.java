@@ -110,11 +110,16 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
     }
 
     @Override
-    protected ShardUpgradeResult shardOperation(UpgradeRequest request, ShardRouting shardRouting, Task task) throws IOException {
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex()).getShard(shardRouting.shardId().id());
-        org.apache.lucene.util.Version oldestLuceneSegment = indexShard.upgrade(request);
-        // We are using the current version of Elasticsearch as upgrade version since we update mapping to match the current version
-        return new ShardUpgradeResult(shardRouting.shardId(), indexShard.routingEntry().primary(), Version.CURRENT, oldestLuceneSegment);
+    protected void shardOperation(UpgradeRequest request, ShardRouting shardRouting, Task task,
+                                  ActionListener<ShardUpgradeResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex())
+                .getShard(shardRouting.shardId().id());
+            org.apache.lucene.util.Version oldestLuceneSegment = indexShard.upgrade(request);
+            // We are using the current version of Elasticsearch as upgrade version since we update mapping to match the current version
+            return new ShardUpgradeResult(shardRouting.shardId(), indexShard.routingEntry().primary(), Version.CURRENT,
+                oldestLuceneSegment);
+        });
     }
 
     @Override
@@ -180,7 +185,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
 
     private void updateSettings(final UpgradeResponse upgradeResponse, final ActionListener<UpgradeResponse> listener) {
         UpgradeSettingsRequest upgradeSettingsRequest = new UpgradeSettingsRequest(upgradeResponse.versions());
-        client.executeLocally(UpgradeSettingsAction.INSTANCE, upgradeSettingsRequest, ActionListener.delegateFailure(
-            listener, (delegatedListener, updateSettingsResponse) -> delegatedListener.onResponse(upgradeResponse)));
+        client.executeLocally(UpgradeSettingsAction.INSTANCE, upgradeSettingsRequest,
+            listener.delegateFailure((delegatedListener, updateSettingsResponse) -> delegatedListener.onResponse(upgradeResponse)));
     }
 }

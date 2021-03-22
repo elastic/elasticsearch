@@ -47,7 +47,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -379,6 +378,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             @Override
             public MappedFieldType getFieldType(String path) {
                 return mapperService.fieldType(path);
+            }
+
+            @Override
+            public Collection<MappedFieldType> getFieldTypes() {
+                throw new UnsupportedOperationException();
             }
 
             @Override

@@ -38,7 +38,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -63,6 +62,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -342,6 +342,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
+     * Returns the registered mapped field types.
+     */
+    public Collection<MappedFieldType> getFieldTypes() {
+        List<MappedFieldType> fields = new ArrayList<>(mappingLookup.fieldTypes());
+        fields.addAll(runtimeMappings.values());
+        return fields;
+    }
+
+    /**
      * Returns true if the field identified by the provided name is mapped, false otherwise
      */
     public boolean isFieldMapped(String name) {
@@ -367,14 +376,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public boolean isSourceEnabled() {
         return mappingLookup.isSourceEnabled();
-    }
-
-    /**
-     * Returns s {@link DocumentMapper} instance for the given type.
-     * Delegates to {@link MapperService#documentMapper(String)}
-     */
-    public DocumentMapper documentMapper(String type) {
-        return mapperService.documentMapper(type);
     }
 
     /**
@@ -446,8 +447,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public Collection<String> queryTypes() {
         String[] types = getTypes();
         if (types == null || types.length == 0 || (types.length == 1 && types[0].equals("_all"))) {
-            DocumentMapper mapper = mapperService.documentMapper();
-            return mapper == null ? Collections.emptyList() : Collections.singleton(mapper.type());
+            return mappingLookup == MappingLookup.EMPTY ? Collections.emptyList() : Collections.singleton(mappingLookup.getType());
         }
         return Arrays.asList(types);
     }

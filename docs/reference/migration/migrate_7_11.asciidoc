@@ -10,6 +10,7 @@ your application to {es} 7.11.
 See also <<release-highlights>> and <<es-release-notes>>.
 
 * <<breaking_711_ml_changes>>
+* <<breaking_711_rest_changes>>
 * <<breaking_711_search_changes>>
 * <<breaking_711_transform_changes>>
 
@@ -43,6 +44,24 @@ enable <<deprecation-logging, deprecation logging>>.
 *Details* +
 The {ref}/get-trained-models.html[get trained models API] no longer accepts `for_export`.
 Use `exclude_generated` instead.
+====
+
+[discrete]
+[[breaking_711_rest_changes]]
+==== REST API changes
+
+.REST APIs that do not use a request body now return an error if a body is provided.
+[%collapsible]
+====
+*Details* +
+Several {es} REST APIs do not use a request body. In previous versions, you
+could provide a request body when calling these APIs, and {es} would ignore the
+body. These APIs now return an error if you provide a request body, even if
+empty.
+
+*Impact* +
+Update your application or workflow to avoid sending unneeded request bodies
+in REST API requests.
 ====
 
 [discrete]

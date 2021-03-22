@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -578,7 +577,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         @Override
         public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-            throw new CollectionTerminatedException();
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
         @Override

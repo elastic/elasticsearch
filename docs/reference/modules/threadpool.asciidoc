@@ -136,8 +136,7 @@ thread_pool:
 
 experimental[]
 
-deprecated[7.7.0,The experimental `fixed_auto_queue_size` thread pool type is
-deprecated and will be removed in 8.0.]
+deprecated[7.7.0,The experimental `fixed_auto_queue_size` thread pool type is deprecated and will be removed in 8.0.]
 
 The `fixed_auto_queue_size` thread pool holds a fixed size of threads to handle
 the requests with a bounded queue for pending requests that have no threads to

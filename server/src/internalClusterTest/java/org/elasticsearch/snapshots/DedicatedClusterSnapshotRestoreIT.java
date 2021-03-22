@@ -33,12 +33,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
@@ -588,7 +588,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     public void testSnapshotWithDateMath() {
         final String repo = "repo";
 
-        final IndexNameExpressionResolver nameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        final IndexNameExpressionResolver nameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         final String snapshotName = "<snapshot-{now/d}>";
 
         logger.info("-->  creating repository");
@@ -1017,9 +1017,32 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         awaitNoMoreRunningOperations();
         SnapshotInfo snapshotInfo = getSnapshot(repoName, "test-snap");
-        assertThat(snapshotInfo.state(), equalTo(SnapshotState.PARTIAL));
-        assertThat(snapshotInfo.shardFailures().size(), greaterThan(0));
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         logger.info("--> done");
+    }
+
+    public void testPartialSnapshotsDoNotRecordDeletedShardFailures() throws Exception {
+        internalCluster().startMasterOnlyNodes(1);
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+
+        final String firstIndex = "index-one";
+        createIndexWithContent(firstIndex);
+        final String secondIndex = "index-two";
+        createIndexWithContent(secondIndex);
+
+        final String snapshot = "snapshot-one";
+        blockDataNode(repoName, dataNode);
+        final ActionFuture<CreateSnapshotResponse> snapshotResponse = startFullSnapshot(repoName, snapshot, true);
+        waitForBlock(dataNode, repoName);
+
+        assertAcked(client().admin().indices().prepareDelete(firstIndex));
+
+        unblockNode(repoName, dataNode);
+
+        SnapshotInfo snapshotInfo = assertSuccessful(snapshotResponse);
+        assertThat(snapshotInfo.shardFailures(), empty());
     }
 
     public void testGetReposWithWildcard() {

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.rest.filter;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -14,31 +15,24 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 public class RestGetFiltersAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
-            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}"),
-            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "filters/",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "filters/")
-        ));
+        return org.elasticsearch.common.collect.List.of(
+            Route.builder(GET, BASE_PATH + "filters/{" + MlFilter.ID + "}")
+                .replaces(GET, PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID + "}", RestApiVersion.V_7).build(),
+            Route.builder(GET, BASE_PATH + "filters/")
+                .replaces(GET, PRE_V7_BASE_PATH + "filters/", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

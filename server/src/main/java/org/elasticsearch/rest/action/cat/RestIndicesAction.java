@@ -105,10 +105,11 @@ public class RestIndicesAction extends AbstractCatAction {
                 }
             });
 
-            sendGetSettingsRequest(indices, indicesOptions, local, masterNodeTimeout, client, new ActionListener<GetSettingsResponse>() {
+            sendGetSettingsRequest(indices, indicesOptions, local, masterNodeTimeout, client,
+                    new ActionListener.Delegating<GetSettingsResponse, Table>(listener) {
                 @Override
                 public void onResponse(final GetSettingsResponse getSettingsResponse) {
-                    final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(request, 4, listener);
+                    final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(request, 4, delegate);
                     groupedListener.onResponse(getSettingsResponse);
 
                     // The list of indices that will be returned is determined by the indices returned from the Get Settings call.
@@ -131,11 +132,6 @@ public class RestIndicesAction extends AbstractCatAction {
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
                     sendClusterHealthRequest(indices, subRequestIndicesOptions, local, masterNodeTimeout, client,
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    listener.onFailure(e);
                 }
             });
         };
@@ -214,7 +210,7 @@ public class RestIndicesAction extends AbstractCatAction {
 
     private GroupedActionListener<ActionResponse> createGroupedListener(final RestRequest request, final int size,
                                                                         final ActionListener<Table> listener) {
-        return new GroupedActionListener<>(new ActionListener<Collection<ActionResponse>>() {
+        return new GroupedActionListener<>(new ActionListener.Delegating<Collection<ActionResponse>, Table>(listener) {
             @Override
             public void onResponse(final Collection<ActionResponse> responses) {
                 try {
@@ -234,15 +230,10 @@ public class RestIndicesAction extends AbstractCatAction {
                     Map<String, IndexStats> indicesStats = statsResponse.getIndices();
 
                     Table responseTable = buildTable(request, indicesSettings, indicesHealths, indicesStats, indicesStates);
-                    listener.onResponse(responseTable);
+                    delegate.onResponse(responseTable);
                 } catch (Exception e) {
                     onFailure(e);
                 }
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                listener.onFailure(e);
             }
         }, size);
     }

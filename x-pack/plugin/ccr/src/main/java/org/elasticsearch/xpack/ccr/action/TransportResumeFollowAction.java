@@ -445,7 +445,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         nonReplicatedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
         nonReplicatedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING);
         nonReplicatedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING);
-        nonReplicatedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING);
 
         nonReplicatedSettings.add(MergeSchedulerConfig.AUTO_THROTTLE_SETTING);
         nonReplicatedSettings.add(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING);

@@ -13,15 +13,15 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -189,9 +189,10 @@ public class AutoCreateIndexTests extends ESTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(settings,
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SystemIndices systemIndices = EmptySystemIndices.INSTANCE;
         AutoCreateIndex autoCreateIndex = new AutoCreateIndex(settings, clusterSettings,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            new SystemIndices(emptyMap()));
+            TestIndexNameExpressionResolver.newInstance(systemIndices),
+            systemIndices);
         assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(value));
 
         Settings newSettings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), value == false).build();
@@ -305,14 +306,10 @@ public class AutoCreateIndexTests extends ESTestCase {
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
         SystemIndices systemIndices = new SystemIndices(org.elasticsearch.common.collect.Map.of(
-            "plugin",
-            new SystemIndices.Feature(
-                "test feature",
-                org.elasticsearch.common.collect.List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, ""))
-            )
-        ));
-        return new AutoCreateIndex(settings, new ClusterSettings(settings,
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), systemIndices);
+            "plugin", new SystemIndices.Feature("plugin", "test feature",
+                singletonList(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, "")))));
+        return new AutoCreateIndex(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            TestIndexNameExpressionResolver.newInstance(systemIndices), systemIndices);
     }
 
     private void expectNotMatch(ClusterState clusterState, AutoCreateIndex autoCreateIndex, String index) {

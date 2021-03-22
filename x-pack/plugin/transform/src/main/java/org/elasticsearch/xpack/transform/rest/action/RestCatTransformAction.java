@@ -34,8 +34,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
@@ -43,9 +41,10 @@ public class RestCatTransformAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return org.elasticsearch.common.collect.List.of(
             new Route(GET, "_cat/transforms"),
-            new Route(GET, "_cat/transforms/{" + TransformField.TRANSFORM_ID + "}")));
+            new Route(GET, "_cat/transforms/{" + TransformField.TRANSFORM_ID + "}")
+        );
     }
 
     @Override

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.rest.action.rolemapping;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -21,8 +22,6 @@ import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -41,16 +40,12 @@ public class RestPutRoleMappingAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
-            new ReplacedRoute(POST, "/_security/role_mapping/{name}", POST, "/_xpack/security/role_mapping/{name}"),
-            new ReplacedRoute(PUT, "/_security/role_mapping/{name}", PUT, "/_xpack/security/role_mapping/{name}")
-        ));
+        return org.elasticsearch.common.collect.List.of(
+            Route.builder(POST, "/_security/role_mapping/{name}")
+                .replaces(POST, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_security/role_mapping/{name}")
+                .replaces(PUT, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

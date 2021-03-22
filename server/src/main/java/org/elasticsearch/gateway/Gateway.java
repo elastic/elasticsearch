@@ -41,7 +41,7 @@ public class Gateway {
         this.minimumMasterNodes = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
     }
 
-    public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
+    public void performStateRecovery(final GatewayStateRecoveredListener listener) {
         final String[] nodesIds = clusterService.state().nodes().getMasterNodes().keys().toArray(String.class);
         logger.trace("performing state recovery from {}", Arrays.toString(nodesIds));
         final TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();

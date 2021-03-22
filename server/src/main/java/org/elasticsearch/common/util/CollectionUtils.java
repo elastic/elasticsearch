@@ -284,6 +284,8 @@ public class CollectionUtils {
         }
     }
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <E> ArrayList<E> arrayAsArrayList(E... elements) {
         if (elements == null) {
             throw new NullPointerException("elements");

@@ -136,7 +136,7 @@ public class PublishClusterStateAction {
                     nodesToPublishTo.add(node);
                 }
             }
-            sendFullVersion = !discoverySettings.getPublishDiff() || clusterChangedEvent.previousState() == null;
+            sendFullVersion = discoverySettings.getPublishDiff() == false || clusterChangedEvent.previousState() == null;
             serializedStates = new HashMap<>();
             serializedDiffs = new HashMap<>();
 

@@ -46,35 +46,16 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
 
     @Override
     protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageResponse> listener) {
-        final ActionListener<List<XPackFeatureSet.Usage>> usageActionListener = new ActionListener<List<Usage>>() {
-            @Override
-            public void onResponse(List<Usage> usages) {
-                listener.onResponse(new XPackUsageResponse(usages));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        };
+        final ActionListener<List<XPackFeatureSet.Usage>> usageActionListener =
+                listener.delegateFailure((l, usages) -> l.onResponse(new XPackUsageResponse(usages)));
         final AtomicReferenceArray<Usage> featureSetUsages = new AtomicReferenceArray<>(featureSets.size());
         final AtomicInteger position = new AtomicInteger(0);
         final BiConsumer<XPackFeatureSet, ActionListener<List<Usage>>> consumer = (featureSet, iteratingListener) -> {
             assert Transports.assertNotTransportThread("calculating usage can be more expensive than we allow on transport threads");
-            featureSet.usage(new ActionListener<Usage>() {
-                @Override
-                public void onResponse(Usage usage) {
-                    featureSetUsages.set(position.getAndIncrement(), usage);
-                    // the value sent back doesn't matter since our predicate keeps iterating
-                    ActionRunnable<?> invokeListener = ActionRunnable.supply(iteratingListener, Collections::emptyList);
-                    threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(invokeListener);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    iteratingListener.onFailure(e);
-                }
-            });
+            featureSet.usage(iteratingListener.delegateFailure((l, usage) -> {
+                featureSetUsages.set(position.getAndIncrement(), usage);
+                threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(ActionRunnable.supply(iteratingListener, Collections::emptyList));
+            }));
         };
         IteratingActionListener<List<XPackFeatureSet.Usage>, XPackFeatureSet> iteratingActionListener =
                 new IteratingActionListener<>(usageActionListener, consumer, featureSets,

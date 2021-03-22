@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
+import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -46,6 +47,9 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.waitAndGetShrinkIndexName;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -99,13 +103,13 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
             equalTo(PhaseCompleteStep.finalStep("hot").getKey())), 30, TimeUnit.SECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70595")
     public void testShrinkActionInPolicyWithoutHotPhase() throws Exception {
         createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1, null));
         createComposableTemplate(client(), template,  dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
-        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + backingIndexName;
         assertBusy(() -> assertThat(
             "original index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
             explainIndex(client(), backingIndexName).get("step"), is(CheckNotDataStreamWriteIndexStep.NAME)), 30, TimeUnit.SECONDS);
@@ -113,6 +117,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
 
+        String shrunkenIndex = waitAndGetShrinkIndexName(client(), backingIndexName);
         assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
         assertBusy(() -> assertThat("the original index must've been deleted", indexExists(backingIndexName), is(false)));
@@ -125,7 +130,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
         String rolloverIndex = DataStream.getDefaultBackingIndexName(dataStream, 2);
-        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + backingIndexName;
+        String shrunkenIndex = SHRUNKEN_INDEX_PREFIX + backingIndexName;
         assertBusy(() -> assertTrue("the rollover action created the rollover index", indexExists(rolloverIndex)));
         assertBusy(() -> assertFalse("the original index was deleted by the shrink action", indexExists(backingIndexName)),
             60, TimeUnit.SECONDS);
@@ -236,6 +241,18 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         assertThat(dataStreams.size(), is(1));
         Map<String, Object> logsDataStream = (Map<String, Object>) dataStreams.get(0);
         assertThat(logsDataStream.get("ilm_policy"), is(policyName));
+    }
+
+    public void testDeleteOnlyIndexInDataStreamDeletesDataStream() throws Exception {
+        createNewSingletonPolicy(client(), policyName, "delete", new DeleteAction(false));
+        createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
+        indexDocument(client(), dataStream, true);
+
+        assertBusy(() -> {
+            Request r = new Request("GET", "/_data_stream/" + dataStream);
+            Exception e = expectThrows(Exception.class, () -> client().performRequest(r));
+            assertThat(e.getMessage(), containsString("no such index [" + dataStream + "]"));
+        });
     }
 
     private static Template getTemplate(String policyName) throws IOException {

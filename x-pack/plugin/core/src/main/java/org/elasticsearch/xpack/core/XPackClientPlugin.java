@@ -697,7 +697,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_STREAMS, DataStreamFeatureSetUsage::new),
                 // Data Tiers
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_TIERS, DataTiersFeatureSetUsage::new),
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.RUNTIME_FIELDS, RuntimeFieldsFeatureSetUsage::new)
+                //Runtime fields: it is here only for backwards compatibility, as it was moved to the cluster stats API in 7.13
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "runtime_fields", RuntimeFieldsFeatureSetUsage::new)
             ).stream(),
             MlEvaluationNamedXContentProvider.getNamedWriteables().stream()
         ).collect(toList()));

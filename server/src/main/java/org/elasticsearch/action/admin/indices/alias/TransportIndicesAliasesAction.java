@@ -106,11 +106,14 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
             }
 
             Collections.addAll(aliases, action.getOriginalAliases());
+            long now = System.currentTimeMillis();
             for (final Index index : concreteIndices) {
                 switch (action.actionType()) {
                 case ADD:
                     for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
-                        finalActions.add(new AliasAction.Add(index.getName(), alias, action.filter(), action.indexRouting(),
+                        String resolvedName = this.indexNameExpressionResolver.resolveDateMathExpression(alias, now);
+                        finalActions.add(new AliasAction.Add(index.getName(), resolvedName,
+                            action.filter(), action.indexRouting(),
                             action.searchRouting(), action.writeIndex(), action.isHidden()));
                     }
                     break;
@@ -134,18 +137,10 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
         IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(unmodifiableList(finalActions))
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
 
-        indexAliasesService.indicesAliases(updateRequest, new ActionListener<AcknowledgedResponse>() {
-            @Override
-            public void onResponse(AcknowledgedResponse response) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                logger.debug("failed to perform aliases", t);
-                listener.onFailure(t);
-            }
-        });
+        indexAliasesService.indicesAliases(updateRequest, listener.delegateResponse((l, e) -> {
+            logger.debug("failed to perform aliases", e);
+            l.onFailure(e);
+        }));
     }
 
     private static String[] concreteAliases(AliasActions action, Metadata metadata, String concreteIndex) {

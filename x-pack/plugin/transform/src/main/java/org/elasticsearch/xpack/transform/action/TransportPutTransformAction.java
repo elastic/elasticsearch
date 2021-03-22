@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -191,6 +192,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     protected void masterOperation(Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
+        TransformNodes.warnIfNoTransformNodes(clusterState);
 
         // set headers to run transform as calling user
         Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
@@ -211,7 +213,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
             config.getDestination().getPipeline(),
-            request.isDeferValidation() ? SourceDestValidations.NON_DEFERABLE_VALIDATIONS : SourceDestValidations.ALL_VALIDATIONS,
+            SourceDestValidations.getValidations(request.isDeferValidation(), config.getAdditionalValidations()),
             ActionListener.wrap(
                 validationResponse -> {
                     // Early check to verify that the user can create the destination index and can read from the source
@@ -273,6 +275,11 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
             logger.debug("[{}] created transform", config.getId());
             auditor.info(config.getId(), "Created transform.");
+            List<String> warnings = TransformConfigLinter.getWarnings(function, config.getSource(), config.getSyncConfig());
+            for (String warning : warnings) {
+                logger.warn(new ParameterizedMessage("[{}] {}", config.getId(), warning));
+                auditor.warning(config.getId(), warning);
+            }
             listener.onResponse(AcknowledgedResponse.TRUE);
         }, listener::onFailure);
 

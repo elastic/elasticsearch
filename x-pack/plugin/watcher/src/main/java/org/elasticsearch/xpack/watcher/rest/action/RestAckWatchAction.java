@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -35,20 +35,16 @@ public class RestAckWatchAction extends WatcherRestHandler {
 
     @Override
     public List<Route> routes() {
-        return emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
-            new ReplacedRoute(POST, "/_watcher/watch/{id}/_ack", POST, URI_BASE + "/watcher/watch/{id}/_ack"),
-            new ReplacedRoute(PUT, "/_watcher/watch/{id}/_ack", PUT, URI_BASE + "/watcher/watch/{id}/_ack"),
-            new ReplacedRoute(
-                POST, "/_watcher/watch/{id}/_ack/{actions}",
-                POST, URI_BASE + "/watcher/watch/{id}/_ack/{actions}"),
-            new ReplacedRoute(
-                PUT, "/_watcher/watch/{id}/_ack/{actions}",
-                PUT, URI_BASE + "/watcher/watch/{id}/_ack/{actions}")));
+            Route.builder(POST, "/_watcher/watch/{id}/_ack")
+                .replaces(POST, URI_BASE + "/watcher/watch/{id}/_ack", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_watcher/watch/{id}/_ack")
+                .replaces(PUT, URI_BASE + "/watcher/watch/{id}/_ack", RestApiVersion.V_7).build(),
+            Route.builder(POST, "/_watcher/watch/{id}/_ack/{actions}")
+                .replaces(POST, URI_BASE + "/watcher/watch/{id}/_ack/{actions}", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_watcher/watch/{id}/_ack/{actions}")
+                .replaces(PUT, URI_BASE + "/watcher/watch/{id}/_ack/{actions}", RestApiVersion.V_7).build()
+        ));
     }
 
     @Override

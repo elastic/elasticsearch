@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -42,7 +43,8 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Arrays.asList(
-            new DeprecatedRoute(POST, "/_cluster/voting_config_exclusions/{node_name}", DEPRECATION_MESSAGE),
+            Route.builder(POST, "/_cluster/voting_config_exclusions/{node_name}")
+                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
             new Route(POST, "/_cluster/voting_config_exclusions"));
     }
 

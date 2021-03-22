@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.repositories.metering.action.ClearRepositoriesMet
 
 import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+
 public class RestClearRepositoriesMeteringArchiveAction extends BaseRestHandler {
     @Override
     public String getName() {
@@ -25,9 +27,7 @@ public class RestClearRepositoriesMeteringArchiveAction extends BaseRestHandler 
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
-            new Route(RestRequest.Method.DELETE, "/_nodes/{nodeId}/_repositories_metering/{maxVersionToClear}")
-        );
+        return org.elasticsearch.common.collect.List.of(new Route(DELETE, "/_nodes/{nodeId}/_repositories_metering/{maxVersionToClear}"));
     }
 
     @Override

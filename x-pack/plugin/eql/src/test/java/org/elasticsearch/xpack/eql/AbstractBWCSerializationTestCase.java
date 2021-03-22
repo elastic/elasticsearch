@@ -31,6 +31,8 @@ public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToX
 
     private static final List<Version> DEFAULT_BWC_VERSIONS = getAllBWCVersions(Version.CURRENT);
 
+    protected abstract T mutateInstanceForVersion(T instance, Version version);
+
     public final void testBwcSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             T testInstance = createTestInstance();
@@ -42,7 +44,7 @@ public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToX
 
     protected final void assertBwcSerialization(T testInstance, Version version) throws IOException {
         T deserializedInstance = copyInstance(testInstance, version);
-        assertOnBWCObject(testInstance, deserializedInstance, version);
+        assertOnBWCObject(mutateInstanceForVersion(testInstance, version), deserializedInstance, version);
     }
 
     protected void assertOnBWCObject(T testInstance, T bwcDeserializedObject, Version version) {

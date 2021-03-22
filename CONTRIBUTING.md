@@ -98,25 +98,25 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 14 is required to build Elasticsearch. You must have a JDK 14 installation
+JDK 15 is required to build Elasticsearch. You must have a JDK 15 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 14 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 15 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 8, the build supports compiling with
-JDK 14 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 15 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 8 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 8.
 
 > Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
-and `JAVA11_HOME`, and `JAVA12_HOME` available so that the tests can pass.
+and `JAVA11_HOME`, `JAVA12_HOME`, `JAVA13_HOME`, `JAVA14_HOME`, and `JAVA15_HOME`
+available so that the tests can pass.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
 script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
-We support development in IntelliJ versions IntelliJ 2019.2 and
-onwards. We would like to support Eclipse, but few of us use it and has fallen
-into [disrepair][eclipse].
+We support development in IntelliJ versions IntelliJ 2020.1 and
+onwards and Eclipse 2020-3 and onwards.
 
 [Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
 
@@ -138,9 +138,10 @@ and then run `curl` in another window like this:
 
 ### Importing the project into IntelliJ IDEA
 
-Elasticsearch builds using Java 14. When importing into IntelliJ you will need
+The minimum IntelliJ IDEA version required to import the Elasticsearch project is 2020.1
+Elasticsearch builds using Java 15. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
-"14"** so that the project import will detect it automatically. For more details
+"15"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
 SDK definitions are global, so you can add the JDK from any project, or after
 project import. Importing with a missing JDK will still work, IntelliJ will
@@ -196,6 +197,78 @@ Code Formatter] installed, you can apply formatting directly in IntelliJ.
 Note that only some sub-projects in the Elasticsearch project are currently
 fully-formatted. You can see a list of project that **are not**
 automatically formatted in [gradle/formatting.gradle](gradle/formatting.gradle).
+
+### Importing the project into Eclipse
+
+Elasticsearch builds using Gradle and Java 15. When importing into Eclipse you
+will either need to use an appropriate JDK to run Eclipse itself (e.g. by
+specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
+defining the JDK Gradle uses by setting **Preferences** > **Gradle** >
+**Advanced Options** > **Java home** to an appropriate version.
+
+IMPORTANT: If you have previously imported the project by running `./gradlew eclipse`
+           then you must build an entirely new workspace and `git clean -xdf` to
+           blow away *everything* that the gradle eclipse plugin made.
+
+ - Select **File > Import...**
+ - Select **Existing Gradle Project**
+ - Select **Next** then **Next** again
+ - Set the **Project root directory** to the root of your elasticsearch clone
+ - Click **Finish**
+
+This will spin for a long, long time but you'll see many errors about circular
+dependencies. Fix them:
+
+ - Select **Window > Preferences**
+ - Select **Java > Compiler > Building**
+ - Look under **Build Path Problems**
+ - Set **Circular dependencies** to **Warning**
+ - Apply that and let the build spin away for a while
+
+Next you'll want to import our auto-formatter:
+
+ - Select **Window > Preferences**
+ - Select **Java > Code Style > Formatter**
+ - Click **Import**
+ - Import the file at **buildSrc/formatterConfig.xml**
+ - Make sure it is the **Active profile**
+
+Finally, set up import order:
+
+ - Select **Window > Preferences**
+ - Select **Java > Code Style > Organize Imports**
+ - Click **Import...**
+ - Import the file at **buildSrc/elastic.importorder**
+ - Set the **Number of imports needed for `.*`** to ***9999***
+ - Set the **Number of static imports needed for `.*`** to ***9999*** as well
+ - Apply that
+
+IMPORTANT: There is an option in **Gradle** for **Automatic Project Synchronization**.
+           As convenient as it'd be for the projects to always be perfect this
+           tends to add many many seconds to every branch change. Instead, you
+           should manually right click on a project and
+           **Gradle > Refresh Gradle Project** if the configuration is out of
+           date.
+
+As we add more subprojects you might have to re-import the gradle project (the
+first step) again. There is no need to blow away the existing projects before
+doing that.
+
+### REST Endpoint Conventions
+
+Elasticsearch typically uses singular nouns rather than plurals in URLs.
+For example:
+
+    /_ingest/pipeline
+    /_ingest/pipeline/{id}
+
+but not:
+
+    /_ingest/pipelines
+    /_ingest/pipelines/{id}
+
+You may find counterexamples, but new endpoints should use the singular
+form.
 
 ### Java Language Formatting Guidelines
 

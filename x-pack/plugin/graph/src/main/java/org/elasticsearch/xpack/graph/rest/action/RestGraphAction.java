@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -68,20 +68,16 @@ public class RestGraphAction extends XPackRestHandler {
 
     @Override
     public List<Route> routes() {
-        return emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
-            new ReplacedRoute(GET, "/{index}/_graph/explore", GET, "/{index}" + URI_BASE + "/graph/_explore"),
-            new ReplacedRoute(POST, "/{index}/_graph/explore", POST, "/{index}" + URI_BASE + "/graph/_explore"),
-            new ReplacedRoute(
-                GET, "/{index}/{type}/_graph/explore",
-                GET, "/{index}/{type}" + URI_BASE + "/graph/_explore"),
-            new ReplacedRoute(
-                POST, "/{index}/{type}_graph/explore",
-                POST, "/{index}/{type}" + URI_BASE + "/graph/_explore")));
+            Route.builder(GET, "/{index}/_graph/explore")
+                .replaces(GET, "/{index}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/_graph/explore")
+                .replaces(POST, "/{index}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/{type}/_graph/explore")
+                .replaces(GET, "/{index}/{type}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/{type}_graph/explore")
+                .replaces(POST, "/{index}/{type}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7).build()
+        ));
     }
 
     @Override

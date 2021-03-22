@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.rest.calendar;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -15,36 +16,29 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 public class RestGetCalendarsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
-            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
-            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "calendars/",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "calendars/"),
-            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}",
-                POST, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
-            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "calendars/",
-                POST, MachineLearning.PRE_V7_BASE_PATH + "calendars/")
-        ));
+        return org.elasticsearch.common.collect.List.of(
+            Route.builder(GET, BASE_PATH + "calendars/{" + Calendar.ID + "}")
+                .replaces(GET, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}", RestApiVersion.V_7).build(),
+            Route.builder(GET, BASE_PATH + "calendars/")
+                .replaces(GET, PRE_V7_BASE_PATH + "calendars/", RestApiVersion.V_7).build(),
+            Route.builder(POST, BASE_PATH + "calendars/{" + Calendar.ID + "}")
+                .replaces(POST, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}", RestApiVersion.V_7).build(),
+            Route.builder(POST, BASE_PATH + "calendars/")
+                .replaces(POST, PRE_V7_BASE_PATH + "calendars/", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

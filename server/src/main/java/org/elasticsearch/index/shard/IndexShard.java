@@ -1085,16 +1085,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public StoreStats storeStats() {
+        if (DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(indexSettings.getSettings())) {
+            // if this shard has no disk footprint then its size is reported as 0
+            return new StoreStats(0, 0);
+        }
         try {
-            final long reservedBytes;
-            if (DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(indexSettings.getSettings())) {
-                // if this shard has no disk footprint then it also needs no reserved space
-                reservedBytes = 0L;
-            } else {
-                final RecoveryState recoveryState = this.recoveryState;
-                final long bytesStillToRecover = recoveryState == null ? -1L : recoveryState.getIndex().bytesStillToRecover();
-                reservedBytes = bytesStillToRecover == -1 ? StoreStats.UNKNOWN_RESERVED_BYTES : bytesStillToRecover;
-            }
+            final RecoveryState recoveryState = this.recoveryState;
+            final long bytesStillToRecover = recoveryState == null ? -1L : recoveryState.getIndex().bytesStillToRecover();
+            final long reservedBytes = bytesStillToRecover == -1 ? StoreStats.UNKNOWN_RESERVED_BYTES : bytesStillToRecover;
             return store.stats(reservedBytes);
         } catch (IOException e) {
             failShard("Failing shard because of exception during storeStats", e);
@@ -1511,7 +1509,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         try {
             maybeCheckIndex(); // check index here and won't do it again if ops-based recovery occurs
-            recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+            recoveryState.setLocalTranslogStage();
             if (safeCommit.isPresent() == false) {
                 logger.trace("skip local recovery as no safe commit found");
                 return UNASSIGNED_SEQ_NO;
@@ -1677,7 +1675,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void openEngineAndRecoverFromTranslog() throws IOException {
         recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
         maybeCheckIndex();
-        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+        recoveryState.setLocalTranslogStage();
         final RecoveryState.Translog translogRecoveryStats = recoveryState.getTranslog();
         final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
             translogRecoveryStats.totalOperations(snapshot.totalOperations());
@@ -2376,24 +2374,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyNotClosed();
         replicationTracker.renewPeerRecoveryRetentionLeases();
         final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
-        if (retentionLeases.v1()) {
-            logger.trace("syncing retention leases [{}] after expiration check", retentionLeases.v2());
-            retentionLeaseSyncer.sync(
-                    shardId,
-                    shardRouting.allocationId().getId(),
-                    getPendingPrimaryTerm(),
-                    retentionLeases.v2(),
-                    ActionListener.wrap(
-                            r -> {},
-                            e -> logger.warn(new ParameterizedMessage(
-                                            "failed to sync retention leases [{}] after expiration check",
-                                            retentionLeases),
-                                    e)));
-        } else {
-            logger.trace("background syncing retention leases [{}] after expiration check", retentionLeases.v2());
-            retentionLeaseSyncer.backgroundSync(
-                shardId, shardRouting.allocationId().getId(), getPendingPrimaryTerm(), retentionLeases.v2());
-        }
+        logger.trace("background syncing retention leases [{}] after expiration check", retentionLeases.v2());
+        retentionLeaseSyncer.backgroundSync(
+            shardId, shardRouting.allocationId().getId(), getPendingPrimaryTerm(), retentionLeases.v2());
     }
 
     /**
@@ -3010,8 +2993,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the wrapped listener
      */
     private ActionListener<Releasable> wrapPrimaryOperationPermitListener(final ActionListener<Releasable> listener) {
-        return ActionListener.delegateFailure(
-                listener,
+        return listener.delegateFailure(
                 (l, r) -> {
                     if (replicationTracker.isPrimaryMode()) {
                         l.onResponse(r);
@@ -3186,7 +3168,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // primary term update. Since indexShardOperationPermits doesn't guarantee that async submissions are executed
         // in the order submitted, combining both operations ensure that the term is updated before the operation is
         // executed. It also has the side effect of acquiring all the permits one time instead of two.
-        final ActionListener<Releasable> operationListener = ActionListener.delegateFailure(onPermitAcquired,
+        final ActionListener<Releasable> operationListener = onPermitAcquired.delegateFailure(
             (delegatedListener, releasable) -> {
                 if (opPrimaryTerm < getOperationPrimaryTerm()) {
                     releasable.close();
@@ -3642,7 +3624,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // we must create both new read-only engine and new read-write engine under engineMutex to ensure snapshotStoreMetadata,
             // acquireXXXCommit and close works.
             final Engine readOnlyEngine =
-                new ReadOnlyEngine(newEngineConfig(replicationTracker), seqNoStats, translogStats, false, Function.identity(), true) {
+                new ReadOnlyEngine(newEngineConfig(replicationTracker), seqNoStats, translogStats, false, Function.identity(), true,
+                    false) {
                     @Override
                     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
                         synchronized (engineMutex) {

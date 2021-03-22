@@ -124,8 +124,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 final byte[] result = randomReadAndSlice(input, toIntBytes(length));
                 assertArrayEquals(fileContent, result);
 
-                // TODO: adapt this calculation for caching header + CFS stuff
-                final long cachedBytesWriteCount = TestUtils.numberOfRanges(length, rangeSize.getBytes()) + 1; // +1 for cached header
+                final long cachedBytesWriteCount = TestUtils.numberOfRanges(length, rangeSize.getBytes());
 
                 // cache writes are executed in a different thread pool and can take some time to be processed
                 assertBusy(() -> {
@@ -134,22 +133,20 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                     assertThat(inputStats.getCachedBytesWritten().min(), greaterThan(0L));
                     assertThat(inputStats.getCachedBytesWritten().max(), lessThanOrEqualTo(length));
                     final long actualWriteCount = inputStats.getCachedBytesWritten().count();
-                    if (fileName.endsWith(".cfs") == false) {
-                        assertThat(inputStats.getCachedBytesWritten().total(), lessThanOrEqualTo(length + 1016));
+                    assertThat(inputStats.getCachedBytesWritten().total(), lessThanOrEqualTo(length + 1000));
 
-                        // for CFS more requests are made (header/footer for each logical file)
-                        assertThat(actualWriteCount, lessThanOrEqualTo(cachedBytesWriteCount));
-                        assertThat(
-                            inputStats.getCachedBytesWritten().totalNanoseconds(),
-                            allOf(
-                                // each read takes at least FAKE_CLOCK_ADVANCE_NANOS time
-                                greaterThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * actualWriteCount),
+                    // for CFS more requests are made (header/footer for each logical file)
+                    assertThat(actualWriteCount, lessThanOrEqualTo(cachedBytesWriteCount));
+                    assertThat(
+                        inputStats.getCachedBytesWritten().totalNanoseconds(),
+                        allOf(
+                            // each read takes at least FAKE_CLOCK_ADVANCE_NANOS time
+                            greaterThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * actualWriteCount),
 
-                                // worst case: we start all reads before finishing any of them
-                                lessThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * actualWriteCount * actualWriteCount)
-                            )
-                        );
-                    }
+                            // worst case: we start all reads before finishing any of them
+                            lessThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * actualWriteCount * actualWriteCount)
+                        )
+                    );
                 });
 
                 assertThat(inputStats.getCachedBytesRead(), notNullValue());
@@ -356,10 +353,10 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 }
 
                 // cache file has been written in a single chunk in a different thread pool and can take some time to be processed
-                // assertBusy(() -> {
-                // assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
-                // assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
-                // });
+                assertBusy(() -> {
+                    assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
+                    assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                });
 
                 assertCounter(inputStats.getNonContiguousReads(), 0L, 0L, 0L, 0L);
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
@@ -574,10 +571,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     private void executeTestCaseWithDefaultCache(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) throws Exception {
         executeTestCase(
             defaultCacheService(),
-            createFrozenCacheService(
-                ByteSizeValue.ofMb(10),
-                new ByteSizeValue(randomLongBetween(MAX_FILE_LENGTH, MAX_FILE_LENGTH * 2), ByteSizeUnit.BYTES)
-            ),
+            createFrozenCacheService(ByteSizeValue.ofMb(10), new ByteSizeValue(4096 * randomLongBetween(3, 6), ByteSizeUnit.BYTES)),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats

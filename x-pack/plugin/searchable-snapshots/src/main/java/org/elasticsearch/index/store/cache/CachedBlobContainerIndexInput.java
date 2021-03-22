@@ -288,7 +288,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
         if (sliceCompoundFile) {
             sliceCompoundFileOffset = this.offset + sliceOffset;
             sliceHeaderByteRange = directory.getBlobCacheByteRange(sliceName, sliceLength).shift(sliceCompoundFileOffset);
-            if (sliceHeaderByteRange.length() < sliceLength) {
+            if (sliceHeaderByteRange.isEmpty() == false && sliceHeaderByteRange.length() < sliceLength) {
                 sliceFooterByteRange = ByteRange.of(sliceLength - CodecUtil.footerLength(), sliceLength).shift(sliceCompoundFileOffset);
             } else {
                 sliceFooterByteRange = ByteRange.EMPTY;

@@ -69,6 +69,7 @@ public class FrozenCacheService implements Releasable {
         Setting.Property.NodeScope
     );
 
+    // TODO: require range size to be multiple of 4kb
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "region_size",
         SHARED_CACHE_RANGE_SIZE_SETTING,

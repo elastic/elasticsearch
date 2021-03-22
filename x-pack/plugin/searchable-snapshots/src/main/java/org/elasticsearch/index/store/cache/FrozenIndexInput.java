@@ -345,8 +345,8 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             remaining -= bytesRead;
         }
         // ensure that last write is aligned on 4k boundaries (= page size)
-        final int off = buf.position() % 4096;
-        final int adjustment = off == 0 ? 0 : 4096 - off;
+        final int off = buf.position() % SharedBytes.BLOCK_SIZE;
+        final int adjustment = off == 0 ? 0 : SharedBytes.BLOCK_SIZE - off;
         buf.position(buf.position() + adjustment);
         long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
         bytesCopied += (bytesWritten - adjustment); // adjust to not break RangeFileTracker
@@ -405,7 +405,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             sliceCompoundFileOffset = this.offset + sliceOffset;
             sliceFrozenCacheFile = directory.getFrozenCacheFile(sliceName, sliceLength);
             sliceHeaderByteRange = directory.getBlobCacheByteRange(sliceName, sliceLength).shift(sliceCompoundFileOffset);
-            if (sliceHeaderByteRange.length() < sliceLength) {
+            if (sliceHeaderByteRange.isEmpty() == false && sliceHeaderByteRange.length() < sliceLength) {
                 sliceFooterByteRange = ByteRange.of(sliceLength - CodecUtil.footerLength(), sliceLength).shift(sliceCompoundFileOffset);
             } else {
                 sliceFooterByteRange = ByteRange.EMPTY;

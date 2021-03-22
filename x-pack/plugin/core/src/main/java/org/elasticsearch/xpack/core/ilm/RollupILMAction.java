@@ -35,6 +35,7 @@ public class RollupILMAction implements LifecycleAction {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RollupILMAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         a -> new RollupILMAction((RollupActionConfig) a[0], (String) a[1]));
+    public static final String ROLLUP_INDEX_PREFIX = "rollup-";
 
     private final RollupActionConfig config;
     private final String rollupPolicy;
@@ -102,7 +103,8 @@ public class RollupILMAction implements LifecycleAction {
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             readOnlyKey);
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateRollupIndexNameKey, client);
-        GenerateRollupIndexNameStep generateRollupIndexNameStep = new GenerateRollupIndexNameStep(generateRollupIndexNameKey, rollupKey);
+        GenerateUniqueIndexNameStep generateRollupIndexNameStep = new GenerateUniqueIndexNameStep(generateRollupIndexNameKey, rollupKey,
+            ROLLUP_INDEX_PREFIX, (rollupIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setRollupIndexName(rollupIndexName));
         if (rollupPolicy == null) {
             Step rollupStep = new RollupStep(rollupKey, nextStepKey, client, config);
             return List.of(checkNotWriteIndexStep, readOnlyStep, generateRollupIndexNameStep, rollupStep);

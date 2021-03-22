@@ -146,7 +146,6 @@ public final class SearchPhaseController {
         if (topDocs.isEmpty() && reducedCompletionSuggestions.isEmpty()) {
             return SortedTopDocs.EMPTY;
         }
-        // TODO look what we get here
         final TopDocs mergedTopDocs = mergeTopDocs(topDocs, size, ignoreFrom ? 0 : from);
         final ScoreDoc[] mergedScoreDocs = mergedTopDocs == null ? EMPTY_DOCS : mergedTopDocs.scoreDocs;
         ScoreDoc[] scoreDocs = mergedScoreDocs;

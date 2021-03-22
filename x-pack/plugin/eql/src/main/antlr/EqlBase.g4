@@ -214,8 +214,7 @@ fragment HEX_DIGIT
     ;
 
 fragment UNICODE_ESCAPE
-    : '\\u' HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT
-    | '\\u' '{' HEX_DIGIT+  '}' // 2-8 hex
+    : '\\u' '{' HEX_DIGIT+  '}' // 2-8 hex
     ;
 
 fragment UNESCAPED_CHARS

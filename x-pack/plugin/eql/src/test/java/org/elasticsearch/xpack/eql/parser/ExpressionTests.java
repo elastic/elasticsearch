@@ -192,18 +192,14 @@ public class ExpressionTests extends ESTestCase {
     public void testStringWithIncorrectUnicodeEscapedChars() {
         // Wrong hex digits
         ParsingException e = expectThrows(ParsingException.class, "Expected syntax error",
-                () -> expr("\"\\u00U1\""));
-        assertEquals("line 1:1: token recognition error at: '\"\\u00U'", e.getMessage());
+                () -> expr("\"\\u{00U1}\""));
+        assertEquals("line 1:1: token recognition error at: '\"\\u{00U'", e.getMessage());
 
         e = expectThrows(ParsingException.class, "Expected syntax error",
                 () -> expr("\"\\u{00AFU1}\""));
         assertEquals("line 1:1: token recognition error at: '\"\\u{00AFU'", e.getMessage());
 
         // Wrong number of hex digits
-        e = expectThrows(ParsingException.class, "Expected syntax error",
-                () -> expr("\"\\u001\""));
-        assertEquals("line 1:1: token recognition error at: '\"\\u001\"'", e.getMessage());
-
         e = expectThrows(ParsingException.class, "Expected syntax error",
                 () -> expr("\"\\u{D}\""));
         assertEquals("line 1:2: Unicode sequence in curly braces should use [2-8] hex digits, [\\u{D}] has [1]", e.getMessage());
@@ -216,14 +212,18 @@ public class ExpressionTests extends ESTestCase {
                 () -> expr("\"\\u{}\""));
         assertEquals("line 1:1: token recognition error at: '\"\\u{}'", e.getMessage());
 
-        // Missing curly brace
+        // Missing curly braces
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\\uad12"));
+        assertEquals("line 1:1: token recognition error at: '\"\\ua'", e.getMessage());
+
         e = expectThrows(ParsingException.class, "Expected syntax error",
                 () -> expr("\"\\u{DA12\""));
         assertEquals("line 1:1: token recognition error at: '\"\\u{DA12\"'", e.getMessage());
 
-        // Missing opening curly brace but with 4 hex digits is accepted,
-        // as the closing brace on the 5th position is considered a normal char.
-        assertEquals(new Literal(null, "ǰ}", DataTypes.KEYWORD), expr("\"\\u01f0}\""));
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\\u01f0}\""));
+        assertEquals("line 1:1: token recognition error at: '\"\\u0'", e.getMessage());
 
         // Invalid unicode
         e = expectThrows(ParsingException.class, "Expected syntax error",
@@ -233,7 +233,6 @@ public class ExpressionTests extends ESTestCase {
 
     public void testStringWithUnicodeEscapedChars() {
         assertEquals(new Literal(null, "foo\\u123foo", DataTypes.KEYWORD), expr("\"foo\\\\u123foo\""));
-        assertEquals(new Literal(null, "foo\\ሿoo", DataTypes.KEYWORD), expr("\"foo\\\\\\u123foo\""));
         assertEquals(new Literal(null, "foo\\\\u123foo", DataTypes.KEYWORD), expr("\"foo\\\\\\\\u123foo\""));
         assertEquals(new Literal(null, "foo\\u{123f}oo", DataTypes.KEYWORD), expr("\"foo\\\\u{123f}oo\""));
         assertEquals(new Literal(null, "foo\\ሿoo", DataTypes.KEYWORD), expr("\"foo\\\\\\u{123f}oo\""));
@@ -241,24 +240,24 @@ public class ExpressionTests extends ESTestCase {
 
         String strPadding = randomAlphaOfLength(randomInt(10));
         String[][] strings = new String[][] {
-            { "\\u0021", "!" },
+            { "\\u{0021}", "!" },
             { "\\u{41}", "A" },
             { "\\u{075}", "u" },
             { "\\u{00eb}", "ë" },
             { "\\u{1f0}", "ǰ" },
-            { "\\u0398", "Θ" },
-            { "\\u07e1", "ߡ" },
+            { "\\u{0398}", "Θ" },
+            { "\\u{7e1}", "ߡ" },
             { "\\u{017e1}", "១" },
-            { "\\u2140", "⅀" },
+            { "\\u{00002140}", "⅀" },
             { "\\u{02263}", "≣" },
             { "\\u{0003289}", "㊉" },
-            { "\\u6d89", "涉" },
+            { "\\u{06d89}", "涉" },
             { "\\u{00007c71}", "籱" },
             { "\\u{1680b}", "𖠋" },
             { "\\u{01f4a9}", "💩" },
             { "\\u{0010989}", "\uD802\uDD89"},
-            { "\\u0000", "\u0000"},
             { "\\u{00}", "\u0000"},
+            { "\\u{0000}", "\u0000"},
             { "\\u{000000}", "\u0000"},
             { "\\u{00000000}", "\u0000"},
         };

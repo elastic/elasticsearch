@@ -119,7 +119,7 @@ public abstract class EqlRestTestCase extends ESRestTestCase {
 
         String endpoint = "/test/_eql/search";
         Request request = new Request("GET", endpoint);
-        request.setJsonEntity("{\"query\":\"process where log==\\\"prefix_\\\\u00eb_suffix\\\"\"}");
+        request.setJsonEntity("{\"query\":\"process where log==\\\"prefix_\\\\u{0eb}_suffix\\\"\"}");
         Response response = client().performRequest(request);
 
         Map<String, Object> responseMap;

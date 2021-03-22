@@ -137,6 +137,7 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
 
         for (int i = 0; i < text.length();) {
             if (text.charAt(i) == '\\') {
+                // ANTLR4 Grammar guarantees there is always a character after the `\`
                 switch (text.charAt(++i)) {
                     case 't':
                         sb.append('\t');
@@ -167,7 +168,7 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
                         // will be interpreted as regex, so we have to escape it
                         break;
                     default:
-                        // unknown escape sequence, pass through as-is
+                        // unknown escape sequence, pass through as-is, e.g: `...\w...`
                         sb.append('\\').append(text.charAt(i));
                 }
                 i++;
@@ -180,21 +181,16 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
 
     private static int handleUnicodeChars(Source source, StringBuilder sb, String text, int i) {
         String unicodeSequence;
-        if (text.charAt(i) == '{') {
-            int endIdx = text.indexOf('}', ++i);
-            unicodeSequence = text.substring(i, endIdx);
-            int length = unicodeSequence.length();
-            if (length < 2 || length > 8) {
-                throw new ParsingException(source, "Unicode sequence in curly braces should use [2-8] hex digits, [{}] has [{}]",
-                        text.substring(i - 3, endIdx + 1), length);
-            }
-            i = endIdx;
-        } else {
-            unicodeSequence = text.substring(i, i + 4);
-            i += 3;
+        int startIdx = i + 1;
+        int endIdx = text.indexOf('}', startIdx);
+        unicodeSequence = text.substring(startIdx, endIdx);
+        int length = unicodeSequence.length();
+        if (length < 2 || length > 8) {
+            throw new ParsingException(source, "Unicode sequence in curly braces should use [2-8] hex digits, [{}] has [{}]",
+                    text.substring(startIdx - 3, endIdx + 1), length);
         }
         sb.append(hexToUnicode(source, unicodeSequence));
-        return i;
+        return endIdx;
     }
 
     private static String hexToUnicode(Source source, String hex) {

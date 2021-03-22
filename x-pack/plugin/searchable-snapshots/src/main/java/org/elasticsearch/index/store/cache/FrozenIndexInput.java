@@ -330,15 +330,26 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         while (remaining > 0L) {
             final int bytesRead = readSafe(input, copyBuffer, relativePos, end, remaining, frozenCacheFile);
             if (bytesRead > buf.remaining()) {
+                // always fill up buf to the max
+                final int bytesToAdd = buf.remaining();
+                buf.put(copyBuffer, 0, bytesToAdd);
+                assert buf.remaining() == 0;
                 long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
                 bytesCopied += bytesWritten;
                 progressUpdater.accept(bytesCopied);
+                // add the remaining bytes to buf
+                buf.put(copyBuffer, bytesToAdd, bytesRead - bytesToAdd);
+            } else {
+                buf.put(copyBuffer, 0, bytesRead);
             }
-            buf.put(copyBuffer, 0, bytesRead);
             remaining -= bytesRead;
         }
+        // ensure that last write is aligned on 4k boundaries (= page size)
+        final int off = buf.position() % 4096;
+        final int adjustment = off == 0 ? 0 : 4096 - off;
+        buf.position(buf.position() + adjustment);
         long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
-        bytesCopied += bytesWritten;
+        bytesCopied += (bytesWritten - adjustment); // adjust to not break RangeFileTracker
         progressUpdater.accept(bytesCopied);
         final long endTimeNanos = stats.currentTimeNanos();
         assert bytesCopied == length;

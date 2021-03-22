@@ -144,12 +144,15 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                     long numberOfRanges = TestUtils.numberOfRanges(
                         input.length,
                         recoveryFinalizedDone ? cacheService.getRangeSize() : cacheService.getRecoveryRangeSize()
-                    );
-                    assertThat(
-                        "Expected at most " + numberOfRanges + " ranges fetched from the source",
-                        ((CountingBlobContainer) blobContainer).totalOpens.sum(),
-                        lessThanOrEqualTo(numberOfRanges)
-                    );
+                    ) + 1; // +1 for the header
+                    if (fileName.endsWith(".cfs") == false) {
+                        // for CFS more requests are made (header/footer for each logical file)
+                        assertThat(
+                            "Expected at most " + numberOfRanges + " ranges fetched from the source",
+                            ((CountingBlobContainer) blobContainer).totalOpens.sum(),
+                            lessThanOrEqualTo(numberOfRanges)
+                        );
+                    }
                     assertThat(
                         "All bytes should have been read from source",
                         ((CountingBlobContainer) blobContainer).totalBytes.sum(),

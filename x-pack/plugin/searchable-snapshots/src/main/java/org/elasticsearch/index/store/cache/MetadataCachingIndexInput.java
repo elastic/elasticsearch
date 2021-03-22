@@ -141,10 +141,12 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
                 final int sliceOffset = toIntBytes(position - cachedBlob.from());
                 final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(sliceOffset, length).iterator();
                 BytesRef bytesRef;
+                int copiedBytes = 0;
                 while ((bytesRef = cachedBytesIterator.next()) != null) {
                     b.put(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                    copiedBytes += bytesRef.length;
                 }
-                assert b.position() == length : "copied " + b.position() + " but expected " + length;
+                assert copiedBytes == length : "copied " + copiedBytes + " but expected " + length;
 
                 final ByteRange cachedRange = ByteRange.of(cachedBlob.from(), cachedBlob.to());
                 cacheFile.populateAndRead(

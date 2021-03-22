@@ -18,22 +18,26 @@ import java.util.Map;
 
 public class TransformRegistry {
 
-    private final Map<String, TransformFactory> factories;
+    private final Map<String, TransformFactory<? extends Transform, ? extends Transform.Result,
+        ? extends ExecutableTransform<?, ?>>> factories;
 
-    public TransformRegistry(Map<String, TransformFactory> factories) {
-        Map<String, TransformFactory> map = new HashMap<>(factories);
+    public TransformRegistry(Map<String,
+        TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> factories) {
+        Map<String, TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> map
+            = new HashMap<>(factories);
         map.put(ChainTransform.TYPE, new ChainTransformFactory(this));
         this.factories = Collections.unmodifiableMap(map);
     }
 
-    public TransformFactory factory(String type) {
+    public TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>> factory(String type) {
         return factories.get(type);
     }
 
-    public ExecutableTransform parse(String watchId, XContentParser parser) throws IOException {
+    public ExecutableTransform<? extends Transform, ? extends Transform.Result> parse(String watchId, XContentParser parser)
+        throws IOException {
         String type = null;
         XContentParser.Token token;
-        ExecutableTransform transform = null;
+        ExecutableTransform<? extends Transform, ? extends Transform.Result> transform = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
@@ -44,8 +48,10 @@ public class TransformRegistry {
         return transform;
     }
 
-    private ExecutableTransform parse(String watchId, String type, XContentParser parser) throws IOException {
-        TransformFactory factory = factories.get(type);
+    private ExecutableTransform<? extends Transform, ? extends Transform.Result> parse(String watchId, String type, XContentParser parser)
+        throws IOException {
+        TransformFactory<? extends Transform, ? extends Transform.Result,
+            ? extends ExecutableTransform<?, ?>> factory = factories.get(type);
         if (factory == null) {
             throw new ElasticsearchParseException("could not parse transform for watch [{}], unknown transform type [{}]", watchId, type);
         }
@@ -53,7 +59,8 @@ public class TransformRegistry {
     }
 
     public Transform parseTransform(String watchId, String type, XContentParser parser) throws IOException {
-        TransformFactory factory = factories.get(type);
+        TransformFactory<? extends Transform, ? extends Transform.Result,
+            ? extends ExecutableTransform<?, ?>> factory = factories.get(type);
         if (factory == null) {
             throw new ElasticsearchParseException("could not parse transform for watch [{}], unknown transform type [{}]", watchId, type);
         }

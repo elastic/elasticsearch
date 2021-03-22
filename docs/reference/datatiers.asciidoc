@@ -91,13 +91,13 @@ frozen tier where it stays for the rest of its life.
 The frozen tier uses <<searchable-snapshots,{search-snaps}>> to store and load
 data from a snapshot repository. Instead of using a full local copy of your
 data, these {search-snaps} use smaller <<shared-cache,local caches>> containing
-only recently searched data. If a search requires data that's not in a cache,
-{es} lazily fetches the data as needed from the snapshot repository. This
-decouples compute and storage, letting you run searches with minimal compute
-resources.
+only recently searched data. If a search requires data that is not in a cache,
+{es} fetches the data as needed from the snapshot repository. This decouples
+compute and storage, letting you run searches over very large data sets with
+minimal compute resources, which significantly reduces your storage and operating costs.
 
-While search is slower on the frozen tier than the cold tier, the frozen tier's
-snapshot caches let you significantly reduce storage and operating costs.
+Search is typically slower on the frozen tier than the cold tier, because {es}
+must sometimes fetch data from the snapshot repository.
 
 NOTE: The frozen tier is not yet available on the {ess-trial}[{ess}]. To
 recreate similar functionality, see

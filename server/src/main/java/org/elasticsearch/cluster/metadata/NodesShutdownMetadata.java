@@ -35,17 +35,17 @@ import java.util.stream.Collectors;
  *
  * Stored in the cluster state as custom metadata.
  */
-public class NodeShutdownMetadata implements Metadata.Custom {
+public class NodesShutdownMetadata implements Metadata.Custom {
     public static final String TYPE = "node_shutdown";
     public static final Version NODE_SHUTDOWN_VERSION = Version.V_8_0_0;
 
     private static final ParseField NODES_FIELD = new ParseField("nodes");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<NodeShutdownMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE, a -> {
+    public static final ConstructingObjectParser<NodesShutdownMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE, a -> {
         final Map<String, SingleNodeShutdownMetadata> nodes = ((List<SingleNodeShutdownMetadata>) a[0]).stream()
             .collect(Collectors.toMap(SingleNodeShutdownMetadata::getNodeId, Function.identity()));
-        return new NodeShutdownMetadata(nodes);
+        return new NodesShutdownMetadata(nodes);
     });
 
     static {
@@ -57,7 +57,7 @@ public class NodeShutdownMetadata implements Metadata.Custom {
         );
     }
 
-    public static NodeShutdownMetadata fromXContent(XContentParser parser) {
+    public static NodesShutdownMetadata fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -67,11 +67,11 @@ public class NodeShutdownMetadata implements Metadata.Custom {
 
     private final Map<String, SingleNodeShutdownMetadata> nodes;
 
-    public NodeShutdownMetadata(Map<String, SingleNodeShutdownMetadata> nodes) {
+    public NodesShutdownMetadata(Map<String, SingleNodeShutdownMetadata> nodes) {
         this.nodes = nodes;
     }
 
-    public NodeShutdownMetadata(StreamInput in) throws IOException {
+    public NodesShutdownMetadata(StreamInput in) throws IOException {
         this.nodes = in.readMap(StreamInput::readString, SingleNodeShutdownMetadata::new);
     }
 
@@ -90,7 +90,7 @@ public class NodeShutdownMetadata implements Metadata.Custom {
 
     @Override
     public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
-        return new NodeShutdownMetadataDiff((NodeShutdownMetadata) previousState, this);
+        return new NodeShutdownMetadataDiff((NodesShutdownMetadata) previousState, this);
     }
 
     @Override
@@ -111,8 +111,8 @@ public class NodeShutdownMetadata implements Metadata.Custom {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if ((o instanceof NodeShutdownMetadata) == false) return false;
-        NodeShutdownMetadata that = (NodeShutdownMetadata) o;
+        if ((o instanceof NodesShutdownMetadata) == false) return false;
+        NodesShutdownMetadata that = (NodesShutdownMetadata) o;
         return getPerNodeInfo().equals(that.getPerNodeInfo());
     }
 
@@ -128,13 +128,13 @@ public class NodeShutdownMetadata implements Metadata.Custom {
     }
 
     /**
-     * Handles diffing and appling diffs for {@link NodeShutdownMetadata} as necessary for the cluster state infrastructure.
+     * Handles diffing and appling diffs for {@link NodesShutdownMetadata} as necessary for the cluster state infrastructure.
      */
     public static class NodeShutdownMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         private final Diff<Map<String, SingleNodeShutdownMetadata>> nodesDiff;
 
-        NodeShutdownMetadataDiff(NodeShutdownMetadata before, NodeShutdownMetadata after) {
+        NodeShutdownMetadataDiff(NodesShutdownMetadata before, NodesShutdownMetadata after) {
             this.nodesDiff = DiffableUtils.diff(before.nodes, after.nodes, DiffableUtils.getStringKeySerializer());
         }
 
@@ -150,9 +150,9 @@ public class NodeShutdownMetadata implements Metadata.Custom {
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
             TreeMap<String, SingleNodeShutdownMetadata> newNodes = new TreeMap<>(
-                nodesDiff.apply(((NodeShutdownMetadata) part).getPerNodeInfo())
+                nodesDiff.apply(((NodesShutdownMetadata) part).getPerNodeInfo())
             );
-            return new NodeShutdownMetadata(newNodes);
+            return new NodesShutdownMetadata(newNodes);
         }
 
         @Override

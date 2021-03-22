@@ -18,28 +18,28 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class NodeShutdownMetadataTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
+public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
 
     @Override
     protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
-        return NodeShutdownMetadata.NodeShutdownMetadataDiff::new;
+        return NodesShutdownMetadata.NodeShutdownMetadataDiff::new;
     }
 
     @Override
-    protected NodeShutdownMetadata doParseInstance(XContentParser parser) throws IOException {
-        return NodeShutdownMetadata.fromXContent(parser);
+    protected NodesShutdownMetadata doParseInstance(XContentParser parser) throws IOException {
+        return NodesShutdownMetadata.fromXContent(parser);
     }
 
     @Override
     protected Writeable.Reader<Metadata.Custom> instanceReader() {
-        return NodeShutdownMetadata::new;
+        return NodesShutdownMetadata::new;
     }
 
     @Override
-    protected NodeShutdownMetadata createTestInstance() {
+    protected NodesShutdownMetadata createTestInstance() {
         Map<String, SingleNodeShutdownMetadata> nodes = randomList(0, 10, this::randomNodeShutdownInfo).stream()
             .collect(Collectors.toMap(SingleNodeShutdownMetadata::getNodeId, Function.identity()));
-        return new NodeShutdownMetadata(nodes);
+        return new NodesShutdownMetadata(nodes);
     }
 
     private SingleNodeShutdownMetadata randomNodeShutdownInfo() {

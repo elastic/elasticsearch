@@ -27,7 +27,6 @@ import org.elasticsearch.plugins.Plugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -132,11 +131,8 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Supplier<String> randomFetchTestValueVendor(MappedFieldType ft) {
-        if (randomBoolean()) {
-            return this::randomVersionNumber;
-        }
-        return () -> randomVersionNumber() + randomPrerelease();
+    protected String generateRandomInputValue(MappedFieldType ft) {
+        return randomVersionNumber() + (randomBoolean() ? "" : randomPrerelease());
     }
 
     private String randomVersionNumber() {

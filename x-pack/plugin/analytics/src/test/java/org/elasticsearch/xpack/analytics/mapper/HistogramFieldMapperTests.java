@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -297,7 +296,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+    protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
     }

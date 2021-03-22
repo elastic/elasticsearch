@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.util.ULocale;
+
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -27,7 +28,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -282,12 +282,12 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+    protected String generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("docvalue_fields is broken", true);
         // https://github.com/elastic/elasticsearch/issues/70276
         /*
          * docvalue_fields loads garbage bytes.
          */
-        return () -> randomAlphaOfLength(5);
+        return null;
     }
 }

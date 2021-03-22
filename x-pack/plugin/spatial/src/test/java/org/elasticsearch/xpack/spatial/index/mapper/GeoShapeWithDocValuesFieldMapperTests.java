@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -326,7 +325,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+    protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
     }

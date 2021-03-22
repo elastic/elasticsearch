@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -165,9 +164,8 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
-        String value = ((ConstantKeywordFieldType) ft).value();
-        return () -> value;
+    protected String generateRandomInputValue(MappedFieldType ft) {
+        return ((ConstantKeywordFieldType) ft).value();
     }
 
     @Override

@@ -68,7 +68,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1082,7 +1081,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+    protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("We don't have a way to assert things here", true);
         return null;
     }

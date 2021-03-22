@@ -26,7 +26,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -523,21 +522,21 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Supplier<Comparable<?>> randomFetchTestValueVendor(MappedFieldType ft) {
+    protected Object generateRandomInputValue(MappedFieldType ft) {
         switch (((DateFieldType) ft).resolution()) {
             case MILLISECONDS:
                 if (randomBoolean()) {
-                    return () -> randomIs8601Nanos(MAX_ISO_DATE);
+                    return randomIs8601Nanos(MAX_ISO_DATE);
                 }
-                return () -> randomLongBetween(0, Long.MAX_VALUE);
+                return randomLongBetween(0, Long.MAX_VALUE);
             case NANOSECONDS:
                 switch (randomInt(2)) {
                     case 0:
-                        return () -> randomLongBetween(0, MAX_NANOS);
+                        return randomLongBetween(0, MAX_NANOS);
                     case 1:
-                        return () -> randomIs8601Nanos(MAX_NANOS);
+                        return randomIs8601Nanos(MAX_NANOS);
                     case 2:
-                        return () -> new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION));
+                        return new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION));
                     default:
                         throw new IllegalStateException();
                 }

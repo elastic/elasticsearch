@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -343,7 +342,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+    protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
     }

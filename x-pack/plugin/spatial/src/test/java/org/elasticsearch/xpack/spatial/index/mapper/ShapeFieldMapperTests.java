@@ -19,7 +19,6 @@ import org.elasticsearch.index.mapper.SourceToParse;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -239,7 +238,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+    protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
     }

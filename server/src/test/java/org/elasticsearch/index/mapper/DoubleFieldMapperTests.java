@@ -10,11 +10,9 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Supplier;
 
 public class DoubleFieldMapperTests extends NumberFieldMapperTests {
 
@@ -40,13 +38,13 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
-    protected Supplier<Number> randomValueSupplier() {
+    protected Number randomNumber() {
         /*
          * The source parser and doc values round trip will both increase
          * the precision to 64 bits if the value is less precise.
          * randomDoubleBetween will smear the values out across a wide
          * range of valid values.
          */
-        return randomBoolean() ? () -> randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : ESTestCase::randomFloat;
+        return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
     }
 }

@@ -11,11 +11,9 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Supplier;
 
 public class ByteFieldMapperTests extends WholeNumberFieldMapperTests {
     @Override
@@ -39,13 +37,13 @@ public class ByteFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     @Override
-    protected Supplier<Number> randomValueSupplier() {
+    protected Number randomNumber() {
         if (randomBoolean()) {
-            return ESTestCase::randomByte;
+            return randomByte();
         }
         if (randomBoolean()) {
-            return ESTestCase::randomDouble;
+            return randomDouble();
         }
-        return () -> randomDoubleBetween(Byte.MIN_VALUE, Byte.MAX_VALUE, true);
+        return randomDoubleBetween(Byte.MIN_VALUE, Byte.MAX_VALUE, true);
     }
 }

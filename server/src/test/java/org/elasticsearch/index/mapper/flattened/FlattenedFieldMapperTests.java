@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlatten
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
@@ -337,7 +336,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+    protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
     }

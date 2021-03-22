@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -219,30 +218,25 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
-        Supplier<? extends Object> r = randomNumericValue();
-        if (randomBoolean()) {
-            return () -> r.get().toString();
-        }
-        return r;
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        Number n = randomNumericValue();
+        return randomBoolean() ? n : n.toString();
     }
 
-    private Supplier<? extends Object> randomNumericValue() {
+    private Number randomNumericValue() {
         switch (randomInt(8)) {
             case 0:
-                return () -> randomNonNegativeByte();
+                return randomNonNegativeByte();
             case 1:
-                return () -> (short) between(0, Short.MAX_VALUE);
+                return (short) between(0, Short.MAX_VALUE);
             case 2:
-                return () -> randomInt(Integer.MAX_VALUE);
+                return randomInt(Integer.MAX_VALUE);
             case 3:
             case 4:
-                return () -> randomNonNegativeLong();
+                return randomNonNegativeLong();
             default:
-                return () -> {
-                    BigInteger big = BigInteger.valueOf(randomLongBetween(0, Long.MAX_VALUE)).shiftLeft(1);
-                    return big.add(randomBoolean() ? BigInteger.ONE : BigInteger.ZERO);
-                };
+                BigInteger big = BigInteger.valueOf(randomLongBetween(0, Long.MAX_VALUE)).shiftLeft(1);
+                return big.add(randomBoolean() ? BigInteger.ONE : BigInteger.ZERO);
         }
     }
 }

@@ -27,7 +27,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -180,16 +179,14 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
-        return () -> {
-            int words = between(1, 1000);
-            StringBuilder b = new StringBuilder(words * 5);
-            b.append(randomAlphaOfLength(4));
-            for (int w = 1; w < words; w++) {
-                b.append(' ').append(randomAlphaOfLength(4));
-            }
-            return b.toString();
-        };
+    protected String generateRandomInputValue(MappedFieldType ft) {
+        int words = between(1, 1000);
+        StringBuilder b = new StringBuilder(words * 5);
+        b.append(randomAlphaOfLength(4));
+        for (int w = 1; w < words; w++) {
+            b.append(' ').append(randomAlphaOfLength(4));
+        }
+        return b.toString();
     }
 
     @Override

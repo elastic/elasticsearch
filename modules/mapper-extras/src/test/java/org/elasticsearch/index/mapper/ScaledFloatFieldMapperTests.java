@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
@@ -279,15 +278,23 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+    protected Object generateRandomInputValue(MappedFieldType ft) {
         /*
          * randomDoubleBetween will smear the random values out across a huge
          * range of valid values.
          */
-        Supplier<Double> values = () -> randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
-        if (randomBoolean()) {
-            return () -> values.get().floatValue();
+        double v = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+        switch (between(0, 3)) {
+            case 0:
+                return v;
+            case 1:
+                return (float) v;
+            case 2:
+                return Double.toString(v);
+            case 3:
+                return Float.toString((float) v);
+            default:
+                throw new IllegalArgumentException();
         }
-        return values;
     }
 }

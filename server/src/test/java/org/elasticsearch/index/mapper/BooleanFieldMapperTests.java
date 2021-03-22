@@ -18,10 +18,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 public class BooleanFieldMapperTests extends MapperTestCase {
 
@@ -166,16 +164,16 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
+    protected Object generateRandomInputValue(MappedFieldType ft) {
         switch (between(0, 3)) {
             case 0:
-                return ESTestCase::randomBoolean;
+                return randomBoolean();
             case 1:
-                return () -> randomBoolean() ? "true" : "false";
+                return randomBoolean() ? "true" : "false";
             case 2:
-                return () -> randomBoolean() ? "true" : "";
+                return randomBoolean() ? "true" : "";
             case 3:
-                return () -> randomBoolean() ? "true" : null;
+                return randomBoolean() ? "true" : null;
             default:
                 throw new IllegalStateException();
         }

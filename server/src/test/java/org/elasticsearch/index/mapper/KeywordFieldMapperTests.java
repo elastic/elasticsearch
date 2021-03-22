@@ -36,14 +36,12 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -462,18 +460,18 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Supplier<Comparable<?>> randomFetchTestValueVendor(MappedFieldType ft) {
+    protected Object generateRandomInputValue(MappedFieldType ft) {
         switch (between(0, 3)) {
             case 0:
-                return () -> randomAlphaOfLengthBetween(1, 100);
+                return randomAlphaOfLengthBetween(1, 100);
             case 1:
-                return () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100);
+                return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100);
             case 2:
-                return ESTestCase::randomLong;
+                return randomLong();
             case 3:
-                return ESTestCase::randomDouble;
+                return randomDouble();
             case 4:
-                return ESTestCase::randomBoolean;
+                return randomBoolean();
             default:
                 throw new IllegalStateException();
         }

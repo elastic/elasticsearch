@@ -468,7 +468,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         MapperService mapperService = randomFetchTestMapper();
         try {
             MappedFieldType ft = mapperService.fieldType("field");
-            assertFetch(mapperService, "field", randomFetchTestValueVendor(ft).get(), randomFetchTestFormat());
+            assertFetch(mapperService, "field", generateRandomInputValue(ft), randomFetchTestFormat());
         } finally {
             assertParseMinimalWarnings();
         }
@@ -490,9 +490,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             MappedFieldType ft = mapperService.fieldType("field");
             int count = between(2, 10);
             List<Object> values = new ArrayList<>(count);
-            Supplier<? extends Object> vendor = randomFetchTestValueVendor(ft);
             while (values.size() < count) {
-                values.add(vendor.get());
+                values.add(generateRandomInputValue(ft));
             }
             assertFetch(mapperService, "field", values, randomFetchTestFormat());
         } finally {
@@ -530,7 +529,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * and {@link #testFetchMany}. The returned objects must be supported by
      * {@link XContentBuilder#value(Object)}
      */
-    protected abstract Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft);
+    protected abstract Object generateRandomInputValue(MappedFieldType ft);
 
     /**
      * Assert that fetching a value using {@link MappedFieldType#valueFetcher}

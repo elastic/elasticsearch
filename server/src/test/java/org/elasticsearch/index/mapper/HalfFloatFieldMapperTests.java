@@ -15,7 +15,6 @@ import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Supplier;
 
 public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
 
@@ -42,7 +41,7 @@ public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
-    protected Supplier<Number> randomValueSupplier() {
+    protected Number randomNumber() {
         /*
          * The native valueFetcher returns 32 bits of precision but the
          * doc values fetcher returns 16 bits of precision. To make it
@@ -50,6 +49,6 @@ public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
          * is tracked in:
          * https://github.com/elastic/elasticsearch/issues/70260
          */
-        return () -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
+        return HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
     }
 }

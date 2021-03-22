@@ -12,12 +12,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 
@@ -63,15 +61,15 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     @Override
-    protected Supplier<Number> randomValueSupplier() {
+    protected Number randomNumber() {
         if (randomBoolean()) {
-            return ESTestCase::randomLong;
+            return randomLong();
         }
         if (randomBoolean()) {
-            return ESTestCase::randomDouble;
+            return randomDouble();
         }
         assumeFalse("https://github.com/elastic/elasticsearch/issues/70585", true);
-        return () -> randomDoubleBetween(Long.MIN_VALUE, Long.MAX_VALUE, true);
+        return randomDoubleBetween(Long.MIN_VALUE, Long.MAX_VALUE, true);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70585")

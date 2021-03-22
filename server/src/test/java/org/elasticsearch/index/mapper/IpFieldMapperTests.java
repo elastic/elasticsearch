@@ -23,7 +23,6 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -206,7 +205,7 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Supplier<? extends Object> randomFetchTestValueVendor(MappedFieldType ft) {
-        return () -> NetworkAddress.format(randomIp(randomBoolean()));
+    protected String generateRandomInputValue(MappedFieldType ft) {
+        return NetworkAddress.format(randomIp(randomBoolean()));
     }
 }

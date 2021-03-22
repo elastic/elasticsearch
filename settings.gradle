@@ -62,6 +62,7 @@ List projects = [
   'test:fixtures:old-elasticsearch',
   'test:fixtures:s3-fixture',
   'test:fixtures:geoip-fixture',
+  'test:fixtures:url-fixture',
   'test:logger-usage'
 ]
 

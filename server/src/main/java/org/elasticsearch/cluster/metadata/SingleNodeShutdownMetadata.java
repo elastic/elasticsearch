@@ -10,10 +10,12 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,20 +35,27 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField REASON_FIELD = new ParseField("reason");
     private static final ParseField STATUS_FIELD = new ParseField("status");
-    private static final ParseField STARTED_AT_FIELD = new ParseField("shutdown_started");
-    private static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField("shutdown_started_millis");
+    private static final String STARTED_AT_READABLE_FIELD = "shutdown_started";
+    private static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField(STARTED_AT_READABLE_FIELD + "millis");
+    private static final ParseField SHARD_MIGRATION_FIELD = new ParseField("shard_migration");
 
     public static final ConstructingObjectParser<SingleNodeShutdownMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "node_shutdown_info",
-        a -> new SingleNodeShutdownMetadata((String) a[0], (String) a[1], (String) a[2], (boolean) a[3], (long) a[4])
+        a -> new SingleNodeShutdownMetadata((String) a[0], (String) a[1], (String) a[2], Status.valueOf((String) a[3]), (long) a[4],
+            (ComponentShutdownStatus) a[5])
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NODE_ID_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REASON_FIELD);
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), STATUS_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), STATUS_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), STARTED_AT_MILLIS_FIELD);
+        PARSER.declareObject(
+            ConstructingObjectParser.constructorArg(),
+            (parser, context) -> ComponentShutdownStatus.parse(parser),
+            SHARD_MIGRATION_FIELD
+        );
     }
 
     public static SingleNodeShutdownMetadata parse(XContentParser parser) {
@@ -56,23 +65,28 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     private final String nodeId;
     private final String type;
     private final String reason;
-    private final boolean status; // GWB> Replace with an actual status object
+    private final Status status;
     private final long startedAtDate;
+    private final ComponentShutdownStatus shardMigrationStatus;
 
-    public SingleNodeShutdownMetadata(String nodeId, String type, String reason, boolean status, long startedAtDate) {
+
+    public SingleNodeShutdownMetadata(
+        String nodeId, String type, String reason, Status status, long startedAtDate, ComponentShutdownStatus shardMigrationStatus) {
         this.nodeId = Objects.requireNonNull(nodeId, "node ID must not be null");
         this.type = Objects.requireNonNull(type, "shutdown type must not be null");
         this.reason = Objects.requireNonNull(reason, "shutdown reason must not be null");
         this.status = status;
         this.startedAtDate = startedAtDate;
+        this.shardMigrationStatus = Objects.requireNonNull(shardMigrationStatus, "shard migration status must not be null");
     }
 
     public SingleNodeShutdownMetadata(StreamInput in) throws IOException {
         this.nodeId = in.readString();
         this.type = in.readString();
         this.reason = in.readString();
-        this.status = in.readBoolean();
+        this.status = in.readEnum(Status.class);
         this.startedAtDate = in.readVLong();
+        this.shardMigrationStatus = new ComponentShutdownStatus(in);
     }
 
     /**
@@ -97,9 +111,9 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     }
 
     /**
-     * @return True if this node is ready to shut down, false otherwise.
+     * @return The status of this node's shutdown.
      */
-    public boolean isStatus() {
+    public Status isStatus() {
         return status;
     }
 
@@ -115,8 +129,9 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         out.writeString(nodeId);
         out.writeString(type);
         out.writeString(reason);
-        out.writeBoolean(status);
+        out.writeEnum(status);
         out.writeVLong(startedAtDate);
+        shardMigrationStatus.writeTo(out);
     }
 
     @Override
@@ -127,7 +142,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             builder.field(TYPE_FIELD.getPreferredName(), type);
             builder.field(REASON_FIELD.getPreferredName(), reason);
             builder.field(STATUS_FIELD.getPreferredName(), status);
-            builder.timeField(STARTED_AT_MILLIS_FIELD.getPreferredName(), STARTED_AT_FIELD.getPreferredName(), startedAtDate);
+            builder.timeField(STARTED_AT_MILLIS_FIELD.getPreferredName(), STARTED_AT_READABLE_FIELD, startedAtDate);
+            builder.field(SHARD_MIGRATION_FIELD.getPreferredName(), shardMigrationStatus);
         }
         builder.endObject();
 
@@ -149,5 +165,104 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     @Override
     public int hashCode() {
         return Objects.hash(getNodeId(), getType(), getReason(), isStatus(), getStartedAtDate());
+    }
+
+    public enum Type {
+        REMOVE,
+        RESTART
+    }
+
+    public enum Status {
+        NOT_STARTED,
+        IN_PROGRESS,
+        STALLED,
+        COMPLETE
+    }
+
+    public static class ComponentShutdownStatus extends AbstractDiffable<ComponentShutdownStatus> implements ToXContentFragment {
+        private final Status status;
+        @Nullable private final Long startedAtDate;
+        @Nullable private final String errorMessage;
+
+        private static final ParseField STATUS_FIELD = new ParseField("status");
+
+        private static final ParseField TIME_STARTED_FIELD = new ParseField("time_started_millis");
+        private static final ParseField ERROR_FIELD = new ParseField("error");
+        private static final ConstructingObjectParser<ComponentShutdownStatus, Void> PARSER = new ConstructingObjectParser<>(
+            "node_shutdown_component",
+            a -> new ComponentShutdownStatus(Status.valueOf((String) a[0]), (Long) a[1], (String) a[2])
+        );
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), STATUS_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), TIME_STARTED_FIELD);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ERROR_FIELD);
+        }
+
+        public static ComponentShutdownStatus parse(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
+
+        public ComponentShutdownStatus(Status status, Long startedAtDate, String errorMessage) {
+            this.status = status;
+            this.startedAtDate = startedAtDate;
+            this.errorMessage = errorMessage;
+        }
+
+        public ComponentShutdownStatus(StreamInput in) throws IOException {
+            this.status = in.readEnum(Status.class);
+            this.startedAtDate = in.readOptionalVLong();
+            this.errorMessage = in.readOptionalString();
+        }
+
+        public Status getStatus() {
+            return status;
+        }
+
+        public Long getStartedAtDate() {
+            return startedAtDate;
+        }
+
+        public String getErrorMessage() {
+            return errorMessage;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                builder.field(STATUS_FIELD.getPreferredName(), status);
+                if (startedAtDate != null) {
+                    builder.timeField(TIME_STARTED_FIELD.getPreferredName(), "time_started", startedAtDate);
+                }
+                if (errorMessage != null) {
+                    builder.field(ERROR_FIELD.getPreferredName(), errorMessage);
+                }
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeEnum(status);
+            out.writeOptionalVLong(startedAtDate);
+            out.writeOptionalString(errorMessage);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if ((o instanceof ComponentShutdownStatus) == false) return false;
+            ComponentShutdownStatus that = (ComponentShutdownStatus) o;
+            return getStatus() == that.getStatus()
+                && Objects.equals(getStartedAtDate(), that.getStartedAtDate())
+                && Objects.equals(getErrorMessage(), that.getErrorMessage());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getStatus(), getStartedAtDate(), getErrorMessage());
+        }
     }
 }

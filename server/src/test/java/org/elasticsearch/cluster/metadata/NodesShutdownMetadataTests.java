@@ -14,6 +14,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -47,8 +49,21 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),
-            randomBoolean(),
-            randomNonNegativeLong()
+            randomStatus(),
+            randomNonNegativeLong(),
+            randomComponentStatus()
+        );
+    }
+
+    private SingleNodeShutdownMetadata.Status randomStatus() {
+        return randomFrom(new ArrayList<>(EnumSet.allOf(SingleNodeShutdownMetadata.Status.class)));
+    }
+
+    private SingleNodeShutdownMetadata.ComponentShutdownStatus randomComponentStatus() {
+        return new SingleNodeShutdownMetadata.ComponentShutdownStatus(
+            randomStatus(),
+            randomBoolean() ? null : randomNonNegativeLong(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(4, 10)
         );
     }
 

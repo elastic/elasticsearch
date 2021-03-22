@@ -1,0 +1,303 @@
+[[release-notes-7.12.0]]
+== {es} version 7.12.0
+
+coming[7.12.0]
+
+Also see <<breaking-changes-7.12,Breaking changes in 7.12>>.
+
+[[breaking-7.12.0]]
+[float]
+=== Breaking changes
+
+Mapping::
+* Returning nested data in fields API {es-pull}67432[#67432] (issue: {es-issue}63709[#63709])
+
+Query Languages::
+* Fields API implementation in QL {es-pull}68802[#68802] (issue: {es-issue}67727[#67727])
+
+SQL::
+* Test and fix the NULL handling of the string functions {es-pull}68379[#68379] (issue: {es-issue}58907[#58907])
+
+
+
+[[breaking-java-7.12.0]]
+[float]
+=== Breaking Java changes
+
+Features/Java High Level REST Client::
+* Move find file structure finder in REST High Level client to its new endpoint and plugin {es-pull}67290[#67290]
+
+
+
+[[deprecation-7.12.0]]
+[float]
+=== Deprecations
+
+Distributed::
+* Warn of change of default of `wait_for_active_shards` {es-pull}67527[#67527] (issues: {es-issue}66419[#66419], {es-issue}67158[#67158], {es-issue}67246[#67246], {es-issue}67498[#67498])
+
+Infra/Core::
+* Add deprecation warning for removed `strict_duplicate_detection` setting {es-pull}63500[#63500] (issues: {es-issue}34588[#34588], {es-issue}60222[#60222])
+
+Geo::
+* Deprecate `GeoPolygon` query in favour of `GeoShape` query {es-pull}64227[#64227] (issue: {es-issue}48928[#48928])
+
+Machine Learning::
+* Add deprecation check for job model snapshots that need upgrade {es-pull}66062[#66062] (issue: {es-issue}64154[#64154])
+
+Security::
+* Deprecate the `id` field for the `InvalidateApiKey` API {es-pull}66317[#66317] (issue: {es-issue}63224[#63224])
+
+
+
+[[feature-7.12.0]]
+[float]
+=== New features
+
+Authorization::
+* Add a cluster privilege to cancel tasks and delete async searches {es-pull}68679[#68679] (issue: {es-issue}67965[#67965])
+
+EQL::
+* Introduce ~ grammar for case-insensitive functions {es-pull}67869[#67869] (issue: {es-issue}67868[#67868])
+* Introduce `like` and `regex` keywords {es-pull}68791[#68791] (issue: {es-issue}68639[#68639])
+
+Features/ILM+SLM::
+* Add support for partial searchable snapshots to ILM {es-pull}68714[#68714] (issues: {es-issue}68509[#68509], {es-issue}68605[#68605])
+* Add the frozen tier node role and ILM phase {es-pull}68605[#68605] (issue: {es-issue}60848[#60848])
+* Support `max_single_primary_size` in resize action and expose in ILM {es-pull}67705[#67705] (issue: {es-issue}65714[#65714])
+
+Features/Ingest::
+* Fingerprint ingest processor {es-pull}68415[#68415] (issue: {es-issue}53578[#53578])
+* Network `community_id` processor for ingest pipelines {es-pull}66534[#66534] (issue: {es-issue}55685[#55685])
+* Network direction processor {es-pull}66644[#66644]
+
+Query Languages::
+* Implement support for `date_nanos` {es} field type {es-pull}67666[#67666] (issue: {es-issue}38562[#38562])
+
+SQL::
+* Implement `TO_CHAR()` function {es-pull}66486[#66486] (issue: {es-issue}54964[#54964])
+
+Search::
+* Add minimum compatibility version to `SearchRequest` {es-pull}65896[#65896] (issue: {es-issue}63304[#63304])
+* Sort field tiebreaker for point in time (PIT) readers {es-pull}66093[#66093] (issue: {es-issue}56828[#56828])
+
+Snapshot/Restore::
+* Add partial searchable snapshot support for a frozen tier {es-pull}68509[#68509]
+
+
+
+[[enhancement-7.12.0]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Add `multi_terms` aggs {es-pull}67597[#67597] (issue: {es-issue}65623[#65623])
+* Lower contention on requests with many aggs {es-pull}66895[#66895] (issue: {es-issue}58647[#58647])
+
+Allocation::
+* Drop `gateway.recover_after_nodes` from default conf {es-pull}68000[#68000] (issue: {es-issue}53646[#53646])
+* Make `InternalClusterInfoService` async {es-pull}66993[#66993]
+
+Authentication::
+* Add grant-api-key to HLRC {es-pull}68190[#68190]
+
+Authorization::
+* Add more context to cluster access denied messages {es-pull}66900[#66900] (issues: {es-issue}42166[#42166], {es-issue}60357[#60357])
+* Add more context to index access denied errors {es-pull}60357[#60357] (issue: {es-issue}42166[#42166])
+* Allow Kibana to create Fleet Server indices {es-pull}68152[#68152]
+* Phase 2 support for operator privileges: Cluster settings {es-pull}66684[#66684]
+* `view_index_metadata` and `manage` privs now grant access to field capabilities {es-pull}67392[#67392] (issue: {es-issue}66867[#66867])
+
+Cluster Coordination::
+* Clarify message emitted on cluster UUID mismatch {es-pull}66915[#66915]
+* Extend default probe connect/handshake timeouts {es-pull}68059[#68059] (issue: {es-issue}42636[#42636])
+* Skip cluster state serialization to closed channel {es-pull}67413[#67413]
+
+EQL::
+* Add `result_position` to correctness test {es-pull}66761[#66761]
+* Introduce EQL search status API {es-pull}68065[#68065] (issue: {es-issue}66955[#66955])
+
+Engine::
+* Assign id to searcher using ids of segments {es-pull}66668[#66668] (issue: {es-issue}63963[#63963])
+* Use merging fieldsreader when restoring versionmap during recovery {es-pull}66944[#66944]
+
+Features/ILM+SLM::
+* Make the rest of the forcemerge action steps retryable {es-pull}66352[#66352] (issue: {es-issue}48183[#48183])
+* Make the unfollow action and CCR related steps retryable {es-pull}66356[#66356] (issue: {es-issue}48183[#48183])
+* Skip unfollow action if the index is not a follower {es-pull}68690[#68690]
+
+Features/Indices APIs::
+* Add `max_single_primary_size` as a condition for the rollover index API {es-pull}67842[#67842] (issue: {es-issue}63026[#63026])
+* Make template conflict warning deterministic {es-pull}67066[#67066] (issue: {es-issue}66820[#66820])
+
+Features/Ingest::
+* Configurable MIME type for mustache template encoding on set processor {es-pull}65314[#65314] (issue: {es-issue}65115[#65115])
+
+Features/Java High Level REST Client::
+* Added support for passing http query parameters {es-pull}67802[#67802] (issue: {es-issue}53846[#53846])
+
+Features/Java Low Level REST Client::
+* Add client metadata header on `RestClient` requests {es-pull}66303[#66303] (issue: {es-issue}66189[#66189])
+
+Features/Stats::
+* Add processor architectures to cluster stats {es-pull}68264[#68264]
+* Make `GET _cluster/stats` cancellable {es-pull}68676[#68676] (issue: {es-issue}55550[#55550])
+
+Geo::
+* Add support for Spatial Relationships to `geo_point` field {es-pull}67631[#67631] (issue: {es-issue}52382[#52382])
+* Implement `IndexOrDocValuesQuery` for `geo_shape` field {es-pull}64688[#64688]
+
+Highlighting::
+* Add query param to limit highlighting to specified length {es-pull}67325[#67325] (issue: {es-issue}52155[#52155])
+
+Infra/Core::
+* Clarify bootstrap check failure messages {es-pull}67501[#67501]
+* Introduce "Feature States" for managing snapshots of system indices {es-pull}63513[#63513] (issue: {es-issue}61657[#61657])
+
+Infra/Logging::
+* Align JSON logs better with ECS {es-pull}67266[#67266]
+* Introduce deprecation categories {es-pull}67443[#67443] (issues: {es-issue}64824[#64824], {es-issue}67266[#67266])
+
+Infra/Plugins::
+* Notify users to restart Elasticsearch after plugin installation {es-pull}66723[#66723] (issue: {es-issue}39487[#39487])
+
+Infra/Scripting::
+* Add OSS whitelist to execute API {es-pull}67038[#67038] (issue: {es-issue}67035[#67035])
+* Capture structured javadoc from stdlib {es-pull}68782[#68782]
+* Enforce GPLv2 for parsed stdlib docs {es-pull}68601[#68601]
+* Improve bad regex pattern syntax error {es-pull}68520[#68520]
+* Parse stdlib files for parameter names {es-pull}67837[#67837]
+* Whitelist JSON functions for ingest {es-pull}67118[#67118]
+
+Infra/Settings::
+* Add enumsetting to `org.elasticsearch.common.settings.Setting` {es-pull}66826[#66826] (issue: {es-issue}65335[#65335])
+* Support removing archived settings if cluster has read only blocks {es-pull}64113[#64113]
+
+License::
+* Remove grace period from license expiration check {es-pull}67316[#67316]
+
+Machine Learning::
+* Add new multi custom processor for data frame analytics and model inference {es-pull}67362[#67362]
+* Allow data frame analytics memory estimation on non-ML nodes {es-pull}68146[#68146] (issue: {es-issue}67840[#67840])
+* Automatic management for machine learning system indices {es-pull}68044[#68044]
+* Expand regression and classification hyperparameters {es-pull}67950[#67950]
+* Improve resuming a data frame analytics job stopped during inference {es-pull}67623[#67623]
+* Move find file structure to a new API endpoint {es-pull}67123[#67123] (issue: {es-issue}67001[#67001])
+* Preserve inference progress when starting data frame analytics {es-pull}68222[#68222]
+* Write notification messages indicating required capacity when a job is not assigned to a node {es-pull}67181[#67181]
+* Fix edge case which could cause spurious anomalies early in the learning process if the time series has non-diurnal seasonality {ml-pull}1634[#1634]
+* Compute importance of hyperparameters optimized in the fine parameter tuning step {ml-pull}1627[#1627]
+* Early stopping for the fine parameter tuning step of classification and regression model training {ml-pull}1676[#1676]
+* Correct upgrade for pre-6.3 state for lat_long anomaly anomaly detectors {ml-pull}1681[#1681]
+* Per tree feature bag to speed up training of regression and classification models and improve scalability for large numbers of features {ml-pull}1733[#1733]
+
+Mapping::
+* Shortcut to avoid fmod {es-pull}66909[#66909]
+
+Packaging::
+* Tweaks to the Iron Bank docker context {es-pull}66942[#66942]
+
+Performance::
+* Add benchmark racing scripts {es-pull}68369[#68369]
+
+Query Languages::
+* Adapt nested fields extraction from fields API output to the new un-flattened structure {es-pull}68745[#68745] (issue: {es-issue}68722[#68722])
+* Simplify arithmetic operations in binary comps {es-pull}66022[#66022] (issue: {es-issue}65394[#65394])
+
+Ranking::
+* Add linear function to `rank_feature` query {es-pull}67438[#67438] (issue: {es-issue}49859[#49859])
+
+Rollup::
+* Remove the rollup thread pool {es-pull}65958[#65958]
+
+SQL::
+* Enhance error message on filtering check against aggs {es-pull}68763[#68763] (issue: {es-issue}57125[#57125])
+
+Search::
+* Add grok and dissect methods to runtime fields {es-pull}68088[#68088] (issue: {es-issue}67825[#67825])
+* Allow deletion of async searches with the manage privilege {es-pull}67965[#67965]
+* Avoid duplicate serialization for `TermsQueryBuilder` {es-pull}67223[#67223] (issue: {es-issue}67132[#67132])
+* Early detection of circuit breaker exception in the coordinating node {es-pull}67431[#67431] (issue: {es-issue}62884[#62884])
+* Limit the depth of nested bool queries {es-pull}66204[#66204] (issue: {es-issue}55303[#55303])
+* Remove unnecessary optimizations for `TermsSetQueryBuilder` {es-pull}67637[#67637] (issue: {es-issue}67223[#67223])
+* Retry point in time on other copy when possible {es-pull}66713[#66713] (issue: {es-issue}61062[#61062])
+* Slightly speed up scripts {es-pull}68478[#68478]
+* Use a mapping snapshot for fetching nested docs {es-pull}66877[#66877] (issue: {es-issue}66295[#66295])
+
+Security::
+* Build complex automatons more efficiently {es-pull}66724[#66724] (issue: {es-issue}36062[#36062])
+
+Snapshot/Restore::
+* Add ClusterUUID to `RepositoryData` {es-pull}68002[#68002]
+* Allow searchable snapshots to work on source-only repositories {es-pull}67975[#67975] (issue: {es-issue}67936[#67936])
+* Avoid async cache-size fetch on partial shards {es-pull}68644[#68644]
+* Forbid removing write block from searchable snapshot index {es-pull}68036[#68036]
+* Ignore disk watermarks on partial shards {es-pull}68673[#68673]
+* Improve error message on incompatible repo format {es-pull}67776[#67776]
+* Introduce repository UUIDs {es-pull}67829[#67829] (issue: {es-issue}66431[#66431])
+* Introduce repository test kit/analyser {es-pull}67247[#67247]
+* Permit rename of repository of searchable snapshot {es-pull}67968[#67968] (issue: {es-issue}66431[#66431])
+* Reject remounting snapshot of a searchable snapshot {es-pull}68816[#68816] (issue: {es-issue}68792[#68792])
+
+Task Management::
+* Remove parent-task bans on channels disconnect {es-pull}66066[#66066] (issues: {es-issue}56620[#56620], {es-issue}65443[#65443])
+
+Transform::
+* Add support for search-time runtime fields {es-pull}67643[#67643] (issue: {es-issue}65147[#65147])
+* Automatic management for transform system indices {es-pull}68590[#68590]
+* Implement retention policy to delete data from a transform {es-pull}67832[#67832] (issue: {es-issue}67916[#67916])
+* Refactor cat transform to show more useful information {es-pull}68232[#68232] (issues: {es-issue}66367[#66367], {es-issue}66718[#66718])
+* Report last search time in transform stats {es-pull}66718[#66718] (issues: {es-issue}66367[#66367], {es-issue}66410[#66410], {es-issue}66718[#66718])
+
+
+
+[[bug-7.12.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Remove `toString->parse` roundtrip for missing value in terms agg {es-pull}67954[#67954] (issue: {es-issue}67197[#67197])
+
+Engine::
+* Fail force-merges on read-only engines {es-pull}64756[#64756]
+
+Features/Features::
+* Prevent unnecessary system index access warnings in Deprecation Info API {es-pull}67312[#67312] (issue: {es-issue}66063[#66063])
+
+Features/ILM+SLM::
+* Avoid exception in in `SetStepInfoUpdateTask#onFailure` {es-pull}67553[#67553]
+* Fix issues with CS Handling in ILM async steps {es-pull}68361[#68361]
+
+Features/Java Low Level REST Client::
+* Fix wrong `totalIterationCount` when running `BulkIndexBenchmark` {es-pull}64515[#64515] (issue: {es-issue}61451[#61451])
+
+Features/Monitoring::
+* Move monitoring collection timeouts to coordinator {es-pull}67084[#67084] (issues: {es-issue}60188[#60188], {es-issue}66993[#66993])
+
+Geo::
+* Fix indexing of degenerated rectangles {es-pull}67702[#67702] (issue: {es-issue}67695[#67695])
+
+Infra/Core::
+* Allow the `*,-*` ("no-index") pattern for destructive actions when `destructive_requires_name` is true {es-pull}68021[#68021] (issue: {es-issue}67958[#67958])
+
+Infra/Scripting::
+* Augmentation.join can't handle empty strings at the start {es-pull}68251[#68251] (issue: {es-issue}33434[#33434])
+
+Machine Learning::
+* Make `find_structure` validate `lines_to_sample` at least 2 {es-pull}68199[#68199] (issue: {es-issue}68128[#68128])
+* Return 400 status for invalid charset in `find_structure` {es-pull}68201[#68201] (issue: {es-issue}68130[#68130])
+* Return status 400 for `grok_pattern` errors in `find_structure` {es-pull}68205[#68205] (issue: {es-issue}68132[#68132])
+* Fix a source of instability in time series modeling for anomaly detection. This has been observed to cause spurious anomalies for a partition which no longer receives any data {ml-pull}1675[#1675]
+* Ensure that we stop modeling seasonality for data which flatlines. This is important for count and sum detectors which treat empty buckets as zero. Before this change, we could sometimes detect spurious anomalies in realtime detection after a partition no longer received any data {ml-pull}1654[#1654]
+
+SQL::
+* Fix `ZonedDateTime` with nanos serialisation {es-pull}68253[#68253] (issue: {es-issue}67666[#67666])
+
+Search::
+* Handle ignored fields directly in `SourceValueFetcher` {es-pull}68738[#68738]
+
+Snapshot/Restore::
+* Make `RepositoryData` Parsing Stricter {es-pull}67699[#67699] (issue: {es-issue}67696[#67696])
+
+
+

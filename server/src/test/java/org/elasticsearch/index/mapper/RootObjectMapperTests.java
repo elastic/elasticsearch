@@ -711,7 +711,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         Version notAllowedVersion = randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0));
         MapperParsingException error = expectThrows(MapperParsingException.class, () -> createMapperService(notAllowedVersion, mapping));
         assertThat(error.getMessage(),
-            containsString("template [geo_point does not have [match] not [path_match] or [match_mapping_type] defined"));
+            containsString("template [geo_point does not have [match] nor [path_match] nor [match_mapping_type] defined"));
         Version allowedVersion = randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
         MapperService mapperService = createMapperService(allowedVersion, mapping);
         ParsedDocument doc = mapperService.documentMapper().parse(new SourceToParse("test", "1",

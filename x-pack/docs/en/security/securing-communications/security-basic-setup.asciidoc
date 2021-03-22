@@ -43,7 +43,7 @@ For the transport layer, we recommend using a separate, dedicated CA instead
 of an existing, possibly shared CA so that node membership is tightly controlled. Use the `elasticsearch-certutil` tool to
 generate a CA for your cluster.
 
-NOTE: If you're running a multi-node cluster, jump to
+NOTE: To generate certificates for a multi-node cluster, jump to
 <<multi-node-certs,Generate certificates for a multi-node cluster>> and use
 that method of generating a CA and certificates.
 
@@ -169,8 +169,8 @@ cluster.name: my-cluster
 ----
 
 b. Add the `node.name` setting and enter the name of the certificate that
-you generated for this node. The value must match the certificate name that
-you defined in your `certificates.yaml` file:
+you generated for this node. For simplicity, it's good practice for this value
+to match the certificate name that you defined in your `certificates.yaml` file:
 +
 [source,yaml]
 ----
@@ -205,11 +205,10 @@ xpack.security.transport.ssl.truststore.path: <node-name>.p12
 
 .  Complete the previous steps for each node in your cluster.
 
-.  Restart {es}. The method for starting and stopping {es}
-varies depending on how you installed it.
+.  Restart {es}. The method for <<starting-elasticsearch,starting>> and <<starting-elasticsearch,stopping>> {es} varies depending on how you installed it.
 +
 For example, if you installed {es} with an archive distribution
-(`tar.gz` or `.zip`), enter `Ctrl+C` on the command line to stop
+(`tar.gz` or `.zip`), you can enter `Ctrl+C` on the command line to stop
 {es}.
 +
 WARNING: You must perform a full cluster restart. Nodes that are configured to

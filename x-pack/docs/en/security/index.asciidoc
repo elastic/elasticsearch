@@ -9,10 +9,12 @@ nodes that form the cluster, plus {ls} instances, {kib} instances, {beats}
 agents, and clients all communicating with the cluster.
 
 <<configuring-stack-security,Configure security for the Elastic Stack>> to
-secure {es} clusters and any clients that communicate with it. You can password
-protect your data as well as implement more advanced security measures such as
-encrypting communications, role-based access control, IP filtering, and
-auditing.
+secure {es} clusters and any clients that communicate with your clusters. You
+can password protect access to your data as well as enable more advanced
+security by configuring Transport Layer Security (TLS). This additional layer
+provides confidentiality and integrity protection to your communications with
+the Elastic Stack. You can also implement additional security measures, such as
+role-based access control, IP filtering, and auditing.
 
 Enabling security protects {es} clusters by:
 
@@ -42,8 +44,8 @@ organization, the {security-features} integrate with those systems to perform
 user authentication.
 
 In many cases, authenticating users isn't enough. You also need a way to
-control what data users can access and what tasks they can perform. By enabling the
-{es-security-features}, you can _authorize_ users by assigning access
+control what data users can access and what tasks they can perform. By enabling
+the {es-security-features}, you can _authorize_ users by assigning access
 privileges to roles and assigning those roles to users. Using this role-based
 access control mechanism (RBAC), you can limit the user `kandorra` to only
 perform read operations on the `events` index restrict access to all other
@@ -59,14 +61,15 @@ See <<setting-up-authentication,User authentication>> and
 
 [discrete]
 [[preserving-data-integrity]]
-== Preserving data integrity
+== Preserving data integrity and confidentiality
 
 A critical part of security is keeping confidential data secured.
 {es} has built-in protections against accidental data loss and
 corruption. However, there's nothing to stop deliberate tampering or data
-interception. The {stack-security-features} preserve the integrity of your
-data by encrypting communications to, from, and within the cluster. For even	greater protection, you can increase the
-<<ciphers,encryption strength>>.
+interception. The {stack-security-features} use TLS to preserve the _integrity_
+of your data against tampering, while also providing _confidentiality_ by
+encrypting communications to, from, and within the cluster. For even	greater
+protection, you can increase the <<ciphers,encryption strength>>.
 
 See <<configuring-stack-security,Configure security for the Elastic Stack>>.
 

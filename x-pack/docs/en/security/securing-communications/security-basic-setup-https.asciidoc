@@ -26,10 +26,10 @@ certificates with a central CA.
 ===== Sign your own certificates
 
 If you want to use the CA that you created when
-<<generate-certificates,Generating the certificate authority>> answer `n` to
-the first question. You then specify the location of your CA, which the tool
-uses to sign and generate a `.p12` certificate. The steps in this procedure
-follow this workflow.
+<<generate-certificates,Generating the certificate authority>> answer `n` when
+asked if you want to generate a CSR. You then specify the location of your CA,
+which the tool uses to sign and generate a `.p12` certificate. The steps in
+this procedure follow this workflow.
 
 [discrete]
 ===== Sign certificates with a central CA
@@ -82,7 +82,7 @@ explaining how to use these files.
 Each certificate will have its own private key, and will be issued for a
 specific hostname or IP address.
 
-   g. When prompted, enter the name of the first node in your cluster. Use the same node name from previous steps.
+   g. When prompted, enter the name of the first node in your cluster. Use the same node name that you used when <<generate-certificates,generating node certificates>>.
 
    h. Enter all hostnames used to connect to your first node. These hostnames
    will be added as DNS names in the Subject Alternative Name (SAN) field in your certificate.
@@ -128,14 +128,14 @@ xpack.security.http.ssl.enabled: true
 xpack.security.http.ssl.keystore.path: http.p12
 ----
 
-. Add the password for your private key to a secure setting in {es}.
+. Add the password for your private key to the secure settings in {es}.
 +
 [source,shell]
 ----
 ./bin/elasticsearch-keystore add xpack.security.http.ssl.keystore.secure_password
 ----
 
-. Restart {es}.
+. Start {es}.
 
 **Next**: <<encrypt-kibana-http,Encrypt HTTP client communications for {kib}>>
 
@@ -181,8 +181,11 @@ elasticsearch.hosts: https://<your_elasticsearch_host>.com:9200
 If the Elastic monitoring features are enabled and you configured a separate
 {es} monitoring cluster, you can also configure {kib} to connect to
 the monitoring cluster via HTTPS. The steps are the same, but each setting is
-prefixed by `monitoring`. For example, `monitoring.ui.elasticsearch.hosts`,
-`monitoring.ui.elasticsearch.ssl.truststore.path`, etc.
+prefixed by `monitoring`. For example, `monitoring.ui.elasticsearch.hosts` and
+`monitoring.ui.elasticsearch.ssl.truststore.path`.
+
+NOTE: You must create a separate `elasticsearch-ca.pem` security file for the
+monitoring cluster.
 ****
 
 **Next**: <<encrypt-kibana-browser,Encrypt traffic between your browser and {kib}>>
@@ -195,11 +198,10 @@ server certificate and corresponding private key when receiving connections
 from web browsers.
 
 When you obtain a server certificate, you must set its subject alternative
-name (SAN) correctly to ensure that browsers with hostname verification will
-trust it. You can set one or more SANs to the {kib} server’s fully-qualified
-domain name (FQDN), hostname, or IP address. When choosing the SAN, pick
-whichever attribute you'll use to connect to {kib} in your browser, which is
-likely the FQDN.
+name (SAN) correctly to ensure that browsers will trust it. You can set one or
+more SANs to the {kib} server’s fully-qualified domain name (FQDN), hostname,
+or IP address. When choosing the SAN, pick whichever attribute you'll use to
+connect to {kib} in your browser, which is likely the FQDN.
 
 The following instructions create a Certificate Signing Request (CSR) for {kib}.
 A CSR contains information that a CA uses to generate and sign a security
@@ -234,12 +236,9 @@ contents:
 . Unzip the `csr-bundle.zip` file to obtain the `kibana-server.csr` unsigned
 security certificate and the `kibana-server.key` unencrypted private key.
 
-. Send the `kibana-server.csr` unsigned security certificate to your internal
-CA or trusted CA for signing. The signed file should be a `.crt` file, such as
-`kibana-server.crt`.
-+
-IMPORTANT: You must send the `kibana-server.csr` file to your internal CA or
-trusted CA for signing to obtained a signed certificate.
+. Send the `kibana-server.csr` certificate signing request to your internal
+CA or trusted CA for signing to obtain a signed certificate. The signed file
+can be in different formats, such as a `.crt` file like `kibana-server.crt`.
 
 . Open `kibana.yml` and add the following lines to configure {kib} to access
 the server certificate and unencrypted private key.
@@ -263,7 +262,7 @@ connections.
 server.ssl.enabled: true
 ----
 
-. Restart {kib}.
+. Start {kib}.
 
 NOTE: After making these changes, you must always access {kib} via HTTPS. For
 example, `https://<your_kibana_host>.com`.
@@ -305,7 +304,7 @@ or **Users** from the side navigation.
 
 [discrete]
 [[beats-setup-role]]
-====== Create a setup role
+====== Create a setup role and user
 
 Administrators who set up {metricbeat} typically need to load mappings,
 dashboards, and other objects used to index data into {es} and visualize it in
@@ -349,7 +348,7 @@ list of indices.
 
 [discrete]
 [[beats-monitoring-role]]
-====== Create a monitoring role
+====== Create a monitoring role and user
 
 To send monitoring data securely, create a monitoring user and grant it the
 necessary privileges.
@@ -389,7 +388,7 @@ these instructions create a user that is explicitly used for monitoring
 
 [discrete]
 [[beats-writer-role]]
-====== Create a writer role
+====== Create a writer role and user
 
 Users who publish events to {es} need to create and write to {metricbeat} indices. To minimize the privileges required by the writer role, use the setup role to pre-load dependencies. This section assumes that you’ve
 <<beats-setup-role,created the setup role>>.
@@ -423,7 +422,7 @@ Users who publish events to {es} need to create and write to {metricbeat} indice
 
 [discrete]
 [[beats-reader-role]]
-====== Create a reader role
+====== Create a reader role and user
 
 {kib} users typically need to view dashboards and visualizations that contain
 {metricbeat} data. These users might also need to create and edit dashboards
@@ -474,7 +473,7 @@ using basic authentication, API key authentication, or Public Key
 Infrastructure (PKI) certificates.
 
 The following instructions use the credentials for the `metricbeat_writer`
-and `metricbeat_setup` roles that you created. If you need a greater level of
+and `metricbeat_setup` users that you created. If you need a greater level of
 security, we recommend using PKI certificates.
 
 After configuring connections to Elasticsearch and Kibana, you'll enable the
@@ -515,7 +514,7 @@ output.elasticsearch:
    This value must be `https`.
 
    `username`:: Name of the user with privileges required to publish events to
-   Elasticsearch. The `metricbeat_writer` role that you created has these
+   Elasticsearch. The `metricbeat_writer` user that you created has these
    privileges.
 
    `password`:: Password for the indicated `username`.
@@ -538,7 +537,7 @@ setup.kibana
    `hosts`:: The URLs of the Elasticsearch instances to use for all your
    queries. Ensure that you include `https` in the URL.
 
-   `username`:: Name of the user with privileges required to set up dashboards in Kibana. The `metricbeat_setup` role that you created has these privileges.
+   `username`:: Name of the user with privileges required to set up dashboards in Kibana. The `metricbeat_setup` user that you created has these privileges.
 
    `password`:: Password for the indicated `username`.
 
@@ -567,8 +566,8 @@ Open `/modules.d/elasticsearch-xpack.yml` and specify the following fields:
    Ensure that you include `https` in the URL.
 
    `username`:: Name of the user with privileges to collect metric data. The
-   built-in `remote_monitoring_user` role has these privileges. Alternatively,
-   you can create a user and assign it the `remote_monitoring_user` role.
+   built-in `monitoring_user` user has these privileges. Alternatively,
+   you can create a user and assign it the `monitoring_user` role.
 
    `password`:: Password for the indicated `username`.
 

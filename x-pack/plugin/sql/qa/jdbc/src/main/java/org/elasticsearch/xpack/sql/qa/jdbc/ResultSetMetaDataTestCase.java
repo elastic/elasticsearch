@@ -64,6 +64,8 @@ public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase 
                 typeName = typeName.equals("DATE") ? "DATETIME" : typeName;
                 typeName += "_ARRAY";
                 assertEquals(typeName, md.getColumnTypeName(i + 1));
+                // JdbcArray is not a public class
+                assertEquals("org.elasticsearch.xpack.sql.jdbc.JdbcArray", md.getColumnClassName(i + 1));
             }
         });
     }

@@ -139,7 +139,7 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        return TypeUtils.classOf(column(column).type).getName();
+        return column(column).isArray ? JdbcArray.class.getName() : TypeUtils.classOf(column(column).type).getName();
     }
 
     private void checkOpen() throws SQLException {

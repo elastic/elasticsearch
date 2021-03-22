@@ -284,8 +284,6 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                 + "  }"
                 + "}"
         );
-        System.out.println(expected);
-        System.out.println(xContent.utf8ToString());
         assertEquals(expected, xContent.utf8ToString());
     }
 

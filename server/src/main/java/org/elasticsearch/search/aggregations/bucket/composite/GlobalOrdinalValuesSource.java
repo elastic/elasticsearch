@@ -93,7 +93,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
             afterValue = null;
             afterValueGlobalOrd = -1L;
         } else if (value.getClass() == String.class || (missingBucket && fieldType == null)) {
-            // the value might be not string if we this field is missing in this shard but present in other shards
+            // the value might be not string if this field is missing in this shard but present in other shards
             // and doesn't have a string type
             afterValue = format.parseBytesRef(value.toString());
         } else {

@@ -90,7 +90,6 @@ public class SqlSearchIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70630")
     public void testAllTypesWithRequestToOldNodes() throws Exception {
         Map<String, Object> expectedResponse = prepareTestData(
             columns -> {
